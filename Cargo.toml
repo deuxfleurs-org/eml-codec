@@ -5,5 +5,14 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[lib]
+name = "imf_codec"
+path = "src/lib.rs"
+
+
+[[bin]]
+name = "imf_parse"
+path = "src/parse.rs"
+
 [dependencies]
 nom = "7"

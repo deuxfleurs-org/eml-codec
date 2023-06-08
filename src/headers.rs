@@ -124,7 +124,7 @@ fn unstructured(input: &str) -> IResult<&str, String> {
     let body = match r.as_slice() {
         [(None, content)] => content.to_string(),
         [(Some(ws), content)] => ws.to_string() + content,
-        lines => lines.iter().fold(String::with_capacity(255), |mut acc, item| {
+        lines => lines.iter().fold(String::with_capacity(255), |acc, item| {
             let (may_ws, content) = item;
             match may_ws {
                 Some(ws) => acc + ws + content,
