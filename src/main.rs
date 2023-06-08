@@ -1,3 +1,6 @@
+use std::collections::HashMap;
+use std::default::Default;
+
 use nom::{
     IResult, 
     branch::alt,
@@ -5,9 +8,11 @@ use nom::{
     character::complete::alphanumeric1,
     character::complete::crlf,
     character::complete::space0,
+    character::complete::space1,
     bytes::complete::tag,
     bytes::complete::take_while1,
     multi::many0,
+    multi::fold_many0,
     sequence::terminated,
     sequence::tuple,
 };
@@ -39,7 +44,7 @@ fn perm_crlf(input: &str) -> IResult<&str, &str> {
 fn fws(input: &str) -> IResult<&str, &str> {
     let (input, _) = opt(terminated(space0, perm_crlf))(input)?;
     // @FIXME: not implemented obs-FWS
-    space0(input)
+    space1(input)
 }
 
 /// Sequence of visible chars with the UTF-8 extension
@@ -55,35 +60,107 @@ fn vchar_seq(input: &str) -> IResult<&str, &str> {
 }
 
 //--------------- HEADERS
-/// Optional Fields
+/// Header section
 ///
-/// Fields may appear in messages that are otherwise unspecified in this
-/// document.  They MUST conform to the syntax of an optional-field.
-/// This is a field name, made up of the printable US-ASCII characters
-/// except SP and colon, followed by a colon, followed by any text that
-/// conforms to the unstructured syntax.
-///
-/// https://www.rfc-editor.org/rfc/rfc5322.html#section-3.6.8
-///
-/// ```abnf
-/// optional-field  =   field-name ":" unstructured CRLF
-/// field-name      =   1*ftext
-/// ftext           =   %d33-57 /          ; Printable US-ASCII
-///                     %d59-126           ;  characters not including
-///                                        ;  ":".
-/// ```
-#[derive(Debug, PartialEq)]
-pub struct OptionalField<'a> {
-    pub name: &'a str,
-    pub body: String,
+/// See: https://www.rfc-editor.org/rfc/rfc5322.html#section-2.2
+#[derive(Debug, Default)]
+pub struct HeaderSection<'a> {
+    pub subject: Option<String>,
+    pub from: Vec<String>,
+    pub optional: HashMap<&'a str, String>,
 }
 
-fn optional_field(input: &str) -> IResult<&str, OptionalField> {
-    let (input, name) = take_while1(|c| c >= '\x21' && c <= '\x7E' && c != '\x3A')(input)?;
-    let (input, _) = tag(":")(input)?;
-    let (input, body) = unstructured(input)?;
-    
-    Ok((input, OptionalField { name, body }))
+fn header_section(input: &str) -> IResult<&str, HeaderSection> {
+    fold_many0(
+        header_field,
+        HeaderSection::default,
+        |mut section, head| {
+            match head {
+                HeaderField::Subject(title) => {
+                    section.subject = Some(title);
+                }
+                HeaderField::Optional(name, body) => {
+                    section.optional.insert(name, body);
+                }
+                _ => unimplemented!(),
+            };
+            section
+        }
+    )(input)
+}
+
+enum HeaderField<'a> {
+    // 3.6.1.  The Origination Date Field
+    Date,
+
+    // 3.6.2.  Originator Fields
+    From,
+    Sender,
+    ReplyTo,
+
+    // 3.6.3.  Destination Address Fields
+    To,
+    Cc,
+    Bcc,
+
+    // 3.6.4.  Identification Fields
+    MessageID,
+    InReplyTo,
+    References,
+
+    // 3.6.5.  Informational Fields
+    Subject(String),
+    Comments(String),
+    Keywords(Vec<&'a str>),
+
+    // 3.6.6.  Resent Fields
+    ResentDate,
+    ResentFrom,
+    ResentSender,
+    ResentTo,
+    ResentCc,
+    ResentBcc,
+    ResentMessageID,
+
+    // 3.6.7.  Trace Fields
+    Trace,
+
+    // 3.6.8.  Optional Fields
+    Optional(&'a str, String)
+}
+
+/// Extract one header field
+///
+/// Derived grammar inspired by RFC5322 optional-field:
+/// 
+/// ```abnf
+/// field      =   field-name ":" unstructured CRLF
+/// field-name =   1*ftext
+/// ftext      =   %d33-57 /          ; Printable US-ASCII
+///                %d59-126           ;  characters not including
+///                                        ;  ":".
+/// ```
+fn header_field(input: &str) -> IResult<&str, HeaderField> {
+    // Extract field name
+    let (input, field_name) = take_while1(|c| c >= '\x21' && c <= '\x7E' && c != '\x3A')(input)?;
+    let (input, _) = tuple((tag(":"), space0))(input)?;
+
+    // Extract field body
+    match field_name {
+        "Date" => unimplemented!(),
+        //"From" => unimplemented!(),
+        "Sender" => unimplemented!(),
+        "Subject" => {
+            let (input, body) = unstructured(input)?;
+            let (input, _) = crlf(input)?;
+            Ok((input, HeaderField::Subject(body)))
+        },
+        _ => {
+            let (input, body) = unstructured(input)?;
+            let (input, _) = crlf(input)?;
+            Ok((input, HeaderField::Optional(field_name, body)))
+        }
+    }
 }
 
 /// Unstructured header field body
@@ -92,12 +169,26 @@ fn optional_field(input: &str) -> IResult<&str, OptionalField> {
 /// unstructured    =   (*([FWS] VCHAR_SEQ) *WSP) / obs-unstruct
 /// ```
 fn unstructured(input: &str) -> IResult<&str, String> {
-    let (input, _) = many0(tuple((opt(fws), vchar_seq)))(input)?;
+    let (input, r) = many0(tuple((opt(fws), vchar_seq)))(input)?;
     let (input, _) = space0(input)?;
-    Ok((input, "FIX ME".to_string()))
+
+    // Try to optimize for the most common cases
+    let body = match r.as_slice() {
+        [(None, content)] => content.to_string(),
+        [(Some(ws), content)] => ws.to_string() + content,
+        lines => lines.iter().fold(String::with_capacity(255), |mut acc, item| {
+            let (may_ws, content) = item;
+            match may_ws {
+                Some(ws) => acc + ws + content,
+                None => acc + content,
+            }
+        }),
+    };
+
+    Ok((input, body))
 }
 
 fn main() {
-    let header_fields = "Subject: Hello\r\n World\r\n";
-    println!("{:?}", optional_field(header_fields));
+    let header = "Subject: Hello\r\n World\r\nFrom: <quentin@deuxfleurs.fr>\r\n\r\n";
+    println!("{:?}", header_section(header));
 }
