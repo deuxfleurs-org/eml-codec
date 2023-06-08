@@ -10,7 +10,7 @@ use nom::{
     sequence::tuple,
 };
 
-use crate::abnf::{fws, vchar_seq};
+use crate::abnf::{fws, vchar_seq, perm_crlf};
 use crate::model::HeaderSection;
 
 /// HEADERS
@@ -19,7 +19,7 @@ use crate::model::HeaderSection;
 ///
 /// See: https://www.rfc-editor.org/rfc/rfc5322.html#section-2.2
 pub fn header_section(input: &str) -> IResult<&str, HeaderSection> {
-    fold_many0(
+    let (input, headers) = fold_many0(
         header_field,
         HeaderSection::default,
         |mut section, head| {
@@ -34,7 +34,10 @@ pub fn header_section(input: &str) -> IResult<&str, HeaderSection> {
             };
             section
         }
-    )(input)
+    )(input)?;
+    
+    let (input, _) = perm_crlf(input)?;
+    Ok((input, headers))
 }
 
 enum HeaderField<'a> {
