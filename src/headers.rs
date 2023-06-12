@@ -11,7 +11,7 @@ use nom::{
     sequence::tuple,
 };
 
-use crate::tokens::{fws, vchar_seq, perm_crlf};
+use crate::tokens::{fws, vchar_seq, perm_crlf, unstructured};
 use crate::model::{PermissiveHeaderSection, HeaderDate, MailboxRef};
 
 /// HEADERS
@@ -122,31 +122,6 @@ fn header_field(input: &str) -> IResult<&str, HeaderField> {
     // Drop EOL
     let (input, _) = crlf(input)?;
     return Ok((input, hfield));
-}
-
-/// Unstructured header field body
-///
-/// ```abnf
-/// unstructured    =   (*([FWS] VCHAR_SEQ) *WSP) / obs-unstruct
-/// ```
-fn unstructured(input: &str) -> IResult<&str, String> {
-    let (input, r) = many0(tuple((opt(fws), vchar_seq)))(input)?;
-    let (input, _) = space0(input)?;
-
-    // Try to optimize for the most common cases
-    let body = match r.as_slice() {
-        [(None, content)] => content.to_string(),
-        [(Some(_), content)] => " ".to_string() + content,
-        lines => lines.iter().fold(String::with_capacity(255), |acc, item| {
-            let (may_ws, content) = item;
-            match may_ws {
-                Some(_) => acc + " " + content,
-                None => acc + content,
-            }
-        }),
-    };
-
-    Ok((input, body))
 }
 
 fn datetime(input: &str) -> IResult<&str, HeaderField> {
