@@ -5,7 +5,7 @@ use nom::{
     character::complete::{crlf, satisfy, space0, space1},
     combinator::{recognize, opt},
     multi::{many0, many1},
-    sequence::{preceded, terminated, tuple},
+    sequence::{delimited, pair, preceded, terminated, tuple},
 };
 
 /// Lexical tokens
@@ -68,7 +68,7 @@ fn fold_marker(input: &str) -> IResult<&str, &str> {
 ///   CFWS            =   (1*([FWS] comment) [FWS]) / FWS
 /// ```
 pub fn cfws(input: &str) -> IResult<&str, &str> {
-    alt((perm_fws, recognize(comments)))(input)
+    alt((recognize(comments), perm_fws))(input)
 }
 
 pub fn comments(input: &str) -> IResult<&str, ()> {
@@ -122,10 +122,35 @@ pub fn vchar_seq(input: &str) -> IResult<&str, &str> {
    take_while1(is_vchar)(input)
 }
 
+fn is_atext(c: char) -> bool {
+    c.is_ascii_alphanumeric() || "!#$%&'*+-/=?^_`{|}~".contains(c)
+}
+
+/// atom
+///
+/// `[CFWS] 1*atext [CFWS]`
+fn atom(input: &str) -> IResult<&str, &str> {
+    delimited(opt(cfws), take_while1(is_atext), opt(cfws))(input)
+}
+
+/// dot-atom-text
+///
+/// `1*atext *("." 1*atext)`
+fn dot_atom_text(input: &str) -> IResult<&str, &str> {
+    recognize(pair(take_while1(is_atext), many0(pair(tag("."), take_while1(is_atext)))))(input)
+}
+
+/// dot-atom
+///
+/// `[CFWS] dot-atom-text [CFWS]`
+fn dot_atom(input: &str) -> IResult<&str, &str> {
+    delimited(opt(cfws), dot_atom_text, opt(cfws))(input)
+}
+
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use nom;
 
     #[test]
     fn test_vchar_seq() {
@@ -151,5 +176,31 @@ mod tests {
     #[test]
     fn test_cfws() {
         assert_eq!(cfws("(A nice \\) chap) <pete(his account)@silly.test(his host)>"), Ok(("<pete(his account)@silly.test(his host)>", "(A nice \\) chap) ")));
+        assert_eq!(cfws("(Chris's host.)public.example>,"), Ok(("public.example>,", "(Chris's host.)")));
+        assert_eq!(cfws("(double (comment) is fun) wouch"), Ok(("wouch", "(double (comment) is fun) ")));
+    }
+
+    #[test]
+    fn test_atext() {
+        assert!(is_atext('='));
+        assert!(is_atext('5'));
+        assert!(is_atext('Q'));
+        assert!(!is_atext(' '));
+        assert!(!is_atext('É'));
+    }
+
+    #[test]
+    fn test_atom() {
+        assert_eq!(atom("(skip)  imf_codec (hidden) aerogramme"), Ok(("aerogramme", "imf_codec")));
+    }
+
+    #[test]
+    fn test_dot_atom_text() {
+        assert_eq!(dot_atom_text("quentin.dufour.io abcdef"), Ok((" abcdef", "quentin.dufour.io")));
+    }
+
+    #[test]
+    fn test_dot_atom() {
+        assert_eq!(dot_atom("   (skip) quentin.dufour.io abcdef"), Ok(("abcdef", "quentin.dufour.io")));
     }
 }
