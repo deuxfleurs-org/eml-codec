@@ -11,7 +11,9 @@ use nom::{
     sequence::tuple,
 };
 
-use crate::tokens::{fws, vchar_seq, perm_crlf, unstructured};
+use crate::whitespace::{fws, perm_crlf};
+use crate::words::vchar_seq;
+use crate::misc_token::unstructured;
 use crate::model::{PermissiveHeaderSection, HeaderDate, MailboxRef};
 
 /// HEADERS
