@@ -11,18 +11,18 @@ use nom::{
     sequence::tuple,
 };
 
-use crate::abnf::{fws, vchar_seq, perm_crlf};
-use crate::model::{HeaderSection, HeaderDate};
+use crate::tokens::{perm_fws, vchar_seq, perm_crlf};
+use crate::model::{PermissiveHeaderSection, HeaderDate, MailboxRef};
 
 /// HEADERS
 
 /// Header section
 ///
 /// See: https://www.rfc-editor.org/rfc/rfc5322.html#section-2.2
-pub fn header_section(input: &str) -> IResult<&str, HeaderSection> {
+pub fn header_section(input: &str) -> IResult<&str, PermissiveHeaderSection> {
     let (input, headers) = fold_many0(
         header_field,
-        HeaderSection::default,
+        PermissiveHeaderSection::default,
         |mut section, head| {
             match head {
                 HeaderField::Date(d) => {
@@ -114,7 +114,11 @@ fn header_field(input: &str) -> IResult<&str, HeaderField> {
             };
             (input, HeaderField::Date(date))
         },
-        //"From" => unimplemented!(),
+        "From" => {
+           let (input, mbx) = mailbox(input)?;
+           //many0(
+           unimplemented!()
+        },
         "Sender" => unimplemented!(),
         "Subject" => {
             let (input, body) = unstructured(input)?;
@@ -136,17 +140,17 @@ fn header_field(input: &str) -> IResult<&str, HeaderField> {
 /// unstructured    =   (*([FWS] VCHAR_SEQ) *WSP) / obs-unstruct
 /// ```
 fn unstructured(input: &str) -> IResult<&str, String> {
-    let (input, r) = many0(tuple((opt(fws), vchar_seq)))(input)?;
+    let (input, r) = many0(tuple((opt(perm_fws), vchar_seq)))(input)?;
     let (input, _) = space0(input)?;
 
     // Try to optimize for the most common cases
     let body = match r.as_slice() {
         [(None, content)] => content.to_string(),
-        [(Some(ws), content)] => ws.to_string() + content,
+        [(Some(_), content)] => " ".to_string() + content,
         lines => lines.iter().fold(String::with_capacity(255), |acc, item| {
             let (may_ws, content) = item;
             match may_ws {
-                Some(ws) => acc + ws + content,
+                Some(ws) => acc + " " + content,
                 None => acc + content,
             }
         }),
@@ -155,3 +159,6 @@ fn unstructured(input: &str) -> IResult<&str, String> {
     Ok((input, body))
 }
 
+fn mailbox(input: &str) -> IResult<&str, MailboxRef> {
+    unimplemented!();
+}
