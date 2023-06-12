@@ -14,19 +14,7 @@ use nom::{
 /// https://www.rfc-editor.org/rfc/rfc5322#section-3.2
 /// Also https://datatracker.ietf.org/doc/html/rfc6532
 
-/// Permissive CRLF
-///
-/// Theoretically, all lines must end with \r\n
-/// but some mail servers like Dovecot support malformated emails,
-/// for example with only \n eol. It works because
-/// \r or \n is allowed nowhere else, so we also add this support.
-pub fn perm_crlf(input: &str) -> IResult<&str, &str> {
-    alt((crlf, tag("\r"), tag("\n")))(input)
-}
-
-// Note: WSP = SP / HTAB = %x20 / %x09
-// nom::*::space0 = *WSP
-// nom::*::space1 = 1*WSP
+// quoted characters and strings
 
 /// Quoted pair
 ///
@@ -37,13 +25,84 @@ pub fn quoted_pair(input: &str) -> IResult<&str, char> {
     preceded(tag("\\"), satisfy(|c| is_vchar(c) || c == '\t' || c == ' '))(input)
 }
 
+/// Allowed characters in quote
+///
+/// ```abnf
+///   qtext           =   %d33 /             ; Printable US-ASCII
+///                       %d35-91 /          ;  characters not including
+///                       %d93-126 /         ;  "\" or the quote character
+///                       obs-qtext
+/// ```
+fn is_qtext(c: char) -> bool {
+    c == '\x21' || (c >= '\x23' && c <= '\x5B') || (c >= '\x5D' && c <= '\x7E')
+}
+
+/// Quoted pair content
+///
+/// ```abnf
+///   qcontent        =   qtext / quoted-pair
+/// ```
+fn qcontent(input: &str) -> IResult<&str, char> {
+    alt((satisfy(is_qtext), quoted_pair))(input)
+}
+
+/// Quoted string
+///
+/// ```abnf
+/// quoted-string   =   [CFWS]
+///                     DQUOTE *([FWS] qcontent) [FWS] DQUOTE
+///                     [CFWS]
+/// ```
+pub fn quoted_string(input: &str) -> IResult<&str, String> {
+  let (input, _) = opt(cfws)(input)?;
+  let (input, _) = tag("\"")(input)?;
+  let (input, content) = many0(pair(opt(fws), qcontent))(input)?;
+
+  let mut qstring = content.iter().fold(
+    String::with_capacity(16), 
+    |mut acc, (maybe_wsp, c)| {
+      if let Some(wsp) = maybe_wsp {
+        acc.push(*wsp);
+      }
+      acc.push(*c);
+      acc
+    });
+
+  let (input, maybe_wsp) = opt(fws)(input)?;
+  if let Some(wsp) = maybe_wsp {
+    qstring.push(wsp);
+  }
+
+  let (input, _) = tag("\"")(input)?;
+  let (input, _) = opt(cfws)(input)?;
+  Ok((input, qstring))
+}
+
+
+// --- whitespaces and comments
+
+// Note: WSP = SP / HTAB = %x20 / %x09
+// nom::*::space0 = *WSP
+// nom::*::space1 = 1*WSP
+
+/// Permissive CRLF
+///
+/// Theoretically, all lines must end with \r\n
+/// but some mail servers like Dovecot support malformated emails,
+/// for example with only \n eol. It works because
+/// \r or \n is allowed nowhere else, so we also add this support.
+pub fn perm_crlf(input: &str) -> IResult<&str, &str> {
+    alt((crlf, tag("\r"), tag("\n")))(input)
+}
+
 /// Permissive foldable white space
 ///
 /// Folding white space are used for long headers splitted on multiple lines.
 /// The obsolete syntax allowes multiple lines without content; implemented for compatibility
 /// reasons
-pub fn perm_fws(input: &str) -> IResult<&str, &str> {
-    alt((recognize(many1(fold_marker)), space1))(input)
+pub fn fws(input: &str) -> IResult<&str, char> {
+    let (input, _) = alt((recognize(many1(fold_marker)), space1))(input)?;
+    Ok((input, ' '))
 }
 fn fold_marker(input: &str) -> IResult<&str, &str> {
    let (input, _) = space0(input)?;
@@ -68,19 +127,19 @@ fn fold_marker(input: &str) -> IResult<&str, &str> {
 ///   CFWS            =   (1*([FWS] comment) [FWS]) / FWS
 /// ```
 pub fn cfws(input: &str) -> IResult<&str, &str> {
-    alt((recognize(comments), perm_fws))(input)
+    alt((recognize(comments), recognize(fws)))(input)
 }
 
 pub fn comments(input: &str) -> IResult<&str, ()> {
-    let (input, _) = many1(tuple((opt(perm_fws), comment)))(input)?;
-    let (input, _) = opt(perm_fws)(input)?;
+    let (input, _) = many1(tuple((opt(fws), comment)))(input)?;
+    let (input, _) = opt(fws)(input)?;
     Ok((input, ()))
 }
 
 pub fn comment(input: &str) -> IResult<&str, ()> {
     let (input, _) = tag("(")(input)?;
-    let (input, _) = many0(tuple((opt(perm_fws), ccontent)))(input)?;
-    let (input, _) = opt(perm_fws)(input)?;
+    let (input, _) = many0(tuple((opt(fws), ccontent)))(input)?;
+    let (input, _) = opt(fws)(input)?;
     let (input, _) = tag(")")(input)?;
     Ok((input, ()))
 }
@@ -105,6 +164,8 @@ pub fn is_ctext(c: char) -> bool {
     (c >= '\x21' && c <= '\x27') || (c >= '\x2A' && c <= '\x5B') || (c >= '\x5D' && c <= '\x7E') || !c.is_ascii()
 }
 
+// atoms, words, phrases, vchar
+
 /// VCHAR definition
 pub fn is_vchar(c: char) -> bool {
   (c >= '\x21' && c <= '\x7E') || !c.is_ascii()
@@ -122,11 +183,12 @@ pub fn vchar_seq(input: &str) -> IResult<&str, &str> {
    take_while1(is_vchar)(input)
 }
 
+/// Atom allowed characters
 fn is_atext(c: char) -> bool {
     c.is_ascii_alphanumeric() || "!#$%&'*+-/=?^_`{|}~".contains(c)
 }
 
-/// atom
+/// Atom 
 ///
 /// `[CFWS] 1*atext [CFWS]`
 fn atom(input: &str) -> IResult<&str, &str> {
@@ -166,11 +228,11 @@ mod tests {
     }
 
     #[test]
-    fn test_perm_fws() {
-        assert_eq!(perm_fws("\r\n world"), Ok(("world", "\r\n ")));
-        assert_eq!(perm_fws(" \r\n \r\n world"), Ok(("world", " \r\n \r\n ")));
-        assert_eq!(perm_fws(" world"), Ok(("world", " ")));
-        assert!(perm_fws("\r\nFrom: test").is_err());
+    fn test_fws() {
+        assert_eq!(fws("\r\n world"), Ok(("world", ' ')));
+        assert_eq!(fws(" \r\n \r\n world"), Ok(("world", ' ')));
+        assert_eq!(fws(" world"), Ok(("world", ' ')));
+        assert!(fws("\r\nFrom: test").is_err());
     }
 
     #[test]
@@ -202,5 +264,10 @@ mod tests {
     #[test]
     fn test_dot_atom() {
         assert_eq!(dot_atom("   (skip) quentin.dufour.io abcdef"), Ok(("abcdef", "quentin.dufour.io")));
+    }
+
+    #[test]
+    fn test_quoted_string() {
+        assert_eq!(quoted_string(" \"hello\\\"world\" "), Ok(("", "hello\"world".to_string())));
     }
 }

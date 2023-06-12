@@ -11,7 +11,7 @@ use nom::{
     sequence::tuple,
 };
 
-use crate::tokens::{perm_fws, vchar_seq, perm_crlf};
+use crate::tokens::{fws, vchar_seq, perm_crlf};
 use crate::model::{PermissiveHeaderSection, HeaderDate, MailboxRef};
 
 /// HEADERS
@@ -130,7 +130,7 @@ fn header_field(input: &str) -> IResult<&str, HeaderField> {
 /// unstructured    =   (*([FWS] VCHAR_SEQ) *WSP) / obs-unstruct
 /// ```
 fn unstructured(input: &str) -> IResult<&str, String> {
-    let (input, r) = many0(tuple((opt(perm_fws), vchar_seq)))(input)?;
+    let (input, r) = many0(tuple((opt(fws), vchar_seq)))(input)?;
     let (input, _) = space0(input)?;
 
     // Try to optimize for the most common cases
@@ -140,7 +140,7 @@ fn unstructured(input: &str) -> IResult<&str, String> {
         lines => lines.iter().fold(String::with_capacity(255), |acc, item| {
             let (may_ws, content) = item;
             match may_ws {
-                Some(ws) => acc + " " + content,
+                Some(_) => acc + " " + content,
                 None => acc + content,
             }
         }),
