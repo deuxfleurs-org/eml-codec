@@ -58,6 +58,7 @@ pub fn quoted_string(input: &str) -> IResult<&str, String> {
   let (input, _) = tag("\"")(input)?;
   let (input, content) = many0(pair(opt(fws), qcontent))(input)?;
 
+  // Rebuild string
   let mut qstring = content.iter().fold(
     String::with_capacity(16), 
     |mut acc, (maybe_wsp, c)| {
@@ -269,5 +270,6 @@ mod tests {
     #[test]
     fn test_quoted_string() {
         assert_eq!(quoted_string(" \"hello\\\"world\" "), Ok(("", "hello\"world".to_string())));
+        assert_eq!(quoted_string("\"hello\r\n world\""), Ok(("", "hello world".to_string())));
     }
 }
