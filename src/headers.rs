@@ -1,3 +1,4 @@
+use chrono::DateTime;
 use nom::{
     IResult,
     bytes::complete::take_while1,
@@ -11,7 +12,7 @@ use nom::{
 };
 
 use crate::abnf::{fws, vchar_seq, perm_crlf};
-use crate::model::HeaderSection;
+use crate::model::{HeaderSection, HeaderDate};
 
 /// HEADERS
 
@@ -24,6 +25,11 @@ pub fn header_section(input: &str) -> IResult<&str, HeaderSection> {
         HeaderSection::default,
         |mut section, head| {
             match head {
+                HeaderField::Date(d) => {
+                    //@FIXME only one date is allowed, what are we doing if multiple dates are
+                    //encountered? Currently, we override...
+                    section.date = d;
+                }
                 HeaderField::Subject(title) => {
                     section.subject = Some(title);
                 }
@@ -42,7 +48,7 @@ pub fn header_section(input: &str) -> IResult<&str, HeaderSection> {
 
 enum HeaderField<'a> {
     // 3.6.1.  The Origination Date Field
-    Date,
+    Date(HeaderDate),
 
     // 3.6.2.  Originator Fields
     From,
@@ -97,21 +103,31 @@ fn header_field(input: &str) -> IResult<&str, HeaderField> {
     let (input, _) = tuple((tag(":"), space0))(input)?;
 
     // Extract field body
-    match field_name {
-        "Date" => unimplemented!(),
+    let (input, hfield) = match field_name {
+        "Date" => {
+            // @FIXME want to extract datetime our way in the future
+            // to better handle obsolete/bad cases instead of crashing.
+            let (input, raw_date) = unstructured(input)?;
+            let date = match DateTime::parse_from_rfc2822(&raw_date) {
+                Ok(chronodt) => HeaderDate::Parsed(chronodt),
+                Err(e) => HeaderDate::Unknown(raw_date, e),
+            };
+            (input, HeaderField::Date(date))
+        },
         //"From" => unimplemented!(),
         "Sender" => unimplemented!(),
         "Subject" => {
             let (input, body) = unstructured(input)?;
-            let (input, _) = crlf(input)?;
-            Ok((input, HeaderField::Subject(body)))
+            (input, HeaderField::Subject(body))
         },
         _ => {
             let (input, body) = unstructured(input)?;
-            let (input, _) = crlf(input)?;
-            Ok((input, HeaderField::Optional(field_name, body)))
+            (input, HeaderField::Optional(field_name, body))
         }
-    }
+    };
+
+    let (input, _) = crlf(input)?;
+    return Ok((input, hfield));
 }
 
 /// Unstructured header field body

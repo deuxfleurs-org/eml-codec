@@ -17,3 +17,4 @@ path = "src/parse.rs"
 
 [dependencies]
 nom = "7"
+chrono = "0.4"
