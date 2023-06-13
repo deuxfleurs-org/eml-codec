@@ -4,7 +4,6 @@ use nom::{
     bytes::complete::take_while1,
     bytes::complete::tag,
     character::complete::space0,
-    character::complete::crlf,
     combinator::opt,
     multi::fold_many0,
     multi::many0,
@@ -15,6 +14,7 @@ use crate::whitespace::{fws, perm_crlf};
 use crate::words::vchar_seq;
 use crate::misc_token::unstructured;
 use crate::model::{PermissiveHeaderSection, HeaderDate, MailboxRef};
+use crate::mailbox::mailbox;
 use crate::address::{mailbox_list};
 
 /// HEADERS
@@ -28,22 +28,30 @@ pub fn header_section(input: &str) -> IResult<&str, PermissiveHeaderSection> {
         PermissiveHeaderSection::default,
         |mut section, head| {
             match head {
+                // 3.6.1.  The Origination Date Field
                 HeaderField::Date(d) => {
                     //@FIXME only one date is allowed, what are we doing if multiple dates are
                     //encountered? Currently, we override...
                     //   | orig-date      | 1      | 1          |                            |
                     section.date = d;
                 }
+
+                // 3.6.2.  Originator Fields
+                HeaderField::From(v) => {
+                    //@FIXME override the from field if declared multiple times.
+                    //   | from           | 1      | 1          | See sender and 3.6.2       |
+                    section.from = v;
+                }
+                HeaderField::Sender(mbx) => {
+                    //   | sender         | 0*     | 1          | MUST occur with  multi-address from - see 3.6.2 |
+                    section.sender = Some(mbx);
+                }
+
                 HeaderField::Subject(title) => {
                     section.subject = Some(title);
                 }
                 HeaderField::Optional(name, body) => {
                     section.optional.insert(name, body);
-                }
-                HeaderField::From(v) => {
-                    //@FIXME override the from field if declared multiple times.
-                    //   | from           | 1      | 1          | See sender and 3.6.2       |
-                    section.from = v;
                 }
                 _ => unimplemented!(),
             };
@@ -62,7 +70,7 @@ enum HeaderField<'a> {
 
     // 3.6.2.  Originator Fields
     From(Vec<MailboxRef>),
-    Sender,
+    Sender(MailboxRef),
     ReplyTo,
 
     // 3.6.3.  Destination Address Fields
@@ -120,7 +128,10 @@ fn header_field(input: &str) -> IResult<&str, HeaderField> {
             let (input, body) = mailbox_list(input)?;
             (input, HeaderField::From(body))
         },
-        "Sender" => unimplemented!(),
+        "Sender" => {
+            let (input, body) = mailbox(input)?;
+            (input, HeaderField::Sender(body))
+        },
         "Subject" => {
             let (input, body) = unstructured(input)?;
             (input, HeaderField::Subject(body))
@@ -132,7 +143,7 @@ fn header_field(input: &str) -> IResult<&str, HeaderField> {
     };
 
     // Drop EOL
-    let (input, _) = crlf(input)?;
+    let (input, _) = perm_crlf(input)?;
     return Ok((input, hfield));
 }
 
@@ -174,6 +185,19 @@ mod tests {
                     domain: "example.com".into(),
                 }
             }]))),
+        );
+    }
+    #[test]
+    fn test_sender() {
+        assert_eq!(
+            header_field("Sender: Michael Jones <mjones@machine.example>\r\n"),
+            Ok(("", HeaderField::Sender(MailboxRef {
+                name: Some("Michael Jones".into()),
+                addrspec: AddrSpec {
+                    local_part: "mjones".into(),
+                    domain: "machine.example".into(),
+                },
+            }))),
         );
     }
 }
