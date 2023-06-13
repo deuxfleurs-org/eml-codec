@@ -13,9 +13,9 @@ use nom::{
 use crate::whitespace::{fws, perm_crlf};
 use crate::words::vchar_seq;
 use crate::misc_token::unstructured;
-use crate::model::{PermissiveHeaderSection, HeaderDate, MailboxRef};
+use crate::model::{PermissiveHeaderSection, HeaderDate, MailboxRef, AddressRef};
 use crate::mailbox::mailbox;
-use crate::address::{mailbox_list};
+use crate::address::{mailbox_list, address_list};
 
 /// HEADERS
 
@@ -46,6 +46,13 @@ pub fn header_section(input: &str) -> IResult<&str, PermissiveHeaderSection> {
                     //   | sender         | 0*     | 1          | MUST occur with  multi-address from - see 3.6.2 |
                     section.sender = Some(mbx);
                 }
+                HeaderField::ReplyTo(addr_list) => {
+                    //   | reply-to       | 0      | 1          |                            |
+                    section.reply_to = addr_list;
+                }
+
+                // 3.6.3.  Destination Address Fields
+
 
                 HeaderField::Subject(title) => {
                     section.subject = Some(title);
@@ -71,7 +78,7 @@ enum HeaderField<'a> {
     // 3.6.2.  Originator Fields
     From(Vec<MailboxRef>),
     Sender(MailboxRef),
-    ReplyTo,
+    ReplyTo(Vec<AddressRef>),
 
     // 3.6.3.  Destination Address Fields
     To,
@@ -124,6 +131,7 @@ fn header_field(input: &str) -> IResult<&str, HeaderField> {
     // Extract field body
     let (input, hfield) = match field_name {
         "Date" => datetime(input)?,
+
         "From" => {
             let (input, body) = mailbox_list(input)?;
             (input, HeaderField::From(body))
@@ -132,6 +140,11 @@ fn header_field(input: &str) -> IResult<&str, HeaderField> {
             let (input, body) = mailbox(input)?;
             (input, HeaderField::Sender(body))
         },
+        "Reply-To" => {
+            let (input, body) = address_list(input)?;
+            (input, HeaderField::ReplyTo(body))
+        }
+
         "Subject" => {
             let (input, body) = unstructured(input)?;
             (input, HeaderField::Subject(body))
@@ -163,6 +176,7 @@ mod tests {
     use super::*;
     use crate::model::AddrSpec;
 
+    // 3.6.1.  The Origination Date Field
     #[test]
     fn test_datetime() {
         let datefield = "Thu,\r\n  13\r\n  Feb\r\n    1969\r\n 23:32\r\n   -0330 (Newfoundland Time)";
@@ -174,6 +188,7 @@ mod tests {
         };
     }
 
+    // 3.6.2.  Originator Fields
     #[test]
     fn test_from() {
         assert_eq!(
@@ -200,6 +215,21 @@ mod tests {
             }))),
         );
     }
+    #[test]
+    fn test_reply_to() {
+        assert_eq!(
+            header_field("Reply-To: \"Mary Smith: Personal Account\" <smith@home.example>\r\n"),
+            Ok(("", HeaderField::ReplyTo(vec![AddressRef::Single(MailboxRef {
+                name: Some("Mary Smith: Personal Account".into()),
+                addrspec: AddrSpec {
+                    local_part: "smith".into(),
+                    domain: "home.example".into(),
+                },
+            })])))
+        );
+    }
+
+
 }
 
 
