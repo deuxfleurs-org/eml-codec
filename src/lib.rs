@@ -1,4 +1,4 @@
-pub mod headers;
+// Model
 pub mod model;
 
 // Generic
@@ -11,3 +11,12 @@ mod misc_token;
 mod mailbox;
 mod address;
 mod identification;
+
+// Header blocks
+pub mod common_fields;
+pub mod trace;
+
+// Global mail
+pub mod header;
+
+

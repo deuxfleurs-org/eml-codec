@@ -63,6 +63,27 @@ pub struct MessageId<'a> {
     pub right: &'a str,
 }
 
+#[derive(Debug, PartialEq)]
+pub struct Trace {
+    // 3.6.7 Traces
+    pub received: Vec<String>,
+    pub return_path: Option<String>,
+
+    // 3.6.6.  Resent Fields
+    pub resent_date: HeaderDate,
+    pub resent_from: Vec<MailboxRef>,
+    pub resent_sender: Option<MailboxRef>,
+    pub resent_to: Vec<AddressRef>,
+    pub resent_cc: Vec<AddressRef>,
+    pub resent_bcc: Vec<AddressRef>,
+    pub resent_msg_id: Option<MessageId<'a>>,
+
+    // 3.6.8.  Optional Fields
+    pub optional: HashMap<&'a str, String>,
+    //pub failed: HashMap<&'a str, String>,
+    //pub garbage: &'a str,
+}
+
 /// Permissive Header Section
 ///
 /// This is a structure intended for parsing/decoding,
@@ -70,7 +91,7 @@ pub struct MessageId<'a> {
 /// as invalid according to RFC5322 but for which we can
 /// still extract some data.
 #[derive(Debug, Default)]
-pub struct PermissiveHeaderSection<'a> {
+pub struct CommonFields<'a> {
     // 3.6.1.  The Origination Date Field
     pub date: HeaderDate,
 
@@ -94,14 +115,18 @@ pub struct PermissiveHeaderSection<'a> {
     pub comments: Vec<String>,
     pub keywords: Vec<String>,
 
-    // 3.6.6.  Resent Fields
-
-    // 3.6.7.  Trace Fields
-
     // 3.6.8.  Optional Fields
-
-    // Rest
     pub optional: HashMap<&'a str, String>,
+    //pub failed: HashMap<&'a str, String>,
+    //pub garbage: &'a str,
+}
+
+pub struct HeaderSection<'a> {
+    // 3.6.7 Traces
+    pub traces: Vec<Trace>,
+
+    // 3.6.x
+    pub common: CommonFields,
 }
 
 enum InvalidEmailErr {

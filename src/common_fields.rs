@@ -24,7 +24,7 @@ use crate::model;
 /// Header section
 ///
 /// See: https://www.rfc-editor.org/rfc/rfc5322.html#section-2.2
-pub fn header_section(input: &str) -> IResult<&str, PermissiveHeaderSection> {
+pub fn section(input: &str) -> IResult<&str, PermissiveHeaderSection> {
     let (input, headers) = fold_many0(
         header_field,
         PermissiveHeaderSection::default,
@@ -95,10 +95,6 @@ pub fn header_section(input: &str) -> IResult<&str, PermissiveHeaderSection> {
                     section.keywords.append(&mut kws);
                 }
 
-                // 3.6.6.  Resent Fields
-
-                // 3.6.7.  Trace Fields
-
                 // 3.6.8.  Optional Fields
                 HeaderField::Optional(name, body) => {
                     section.optional.insert(name, body);
@@ -138,18 +134,6 @@ enum HeaderField<'a> {
     Comments(String),
     Keywords(Vec<String>),
 
-    // 3.6.6.  Resent Fields
-    ResentDate,
-    ResentFrom,
-    ResentSender,
-    ResentTo,
-    ResentCc,
-    ResentBcc,
-    ResentMessageID,
-
-    // 3.6.7.  Trace Fields
-    Trace,
-
     // 3.6.8.  Optional Fields
     Optional(&'a str, String)
 }
@@ -174,7 +158,10 @@ fn header_field(input: &str) -> IResult<&str, HeaderField> {
     // Extract field body
     let (input, hfield) = match field_name  {
         // 3.6.1.  The Origination Date Field
-        "Date" => datetime(input)?,
+        "Date" => {
+            let (input, body) = datetime(input)?;
+            Ok((input, HeaderField::Date(body)))
+        }
 
         // 3.6.2.  Originator Fields
         "From" => {
@@ -233,6 +220,28 @@ fn header_field(input: &str) -> IResult<&str, HeaderField> {
         }
 
         // 3.6.6.  Resent Fields
+        "Resent-Date" => {
+            let (input, body) = datetime(input)?;
+            Ok((input, HeaderField::ResentDate(body)))
+        }
+        "Resent-From" => {
+            unimplemented!();
+        }
+        "Resent-Sender" => {
+            unimplemented!();
+        }
+        "Resent-To" => {
+            unimplemented!();
+        }
+        "Resent-Cc" => {
+            unimplemented!();
+        }
+        "Resent-Bcc" => {
+            unimplemented!();
+        }
+        "Resent-Message-ID" => {
+            unimplemented!();
+        }
 
         // 3.6.7.  Trace Fields
 
@@ -248,15 +257,14 @@ fn header_field(input: &str) -> IResult<&str, HeaderField> {
     return Ok((input, hfield));
 }
 
-fn datetime(input: &str) -> IResult<&str, HeaderField> {
+fn datetime(input: &str) -> IResult<&str, HeaderDate> {
     // @FIXME want to extract datetime our way in the future
     // to better handle obsolete/bad cases instead of returning raw text.
     let (input, raw_date) = unstructured(input)?;
-    let date = match DateTime::parse_from_rfc2822(&raw_date) {
+    match DateTime::parse_from_rfc2822(&raw_date) {
         Ok(chronodt) => HeaderDate::Parsed(chronodt),
         Err(e) => HeaderDate::Unknown(raw_date, e),
-    };
-    Ok((input, HeaderField::Date(date)))
+    }
 }
 
 #[cfg(test)]
