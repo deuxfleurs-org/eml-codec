@@ -38,13 +38,23 @@ impl From<AddrSpec> for MailboxRef {
 #[derive(Debug)]
 pub struct GroupRef {
     pub name: String,
-    pub mbx: Vec<MailboxRef>,
+    pub participants: Vec<MailboxRef>,
 }
 
 #[derive(Debug)]
 pub enum AddressRef {
     Single(MailboxRef),
     Many(GroupRef),
+}
+impl From<MailboxRef> for AddressRef {
+    fn from(mx: MailboxRef) -> Self {
+        AddressRef::Single(mx)
+    }
+}
+impl From<GroupRef> for AddressRef {
+    fn from(grp: GroupRef) -> Self {
+        AddressRef::Many(grp)
+    }
 }
 
 /// Permissive Header Section
