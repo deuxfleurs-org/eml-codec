@@ -9,23 +9,42 @@ pub enum HeaderDate {
     None,
 }
 
+#[derive(Debug, PartialEq)]
+pub struct AddrSpec {
+    pub local_part: String,
+    pub domain: String,
+}
+impl AddrSpec {
+    pub fn fully_qualified(&self) -> String {
+        format!("{}@{}", self.local_part, self.domain)
+    }
+}
+
 #[derive(Debug)]
-pub struct MailboxRef<'a> {
+pub struct MailboxRef {
     // The actual "email address" like hello@example.com
-    pub addrspec: &'a str,
-    pub name: Option<&'a str>,
+    pub addrspec: AddrSpec,
+    pub name: Option<String>,
+}
+impl From<AddrSpec> for MailboxRef {
+    fn from(addr: AddrSpec) -> Self {
+        MailboxRef {
+            name: None,
+            addrspec: addr,
+        }
+    }
 }
 
 #[derive(Debug)]
-pub struct GroupRef<'a> {
-    pub name: &'a str,
-    pub mbx: Vec<MailboxRef<'a>>,
+pub struct GroupRef {
+    pub name: String,
+    pub mbx: Vec<MailboxRef>,
 }
 
 #[derive(Debug)]
-pub enum AddressRef<'a> {
-    Single(MailboxRef<'a>),
-    Many(GroupRef<'a>),
+pub enum AddressRef {
+    Single(MailboxRef),
+    Many(GroupRef),
 }
 
 /// Permissive Header Section
@@ -37,9 +56,9 @@ pub enum AddressRef<'a> {
 #[derive(Debug, Default)]
 pub struct PermissiveHeaderSection<'a> {
     pub subject: Option<String>,
-    pub from: Vec<MailboxRef<'a>>,
-    pub sender: Option<MailboxRef<'a>>,
-    pub reply_to: Vec<AddressRef<'a>>,
+    pub from: Vec<MailboxRef>,
+    pub sender: Option<MailboxRef>,
+    pub reply_to: Vec<AddressRef>,
     pub date: HeaderDate,
     pub optional: HashMap<&'a str, String>,
 }

@@ -143,9 +143,7 @@ fn from(input: &str) -> IResult<&str, HeaderField> {
     unimplemented!();
 }
 
-fn mailbox(input: &str) -> IResult<&str, MailboxRef> {
-    unimplemented!();
-}
+
 
 #[cfg(test)]
 mod tests {

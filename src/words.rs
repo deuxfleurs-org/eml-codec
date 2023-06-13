@@ -27,7 +27,7 @@ pub fn vchar_seq(input: &str) -> IResult<&str, &str> {
 
 /// Atom allowed characters
 fn is_atext(c: char) -> bool {
-    c.is_ascii_alphanumeric() || "!#$%&'*+-/=?^_`{|}~".contains(c)
+    c.is_ascii_alphanumeric() || "!#$%&'*+-/=?^_`{|}~".contains(c) || !c.is_ascii()
 }
 
 /// Atom 
@@ -47,7 +47,7 @@ fn dot_atom_text(input: &str) -> IResult<&str, &str> {
 /// dot-atom
 ///
 /// `[CFWS] dot-atom-text [CFWS]`
-fn dot_atom(input: &str) -> IResult<&str, &str> {
+pub fn dot_atom(input: &str) -> IResult<&str, &str> {
     delimited(opt(cfws), dot_atom_text, opt(cfws))(input)
 }
 
@@ -68,7 +68,7 @@ mod tests {
         assert!(is_atext('5'));
         assert!(is_atext('Q'));
         assert!(!is_atext(' '));
-        assert!(!is_atext('É'));
+        assert!(is_atext('É')); // support utf8
     }
 
     #[test]
