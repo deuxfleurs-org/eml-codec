@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use chrono::{DateTime,FixedOffset,ParseError};
 
-#[derive(Debug, Default)]
+#[derive(Debug, PartialEq, Default)]
 pub enum HeaderDate {
     Parsed(DateTime<FixedOffset>),
     Unknown(String, ParseError),

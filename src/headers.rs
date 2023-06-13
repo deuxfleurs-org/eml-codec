@@ -15,6 +15,7 @@ use crate::whitespace::{fws, perm_crlf};
 use crate::words::vchar_seq;
 use crate::misc_token::unstructured;
 use crate::model::{PermissiveHeaderSection, HeaderDate, MailboxRef};
+use crate::address::{mailbox_list};
 
 /// HEADERS
 
@@ -30,6 +31,7 @@ pub fn header_section(input: &str) -> IResult<&str, PermissiveHeaderSection> {
                 HeaderField::Date(d) => {
                     //@FIXME only one date is allowed, what are we doing if multiple dates are
                     //encountered? Currently, we override...
+                    //   | orig-date      | 1      | 1          |                            |
                     section.date = d;
                 }
                 HeaderField::Subject(title) => {
@@ -37,6 +39,11 @@ pub fn header_section(input: &str) -> IResult<&str, PermissiveHeaderSection> {
                 }
                 HeaderField::Optional(name, body) => {
                     section.optional.insert(name, body);
+                }
+                HeaderField::From(v) => {
+                    //@FIXME override the from field if declared multiple times.
+                    //   | from           | 1      | 1          | See sender and 3.6.2       |
+                    section.from = v;
                 }
                 _ => unimplemented!(),
             };
@@ -48,13 +55,13 @@ pub fn header_section(input: &str) -> IResult<&str, PermissiveHeaderSection> {
     Ok((input, headers))
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 enum HeaderField<'a> {
     // 3.6.1.  The Origination Date Field
     Date(HeaderDate),
 
     // 3.6.2.  Originator Fields
-    From,
+    From(Vec<MailboxRef>),
     Sender,
     ReplyTo,
 
@@ -109,7 +116,10 @@ fn header_field(input: &str) -> IResult<&str, HeaderField> {
     // Extract field body
     let (input, hfield) = match field_name {
         "Date" => datetime(input)?,
-        "From" => from(input)?,
+        "From" => {
+            let (input, body) = mailbox_list(input)?;
+            (input, HeaderField::From(body))
+        },
         "Sender" => unimplemented!(),
         "Subject" => {
             let (input, body) = unstructured(input)?;
@@ -137,17 +147,10 @@ fn datetime(input: &str) -> IResult<&str, HeaderField> {
     Ok((input, HeaderField::Date(date)))
 }
 
-fn from(input: &str) -> IResult<&str, HeaderField> {
-    //let (input, mbox_list) = many0(mailbox)(input)?;
-    //Ok((input, HeaderField::From(mbox_list)))
-    unimplemented!();
-}
-
-
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::model::AddrSpec;
 
     #[test]
     fn test_datetime() {
@@ -158,6 +161,20 @@ mod tests {
             HeaderField::Date(HeaderDate::Parsed(_)) => (),
             _ => panic!("Date has not been parsed"),
         };
+    }
+
+    #[test]
+    fn test_from() {
+        assert_eq!(
+            header_field("From: \"Joe Q. Public\" <john.q.public@example.com>\r\n"),
+            Ok(("", HeaderField::From(vec![MailboxRef { 
+                name: Some("Joe Q. Public".into()), 
+                addrspec: AddrSpec {
+                    local_part: "john.q.public".into(),
+                    domain: "example.com".into(),
+                }
+            }]))),
+        );
     }
 }
 
