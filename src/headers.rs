@@ -6,14 +6,13 @@ use nom::{
     bytes::complete::tag,
     character::complete::space0,
     combinator::opt,
-    multi::fold_many0,
-    multi::{many0, many1},
+    multi::{many0, many1, fold_many0, separated_list1},
     sequence::tuple,
 };
 
 use crate::whitespace::{fws, perm_crlf};
 use crate::words::vchar_seq;
-use crate::misc_token::unstructured;
+use crate::misc_token::{phrase, unstructured};
 use crate::model::{PermissiveHeaderSection, HeaderDate, MailboxRef, AddressRef};
 use crate::mailbox::mailbox;
 use crate::address::{mailbox_list, address_list, address_list_cfws};
@@ -82,10 +81,25 @@ pub fn header_section(input: &str) -> IResult<&str, PermissiveHeaderSection> {
                     section.references = id_list;
                 }
 
-
+                // 3.6.5.  Informational Fields
                 HeaderField::Subject(title) => {
+                    //    | subject        | 0      | 1          |                            |
                     section.subject = Some(title);
+                }               
+                HeaderField::Comments(coms) => {
+                    //    | comments       | 0      | unlimited  |                            |
+                    section.comments.push(coms);
                 }
+                HeaderField::Keywords(mut kws) => {
+                    //    | keywords       | 0      | unlimited  |                            |
+                    section.keywords.append(&mut kws);
+                }
+
+                // 3.6.6.  Resent Fields
+
+                // 3.6.7.  Trace Fields
+
+                // 3.6.8.  Optional Fields
                 HeaderField::Optional(name, body) => {
                     section.optional.insert(name, body);
                 }
@@ -122,7 +136,7 @@ enum HeaderField<'a> {
     // 3.6.5.  Informational Fields
     Subject(String),
     Comments(String),
-    Keywords(Vec<&'a str>),
+    Keywords(Vec<String>),
 
     // 3.6.6.  Resent Fields
     ResentDate,
@@ -204,11 +218,25 @@ fn header_field(input: &str) -> IResult<&str, HeaderField> {
             (input, HeaderField::References(body))
         },
 
-        // Rest
+        // 3.6.5.  Informational Fields
         "Subject" => {
             let (input, body) = unstructured(input)?;
             (input, HeaderField::Subject(body))
         },
+        "Comments" => {
+            let (input, body) = unstructured(input)?;
+            (input, HeaderField::Comments(body))
+        }
+        "Keywords" => {
+            let (input, body) = separated_list1(tag(","), phrase)(input)?;
+            (input, HeaderField::Keywords(body))
+        }
+
+        // 3.6.6.  Resent Fields
+
+        // 3.6.7.  Trace Fields
+
+        // 3.6.8.  Optional Fields
         _ => {
             let (input, body) = unstructured(input)?;
             (input, HeaderField::Optional(field_name, body))
@@ -362,6 +390,26 @@ mod tests {
                 model::MessageId { left: "1234", right: "local.machine.example" },
                 model::MessageId { left: "3456", right: "example.net" },
             ])))
+        );
+    }
+
+    // 3.6.5.  Informational Fields
+    fn test_subject() {
+        assert_eq!(
+            header_field("Subject: Aérogramme\r\n"),
+            Ok(("", HeaderField::Subject("Aérogramme".into())))
+        );
+    }
+    fn test_comments() {
+        assert_eq!(
+            header_field("Comments: 😛 easter egg!\r\n"),
+            Ok(("", HeaderField::Comments("😛 easter egg!".into())))
+        );
+    }
+    fn test_keywords() {
+        assert_eq!(
+            header_field("Keywords: fantasque, farfelu, fanfreluche\r\n"),
+            Ok(("", HeaderField::Keywords(vec!["fantasque".into(), "farfelu".into(), "fanfreluche".into()])))
         );
     }
 }

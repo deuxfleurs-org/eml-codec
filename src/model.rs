@@ -88,9 +88,19 @@ pub struct PermissiveHeaderSection<'a> {
     pub msg_id: Option<MessageId<'a>>,
     pub in_reply_to: Vec<MessageId<'a>>,
     pub references: Vec<MessageId<'a>>,
+    
+    // 3.6.5.  Informational Fields
+    pub subject: Option<String>,
+    pub comments: Vec<String>,
+    pub keywords: Vec<String>,
+
+    // 3.6.6.  Resent Fields
+
+    // 3.6.7.  Trace Fields
+
+    // 3.6.8.  Optional Fields
 
     // Rest
-    pub subject: Option<String>,
     pub optional: HashMap<&'a str, String>,
 }
 
