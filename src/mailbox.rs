@@ -41,7 +41,7 @@ fn name_addr(input: &str) -> IResult<&str, MailboxRef> {
 /// angle-addr      =   [CFWS] "<" addr-spec ">" [CFWS] /
 ///                     obs-angle-addr
 /// ```
-fn angle_addr(input: &str) -> IResult<&str, MailboxRef> {
+pub fn angle_addr(input: &str) -> IResult<&str, MailboxRef> {
    delimited(
        pair(opt(cfws), tag("<")),
        into(addr_spec),
@@ -76,7 +76,7 @@ fn local_part(input: &str) -> IResult<&str, String> {
 /// ```abnf
 ///    domain          =   dot-atom / domain-literal / obs-domain
 /// ```
-fn domain_part(input: &str) -> IResult<&str, String> {
+pub fn domain_part(input: &str) -> IResult<&str, String> {
     alt((into(dot_atom), domain_litteral))(input)
 }
 

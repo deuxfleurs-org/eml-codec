@@ -63,11 +63,11 @@ pub struct MessageId<'a> {
     pub right: &'a str,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Default)]
 pub struct Trace<'a> {
     // 3.6.7 Traces
-    pub received: Vec<String>,
-    pub return_path: Option<String>,
+    pub received: Vec<&'a str>,
+    pub return_path: Option<MailboxRef>,
 
     // 3.6.6.  Resent Fields
     pub resent_date: HeaderDate,

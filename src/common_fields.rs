@@ -137,13 +137,6 @@ pub enum HeaderField<'a> {
     Optional(&'a str, String)
 }
 
-pub fn field_name(input: &str) -> IResult<&str, &str> {
-    terminated(
-        take_while1(|c| c >= '\x21' && c <= '\x7E' && c != '\x3A'),
-        pair(tag(":"), space0)
-    )(input)
-}
-
 /// Parse one known header field
 ///
 /// RFC5322 optional-field seems to be a generalization of the field terminology.
@@ -247,13 +240,18 @@ fn keywords(input: &str) -> IResult<&str, HeaderField> {
 /// ```
 fn unknown_field(input: &str) -> IResult<&str, HeaderField> {
     // Extract field name
-    let (input, field_name) = take_while1(|c| c >= '\x21' && c <= '\x7E' && c != '\x3A')(input)?;
-    let (input, _) = tuple((tag(":"), space0))(input)?;
+    let (input, field_name) = field_name(input)?;
     let (input, body) = unstructured(input)?;
     Ok((input, HeaderField::Optional(field_name, body)))
 }
+pub fn field_name(input: &str) -> IResult<&str, &str> {
+    terminated(
+        take_while1(|c| c >= '\x21' && c <= '\x7E' && c != '\x3A'),
+        pair(tag(":"), space0)
+    )(input)
+}
 
-fn datetime(input: &str) -> IResult<&str, HeaderDate> {
+pub fn datetime(input: &str) -> IResult<&str, HeaderDate> {
     // @FIXME want to extract datetime our way in the future
     // to better handle obsolete/bad cases instead of returning raw text.
     let (input, raw_date) = unstructured(input)?;
