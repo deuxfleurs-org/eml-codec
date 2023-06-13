@@ -7,7 +7,7 @@ use nom::{
     character::complete::space0,
     combinator::opt,
     multi::fold_many0,
-    multi::many0,
+    multi::{many0, many1},
     sequence::tuple,
 };
 
@@ -17,6 +17,8 @@ use crate::misc_token::unstructured;
 use crate::model::{PermissiveHeaderSection, HeaderDate, MailboxRef, AddressRef};
 use crate::mailbox::mailbox;
 use crate::address::{mailbox_list, address_list, address_list_cfws};
+use crate::identification::msg_id;
+use crate::model;
 
 /// HEADERS
 
@@ -34,7 +36,6 @@ pub fn header_section(input: &str) -> IResult<&str, PermissiveHeaderSection> {
 
                 // 3.6.1.  The Origination Date Field
                 HeaderField::Date(d) => {
-                    //encountered? Currently, we override...
                     //   | orig-date      | 1      | 1          |                            |
                     section.date = d;
                 }
@@ -65,6 +66,20 @@ pub fn header_section(input: &str) -> IResult<&str, PermissiveHeaderSection> {
                 HeaderField::Bcc(addr_list) => {
                     //    | bcc            | 0      | 1          |                            |
                     section.bcc = addr_list;
+                }
+
+                // 3.6.4.  Identification Fields
+                HeaderField::MessageID(msg_id) => {
+                    //    | message-id     | 0*     | 1          | SHOULD be present - see  3.6.4 |
+                    section.msg_id = Some(msg_id);
+                }
+                HeaderField::InReplyTo(id_list) => {
+                    //    | in-reply-to    | 0*     | 1          | SHOULD occur in some replies - see 3.6.4  |
+                    section.in_reply_to = id_list;
+                }
+                HeaderField::References(id_list) => {
+                    //    | in-reply-to    | 0*     | 1          | SHOULD occur in some replies - see 3.6.4  |
+                    section.references = id_list;
                 }
 
 
@@ -100,9 +115,9 @@ enum HeaderField<'a> {
     Bcc(Vec<AddressRef>),
 
     // 3.6.4.  Identification Fields
-    MessageID,
-    InReplyTo,
-    References,
+    MessageID(model::MessageId<'a>),
+    InReplyTo(Vec<model::MessageId<'a>>),
+    References(Vec<model::MessageId<'a>>),
 
     // 3.6.5.  Informational Fields
     Subject(String),
@@ -177,13 +192,16 @@ fn header_field(input: &str) -> IResult<&str, HeaderField> {
 
         // 3.6.4.  Identification Fields
         "Message-ID" => {
-            unimplemented!();
+            let (input, body) = msg_id(input)?;
+            (input, HeaderField::MessageID(body))
         },
         "In-Reply-To" => {
-            unimplemented!();
+            let (input, body) = many1(msg_id)(input)?;
+            (input, HeaderField::InReplyTo(body))
         },
         "References" => {
-            unimplemented!();
+            let (input, body) = many1(msg_id)(input)?;
+            (input, HeaderField::References(body))
         },
 
         // Rest
@@ -317,6 +335,35 @@ mod tests {
         );
     }
 
+
+    // 3.6.4.  Identification Fields
+    #[test]
+    fn test_message_id() {
+        assert_eq!(
+            header_field("Message-ID: <310@[127.0.0.1]>\r\n"),
+            Ok(("", HeaderField::MessageID(model::MessageId { left: "310", right: "127.0.0.1" })))
+        );
+    }
+    #[test]
+    fn test_in_reply_to() {
+        assert_eq!(
+            header_field("In-Reply-To: <a@b> <c@example.com>\r\n"),
+            Ok(("", HeaderField::InReplyTo(vec![
+                model::MessageId { left: "a", right: "b" },
+                model::MessageId { left: "c", right: "example.com" },
+            ])))
+        );
+    }
+    #[test]
+    fn test_references() {
+        assert_eq!(
+            header_field("References: <1234@local.machine.example> <3456@example.net>\r\n"),
+            Ok(("", HeaderField::References(vec![
+                model::MessageId { left: "1234", right: "local.machine.example" },
+                model::MessageId { left: "3456", right: "example.net" },
+            ])))
+        );
+    }
 }
 
 

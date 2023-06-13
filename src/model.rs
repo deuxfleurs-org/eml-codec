@@ -84,6 +84,12 @@ pub struct PermissiveHeaderSection<'a> {
     pub cc: Vec<AddressRef>,
     pub bcc: Vec<AddressRef>,
 
+    // 3.6.4.  Identification Fields
+    pub msg_id: Option<MessageId<'a>>,
+    pub in_reply_to: Vec<MessageId<'a>>,
+    pub references: Vec<MessageId<'a>>,
+
+    // Rest
     pub subject: Option<String>,
     pub optional: HashMap<&'a str, String>,
 }
