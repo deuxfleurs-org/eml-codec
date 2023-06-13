@@ -54,7 +54,7 @@ fn angle_addr(input: &str) -> IResult<&str, MailboxRef> {
 /// ```abnf
 ///    addr-spec       =   local-part "@" domain
 /// ```
-fn addr_spec(input: &str) -> IResult<&str, AddrSpec> {
+pub fn addr_spec(input: &str) -> IResult<&str, AddrSpec> {
     let (input, (local, _, domain)) = tuple((local_part, tag("@"), domain_part))(input)?;
     Ok((input, AddrSpec {
         local_part: local,
@@ -148,5 +148,56 @@ mod tests {
             Ok(("", AddrSpec{local_part: "Abc@def".into(), domain: "example.com".into()})));
         assert_eq!(addr_spec(r#""Fred\ Bloggs"@example.com"#), Ok(("", AddrSpec{local_part: "Fred Bloggs".into(), domain: "example.com".into()})));
         assert_eq!(addr_spec(r#""Joe.\\Blow"@example.com"#), Ok(("", AddrSpec{local_part: r#"Joe.\Blow"#.into(), domain: "example.com".into()})));
+    }
+
+    #[test]
+    fn test_mailbox() {
+        assert_eq!(mailbox(r#""Joe Q. Public" <john.q.public@example.com>"#), Ok(("", MailboxRef {
+            name: Some("Joe Q. Public".into()),
+            addrspec: AddrSpec {
+                local_part: "john.q.public".into(),
+                domain: "example.com".into(),
+            }
+        })));
+
+        assert_eq!(mailbox(r#"Mary Smith <mary@x.test>"#), Ok(("", MailboxRef {
+            name: Some("Mary Smith".into()),
+            addrspec: AddrSpec {
+                local_part: "mary".into(),
+                domain: "x.test".into(),
+            }
+        })));
+
+        assert_eq!(mailbox(r#"jdoe@example.org"#), Ok(("", MailboxRef {
+            name: None,
+            addrspec: AddrSpec {
+                local_part: "jdoe".into(),
+                domain: "example.org".into(),
+            }
+        })));
+
+        assert_eq!(mailbox(r#"Who? <one@y.test>"#), Ok(("", MailboxRef {
+            name: Some("Who?".into()),
+            addrspec: AddrSpec {
+                local_part: "one".into(),
+                domain: "y.test".into(),
+            }
+        })));
+
+        assert_eq!(mailbox(r#"<boss@nil.test>"#), Ok(("", MailboxRef {
+            name: None,
+            addrspec: AddrSpec {
+                local_part: "boss".into(),
+                domain: "nil.test".into(),
+            }
+        })));
+
+        assert_eq!(mailbox(r#""Giant; \"Big\" Box" <sysservices@example.net>"#), Ok(("", MailboxRef {
+            name: Some(r#"Giant; "Big" Box"#.into()),
+            addrspec: AddrSpec {
+                local_part: "sysservices".into(),
+                domain: "example.net".into(),
+            }
+        })));
     }
 }

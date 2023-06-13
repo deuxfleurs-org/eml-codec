@@ -45,6 +45,7 @@ fn fold_marker(input: &str) -> IResult<&str, &str> {
 ///
 /// Note: we drop the comments for now...  
 ///
+/// ```abnf
 ///   ctext           =   %d33-39 /          ; Printable US-ASCII
 ///                       %d42-91 /          ;  characters not including
 ///                       %d93-126 /         ;  "(", ")", or "\"

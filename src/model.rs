@@ -20,7 +20,7 @@ impl AddrSpec {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct MailboxRef {
     // The actual "email address" like hello@example.com
     pub addrspec: AddrSpec,
