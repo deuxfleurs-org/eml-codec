@@ -118,7 +118,7 @@ fn inner_domain_litteral(input: &str) -> IResult<&str, String> {
 ///                       %d94-126 /         ;  characters not including
 ///                       obs-dtext          ;  "[", "]", or "\"
 /// ```
-fn is_dtext(c: char) -> bool {
+pub fn is_dtext(c: char) -> bool {
     (c >= '\x21' && c <= '\x5A') || (c >= '\x5E' && c <= '\x7E') || !c.is_ascii()
 }
 

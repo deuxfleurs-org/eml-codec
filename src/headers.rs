@@ -175,6 +175,18 @@ fn header_field(input: &str) -> IResult<&str, HeaderField> {
             (input, HeaderField::Bcc(body.unwrap_or(vec![])))
         },
 
+        // 3.6.4.  Identification Fields
+        "Message-ID" => {
+            unimplemented!();
+        },
+        "In-Reply-To" => {
+            unimplemented!();
+        },
+        "References" => {
+            unimplemented!();
+        },
+
+        // Rest
         "Subject" => {
             let (input, body) = unstructured(input)?;
             (input, HeaderField::Subject(body))

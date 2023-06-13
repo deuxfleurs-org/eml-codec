@@ -57,6 +57,12 @@ impl From<GroupRef> for AddressRef {
     }
 }
 
+#[derive(Debug, PartialEq)]
+pub struct MessageId<'a> {
+    pub left: &'a str,
+    pub right: &'a str,
+}
+
 /// Permissive Header Section
 ///
 /// This is a structure intended for parsing/decoding,

@@ -40,7 +40,7 @@ pub fn atom(input: &str) -> IResult<&str, &str> {
 /// dot-atom-text
 ///
 /// `1*atext *("." 1*atext)`
-fn dot_atom_text(input: &str) -> IResult<&str, &str> {
+pub fn dot_atom_text(input: &str) -> IResult<&str, &str> {
     recognize(pair(take_while1(is_atext), many0(pair(tag("."), take_while1(is_atext)))))(input)
 }
 
