@@ -65,11 +65,20 @@ impl From<GroupRef> for AddressRef {
 /// still extract some data.
 #[derive(Debug, Default)]
 pub struct PermissiveHeaderSection<'a> {
-    pub subject: Option<String>,
+    // 3.6.1.  The Origination Date Field
+    pub date: HeaderDate,
+
+    // 3.6.2.  Originator Fields
     pub from: Vec<MailboxRef>,
     pub sender: Option<MailboxRef>,
     pub reply_to: Vec<AddressRef>,
-    pub date: HeaderDate,
+
+    // 3.6.3.  Destination Address Fields
+    pub to: Vec<AddressRef>,
+    pub cc: Vec<AddressRef>,
+    pub bcc: Vec<AddressRef>,
+
+    pub subject: Option<String>,
     pub optional: HashMap<&'a str, String>,
 }
 

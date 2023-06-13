@@ -29,11 +29,11 @@ pub fn address(input: &str) -> IResult<&str, AddressRef> {
 /// ```
 pub fn group(input: &str) -> IResult<&str, GroupRef> {
     let (input, (grp_name, _, grp_list, _, _)) = 
-        tuple((phrase, tag(":"), group_list, tag(";"), opt(cfws)))(input)?;
+        tuple((phrase, tag(":"), opt(group_list), tag(";"), opt(cfws)))(input)?;
 
     Ok((input, GroupRef {
         name: grp_name,
-        participants: grp_list,
+        participants: grp_list.unwrap_or(vec![]),
     }))
 }
 
@@ -43,10 +43,10 @@ pub fn group(input: &str) -> IResult<&str, GroupRef> {
 ///    group-list      =   mailbox-list / CFWS / obs-group-list
 /// ```
 pub fn group_list(input: &str) -> IResult<&str, Vec<MailboxRef>> {
-    alt((mailbox_list, mx_cfws))(input)
+    alt((mailbox_list, mailbox_cfws))(input)
 }
 
-fn mx_cfws(input: &str) -> IResult<&str, Vec<MailboxRef>> {
+fn mailbox_cfws(input: &str) -> IResult<&str, Vec<MailboxRef>> {
     let (input, _) = cfws(input)?;
     Ok((input, vec![]))
 }
@@ -67,6 +67,11 @@ pub fn mailbox_list(input: &str) -> IResult<&str, Vec<MailboxRef>> {
 /// ```
 pub fn address_list(input: &str) -> IResult<&str, Vec<AddressRef>> {
     separated_list1(tag(","), address)(input)
+}
+
+pub fn address_list_cfws(input: &str) -> IResult<&str, Vec<AddressRef>> {
+    let (input, _) = cfws(input)?;
+    Ok((input, vec![]))
 }
 
 #[cfg(test)]

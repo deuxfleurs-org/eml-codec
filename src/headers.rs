@@ -1,6 +1,7 @@
 use chrono::DateTime;
 use nom::{
     IResult,
+    branch::alt,
     bytes::complete::take_while1,
     bytes::complete::tag,
     character::complete::space0,
@@ -15,7 +16,7 @@ use crate::words::vchar_seq;
 use crate::misc_token::unstructured;
 use crate::model::{PermissiveHeaderSection, HeaderDate, MailboxRef, AddressRef};
 use crate::mailbox::mailbox;
-use crate::address::{mailbox_list, address_list};
+use crate::address::{mailbox_list, address_list, address_list_cfws};
 
 /// HEADERS
 
@@ -28,9 +29,11 @@ pub fn header_section(input: &str) -> IResult<&str, PermissiveHeaderSection> {
         PermissiveHeaderSection::default,
         |mut section, head| {
             match head {
+                //@FIXME min and max limits are not enforced,
+                // it may result in missing data or silently overriden data.
+
                 // 3.6.1.  The Origination Date Field
                 HeaderField::Date(d) => {
-                    //@FIXME only one date is allowed, what are we doing if multiple dates are
                     //encountered? Currently, we override...
                     //   | orig-date      | 1      | 1          |                            |
                     section.date = d;
@@ -38,7 +41,6 @@ pub fn header_section(input: &str) -> IResult<&str, PermissiveHeaderSection> {
 
                 // 3.6.2.  Originator Fields
                 HeaderField::From(v) => {
-                    //@FIXME override the from field if declared multiple times.
                     //   | from           | 1      | 1          | See sender and 3.6.2       |
                     section.from = v;
                 }
@@ -52,6 +54,18 @@ pub fn header_section(input: &str) -> IResult<&str, PermissiveHeaderSection> {
                 }
 
                 // 3.6.3.  Destination Address Fields
+                HeaderField::To(addr_list) => {
+                    //    | to             | 0      | 1          |                            |
+                    section.to = addr_list;
+                }
+                HeaderField::Cc(addr_list) => {
+                    //    | cc             | 0      | 1          |                            |
+                    section.cc = addr_list;
+                }
+                HeaderField::Bcc(addr_list) => {
+                    //    | bcc            | 0      | 1          |                            |
+                    section.bcc = addr_list;
+                }
 
 
                 HeaderField::Subject(title) => {
@@ -81,9 +95,9 @@ enum HeaderField<'a> {
     ReplyTo(Vec<AddressRef>),
 
     // 3.6.3.  Destination Address Fields
-    To,
-    Cc,
-    Bcc,
+    To(Vec<AddressRef>),
+    Cc(Vec<AddressRef>),
+    Bcc(Vec<AddressRef>),
 
     // 3.6.4.  Identification Fields
     MessageID,
@@ -129,9 +143,11 @@ fn header_field(input: &str) -> IResult<&str, HeaderField> {
     let (input, _) = tuple((tag(":"), space0))(input)?;
 
     // Extract field body
-    let (input, hfield) = match field_name {
+    let (input, hfield) = match field_name  {
+        // 3.6.1.  The Origination Date Field
         "Date" => datetime(input)?,
 
+        // 3.6.2.  Originator Fields
         "From" => {
             let (input, body) = mailbox_list(input)?;
             (input, HeaderField::From(body))
@@ -144,6 +160,20 @@ fn header_field(input: &str) -> IResult<&str, HeaderField> {
             let (input, body) = address_list(input)?;
             (input, HeaderField::ReplyTo(body))
         }
+
+        // 3.6.3.  Destination Address Fields
+        "To" => {
+            let (input, body) = address_list(input)?;
+            (input, HeaderField::To(body))
+        },
+        "Cc" => {
+            let (input, body) = address_list(input)?;
+            (input, HeaderField::Cc(body))
+        },
+        "Bcc" => {
+            let (input, body) = opt(alt((address_list, address_list_cfws)))(input)?;
+            (input, HeaderField::Bcc(body.unwrap_or(vec![])))
+        },
 
         "Subject" => {
             let (input, body) = unstructured(input)?;
@@ -174,7 +204,7 @@ fn datetime(input: &str) -> IResult<&str, HeaderField> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::model::AddrSpec;
+    use crate::model::{GroupRef, AddrSpec};
 
     // 3.6.1.  The Origination Date Field
     #[test]
@@ -229,6 +259,51 @@ mod tests {
         );
     }
 
+    // 3.6.3.  Destination Address Fields
+    #[test]
+    fn test_to() {
+        assert_eq!(
+            header_field("To: A Group:Ed Jones <c@a.test>,joe@where.test,John <jdoe@one.test>;\r\n"),
+            Ok(("", HeaderField::To(vec![AddressRef::Many(GroupRef {
+                name: "A Group".into(),
+                participants: vec![
+                    MailboxRef {
+                        name: Some("Ed Jones".into()),
+                        addrspec: AddrSpec { local_part: "c".into(), domain: "a.test".into() },
+                    },
+                    MailboxRef {
+                        name: None,
+                        addrspec: AddrSpec { local_part: "joe".into(), domain: "where.test".into() },
+                    },
+                    MailboxRef {
+                        name: Some("John".into()),
+                        addrspec: AddrSpec { local_part: "jdoe".into(), domain: "one.test".into() },
+                    },
+                ]
+            })])))
+        );
+    }
+    #[test]
+    fn test_cc() {
+        assert_eq!(
+            header_field("Cc: Undisclosed recipients:;\r\n"),
+            Ok(("", HeaderField::Cc(vec![AddressRef::Many(GroupRef {
+                name: "Undisclosed recipients".into(),
+                participants: vec![],
+            })])))
+        );
+    }
+    #[test]
+    fn test_bcc() {
+        assert_eq!(
+            header_field("Bcc: (empty)\r\n"),
+            Ok(("", HeaderField::Bcc(vec![])))
+        );
+        assert_eq!(
+            header_field("Bcc: \r\n"),
+            Ok(("", HeaderField::Bcc(vec![])))
+        );
+    }
 
 }
 

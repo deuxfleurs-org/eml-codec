@@ -7,6 +7,8 @@ From: Mary Smith
 Sender: imf@example.com
 Reply-To: "Mary Smith: Personal Account" <smith@home.example>
 To: John Doe <jdoe@machine.example>
+Cc: imf2@example.com
+Bcc: (hidden)
 Subject: Re: Saying Hello
 Message-ID: <3456@example.net>
 In-Reply-To: <1234@local.machine.example>
