@@ -72,6 +72,7 @@ pub fn address_list(input: &str) -> IResult<&str, Vec<AddressRef>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::model::AddrSpec;
 
     #[test]
     fn test_mailbox_list() {
@@ -84,5 +85,35 @@ mod tests {
             Ok(("", _)) => (),
             _ => panic!(),
         };
+    }
+
+    #[test]
+    fn test_address_list() {
+        assert_eq!(
+            address_list(r#"A Group:Ed Jones <c@a.test>,joe@where.test,John <jdoe@one.test>;, Mary Smith <mary@x.test>"#),
+            Ok(("", vec![
+                AddressRef::Many(GroupRef { 
+                    name: "A Group".to_string(), 
+                    participants: vec![
+                        MailboxRef {
+                            name: Some("Ed Jones".into()),
+                            addrspec: AddrSpec { local_part: "c".into(), domain: "a.test".into() },
+                        },
+                        MailboxRef {
+                            name: None,
+                            addrspec: AddrSpec { local_part: "joe".into(), domain: "where.test".into() },
+                        },
+                        MailboxRef {
+                            name: Some("John".into()),
+                            addrspec: AddrSpec { local_part: "jdoe".into(), domain: "one.test".into() },
+                        },
+                    ],
+                }),
+                AddressRef::Single(MailboxRef { 
+                    name: Some("Mary Smith".into()),
+                    addrspec: AddrSpec { local_part: "mary".into(), domain: "x.test".into() },
+                }),
+            ]))
+        );
     }
 }

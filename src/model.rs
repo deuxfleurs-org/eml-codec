@@ -35,13 +35,13 @@ impl From<AddrSpec> for MailboxRef {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct GroupRef {
     pub name: String,
     pub participants: Vec<MailboxRef>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum AddressRef {
     Single(MailboxRef),
     Many(GroupRef),
