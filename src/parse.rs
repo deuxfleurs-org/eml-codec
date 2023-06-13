@@ -1,4 +1,4 @@
-use imf_codec::common_headers;
+use imf_codec::common_fields;
 
 fn main() {
     let header = r#"Date: Fri, 21 Nov 1997 10:01:10 -0600
@@ -21,5 +21,5 @@ References: <1234@local.machine.example>
 This is a reply to your hello.
 "#;
 
-    println!("{:?}", common_headers::section(header));
+    println!("{:?}", common_fields::section(header));
 }

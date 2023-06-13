@@ -64,7 +64,7 @@ pub struct MessageId<'a> {
 }
 
 #[derive(Debug, PartialEq)]
-pub struct Trace {
+pub struct Trace<'a> {
     // 3.6.7 Traces
     pub received: Vec<String>,
     pub return_path: Option<String>,
@@ -123,31 +123,8 @@ pub struct CommonFields<'a> {
 
 pub struct HeaderSection<'a> {
     // 3.6.7 Traces
-    pub traces: Vec<Trace>,
+    pub traces: Vec<Trace<'a>>,
 
     // 3.6.x
-    pub common: CommonFields,
-}
-
-enum InvalidEmailErr {
-    NoUsableDate,
-}
-
-impl<'a> PermissiveHeaderSection<'a> {
-    /// Check validity of the email
-    ///
-    /// Especially check that there is no missing fields,
-    /// or no unique fields declared multiple times.
-    ///
-    /// See: https://www.rfc-editor.org/rfc/rfc5322#section-3.6
-    //@FIXME could be changed to a to_StrictHeaderSection call. All fixed errors would be returned in
-    // a vec of errors.
-    fn is_valid(&self) -> Result<(), InvalidEmailErr> {
-        match self.date {
-            HeaderDate::Parsed(_) => (),
-            _ => return Err(InvalidEmailErr::NoUsableDate),
-        };
-
-        Ok(())
-    }
+    pub common: CommonFields<'a>,
 }

@@ -7,13 +7,13 @@ use nom::{
     character::complete::space0,
     combinator::opt,
     multi::{many0, many1, fold_many0, separated_list1},
-    sequence::tuple,
+    sequence::{terminated, preceded, pair, tuple},
 };
 
 use crate::whitespace::{fws, perm_crlf};
 use crate::words::vchar_seq;
 use crate::misc_token::{phrase, unstructured};
-use crate::model::{PermissiveHeaderSection, HeaderDate, MailboxRef, AddressRef};
+use crate::model::{CommonFields, HeaderDate, MailboxRef, AddressRef};
 use crate::mailbox::mailbox;
 use crate::address::{mailbox_list, address_list, address_list_cfws};
 use crate::identification::msg_id;
@@ -24,10 +24,10 @@ use crate::model;
 /// Header section
 ///
 /// See: https://www.rfc-editor.org/rfc/rfc5322.html#section-2.2
-pub fn section(input: &str) -> IResult<&str, PermissiveHeaderSection> {
+pub fn section(input: &str) -> IResult<&str, CommonFields> {
     let (input, headers) = fold_many0(
-        header_field,
-        PermissiveHeaderSection::default,
+        alt((header_field, unknown_field)),
+        CommonFields::default,
         |mut section, head| {
             match head {
                 //@FIXME min and max limits are not enforced,
@@ -99,7 +99,6 @@ pub fn section(input: &str) -> IResult<&str, PermissiveHeaderSection> {
                 HeaderField::Optional(name, body) => {
                     section.optional.insert(name, body);
                 }
-                _ => unimplemented!(),
             };
             section
         }
@@ -110,7 +109,7 @@ pub fn section(input: &str) -> IResult<&str, PermissiveHeaderSection> {
 }
 
 #[derive(Debug, PartialEq)]
-enum HeaderField<'a> {
+pub enum HeaderField<'a> {
     // 3.6.1.  The Origination Date Field
     Date(HeaderDate),
 
@@ -138,11 +137,107 @@ enum HeaderField<'a> {
     Optional(&'a str, String)
 }
 
-/// Parse one header field
+pub fn field_name(input: &str) -> IResult<&str, &str> {
+    terminated(
+        take_while1(|c| c >= '\x21' && c <= '\x7E' && c != '\x3A'),
+        pair(tag(":"), space0)
+    )(input)
+}
+
+/// Parse one known header field
 ///
 /// RFC5322 optional-field seems to be a generalization of the field terminology.
 /// We use it to parse all header names:
-/// 
+pub fn header_field(input: &str) -> IResult<&str, HeaderField> {
+    terminated(
+        alt((
+            // 3.6.1.  The Origination Date Field
+            date,
+            // 3.6.2.  Originator Fields
+            alt((from, sender, reply_to)),
+            // 3.6.3.  Destination Address Fields
+            alt((to, cc, bcc)),
+            // 3.6.4.  Identification Fields
+            alt((msg_id_field, in_reply_to, references)),
+            // 3.6.5.  Informational Fields
+            alt((subject, comments, keywords)),
+        )),
+        perm_crlf,
+    )(input)
+}
+
+// 3.6.1.  The Origination Date Field
+fn date(input: &str) -> IResult<&str, HeaderField> {
+    let (input, body) = preceded(pair(tag("Date:"), space0), datetime)(input)?;
+    Ok((input, HeaderField::Date(body)))
+}
+
+// 3.6.2.  Originator Fields
+fn from(input: &str) -> IResult<&str, HeaderField> {
+    let (input, body) = preceded(pair(tag("From:"), space0), mailbox_list)(input)?;
+    Ok((input, HeaderField::From(body)))
+}
+fn sender(input: &str) -> IResult<&str, HeaderField> {
+    let (input, body) = preceded(pair(tag("Sender:"), space0), mailbox)(input)?;
+    Ok((input, HeaderField::Sender(body)))
+}
+fn reply_to(input: &str) -> IResult<&str, HeaderField> {
+    let (input, body) = preceded(pair(tag("Reply-To:"), space0), address_list)(input)?;
+    Ok((input, HeaderField::ReplyTo(body)))
+}
+
+// 3.6.3.  Destination Address Fields
+fn to(input: &str) -> IResult<&str, HeaderField> {
+    let (input, body) = preceded(pair(tag("To:"), space0), address_list)(input)?;
+    Ok((input, HeaderField::To(body)))
+}
+fn cc(input: &str) -> IResult<&str, HeaderField> {
+    let (input, body) = preceded(pair(tag("Cc:"), space0), address_list)(input)?;
+    Ok((input, HeaderField::Cc(body)))
+}
+fn bcc(input: &str) -> IResult<&str, HeaderField> {
+    let (input, body) = preceded(
+        pair(tag("Bcc:"), space0), 
+        opt(alt((address_list, address_list_cfws))),
+    )(input)?;
+
+    Ok((input, HeaderField::Bcc(body.unwrap_or(vec![]))))
+}
+
+// 3.6.4.  Identification Fields
+fn msg_id_field(input: &str) -> IResult<&str, HeaderField> {
+    let (input, body) = preceded(pair(tag("Message-ID:"), space0), msg_id)(input)?;
+    Ok((input, HeaderField::MessageID(body)))
+}
+fn in_reply_to(input: &str) -> IResult<&str, HeaderField> {
+    let (input, body) = preceded(pair(tag("In-Reply-To:"), space0), many1(msg_id))(input)?;
+    Ok((input, HeaderField::InReplyTo(body)))
+}
+fn references(input: &str) -> IResult<&str, HeaderField> {
+    let (input, body) = preceded(pair(tag("References:"), space0), many1(msg_id))(input)?;
+    Ok((input, HeaderField::References(body)))
+}
+
+// 3.6.5.  Informational Fields
+fn subject(input: &str) -> IResult<&str, HeaderField> {
+    let (input, body) = preceded(pair(tag("Subject:"), space0), unstructured)(input)?;
+    Ok((input, HeaderField::Subject(body)))
+}
+fn comments(input: &str) -> IResult<&str, HeaderField> {
+    let (input, body) = preceded(pair(tag("Comments:"), space0), unstructured)(input)?;
+    Ok((input, HeaderField::Comments(body)))
+}
+fn keywords(input: &str) -> IResult<&str, HeaderField> {
+    let (input, body) = preceded(
+        pair(tag("Keywords:"), space0), 
+        separated_list1(tag(","), phrase),
+    )(input)?;
+    Ok((input, HeaderField::Keywords(body)))
+}
+
+
+/// Optional field
+///
 /// ```abnf
 /// field      =   field-name ":" unstructured CRLF
 /// field-name =   1*ftext
@@ -150,111 +245,12 @@ enum HeaderField<'a> {
 ///                %d59-126           ;  characters not including
 ///                                   ;  ":".
 /// ```
-fn header_field(input: &str) -> IResult<&str, HeaderField> {
+fn unknown_field(input: &str) -> IResult<&str, HeaderField> {
     // Extract field name
     let (input, field_name) = take_while1(|c| c >= '\x21' && c <= '\x7E' && c != '\x3A')(input)?;
     let (input, _) = tuple((tag(":"), space0))(input)?;
-
-    // Extract field body
-    let (input, hfield) = match field_name  {
-        // 3.6.1.  The Origination Date Field
-        "Date" => {
-            let (input, body) = datetime(input)?;
-            Ok((input, HeaderField::Date(body)))
-        }
-
-        // 3.6.2.  Originator Fields
-        "From" => {
-            let (input, body) = mailbox_list(input)?;
-            (input, HeaderField::From(body))
-        },
-        "Sender" => {
-            let (input, body) = mailbox(input)?;
-            (input, HeaderField::Sender(body))
-        },
-        "Reply-To" => {
-            let (input, body) = address_list(input)?;
-            (input, HeaderField::ReplyTo(body))
-        }
-
-        // 3.6.3.  Destination Address Fields
-        "To" => {
-            let (input, body) = address_list(input)?;
-            (input, HeaderField::To(body))
-        },
-        "Cc" => {
-            let (input, body) = address_list(input)?;
-            (input, HeaderField::Cc(body))
-        },
-        "Bcc" => {
-            let (input, body) = opt(alt((address_list, address_list_cfws)))(input)?;
-            (input, HeaderField::Bcc(body.unwrap_or(vec![])))
-        },
-
-        // 3.6.4.  Identification Fields
-        "Message-ID" => {
-            let (input, body) = msg_id(input)?;
-            (input, HeaderField::MessageID(body))
-        },
-        "In-Reply-To" => {
-            let (input, body) = many1(msg_id)(input)?;
-            (input, HeaderField::InReplyTo(body))
-        },
-        "References" => {
-            let (input, body) = many1(msg_id)(input)?;
-            (input, HeaderField::References(body))
-        },
-
-        // 3.6.5.  Informational Fields
-        "Subject" => {
-            let (input, body) = unstructured(input)?;
-            (input, HeaderField::Subject(body))
-        },
-        "Comments" => {
-            let (input, body) = unstructured(input)?;
-            (input, HeaderField::Comments(body))
-        }
-        "Keywords" => {
-            let (input, body) = separated_list1(tag(","), phrase)(input)?;
-            (input, HeaderField::Keywords(body))
-        }
-
-        // 3.6.6.  Resent Fields
-        "Resent-Date" => {
-            let (input, body) = datetime(input)?;
-            Ok((input, HeaderField::ResentDate(body)))
-        }
-        "Resent-From" => {
-            unimplemented!();
-        }
-        "Resent-Sender" => {
-            unimplemented!();
-        }
-        "Resent-To" => {
-            unimplemented!();
-        }
-        "Resent-Cc" => {
-            unimplemented!();
-        }
-        "Resent-Bcc" => {
-            unimplemented!();
-        }
-        "Resent-Message-ID" => {
-            unimplemented!();
-        }
-
-        // 3.6.7.  Trace Fields
-
-        // 3.6.8.  Optional Fields
-        _ => {
-            let (input, body) = unstructured(input)?;
-            (input, HeaderField::Optional(field_name, body))
-        }
-    };
-
-    // Drop EOL
-    let (input, _) = perm_crlf(input)?;
-    return Ok((input, hfield));
+    let (input, body) = unstructured(input)?;
+    Ok((input, HeaderField::Optional(field_name, body)))
 }
 
 fn datetime(input: &str) -> IResult<&str, HeaderDate> {
@@ -262,8 +258,8 @@ fn datetime(input: &str) -> IResult<&str, HeaderDate> {
     // to better handle obsolete/bad cases instead of returning raw text.
     let (input, raw_date) = unstructured(input)?;
     match DateTime::parse_from_rfc2822(&raw_date) {
-        Ok(chronodt) => HeaderDate::Parsed(chronodt),
-        Err(e) => HeaderDate::Unknown(raw_date, e),
+        Ok(chronodt) => Ok((input, HeaderDate::Parsed(chronodt))),
+        Err(e) => Ok((input, HeaderDate::Unknown(raw_date, e))),
     }
 }
 
@@ -275,8 +271,8 @@ mod tests {
     // 3.6.1.  The Origination Date Field
     #[test]
     fn test_datetime() {
-        let datefield = "Thu,\r\n  13\r\n  Feb\r\n    1969\r\n 23:32\r\n   -0330 (Newfoundland Time)";
-        let (input, v) = datetime(datefield).unwrap();
+        let datefield = "Date: Thu,\r\n  13\r\n  Feb\r\n    1969\r\n 23:32\r\n   -0330 (Newfoundland Time)\r\n";
+        let (input, v) = header_field(datefield).unwrap();
         assert_eq!(input, "");
         match v {
             HeaderField::Date(HeaderDate::Parsed(_)) => (),
@@ -402,23 +398,32 @@ mod tests {
     }
 
     // 3.6.5.  Informational Fields
+    #[test]
     fn test_subject() {
         assert_eq!(
             header_field("Subject: Aérogramme\r\n"),
             Ok(("", HeaderField::Subject("Aérogramme".into())))
         );
     }
+    #[test]
     fn test_comments() {
         assert_eq!(
             header_field("Comments: 😛 easter egg!\r\n"),
             Ok(("", HeaderField::Comments("😛 easter egg!".into())))
         );
     }
+    #[test]
     fn test_keywords() {
         assert_eq!(
             header_field("Keywords: fantasque, farfelu, fanfreluche\r\n"),
             Ok(("", HeaderField::Keywords(vec!["fantasque".into(), "farfelu".into(), "fanfreluche".into()])))
         );
+    }
+
+    // Test invalid field name
+    #[test]
+    fn test_invalid_field_name() {
+        assert!(header_field("Unknown: unknown\r\n").is_err());
     }
 }
 

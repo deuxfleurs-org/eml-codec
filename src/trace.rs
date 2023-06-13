@@ -1,24 +1,24 @@
 use nom::{
     IResult,
     
-}
+};
 use crate::model;
 
 enum RestField<'a> {
     // 3.6.6.  Resent Fields
-    ResentDate(HeaderDate),
-    ResentFrom(Vec<MailboxRef>),
-    ResentSender(MailboxRef),
-    ResentTo(Vec<AddressRef>),
-    ResentCc(Vec<AddressRef>),
-    ResentBcc(Vec<AddressRef>),
+    ResentDate(model::HeaderDate),
+    ResentFrom(Vec<model::MailboxRef>),
+    ResentSender(model::MailboxRef),
+    ResentTo(Vec<model::AddressRef>),
+    ResentCc(Vec<model::AddressRef>),
+    ResentBcc(Vec<model::AddressRef>),
     ResentMessageID(model::MessageId<'a>),
 
     // 3.6.8. Optional fields
     Optional(&'a str, String),
 }
 
-enum PreludeField<'a> {
+enum PreludeField {
     // 3.6.7.  Trace Fields
     ReturnPath(String),
     Received(Vec<String>),
@@ -41,15 +41,16 @@ enum PreludeField<'a> {
 /// ```
 pub fn section(input: &str) -> IResult<&str, model::Trace> {
     let (input, mut prelude_trace) = prelude(input)?;
-    let (input, full_trace) = fold_many0(
+    /*let (input, full_trace) = fold_many0(
         rest_field,
         prelude_trace,
         |mut trace, field| {
             match field {
                 
             }
-        }
+        }*/
 
+    unimplemented!();
 }
 
 /// Trace prelude
@@ -63,8 +64,10 @@ pub fn section(input: &str) -> IResult<&str, model::Trace> {
 /// received-token  =   word / angle-addr / addr-spec / domain
 /// ```
 fn prelude(input: &str) -> IResult<&str, model::Trace> {
+    unimplemented!();
 }
 
 fn rest_field(input: &str) -> IResult<&str, RestField> {
+    unimplemented!();
     // Ensure this is not a new prelude
 }
