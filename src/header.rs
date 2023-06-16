@@ -1,7 +1,7 @@
 use nom::{
     IResult,
     branch::alt,
-    bytes::complete::{is_not, take_while1, take_while, tag},
+    bytes::complete::{is_not, take_while1, take_while, tag, tag_no_case},
     character::complete::space0,
     combinator::{map, opt, recognize},
     multi::{many0, many1, fold_many0, separated_list1},
@@ -185,36 +185,36 @@ pub fn header_field(input: &str) -> IResult<&str, HeaderField> {
 
 // 3.6.1.  The Origination Date Field
 fn date(input: &str) -> IResult<&str, HeaderField> {
-    let (input, body) = preceded(pair(tag("Date:"), space0), datetime::section)(input)?;
+    let (input, body) = preceded(field_name_tag("Date"), datetime::section)(input)?;
     Ok((input, HeaderField::Date(body)))
 }
 
 // 3.6.2.  Originator Fields
 fn from(input: &str) -> IResult<&str, HeaderField> {
-    let (input, body) = preceded(pair(tag("From:"), space0), mailbox_list)(input)?;
+    let (input, body) = preceded(field_name_tag("From"), mailbox_list)(input)?;
     Ok((input, HeaderField::From(body)))
 }
 fn sender(input: &str) -> IResult<&str, HeaderField> {
-    let (input, body) = preceded(pair(tag("Sender:"), space0), mailbox)(input)?;
+    let (input, body) = preceded(field_name_tag("Sender"), mailbox)(input)?;
     Ok((input, HeaderField::Sender(body)))
 }
 fn reply_to(input: &str) -> IResult<&str, HeaderField> {
-    let (input, body) = preceded(pair(tag("Reply-To:"), space0), address_list)(input)?;
+    let (input, body) = preceded(field_name_tag("Reply-To"), address_list)(input)?;
     Ok((input, HeaderField::ReplyTo(body)))
 }
 
 // 3.6.3.  Destination Address Fields
 fn to(input: &str) -> IResult<&str, HeaderField> {
-    let (input, body) = preceded(pair(tag("To:"), space0), address_list)(input)?;
+    let (input, body) = preceded(field_name_tag("To"), address_list)(input)?;
     Ok((input, HeaderField::To(body)))
 }
 fn cc(input: &str) -> IResult<&str, HeaderField> {
-    let (input, body) = preceded(pair(tag("Cc:"), space0), address_list)(input)?;
+    let (input, body) = preceded(field_name_tag("Cc"), address_list)(input)?;
     Ok((input, HeaderField::Cc(body)))
 }
 fn bcc(input: &str) -> IResult<&str, HeaderField> {
     let (input, body) = preceded(
-        pair(tag("Bcc:"), space0), 
+        field_name_tag("Bcc"), 
         opt(alt((address_list, address_list_cfws))),
     )(input)?;
 
@@ -223,33 +223,39 @@ fn bcc(input: &str) -> IResult<&str, HeaderField> {
 
 // 3.6.4.  Identification Fields
 fn msg_id_field(input: &str) -> IResult<&str, HeaderField> {
-    let (input, body) = preceded(pair(tag("Message-ID:"), space0), msg_id)(input)?;
+    let (input, body) = preceded(field_name_tag("Message-ID"), msg_id)(input)?;
     Ok((input, HeaderField::MessageID(body)))
 }
 fn in_reply_to(input: &str) -> IResult<&str, HeaderField> {
-    let (input, body) = preceded(pair(tag("In-Reply-To:"), space0), many1(msg_id))(input)?;
+    let (input, body) = preceded(field_name_tag("In-Reply-To"), many1(msg_id))(input)?;
     Ok((input, HeaderField::InReplyTo(body)))
 }
 fn references(input: &str) -> IResult<&str, HeaderField> {
-    let (input, body) = preceded(pair(tag("References:"), space0), many1(msg_id))(input)?;
+    let (input, body) = preceded(field_name_tag("References"), many1(msg_id))(input)?;
     Ok((input, HeaderField::References(body)))
 }
 
 // 3.6.5.  Informational Fields
 fn subject(input: &str) -> IResult<&str, HeaderField> {
-    let (input, body) = preceded(pair(tag("Subject:"), space0), unstructured)(input)?;
+    let (input, body) = preceded(field_name_tag("Subject"), unstructured)(input)?;
     Ok((input, HeaderField::Subject(body)))
 }
 fn comments(input: &str) -> IResult<&str, HeaderField> {
-    let (input, body) = preceded(pair(tag("Comments:"), space0), unstructured)(input)?;
+    let (input, body) = preceded(field_name_tag("Comments"), unstructured)(input)?;
     Ok((input, HeaderField::Comments(body)))
 }
 fn keywords(input: &str) -> IResult<&str, HeaderField> {
     let (input, body) = preceded(
-        pair(tag("Keywords:"), space0), 
+        field_name_tag("Keywords"),
         separated_list1(tag(","), phrase),
     )(input)?;
     Ok((input, HeaderField::Keywords(body)))
+}
+
+fn field_name_tag(field_name: &str) -> impl FnMut(&str) -> IResult<&str, &str> + '_  {
+    move |input: &str| {
+        recognize(tuple((tag_no_case(field_name), space0, tag(":"), space0)))(input)
+    }
 }
 
 // 3.6.6 Resent fields
@@ -288,7 +294,7 @@ fn unknown_field(input: &str) -> IResult<&str, HeaderField> {
 fn field_name(input: &str) -> IResult<&str, &str> {
     terminated(
         take_while1(|c| c >= '\x21' && c <= '\x7E' && c != '\x3A'),
-        pair(tag(":"), space0)
+        tuple((space0, tag(":"), space0))
     )(input)
 }
 

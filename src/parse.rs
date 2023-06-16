@@ -19,6 +19,8 @@ Bcc: (hidden)
 Subject: Re: Saying Hello
 Comments: A simple message
 Comments: Not that complicated
+comments : not valid but should be accepted
+    by the parser.
 Keywords: hello, world
 Héron: Raté
  Raté raté
