@@ -2,6 +2,7 @@ use std::borrow::Cow;
 use nom::{
     IResult,
     branch::alt,
+    bytes::complete::take_while1,
     character::complete::space0,
     combinator::{into, opt},
     multi::{many0, many1},
@@ -9,8 +10,8 @@ use nom::{
 };
 
 use crate::quoted::quoted_string;
-use crate::whitespace::fws;
-use crate::words::{atom, vchar_seq};
+use crate::whitespace::{fws, is_obs_no_ws_ctl};
+use crate::words::{atom, is_vchar};
 
 /// Word
 ///
@@ -32,13 +33,22 @@ pub fn phrase(input: &str) -> IResult<&str, String> {
     Ok((input, phrase))
 }
 
+/// Compatible unstructured input
+///
+/// ```abnf
+/// obs-utext       =   %d0 / obs-NO-WS-CTL / VCHAR
+/// ```
+fn is_unstructured(c: char) -> bool {
+    is_vchar(c) || is_obs_no_ws_ctl(c) || c == '\x00'
+}
+
 /// Unstructured header field body
 ///
 /// ```abnf
 /// unstructured    =   (*([FWS] VCHAR_SEQ) *WSP) / obs-unstruct
 /// ```
 pub fn unstructured(input: &str) -> IResult<&str, String> {
-    let (input, r) = many0(tuple((opt(fws), vchar_seq)))(input)?;
+    let (input, r) = many0(tuple((opt(fws), take_while1(is_unstructured))))(input)?;
     let (input, _) = space0(input)?;
 
     // Try to optimize for the most common cases

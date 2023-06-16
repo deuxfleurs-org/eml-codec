@@ -2,22 +2,23 @@ use nom::{
     IResult,
     branch::alt,
     bytes::complete::tag,
-    character::complete::satisfy,
+    character::complete::{anychar, satisfy},
     combinator::opt,
     multi::many0,
     sequence::{pair, preceded},
 };
 
 use crate::words::is_vchar;
-use crate::whitespace::{fws, cfws};
+use crate::whitespace::{fws, cfws, is_obs_no_ws_ctl};
 
 /// Quoted pair
 ///
 /// ```abnf
 ///    quoted-pair     =   ("\" (VCHAR / WSP)) / obs-qp
+///    obs-qp          =   "\" (%d0 / obs-NO-WS-CTL / LF / CR)
 /// ```
 pub fn quoted_pair(input: &str) -> IResult<&str, char> {
-    preceded(tag("\\"), satisfy(|c| is_vchar(c) || c == '\t' || c == ' '))(input)
+    preceded(tag("\\"), anychar)(input)
 }
 
 /// Allowed characters in quote
@@ -28,8 +29,12 @@ pub fn quoted_pair(input: &str) -> IResult<&str, char> {
 ///                       %d93-126 /         ;  "\" or the quote character
 ///                       obs-qtext
 /// ```
-fn is_qtext(c: char) -> bool {
+fn is_restr_qtext(c: char) -> bool {
     c == '\x21' || (c >= '\x23' && c <= '\x5B') || (c >= '\x5D' && c <= '\x7E')
+}
+
+fn is_qtext(c: char) -> bool {
+    is_restr_qtext(c) || is_obs_no_ws_ctl(c)
 }
 
 /// Quoted pair content

@@ -91,8 +91,25 @@ pub fn ctext(input: &str) -> IResult<&str, char> {
 ///                       %d93-126 /         ;  "(", ")", or "\"
 ///                       obs-ctext
 ///```
-pub fn is_ctext(c: char) -> bool {
+pub fn is_restr_ctext(c: char) -> bool {
     (c >= '\x21' && c <= '\x27') || (c >= '\x2A' && c <= '\x5B') || (c >= '\x5D' && c <= '\x7E') || !c.is_ascii()
+}
+
+pub fn is_ctext(c: char) -> bool {
+    is_restr_ctext(c) || is_obs_no_ws_ctl(c)
+}
+
+/// US ASCII control characters without effect 
+///
+/// ```abnf
+///   obs-NO-WS-CTL   =   %d1-8 /            ; US-ASCII control
+///                       %d11 /             ;  characters that do not
+///                       %d12 /             ;  include the carriage
+///                       %d14-31 /          ;  return, line feed, and
+///                       %d127              ;  white space characters
+/// ```
+pub fn is_obs_no_ws_ctl(c: char) -> bool {
+    (c >= '\x01' && c <= '\x08') || c == '\x0b' || c == '\x0b' || (c >= '\x0e' && c<= '\x1f') || c == '\x7F'
 }
 
 #[cfg(test)]
