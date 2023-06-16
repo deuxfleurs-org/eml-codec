@@ -1,10 +1,9 @@
 use nom::{
     IResult,
     branch::alt,
-    bytes::complete::take_while1,
-    bytes::complete::tag,
+    bytes::complete::{is_not, take_while1, take_while, tag},
     character::complete::space0,
-    combinator::{map, opt},
+    combinator::{map, opt, recognize},
     multi::{many0, many1, fold_many0, separated_list1},
     sequence::{terminated, preceded, pair, tuple},
 };
@@ -25,7 +24,7 @@ use crate::{datetime, trace, model};
 /// See: https://www.rfc-editor.org/rfc/rfc5322.html#section-2.2
 pub fn section(input: &str) -> IResult<&str, HeaderSection> {
     let (input, headers) = fold_many0(
-        alt((header_field, unknown_field)),
+        alt((header_field, unknown_field, rescue)),
         HeaderSection::default,
         |mut section, head| {
             match head {
@@ -109,6 +108,11 @@ pub fn section(input: &str) -> IResult<&str, HeaderSection> {
                 HeaderField::Optional(name, body) => {
                     section.optional.insert(name, body);
                 }
+
+                // Rescue
+                HeaderField::Rescue(x) => {
+                    section.unparsed.push(x);
+                }
             };
             section
         }
@@ -149,7 +153,10 @@ pub enum HeaderField<'a> {
     ReturnPath(Option<model::MailboxRef>),
 
     // 3.6.8.  Optional Fields
-    Optional(&'a str, String)
+    Optional(&'a str, String),
+
+    // None
+    Rescue(&'a str),
 }
 
 /// Parse one known header field
@@ -283,6 +290,21 @@ fn field_name(input: &str) -> IResult<&str, &str> {
         take_while1(|c| c >= '\x21' && c <= '\x7E' && c != '\x3A'),
         pair(tag(":"), space0)
     )(input)
+}
+
+/// Rescue rule
+///
+/// Something went wrong while parsing headers,
+/// trying to fix parsing by consuming
+/// one unfolded header line.
+///
+/// ```abnf
+/// rescue = *(*any FWS) *any CRLF
+fn rescue(input: &str) -> IResult<&str, HeaderField> {
+    map(recognize(pair(
+        many0(pair(is_not("\r\n"), fws)),
+        pair(is_not("\r\n"), perm_crlf,
+    ))), |x| HeaderField::Rescue(x))(input)
 }
 
 #[cfg(test)]
@@ -446,6 +468,14 @@ mod tests {
     #[test]
     fn test_invalid_field_name() {
         assert!(header_field("Unknown: unknown\r\n").is_err());
+    }
+
+    #[test]
+    fn test_rescue() {
+        assert_eq!(
+            rescue("Héron: élan\r\n\tnoël: test\r\n"),
+            Ok(("", HeaderField::Rescue("Héron: élan\r\n\tnoël: test\r\n"))),
+        );
     }
 }
 

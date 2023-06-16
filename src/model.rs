@@ -101,6 +101,5 @@ pub struct HeaderSection<'a> {
 
     // 3.6.8.  Optional Fields
     pub optional: HashMap<&'a str, String>,
-    //pub failed: HashMap<&'a str, String>,
-    //pub garbage: &'a str,
+    pub unparsed: Vec<&'a str>,
 }
