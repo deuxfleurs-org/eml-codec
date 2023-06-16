@@ -275,9 +275,10 @@ fn unknown_field(input: &str) -> IResult<&str, HeaderField> {
     // Extract field name
     let (input, field_name) = field_name(input)?;
     let (input, body) = unstructured(input)?;
+    let (input, _) = perm_crlf(input)?;
     Ok((input, HeaderField::Optional(field_name, body)))
 }
-pub fn field_name(input: &str) -> IResult<&str, &str> {
+fn field_name(input: &str) -> IResult<&str, &str> {
     terminated(
         take_while1(|c| c >= '\x21' && c <= '\x7E' && c != '\x3A'),
         pair(tag(":"), space0)

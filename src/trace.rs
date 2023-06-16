@@ -55,7 +55,7 @@ mod tests {
     use chrono::{FixedOffset, TimeZone};
 
     #[test]
-    fn test_received() {
+    fn test_received_body() {
         let hdrs = r#"from smtp.example.com ([10.83.2.2])
     by server with LMTP
     id xxxxxxxxx
