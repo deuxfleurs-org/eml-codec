@@ -11,12 +11,8 @@ mod misc_token;
 mod mailbox;
 mod address;
 mod identification;
+mod trace;
+mod datetime;
 
 // Header blocks
-pub mod common_fields;
-pub mod trace;
-
-// Global mail
 pub mod header;
-
-

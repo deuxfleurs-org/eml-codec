@@ -1,7 +1,14 @@
-use imf_codec::common_fields;
+use imf_codec::header;
 
 fn main() {
-    let header = r#"Date: Fri, 21 Nov 1997 10:01:10 -0600
+    let hdr = r#"Return-Path: <gitlab@framasoft.org>
+Delivered-To: quentin@dufour.io
+Received: from smtp.deuxfleurs.fr ([10.83.2.2])
+	by doradille with LMTP
+	id IKPyOvS8iGTxBAEAvTd7DQ
+	(envelope-from <gitlab@framasoft.org>)
+	for <quentin@dufour.io>; Tue, 13 Jun 2023 19:01:08 +0000
+Date: Fri, 21 Nov 1997 10:01:10 -0600
 From: Mary Smith 
  <mary@example.net>
 Sender: imf@example.com
@@ -21,5 +28,5 @@ References: <1234@local.machine.example>
 This is a reply to your hello.
 "#;
 
-    println!("{:?}", common_fields::section(header));
+    println!("{:?}", header::section(hdr));
 }
