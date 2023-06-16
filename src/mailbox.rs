@@ -3,15 +3,15 @@ use nom::{
     branch::alt,
     bytes::complete::tag,
     character::complete::satisfy,
-    combinator::{into,opt},
-    multi::many0,
-    sequence::{delimited,pair,tuple},
+    combinator::{into,map,opt,recognize},
+    multi::{separated_list1, many0},
+    sequence::{delimited,pair,preceded,terminated,tuple},
 };
 
 use crate::model::{MailboxRef, AddrSpec};
-use crate::misc_token::phrase;
-use crate::whitespace::{cfws, fws};
-use crate::words::dot_atom;
+use crate::misc_token::{phrase, word};
+use crate::whitespace::{cfws, fws, is_obs_no_ws_ctl};
+use crate::words::{atom, dot_atom};
 use crate::quoted::quoted_string;
 
 /// Mailbox
@@ -43,9 +43,36 @@ fn name_addr(input: &str) -> IResult<&str, MailboxRef> {
 /// ```
 pub fn angle_addr(input: &str) -> IResult<&str, MailboxRef> {
    delimited(
-       pair(opt(cfws), tag("<")),
+       tuple((opt(cfws), tag("<"), opt(obs_route))),
        into(addr_spec),
        pair(tag(">"), opt(cfws)),
+    )(input)
+}
+
+///    obs-route       =   obs-domain-list ":"
+fn obs_route(input: &str) -> IResult<&str, Vec<String>> {
+    terminated(obs_domain_list, tag(":"))(input)
+}
+
+/// ```abnf
+///    obs-domain-list =   *(CFWS / ",") "@" domain
+///                        *("," [CFWS] ["@" domain])
+/// ```
+fn obs_domain_list(input: &str) -> IResult<&str, Vec<String>> {
+    //@FIXME complexity is O(n) in term of domains here.
+    let (input, head) = preceded(pair(many0(alt((recognize(cfws), tag(",")))), tag("@")), domain_part)(input)?; 
+    let (input, mut rest) = obs_domain_list_rest(input)?;
+    rest.insert(0, head);
+    Ok(("", rest))
+}
+
+fn obs_domain_list_rest(input: &str) -> IResult<&str, Vec<String>> {
+    map(
+        many0(preceded(
+            pair(tag(","), opt(cfws)),
+            opt(preceded(tag("@"), domain_part)),
+        )),
+        |v: Vec<Option<String>>| v.into_iter().flatten().collect()
     )(input)
 }
 
@@ -68,7 +95,12 @@ pub fn addr_spec(input: &str) -> IResult<&str, AddrSpec> {
 ///    local-part      =   dot-atom / quoted-string / obs-local-part
 /// ```
 fn local_part(input: &str) -> IResult<&str, String> {
-    alt((into(dot_atom), quoted_string))(input)
+    alt((into(dot_atom), quoted_string, obs_local_part))(input)
+}
+
+/// obs-local-part  =   word *("." word)
+fn obs_local_part(input: &str) -> IResult<&str, String> {
+    map(recognize(separated_list1(tag("."), word)), |s| s.into())(input)
 }
 
 /// Domain
@@ -77,7 +109,12 @@ fn local_part(input: &str) -> IResult<&str, String> {
 ///    domain          =   dot-atom / domain-literal / obs-domain
 /// ```
 pub fn domain_part(input: &str) -> IResult<&str, String> {
-    alt((into(dot_atom), domain_litteral))(input)
+    alt((into(dot_atom), domain_litteral, obs_domain))(input)
+}
+
+///  obs-domain      =   atom *("." atom)
+fn obs_domain(input: &str) -> IResult<&str, String> {
+    map(recognize(separated_list1(tag("."), atom)), |s| s.into())(input)
 }
 
 /// Domain litteral
@@ -111,15 +148,22 @@ fn inner_domain_litteral(input: &str) -> IResult<&str, String> {
     Ok((input, domain))
 }
 
+
+fn is_strict_dtext(c: char) -> bool {
+    (c >= '\x21' && c <= '\x5A') || (c >= '\x5E' && c <= '\x7E') || !c.is_ascii()
+}
+
 /// Is domain text
 ///
 /// ```abnf
 ///   dtext           =   %d33-90 /          ; Printable US-ASCII
 ///                       %d94-126 /         ;  characters not including
 ///                       obs-dtext          ;  "[", "]", or "\"
+///   obs-dtext       =   obs-NO-WS-CTL / quoted-pair
 /// ```
 pub fn is_dtext(c: char) -> bool {
-    (c >= '\x21' && c <= '\x5A') || (c >= '\x5E' && c <= '\x7E') || !c.is_ascii()
+    is_strict_dtext(c) || is_obs_no_ws_ctl(c) 
+    //@FIXME does not support quoted pair yet while RFC requires it
 }
 
 #[cfg(test)]
@@ -199,5 +243,18 @@ mod tests {
                 domain: "example.net".into(),
             }
         })));
+    }
+
+    #[test]
+    fn test_obs_domain_list() {
+        assert_eq!(obs_domain_list(r#"(shhh it's coming)
+ ,
+ (not yet)
+ @33+4.com,,,,
+ ,,,,
+ (again)
+ @example.com,@yep.com,@a,@b,,,@c"#),
+            Ok(("", vec!["33+4.com".into(), "example.com".into(), "yep.com".into(), "a".into(), "b".into(), "c".into()]))
+        );
     }
 }
