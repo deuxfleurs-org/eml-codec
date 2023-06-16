@@ -1,4 +1,4 @@
-use imf_codec::header;
+//use imf_codec::header;
 
 fn main() {
     let hdr = r#"Return-Path: <gitlab@framasoft.org>
@@ -33,5 +33,5 @@ References: <1234@local.machine.example>
 This is a reply to your hello.
 "#;
 
-    println!("{:?}", header::section(hdr));
+    //println!("{:?}", header::section(hdr));
 }

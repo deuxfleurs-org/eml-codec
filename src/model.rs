@@ -1,14 +1,6 @@
 use std::collections::HashMap;
 use chrono::{DateTime,FixedOffset,ParseError};
 
-#[derive(Debug, PartialEq, Default)]
-pub enum HeaderDate {
-    Parsed(DateTime<FixedOffset>),
-    Unknown(String, ParseError),
-    #[default]
-    None,
-}
-
 #[derive(Debug, PartialEq)]
 pub struct AddrSpec {
     pub local_part: String,
@@ -63,6 +55,49 @@ pub struct MessageId<'a> {
     pub right: &'a str,
 }
 
+#[derive(Debug, PartialEq)]
+pub enum FieldBody<'a, T> {
+    Correct(T),
+    Failed(&'a str),
+}
+
+#[derive(Debug, PartialEq)]
+pub enum Field<'a> {
+    // 3.6.1.  The Origination Date Field
+    Date(FieldBody<'a, DateTime<FixedOffset>>),
+
+    // 3.6.2.  Originator Fields
+    From(FieldBody<'a, Vec<MailboxRef>>),
+    Sender(FieldBody<'a, MailboxRef>),
+    ReplyTo(FieldBody<'a, Vec<AddressRef>>),
+
+    // 3.6.3.  Destination Address Fields
+    To(FieldBody<'a, Vec<AddressRef>>),
+    Cc(FieldBody<'a, Vec<AddressRef>>),
+    Bcc(FieldBody<'a, Vec<AddressRef>>),
+
+    // 3.6.4.  Identification Fields
+    MessageID(FieldBody<'a, MessageId<'a>>),
+    InReplyTo(FieldBody<'a, Vec<MessageId<'a>>>),
+    References(FieldBody<'a, Vec<MessageId<'a>>>),
+
+    // 3.6.5.  Informational Fields
+    Subject(FieldBody<'a, String>),
+    Comments(FieldBody<'a, String>),
+    Keywords(FieldBody<'a, Vec<String>>),
+
+    // 3.6.6   Resent Fields (not implemented)
+    // 3.6.7   Trace Fields
+    Received(FieldBody<'a, &'a str>),
+    ReturnPath(FieldBody<'a, Option<MailboxRef>>),
+
+    // 3.6.8.  Optional Fields
+    Optional(&'a str, String),
+
+    // None
+    Rescue(&'a str),
+}
+
 /// Permissive Header Section
 ///
 /// This is a structure intended for parsing/decoding,
@@ -72,7 +107,7 @@ pub struct MessageId<'a> {
 #[derive(Debug, PartialEq, Default)]
 pub struct HeaderSection<'a> {
     // 3.6.1.  The Origination Date Field
-    pub date: HeaderDate,
+    pub date: Option<DateTime<FixedOffset>>,
 
     // 3.6.2.  Originator Fields
     pub from: Vec<MailboxRef>,
@@ -101,5 +136,8 @@ pub struct HeaderSection<'a> {
 
     // 3.6.8.  Optional Fields
     pub optional: HashMap<&'a str, String>,
+
+    // Recovery
+    pub bad_fields: Vec<Field<'a>>,
     pub unparsed: Vec<&'a str>,
 }
