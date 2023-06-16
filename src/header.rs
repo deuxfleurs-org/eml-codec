@@ -303,8 +303,8 @@ fn field_name(input: &str) -> IResult<&str, &str> {
 fn rescue(input: &str) -> IResult<&str, HeaderField> {
     map(recognize(pair(
         many0(pair(is_not("\r\n"), fws)),
-        pair(is_not("\r\n"), perm_crlf,
-    ))), |x| HeaderField::Rescue(x))(input)
+        pair(is_not("\r\n"), perm_crlf),
+    )), |x| HeaderField::Rescue(x))(input)
 }
 
 #[cfg(test)]
