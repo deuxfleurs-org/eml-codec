@@ -69,7 +69,7 @@ pub struct MessageId<'a> {
 /// hence it's support cases where the email is considered
 /// as invalid according to RFC5322 but for which we can
 /// still extract some data.
-#[derive(Debug, Default)]
+#[derive(Debug, PartialEq, Default)]
 pub struct HeaderSection<'a> {
     // 3.6.1.  The Origination Date Field
     pub date: HeaderDate,

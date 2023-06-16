@@ -483,6 +483,137 @@ mod tests {
             Ok(("", HeaderField::Rescue("Héron: élan\r\n\tnoël: test\r\n"))),
         );
     }
+
+    #[test]
+    fn test_section() {
+        use chrono::{FixedOffset, TimeZone};
+        use std::collections::HashMap;
+
+        let fullmail = r#"Return-Path: <gitlab@example.com>
+Delivered-To: quentin@example.com
+Received: from smtp.example.com ([10.83.2.2])
+	by doradille with LMTP
+	id xyzabcd
+	(envelope-from <gitlab@example.com>)
+	for <quentin@example.com>; Tue, 13 Jun 2023 19:01:08 +0000
+Date: Tue, 13 Jun 2023 10:01:10 +0200
+From: Mary Smith
+ <mary@example.net>, "A\lan" <alan@example>
+Sender: imf@example.com
+Reply-To: "Mary Smith: Personal Account" <smith@home.example>
+To: John Doe <jdoe@machine.example>
+Cc: imf2@example.com
+Bcc: (hidden)
+Subject: Re: Saying Hello
+Comments: A simple message
+Comments: Not that complicated
+comments : not valid header name but should be accepted
+    by the parser.
+Keywords: hello, world
+Héron: Raté
+ Raté raté
+Keywords: salut, le, monde
+Not a real header but should still recover
+Message-ID: <3456@example.net>
+In-Reply-To: <1234@local.machine.example>
+References: <1234@local.machine.example>
+Unknown: unknown
+
+This is a reply to your hello.
+"#;
+        assert_eq!(
+            section(fullmail),
+            Ok(("This is a reply to your hello.\n", HeaderSection {
+                date: model::HeaderDate::Parsed(FixedOffset::east_opt(2 * 3600).unwrap().with_ymd_and_hms(2023, 06, 13, 10, 01, 10).unwrap()),
+
+                from: vec![MailboxRef {
+                    name: Some("Mary Smith".into()),
+                    addrspec: AddrSpec {
+                        local_part: "mary".into(),
+                        domain: "example.net".into(),
+                    }
+                }, MailboxRef {
+                    name: Some("Alan".into()),
+                    addrspec: AddrSpec {
+                        local_part: "alan".into(),
+                        domain: "example".into(),
+                    }
+                }],
+
+                sender: Some(MailboxRef {
+                    name: None,
+                    addrspec: AddrSpec {
+                        local_part: "imf".into(),
+                        domain: "example.com".into(),
+                    }
+                }),
+
+                reply_to: vec![AddressRef::Single(MailboxRef {
+                    name: Some("Mary Smith: Personal Account".into()),
+                    addrspec: AddrSpec {
+                        local_part: "smith".into(),
+                        domain: "home.example".into(),
+                    }
+                })],
+
+                to: vec![AddressRef::Single(MailboxRef {
+                    name: Some("John Doe".into()),
+                    addrspec: AddrSpec {
+                        local_part: "jdoe".into(),
+                        domain: "machine.example".into(),
+                    }
+                })],
+
+                cc: vec![AddressRef::Single(MailboxRef {
+                    name: None,
+                    addrspec: AddrSpec {
+                        local_part: "imf2".into(),
+                        domain: "example.com".into(),
+                    }
+                })],
+
+                bcc: vec![],
+
+                msg_id: Some(model::MessageId { left: "3456", right: "example.net" }),
+                in_reply_to: vec![model::MessageId { left: "1234", right: "local.machine.example" }],
+                references: vec![model::MessageId { left: "1234", right: "local.machine.example" }],
+
+                subject: Some("Re: Saying Hello".into()),
+
+                comments: vec![
+                    "A simple message".into(),
+                    "Not that complicated".into(),
+                    "not valid header name but should be accepted by the parser.".into(),
+                ],
+
+                keywords: vec![
+                    "hello".into(), "world".into(), "salut".into(), "le".into(), "monde".into()
+                ],
+
+                received: vec![ 
+                    "from smtp.example.com ([10.83.2.2])\n\tby doradille with LMTP\n\tid xyzabcd\n\t(envelope-from <gitlab@example.com>)\n\tfor <quentin@example.com>" 
+                ],
+
+                return_path: vec![MailboxRef {
+                    name: None,
+                    addrspec: AddrSpec {
+                        local_part: "gitlab".into(),
+                        domain: "example.com".into(),
+                    }
+                }],
+
+                optional: HashMap::from([
+                    ("Delivered-To", "quentin@example.com".into()),
+                    ("Unknown", "unknown".into()), 
+                ]),
+
+                unparsed: vec![
+                    "Héron: Raté\n Raté raté\n",
+                    "Not a real header but should still recover\n",
+                ],
+            }))
+        );
+    }
 }
 
 
