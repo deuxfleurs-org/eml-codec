@@ -1,4 +1,4 @@
-use chrono::{DateTime, FixedOffset, NaiveDate};
+use chrono::{DateTime, FixedOffset, NaiveDate, NaiveTime, TimeZone};
 use nom::{
     IResult,
     bytes::complete::take_while_m_n,
@@ -7,22 +7,23 @@ use nom::{
 use crate::misc_token;
 
 ///  date-time       =   [ day-of-week "," ] date time [CFWS]
+///  time            =   time-of-day zone
 ///  @FIXME: if parsing fails, Option::None is silently returned...
 pub fn section(input: &str) -> IResult<&str, Option<DateTime<FixedOffset>>> {
-    let (input, (_, date, time, _) = tuple((
-        opt(terminated(day_of_week), tag(",")),
-        date, time,
+    let (input, (_, date, time, tz, _)) = tuple((
+        opt(terminated(day_of_week, tag(","))),
+        date, time_of_day, zone
         opt(cfws)))(input)?;
 
 
-
+    //@TODO: rebuild DateTime from NaiveDate, NaiveTime and TimeZone
 
 
 
     // @FIXME want to extract datetime our way in the future
     // to better handle obsolete/bad cases instead of returning raw text.
-    let (input, raw_date) = misc_token::unstructured(input)?;
-    Ok((input, DateTime::parse_from_rfc2822(&raw_date).unwrap()))
+    //let (input, raw_date) = misc_token::unstructured(input)?;
+    //Ok((input, DateTime::parse_from_rfc2822(&raw_date).unwrap()))
 }
 
 ///    day-of-week     =   ([FWS] day-name) / obs-day-of-week
@@ -102,5 +103,42 @@ fn month(input: &str) -> IResult<&str, u32) {
 ///   year            =   (FWS 4*DIGIT FWS) / obs-year
 ///   obs-year        =   [CFWS] 2*DIGIT [CFWS]
 fn year(input: &str) -> IResult<&str, i32> {
-    alt((
+    alt((strict_year, obs_year))(input)
 }
+
+fn strict_year(input &str) -> IResult<&str, i32> {
+    delimited(fws, strict_year_digit, fws)(input)
+}
+
+fn obs_year(input: &str) -> IResult<&str, i32> {
+    delimited(opt(cfws), obs_year_digit, opt(cfws))(input)
+}
+
+fn strict_year_digit(input: &str) -> IResult<&str, i32> {
+    // Max value for i32 is 2,147,483,647 ; in other words 10 digits.
+    // 9 digits should always be parsable into an i32 and enough for a year.
+    // @FIXME a better implementation is desirable
+    map(take_while_m_n(4, 9, is_digit), |d| d.parse::<i32>().unwrap())(input)
+}
+
+fn obs_year_digit(input: &str) -> IResult<&str, i32> {
+    // @FIXME same as strict_year_digit
+    map(take_while_m_n(2, 9, is_digit), |d| d.parse::<i32>().unwrap())(input)
+}
+
+///   time-of-day     =   hour ":" minute [ ":" second ]
+///
+fn time(input: &str) -> IResult<&str, (NaiveTime, TimeZone)> {
+    map(
+        tuple((time_digit, tag(":"), time_digit, opt(preceded(tag(":"), time_digit)))),
+        |(hour, _, minute, maybe_sec)| 
+}
+
+fn time_digit(input: &str) -> IResult<&str, u32> {
+    alt((strict_time_digit, obs_time_digit))(input)
+}
+
+fn strict_time_digit(input: &str) -> IResult<&str, u32> {
+    take_while_m_n(4, 4, is_digit)(input)
+}
+
