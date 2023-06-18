@@ -87,8 +87,8 @@ fn obs_domain_list_rest(input: &str) -> IResult<&str, Vec<String>> {
 /// so I force obsolete for now...
 pub fn addr_spec(input: &str) -> IResult<&str, AddrSpec> {
     map(
-        tuple((obs_local_part, tag("@"), obs_domain)),
-        |(local_part, _, domain)| 
+        tuple((obs_local_part, tag("@"), obs_domain, many0(pair(tag("@"), obs_domain)))),
+        |(local_part, _, domain, _)| 
             AddrSpec { local_part, domain },
     )(input)
 }
@@ -312,6 +312,21 @@ mod tests {
             Ok(("", AddrSpec {
                 local_part: "ecn2760.conf.".into(),
                 domain: "enron.com".into(),
+            }))
+        );
+    }
+
+
+    #[test]
+    fn test_enron4() {
+        assert_eq!(
+            mailbox(r#"<"mark_kopinski/intl/acim/americancentury"@americancentury.com@enron.com>"#),
+            Ok(("", MailboxRef {
+                name: None,
+                addrspec: AddrSpec {
+                    local_part: "mark_kopinski/intl/acim/americancentury".into(),
+                    domain: "americancentury.com".into(),
+                }
             }))
         );
     }
