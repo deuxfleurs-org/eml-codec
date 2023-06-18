@@ -36,7 +36,7 @@ pub fn section(input: &str) -> IResult<&str, HeaderSection> {
                 // 3.6.1.  The Origination Date Field
                 //   | orig-date      | 1      | 1          |                            |
                 Field::Date(FieldBody::Correct(d)) => {
-                    section.date = Some(d);
+                    section.date = d;
                 }
 
                 // 3.6.2.  Originator Fields

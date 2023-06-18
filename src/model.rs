@@ -64,7 +64,7 @@ pub enum FieldBody<'a, T> {
 #[derive(Debug, PartialEq)]
 pub enum Field<'a> {
     // 3.6.1.  The Origination Date Field
-    Date(FieldBody<'a, DateTime<FixedOffset>>),
+    Date(FieldBody<'a, Option<DateTime<FixedOffset>>>),
 
     // 3.6.2.  Originator Fields
     From(FieldBody<'a, Vec<MailboxRef>>),
