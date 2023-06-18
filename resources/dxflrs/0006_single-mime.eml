@@ -1,0 +1,10 @@
+From: Garage team <garagehq@deuxfleurs.fr>
+Content-Type: multipart/alternative; boundary="festivus";
+Subject: Welcome to Aerogramme!!
+
+--festivus
+Content-Type: text/plain; charset="us-ascii"
+Content-Transfer-Encoding: 7bit
+
+Hello 1
+--festivus--

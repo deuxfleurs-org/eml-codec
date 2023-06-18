@@ -39,11 +39,12 @@ fn empty_path(input: &str) -> IResult<&str, Option<model::MailboxRef>> {
     Ok((input, None))
 }
 
+// @FIXME use obs_domain as it is a superset of domain
 fn received_tokens(input: &str) -> IResult<&str, &str> {
     alt((
         recognize(mailbox::angle_addr),
         recognize(mailbox::addr_spec),
-        recognize(mailbox::domain_part),
+        recognize(mailbox::obs_domain),
         recognize(misc_token::word), 
     ))(input)
 }

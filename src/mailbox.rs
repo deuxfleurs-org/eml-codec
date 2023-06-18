@@ -1,10 +1,11 @@
 use nom::{
     IResult,
+    Parser,
     branch::alt,
-    bytes::complete::tag,
+    bytes::complete::{tag, is_a},
     character::complete::satisfy,
     combinator::{into,map,opt,recognize},
-    multi::{separated_list1, many0},
+    multi::{separated_list1, fold_many0, many0, many1},
     sequence::{delimited,pair,preceded,terminated,tuple},
 };
 
@@ -60,7 +61,7 @@ fn obs_route(input: &str) -> IResult<&str, Vec<String>> {
 /// ```
 fn obs_domain_list(input: &str) -> IResult<&str, Vec<String>> {
     //@FIXME complexity is O(n) in term of domains here.
-    let (input, head) = preceded(pair(many0(alt((recognize(cfws), tag(",")))), tag("@")), domain_part)(input)?; 
+    let (input, head) = preceded(pair(many0(alt((recognize(cfws), tag(",")))), tag("@")), obs_domain)(input)?; 
     let (input, mut rest) = obs_domain_list_rest(input)?;
     rest.insert(0, head);
     Ok(("", rest))
@@ -70,23 +71,25 @@ fn obs_domain_list_rest(input: &str) -> IResult<&str, Vec<String>> {
     map(
         many0(preceded(
             pair(tag(","), opt(cfws)),
-            opt(preceded(tag("@"), domain_part)),
+            opt(preceded(tag("@"), obs_domain)),
         )),
         |v: Vec<Option<String>>| v.into_iter().flatten().collect()
     )(input)
 }
 
-/// Add-spec
+/// AddrSpec
 ///
 /// ```abnf
 ///    addr-spec       =   local-part "@" domain
 /// ```
+/// @FIXME: this system does not work to alternate between strict and obsolete
+/// so I force obsolete for now...
 pub fn addr_spec(input: &str) -> IResult<&str, AddrSpec> {
-    let (input, (local, _, domain)) = tuple((local_part, tag("@"), domain_part))(input)?;
-    Ok((input, AddrSpec {
-        local_part: local,
-        domain: domain,
-    }))
+    map(
+        tuple((obs_local_part, tag("@"), obs_domain)),
+        |(local_part, _, domain)| 
+            AddrSpec { local_part, domain },
+    )(input)
 }
 
 /// Local part
@@ -94,27 +97,52 @@ pub fn addr_spec(input: &str) -> IResult<&str, AddrSpec> {
 /// ```abnf
 ///    local-part      =   dot-atom / quoted-string / obs-local-part
 /// ```
-fn local_part(input: &str) -> IResult<&str, String> {
-    alt((into(dot_atom), quoted_string, obs_local_part))(input)
+fn strict_local_part(input: &str) -> IResult<&str, String> {
+    alt((into(dot_atom), quoted_string))(input)
 }
 
-/// obs-local-part  =   word *("." word)
+/// Obsolete local part
+///
+/// Compared to the RFC, we allow multiple dots.
+/// This is found in Enron emails and supported by Gmail.
+///
+/// Obsolete local part is a superset of strict_local_part:
+/// anything that is parsed by strict_local_part will be parsed by 
+/// obs_local_part.
+///
+/// ```abnf
+/// obs-local-part  =   word *(1*"." word)
+/// ```
 fn obs_local_part(input: &str) -> IResult<&str, String> {
-    map(recognize(separated_list1(tag("."), word)), |s| s.into())(input)
+    println!("obsolete local part");
+    map(pair(
+        word, 
+        fold_many0(
+            pair(is_a("."), word),
+            String::new,
+            |acc, (dots, txt)| acc + dots + &txt),
+    ), |(head, rest)| head.into_owned() + &rest)(input)
 }
 
 /// Domain
 ///
 /// ```abnf
-///    domain          =   dot-atom / domain-literal / obs-domain
+///    domain          =   dot-atom / domain-literal
 /// ```
-pub fn domain_part(input: &str) -> IResult<&str, String> {
-    alt((into(dot_atom), domain_litteral, obs_domain))(input)
+pub fn strict_domain(input: &str) -> IResult<&str, String> {
+    alt((into(dot_atom), domain_litteral))(input)
 }
 
-///  obs-domain      =   atom *("." atom)
-fn obs_domain(input: &str) -> IResult<&str, String> {
-    map(recognize(separated_list1(tag("."), atom)), |s| s.into())(input)
+/// Obsolete domain
+///
+/// Rewritten so that obs_domain is a superset
+/// of strict_domain.
+///
+/// ```abnf
+///  obs-domain      =   atom *("." atom) / domain-literal
+/// ```
+pub fn obs_domain(input: &str) -> IResult<&str, String> {
+    alt((map(separated_list1(tag("."), atom), |v| v.join(".")), domain_litteral))(input)
 }
 
 /// Domain litteral
@@ -255,6 +283,17 @@ mod tests {
  (again)
  @example.com,@yep.com,@a,@b,,,@c"#),
             Ok(("", vec!["33+4.com".into(), "example.com".into(), "yep.com".into(), "a".into(), "b".into(), "c".into()]))
+        );
+    }
+
+    #[test]
+    fn test_enron1() {
+        assert_eq!(
+            addr_spec("a..howard@enron.com"),
+            Ok(("", AddrSpec {
+                local_part: "a..howard".into(),
+                domain: "enron.com".into(),
+            }))
         );
     }
 }

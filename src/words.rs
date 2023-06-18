@@ -51,6 +51,15 @@ pub fn dot_atom(input: &str) -> IResult<&str, &str> {
     delimited(opt(cfws), dot_atom_text, opt(cfws))(input)
 }
 
+pub fn is_special(c: char) -> bool {
+    c == '(' || c == ')' || 
+    c == '<' || c == '>' ||
+    c == '[' || c == ']' ||
+    c == ':' || c == ';' ||
+    c == '@' || c == '\\' ||
+    c == ',' || c == '.' ||
+    c == '"'
+}
 
 #[cfg(test)]
 mod tests {
