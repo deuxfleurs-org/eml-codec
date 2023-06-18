@@ -114,7 +114,6 @@ fn strict_local_part(input: &str) -> IResult<&str, String> {
 /// obs-local-part  =   word *(1*"." word)
 /// ```
 fn obs_local_part(input: &str) -> IResult<&str, String> {
-    println!("obsolete local part");
     map(pair(
         word, 
         fold_many0(
