@@ -18,6 +18,8 @@ path = "src/parse.rs"
 [dependencies]
 nom = "7"
 chrono = "0.4"
+chardetng = "0.1"
+encoding_rs = "0.8"
 
 [dev-dependencies]
 walkdir = "2"

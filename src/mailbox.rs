@@ -111,16 +111,13 @@ fn strict_local_part(input: &str) -> IResult<&str, String> {
 /// obs_local_part.
 ///
 /// ```abnf
-/// obs-local-part  =   word *(1*"." word)
+/// obs-local-part  =  *(*"." word)
 /// ```
 fn obs_local_part(input: &str) -> IResult<&str, String> {
-    map(pair(
-        word, 
-        fold_many0(
-            pair(is_a("."), word),
-            String::new,
-            |acc, (dots, txt)| acc + dots + &txt),
-    ), |(head, rest)| head.into_owned() + &rest)(input)
+    fold_many0(
+        pair(opt(is_a(".")), word),
+        String::new,
+        |acc, (dots, txt)| acc + dots.unwrap_or("") + &txt)(input)
 }
 
 /// Domain
@@ -291,6 +288,17 @@ mod tests {
             addr_spec("a..howard@enron.com"),
             Ok(("", AddrSpec {
                 local_part: "a..howard".into(),
+                domain: "enron.com".into(),
+            }))
+        );
+    }
+
+    #[test]
+    fn test_enron2() {
+        assert_eq!(
+            addr_spec(".nelson@enron.com"),
+            Ok(("", AddrSpec {
+                local_part: ".nelson".into(),
                 domain: "enron.com".into(),
             }))
         );
