@@ -20,8 +20,11 @@ fn main() {
     println!("Encoding: {:?}, Malformed: {:?}", encoding, malformed);
 
     let (_, hdrs) = header::section(&email).unwrap();
-    assert!(hdrs.date.is_some());
-    assert!(hdrs.from.len() > 0);
 
     println!("{:?}", hdrs);
+
+    assert!(hdrs.date.is_some());
+    assert!(hdrs.from.len() > 0);
+    assert!(hdrs.bad_fields.len() == 0);
+
 }
