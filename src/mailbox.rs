@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use nom::{
     IResult,
     Parser,
@@ -111,13 +112,13 @@ fn strict_local_part(input: &str) -> IResult<&str, String> {
 /// obs_local_part.
 ///
 /// ```abnf
-/// obs-local-part  =  *(*"." word)
+/// obs-local-part  =  *("." / word)
 /// ```
 fn obs_local_part(input: &str) -> IResult<&str, String> {
     fold_many0(
-        pair(opt(is_a(".")), word),
+        alt((map(is_a("."), Cow::Borrowed), word)),
         String::new,
-        |acc, (dots, txt)| acc + dots.unwrap_or("") + &txt)(input)
+        |acc, chunk| acc + &chunk)(input)
 }
 
 /// Domain
@@ -299,6 +300,17 @@ mod tests {
             addr_spec(".nelson@enron.com"),
             Ok(("", AddrSpec {
                 local_part: ".nelson".into(),
+                domain: "enron.com".into(),
+            }))
+        );
+    }
+
+    #[test]
+    fn test_enron3() {
+        assert_eq!(
+            addr_spec("ecn2760.conf.@enron.com"),
+            Ok(("", AddrSpec {
+                local_part: "ecn2760.conf.".into(),
                 domain: "enron.com".into(),
             }))
         );
