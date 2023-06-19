@@ -56,6 +56,12 @@ the From/To/Cc fields were simply completely wrong, but while
 some fields failed to parse, the parser did not crash and
 parsed the other fields of the email correctly.
 
+Run it on your machine:
+
+```bash
+cargo test -- --ignored --nocapture enron500k
+```
+
 Planned: jpbush, my inbox, etc.
 
 ### Fuzzing (expected)
