@@ -12,6 +12,7 @@ fn test_enron500k() {
     let mut d = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     d.push("resources/enron/maildir/");
     let prefix_sz = d.as_path().to_str().unwrap().len();
+    //d.push("kean-s/");
 
     let known_bad_fields = HashSet::from([
         "white-s/calendar/113.", // To: east <7..>
@@ -59,7 +60,17 @@ fn test_enron500k() {
         "kaminski-v/notes_inbox/140.", // To: dogs <breakthrough.>, cats <breaktkhrough.>, risk <breakthrough.>,\r\n\tleaders <breaktkhrough.>
         "kaminski-v/notes_inbox/95.", // To + CC failed: cats <breaktkhrough.>, risk <breakthrough.>, leaders <breaktkhrough.>
 
-
+        "kean-s/archiving/untitled/1232.", // To: w/assts <govt.>, mark.palmer@enron.com, karen.denne@enron.com
+        "kean-s/archiving/untitled/1688.", // To: w/assts <govt.>
+        "kean-s/sent/198.", // To: w/assts <govt.>, mark.palmer@enron.com, karen.denne@enron.com
+        "kean-s/reg_risk/9.", // To: w/assts <govt.>
+        "kean-s/discussion_threads/950.", // To: w/assts <govt.>, mark.palmer@enron.com, karen.denne@enron.com
+        "kean-s/discussion_threads/577.", // To: w/assts <govt.>
+        "kean-s/calendar/untitled/1096.", // To: w/assts <govt.>, mark.palmer@enron.com, karen.denne@enron.com
+        "kean-s/calendar/untitled/640.", // To: w/assts <govt.>
+        "kean-s/all_documents/640.", // To: w/assts <govt.>
+        "kean-s/all_documents/1095.", // To: w/assts <govt.>
+        "kean-s/attachments/2030.",  // To: w/assts <govt.>
     ]);
 
     let known_bad_from = HashSet::from([

@@ -41,9 +41,11 @@ recovery
 
 ## Testing strategy
 
- - Unit testing: parser combinator independently.
- - Selected full emails
- - Enron 500k
+ - Unit testing: parser combinator independently (done)
+ - Selected full emails (done)
+ - Enron 500k (done)
+ - Fuzzing (expected)
+ - Across reference IMAP servers (dovevot, cyrus) (expected)
 
 ## Development status
 
