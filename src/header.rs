@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use chrono::{DateTime, FixedOffset};
 use nom::{
     IResult,
@@ -10,6 +11,9 @@ use nom::{
     sequence::{terminated, preceded, pair, tuple},
 };
 
+use chardetng::EncodingDetector;
+use encoding_rs::Encoding;
+
 use crate::whitespace::{fws, perm_crlf};
 use crate::words::vchar_seq;
 use crate::misc_token::{phrase, unstructured};
@@ -21,10 +25,21 @@ use crate::{datetime, trace, model};
 
 /// HEADERS
 
-/// Header section
+///
+pub fn from_bytes<'a>(rawmail: &'a [u8]) -> (Cow<'a, str>, &Encoding, bool) {
+    // Create detector
+    let mut detector = EncodingDetector::new();
+    detector.feed(&rawmail, true);
+
+    // Get encoding
+    let enc: &Encoding = detector.guess(None, true);
+    enc.decode(&rawmail)
+}
+
+/// Internal header section
 ///
 /// See: https://www.rfc-editor.org/rfc/rfc5322.html#section-2.2
-pub fn section(input: &str) -> IResult<&str, HeaderSection> {
+pub fn section<'a>(input: &'a str) -> IResult<&'a str, HeaderSection> {
     let (input, headers) = fold_many0(
         alt((known_field, unknown_field, rescue_field)),
         HeaderSection::default,

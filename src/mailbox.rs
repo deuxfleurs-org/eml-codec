@@ -65,7 +65,7 @@ fn obs_domain_list(input: &str) -> IResult<&str, Vec<String>> {
     let (input, head) = preceded(pair(many0(alt((recognize(cfws), tag(",")))), tag("@")), obs_domain)(input)?; 
     let (input, mut rest) = obs_domain_list_rest(input)?;
     rest.insert(0, head);
-    Ok(("", rest))
+    Ok((input, rest))
 }
 
 fn obs_domain_list_rest(input: &str) -> IResult<&str, Vec<String>> {

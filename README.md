@@ -28,6 +28,16 @@ Current known limitations/bugs:
 ## Design
 
 Based on nom, a parser combinator lib in Rust.
+multipass parser
+ - extract header block: `&[u8]` (find \r\n\r\n OR \n\n OR \r\r OR \r\n)
+ - decode/convert it with chardet + encoding\_rs to support latin-1: Cow<&str>
+ - extract header lines iter::&str (requires only to search for FWS + obs\_CRLF)
+ - extract header names iter::Name::From(&str)
+ - extract header body iter::Body::From(Vec<MailboxRef>)
+ - extract header section Section
+
+recovery
+ - based on multipass, equivalent to sentinel / synchronization tokens
 
 ## Testing strategy
 
@@ -39,6 +49,17 @@ Based on nom, a parser combinator lib in Rust.
 
 Early development. Not ready.
 Do not use it in production or any software at all.
+
+Todo:
+ - [ ] test over enron dataset
+ - [ ] convert to multipass parser
+ - [ ] implement mime part 3 (encoded headers)
+ - [ ] implement mime part 1 (new headers)
+ - [ ] review part 2 (media types) and part 4 (registration procedure) but might be out of scope
+ - [ ] implement some targeted testing as part of mime part 5
+ - [ ] implement fuzzing through cargo fuzz
+ - [ ] test over other datasets (jpbush, ml, my inbox)
+ - [ ] backport to aerogramme
 
 ## Targeted RFC
 
