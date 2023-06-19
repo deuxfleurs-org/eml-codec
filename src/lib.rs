@@ -16,3 +16,6 @@ mod datetime;
 
 // Header blocks
 pub mod header;
+
+// root
+pub mod email;
