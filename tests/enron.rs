@@ -12,33 +12,52 @@ fn test_enron500k() {
     d.push("resources/enron/maildir/");
 
     let known_bad_fields = [
-        "maildir/white-s/calendar/113.", // To: east <7..>
+        "white-s/calendar/113.", // To: east <7..>
                                          
-        "maildir/skilling-j/inbox/223.", // From: pep <performance.>
+        "skilling-j/inbox/223.", // From: pep <performance.>
                                          
-        "maildir/jones-t/all_documents/9806.", // To: <"tibor.vizkelety":@enron.com>
-        "maildir/jones-t/notes_inbox/3303.", // To: <"tibor.vizkelety":@enron.com>
+        "jones-t/all_documents/9806.", // To: <"tibor.vizkelety":@enron.com>
+        "jones-t/notes_inbox/3303.", // To: <"tibor.vizkelety":@enron.com>
                                              
-        "maildir/lokey-t/calendar/33.", // A second Date entry for the calendar containing
+        "lokey-t/calendar/33.", // A second Date entry for the calendar containing
                                         // Date:       Monday, March 12
                                         
-        "maildir/zipper-a/inbox/199.", // To: e-mail <mari.>
+        "zipper-a/inbox/199.", // To: e-mail <mari.>
 
-        "maildir/dasovich-j/deleted_items/128.", // To: f62489 <g>
-        "maildir/dasovich-j/all_documents/677.", // To: w/assts <govt.>
-        "maildir/dasovich-j/all_documents/8984.", // To: <"ft.com.users":@enron.com>
-        "maildir/dasovich-j/all_documents/3514.", // To: <"ft.com.users":@enron.com>
-        "maildir/dasovich-j/all_documents/4467.", // To: <"ft.com.users":@enron.com>
-        "maildir/dasovich-j/all_documents/578.", // To: w/assts <govt.>
-        "maildir/dasovich-j/all_documents/3148.", // To: <"economist.com.readers":@enron.com>
-        "maildir/dasovich-j/all_documents/9953.", // To: <"economist.com.reader":@enron.com>
-        "maildir/dasovich-j/risk_analytics/3.", // To: w/assts <govt.>
-        "maildir/dasovich-j/notes_inbox/5391.", // To: <"ft.com.users":@enron.com>
-        "maildir/dasovich-j/notes_inbox/4952.", // To: <"economist.com.reader":@enron.com>
-        "maildir/dasovich-j/notes_inbox/2386.", // To: <"ft.com.users":@enron.com>
-        "maildir/dasovich-j/notes_inbox/1706.", // To: <"ft.com.users":@enron.com>
-        "maildir/dasovich-j/notes_inbox/1489.", // To: <"economist.com.readers":@enron.com>
-        "maildir/dasovich-j/notes_inbox/5.", // To: w/assts <govt.>
+        "dasovich-j/deleted_items/128.", // To: f62489 <g>
+        "dasovich-j/all_documents/677.", // To: w/assts <govt.>
+        "dasovich-j/all_documents/8984.", // To: <"ft.com.users":@enron.com>
+        "dasovich-j/all_documents/3514.", // To: <"ft.com.users":@enron.com>
+        "dasovich-j/all_documents/4467.", // To: <"ft.com.users":@enron.com>
+        "dasovich-j/all_documents/578.", // To: w/assts <govt.>
+        "dasovich-j/all_documents/3148.", // To: <"economist.com.readers":@enron.com>
+        "dasovich-j/all_documents/9953.", // To: <"economist.com.reader":@enron.com>
+        "dasovich-j/risk_analytics/3.", // To: w/assts <govt.>
+        "dasovich-j/notes_inbox/5391.", // To: <"ft.com.users":@enron.com>
+        "dasovich-j/notes_inbox/4952.", // To: <"economist.com.reader":@enron.com>
+        "dasovich-j/notes_inbox/2386.", // To: <"ft.com.users":@enron.com>
+        "dasovich-j/notes_inbox/1706.", // To: <"ft.com.users":@enron.com>
+        "dasovich-j/notes_inbox/1489.", // To: <"economist.com.readers":@enron.com>
+        "dasovich-j/notes_inbox/5.", // To: w/assts <govt.>
+
+        "kaminski-v/sites/19.", // To: <"the.desk":@enron.com>
+        "kaminski-v/sites/1.", // To: <"the.desk":@enron.com>
+        "kaminski-v/discussion_threads/5082.", // To: <"ft.com.users":@enron.com>
+        "kaminski-v/discussion_threads/4046.", // To: <"the.desk":@enron.com>
+        "kaminski-v/discussion_threads/4187.", // To: <"the.desk":@enron.com>
+        "kaminski-v/discussion_threads/8068.", // To: cats <breaktkhrough.>, risk <breakthrough.>, leaders <breaktkhrough.>
+        "kaminski-v/discussion_threads/7980.", // To: dogs <breakthrough.>, cats <breaktkhrough.>, risk <breakthrough.>,\r\n\tleaders <breaktkhrough.>
+        "kaminski-v/all_documents/5970.", //To: dogs <breakthrough.>, cats <breaktkhrough.>, risk <breakthrough.>,\r\n\tleaders <breaktkhrough.>
+        "kaminski-v/all_documents/5838.", // To + Cc: dogs <breakthrough.>, breakthrough.adm@enron.com, breakthrough.adm@enron.com,\r\n\tbreakthrough.adm@enron.com
+        "kaminski-v/all_documents/10070.", // To: <"ft.com.users":@enron.com>
+        "kaminski-v/all_documents/92.", // To: <"the.desk":@enron.com>
+        "kaminski-v/all_documents/276.", // To: <"the.desk":@enron.com>
+        "kaminski-v/technical/1.", // To: <"the.desk":@enron.com>
+        "kaminski-v/technical/7.", // To: <"the.desk":@enron.com>
+        "kaminski-v/notes_inbox/140.", // To: dogs <breakthrough.>, cats <breaktkhrough.>, risk <breakthrough.>,\r\n\tleaders <breaktkhrough.>
+        "kaminski-v/notes_inbox/95.", // To + CC failed: cats <breaktkhrough.>, risk <breakthrough.>, leaders <breaktkhrough.>
+
+
     ];
 
     let known_bad_from = [
