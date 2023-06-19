@@ -14,27 +14,24 @@ use crate::fragments::whitespace;
 
 #[derive(Debug, PartialEq)]
 pub struct ExtractFields<'a> {
-    pub raw_header: Cow<'a, str>,
     pub fields: Vec<&'a str>,
     pub body: &'a [u8],
 }
 
-impl<'a> TryFrom<GuessCharset<'a>> for ExtractFields<'a> {
+impl<'a> TryFrom<&'a GuessCharset<'a>> for ExtractFields<'a> {
     type Error = IMFError<'a>;
 
-    fn try_from(gcha: GuessCharset<'a>) -> Result<Self, Self::Error> {
-        let mut ef = ExtractFields { fields: vec![], raw_header: gcha.header, body: gcha.body };
-        let (_, fields) = all_consuming(many0(foldable_line))(ef.raw_header).map_err(|e| IMFError::ExtractFields(e))?;
-        panic!();
-        //ef.fields = fields;
-        //Ok(ef)
+    fn try_from(gcha: &'a GuessCharset<'a>) -> Result<Self, Self::Error> {
+        all_consuming(many0(foldable_line))(&gcha.header)
+            .map_err(|e| IMFError::ExtractFields(e))
+            .map(|(_, fields)| ExtractFields { fields, body: gcha.body })
     }
 }
 
 /// ```abnf
-/// fold_line = !crlf *(1*(crlf WS) !crlf) crlf
+/// fold_line = any *(1*(crlf WS) any) crlf
 /// ```
-fn foldable_line<'a>(input: Cow<'a, str>) -> IResult<Cow<'a, str>, Cow<'a, str>> {
+fn foldable_line(input: &str) -> IResult<&str, &str> {
     recognize(tuple((
         is_not("\r\n"), 
         many0(pair(
@@ -42,4 +39,28 @@ fn foldable_line<'a>(input: Cow<'a, str>) -> IResult<Cow<'a, str>, Cow<'a, str>>
                 is_not("\r\n"))), 
         whitespace::perm_crlf
     )))(input)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_extract() {
+        assert_eq!(
+            ExtractFields::try_from(&GuessCharset {
+                header: "From: hello@world.com,\r\n\talice@wonderlands.com\r\nDate: 12 Mar 1997 07:33:25 Z\r\n".into(),
+                encoding: encoding_rs::UTF_8,
+                malformed: false,
+                body: b"Hello world!",
+            }),
+            Ok(ExtractFields {
+                fields: vec![
+                    "From: hello@world.com,\r\n\talice@wonderlands.com\r\n",
+                    "Date: 12 Mar 1997 07:33:25 Z\r\n",
+                ],
+                body: b"Hello world!",
+            })
+        );
+    }
 }

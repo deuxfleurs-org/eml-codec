@@ -16,8 +16,8 @@ const IS_LAST_BUFFER: bool = true;
 const ALLOW_UTF8: bool = true;
 const NO_TLD: Option<&[u8]> = None;
 
-impl<'a> From<Segment<'a>> for GuessCharset<'a> {
-    fn from(seg: Segment<'a>) -> Self {
+impl<'a> From<&'a Segment<'a>> for GuessCharset<'a> {
+    fn from(seg: &'a Segment<'a>) -> Self {
         // Create detector
         let mut detector = EncodingDetector::new();
         detector.feed(&seg.header, IS_LAST_BUFFER);
@@ -37,12 +37,12 @@ mod tests {
     #[test]
     fn test_charset() {
         assert_eq!(
-            GuessCharset::from(Segment {
+            GuessCharset::from(&Segment {
                 body: b"Hello world!", 
                 header: b"From: hello@world.com\r\nDate: 12 Mar 1997 07:33:25 Z\r\n",
             }),
             GuessCharset {
-                header: Cow::Borrowed("From: hello@world.com\r\nDate: 12 Mar 1997 07:33:25 Z\r\n"),
+                header: "From: hello@world.com\r\nDate: 12 Mar 1997 07:33:25 Z\r\n".into(),
                 encoding: encoding_rs::UTF_8,
                 malformed: false,
                 body: b"Hello world!",
