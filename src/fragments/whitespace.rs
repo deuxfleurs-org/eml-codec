@@ -7,7 +7,7 @@ use nom::{
     multi::{many0, many1},
     sequence::{pair, tuple},
 };
-use crate::quoted::quoted_pair;
+use crate::fragments::quoted::quoted_pair;
 
 // --- whitespaces and comments
 

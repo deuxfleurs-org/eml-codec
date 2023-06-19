@@ -8,8 +8,8 @@ use nom::{
     sequence::{pair, preceded},
 };
 
-use crate::words::is_vchar;
-use crate::whitespace::{fws, cfws, is_obs_no_ws_ctl};
+use crate::fragments::words::is_vchar;
+use crate::fragments::whitespace::{fws, cfws, is_obs_no_ws_ctl};
 
 /// Quoted pair
 ///

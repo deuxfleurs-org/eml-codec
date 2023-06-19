@@ -8,7 +8,7 @@ use nom::{
     multi::many0,
     sequence::{delimited, pair, tuple},
 };
-use crate::{datetime, mailbox, model, misc_token, whitespace};
+use crate::fragments::{datetime, mailbox, model, misc_token, whitespace};
 
 pub fn received_body(input: &str) -> IResult<&str, &str> {
     map(

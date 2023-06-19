@@ -10,11 +10,11 @@ use nom::{
     sequence::{delimited,pair,preceded,terminated,tuple},
 };
 
-use crate::model::{MailboxRef, AddrSpec};
-use crate::misc_token::{phrase, word};
-use crate::whitespace::{cfws, fws, is_obs_no_ws_ctl};
-use crate::words::{atom, dot_atom};
-use crate::quoted::quoted_string;
+use crate::fragments::model::{MailboxRef, AddrSpec};
+use crate::fragments::misc_token::{phrase, word};
+use crate::fragments::whitespace::{cfws, fws, is_obs_no_ws_ctl};
+use crate::fragments::words::{atom, dot_atom};
+use crate::fragments::quoted::quoted_string;
 
 /// Mailbox
 ///

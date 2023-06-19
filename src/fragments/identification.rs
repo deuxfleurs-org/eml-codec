@@ -7,10 +7,10 @@ use nom::{
     sequence::{delimited, pair, tuple},
 };
 
-use crate::whitespace::cfws;
-use crate::words::dot_atom_text;
-use crate::mailbox::is_dtext;
-use crate::model::MessageId;
+use crate::fragments::whitespace::cfws;
+use crate::fragments::words::dot_atom_text;
+use crate::fragments::mailbox::is_dtext;
+use crate::fragments::model::MessageId;
 
 /// Message identifier
 ///

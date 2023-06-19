@@ -5,7 +5,7 @@ use nom::{
     multi::many0,
     sequence::{delimited, pair},
 };
-use crate::whitespace::cfws;
+use crate::fragments::whitespace::cfws;
 
 
 /// VCHAR definition

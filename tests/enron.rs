@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use std::path::PathBuf;
 use std::fs::File;
 use std::io::Read;
-use imf_codec::header;
+use imf_codec::fragments::header;
 use walkdir::WalkDir;
 
 

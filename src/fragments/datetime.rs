@@ -10,8 +10,8 @@ use nom::{
     combinator::{map, opt, value},
     sequence::{preceded, terminated, tuple, delimited },
 };
-use crate::misc_token;
-use crate::whitespace::{fws, cfws};
+use crate::fragments::misc_token;
+use crate::fragments::whitespace::{fws, cfws};
 
 const MIN: i32 = 60;
 const HOUR: i32 = 60 * MIN;

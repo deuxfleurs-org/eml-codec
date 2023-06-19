@@ -1,4 +1,4 @@
-use imf_codec::header;
+use imf_codec::fragments::header;
 use std::io;
 use std::io::Read;
 

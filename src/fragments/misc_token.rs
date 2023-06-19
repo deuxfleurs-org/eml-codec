@@ -9,9 +9,9 @@ use nom::{
     sequence::{pair, tuple},
 };
 
-use crate::quoted::quoted_string;
-use crate::whitespace::{fws, is_obs_no_ws_ctl};
-use crate::words::{atom, is_vchar};
+use crate::fragments::quoted::quoted_string;
+use crate::fragments::whitespace::{fws, is_obs_no_ws_ctl};
+use crate::fragments::words::{atom, is_vchar};
 
 /// Word
 ///

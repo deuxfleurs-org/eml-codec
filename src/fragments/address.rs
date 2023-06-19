@@ -7,10 +7,10 @@ use nom::{
     sequence::tuple,
 };
 
-use crate::model::{GroupRef, AddressRef, MailboxRef};
-use crate::mailbox::{addr_spec, mailbox};
-use crate::misc_token::phrase;
-use crate::whitespace::{cfws};
+use crate::fragments::model::{GroupRef, AddressRef, MailboxRef};
+use crate::fragments::mailbox::{addr_spec, mailbox};
+use crate::fragments::misc_token::phrase;
+use crate::fragments::whitespace::{cfws};
 
 /// Address (section 3.4 of RFC5322)
 ///
@@ -77,7 +77,7 @@ pub fn address_list_cfws(input: &str) -> IResult<&str, Vec<AddressRef>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::model::AddrSpec;
+    use crate::fragments::model::AddrSpec;
 
     #[test]
     fn test_mailbox_list() {

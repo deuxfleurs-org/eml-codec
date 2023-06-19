@@ -14,14 +14,14 @@ use nom::{
 use chardetng::EncodingDetector;
 use encoding_rs::Encoding;
 
-use crate::whitespace::{fws, perm_crlf};
-use crate::words::vchar_seq;
-use crate::misc_token::{phrase, unstructured};
-use crate::model::{HeaderSection, MailboxRef, AddressRef, Field, FieldBody};
-use crate::mailbox::mailbox;
-use crate::address::{mailbox_list, address_list, address_list_cfws};
-use crate::identification::msg_id;
-use crate::{datetime, trace, model};
+use crate::fragments::whitespace::{fws, perm_crlf};
+use crate::fragments::words::vchar_seq;
+use crate::fragments::misc_token::{phrase, unstructured};
+use crate::fragments::model::{HeaderSection, MailboxRef, AddressRef, Field, FieldBody};
+use crate::fragments::mailbox::mailbox;
+use crate::fragments::address::{mailbox_list, address_list, address_list_cfws};
+use crate::fragments::identification::msg_id;
+use crate::fragments::{datetime, trace, model};
 
 /// HEADERS
 
@@ -329,7 +329,7 @@ fn rescue_field(input: &str) -> IResult<&str, Field> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::model::{GroupRef, AddrSpec};
+    use crate::fragments::model::{GroupRef, AddrSpec};
 
     // 3.6.1.  The Origination Date Field
 /*    #[test]
