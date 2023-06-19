@@ -41,11 +41,26 @@ recovery
 
 ## Testing strategy
 
- - Unit testing: parser combinator independently (done)
- - Selected full emails (done)
- - Enron 500k (done)
- - Fuzzing (expected)
- - Across reference IMAP servers (dovevot, cyrus) (expected)
+imf-codec aims to be as much tested as possible against reald
+
+### Unit testing: parser combinator independently (done)
+
+### Selected full emails (expected)
+
+### Existing datasets
+
+**Enron 500k** - Took 20 minutes to parse ~517k emails and check that 
+RFC5322 headers (From, To, Cc, etc.) are correctly parsed.
+From this list, we had to exclude ~50 emails on which
+the From/To/Cc fields were simply completely wrong, but while
+some fields failed to parse, the parser did not crash and
+parsed the other fields of the email correctly.
+
+Planned: jpbush, my inbox, etc.
+
+### Fuzzing (expected)
+
+### Across reference IMAP servers (dovevot, cyrus) (expected)
 
 ## Development status
 
@@ -53,7 +68,7 @@ Early development. Not ready.
 Do not use it in production or any software at all.
 
 Todo:
- - [ ] test over the enron dataset
+ - [X] test over the enron dataset
  - [ ] convert to multipass parser
  - [ ] implement mime part 3 (encoded headers)
  - [ ] implement mime part 1 (new headers)

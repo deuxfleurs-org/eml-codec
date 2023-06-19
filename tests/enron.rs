@@ -12,7 +12,7 @@ fn test_enron500k() {
     let mut d = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     d.push("resources/enron/maildir/");
     let prefix_sz = d.as_path().to_str().unwrap().len();
-    //d.push("kean-s/");
+    //d.push("williams-w3/");
 
     let known_bad_fields = HashSet::from([
         "white-s/calendar/113.", // To: east <7..>
@@ -71,6 +71,8 @@ fn test_enron500k() {
         "kean-s/all_documents/640.", // To: w/assts <govt.>
         "kean-s/all_documents/1095.", // To: w/assts <govt.>
         "kean-s/attachments/2030.",  // To: w/assts <govt.>
+
+        "williams-w3/operations_committee_isas/10.", // To: z34655 <m>
     ]);
 
     let known_bad_from = HashSet::from([
