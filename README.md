@@ -51,7 +51,7 @@ Early development. Not ready.
 Do not use it in production or any software at all.
 
 Todo:
- - [ ] test over enron dataset
+ - [ ] test over the enron dataset
  - [ ] convert to multipass parser
  - [ ] implement mime part 3 (encoded headers)
  - [ ] implement mime part 1 (new headers)
@@ -60,21 +60,22 @@ Todo:
  - [ ] implement fuzzing through cargo fuzz
  - [ ] test over other datasets (jpbush, ml, my inbox)
  - [ ] backport to aerogramme
+ - [ ] fix warnings, put examples, document the public API a little bit
 
 ## Targeted RFC
 
-| # | Name |
-|---|------|
-|822	| ARPA INTERNET TEXT MESSAGES| 
-|2822	| Internet Message Format (2001) | 	
-|5322	| Internet Message Format (2008) | 	
-|2045	| ↳ Multipurpose Internet Mail Extensions (MIME) Part One: Format of Internet Message Bodies |
-|2046	| ↳ Multipurpose Internet Mail Extensions (MIME) Part Two: Media Types | 
-|2047	| ↳ MIME (Multipurpose Internet Mail Extensions) Part Three: Message Header Extensions for Non-ASCII Text | 
-|2048	| ↳ Multipurpose Internet Mail Extensions (MIME) Part Four: Registration Procedures | 
-|2049	| ↳ Multipurpose Internet Mail Extensions (MIME) Part Five: Conformance Criteria and Examples |
-|6532	| Internationalized Email Headers |
-|9228   | Delivered-To Email Header Field |
+| 🚩 | # | Name |
+|----|---|------|
+| 🟩 |822	| ARPA INTERNET TEXT MESSAGES| 
+| 🟩 | |2822	| Internet Message Format (2001) | 	
+| 🟩 |5322	| Internet Message Format (2008) | 	
+| 🔴 |2045	| ↳ Multipurpose Internet Mail Extensions (MIME) Part One: Format of Internet Message Bodies |
+| 🔴 |2046	| ↳ Multipurpose Internet Mail Extensions (MIME) Part Two: Media Types | 
+| 🔴 |2047	| ↳ MIME (Multipurpose Internet Mail Extensions) Part Three: Message Header Extensions for Non-ASCII Text | 
+| 🔴 |2048	| ↳ Multipurpose Internet Mail Extensions (MIME) Part Four: Registration Procedures | 
+| 🔴 |2049	| ↳ Multipurpose Internet Mail Extensions (MIME) Part Five: Conformance Criteria and Examples |
+| 🟩 |6532	| Internationalized Email Headers |
+| 🔴 |9228   | Delivered-To Email Header Field |
 
 ## Alternatives
 

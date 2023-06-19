@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::path::PathBuf;
 use std::fs::File;
 use std::io::Read;
@@ -10,8 +11,9 @@ use walkdir::WalkDir;
 fn test_enron500k() {
     let mut d = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     d.push("resources/enron/maildir/");
+    let prefix_sz = d.as_path().to_str().unwrap().len();
 
-    let known_bad_fields = [
+    let known_bad_fields = HashSet::from([
         "white-s/calendar/113.", // To: east <7..>
                                          
         "skilling-j/inbox/223.", // From: pep <performance.>
@@ -58,20 +60,21 @@ fn test_enron500k() {
         "kaminski-v/notes_inbox/95.", // To + CC failed: cats <breaktkhrough.>, risk <breakthrough.>, leaders <breaktkhrough.>
 
 
-    ];
+    ]);
 
-    let known_bad_from = [
-        "maildir/skilling-j/inbox/223.", // From: pep <performance.>
-    ];
+    let known_bad_from = HashSet::from([
+        "skilling-j/inbox/223.", // From: pep <performance.>
+    ]);
 
     let mut i = 0;
     for entry in WalkDir::new(d.as_path()).into_iter().filter_map(|file| file.ok()) {
         if entry.metadata().unwrap().is_file() {
-            //@TODO check list
+            let mail_path = entry.path();
+            let suffix = &mail_path.to_str().unwrap()[prefix_sz..];
 
             // read file
             let mut raw = Vec::new();
-            let mut f = File::open(entry.path()).unwrap();
+            let mut f = File::open(mail_path).unwrap();
             f.read_to_end(&mut raw).unwrap();
 
             // parse
@@ -86,16 +89,16 @@ fn test_enron500k() {
 
             let p = entry.path();
             if !ok_date || !ok_from || !ok_fields {
-                println!("Issue with: {}", p.display());
+                println!("Issue with: {}", suffix);
             }
 
             assert!(ok_date);
 
-            if !known_bad_from.iter().any(|&s| p.ends_with(s)) {
+            if !known_bad_from.contains(suffix) {
                 assert!(ok_from);
             }
 
-            if !known_bad_fields.iter().any(|&s| p.ends_with(s)) {
+            if !known_bad_fields.contains(suffix) {
                 assert!(ok_fields);
             }
 
