@@ -67,7 +67,7 @@ Todo:
 | 🚩 | # | Name |
 |----|---|------|
 | 🟩 |822	| ARPA INTERNET TEXT MESSAGES| 
-| 🟩 | |2822	| Internet Message Format (2001) | 	
+| 🟩 |2822	| Internet Message Format (2001) | 	
 | 🟩 |5322	| Internet Message Format (2008) | 	
 | 🔴 |2045	| ↳ Multipurpose Internet Mail Extensions (MIME) Part One: Format of Internet Message Bodies |
 | 🔴 |2046	| ↳ Multipurpose Internet Mail Extensions (MIME) Part Two: Media Types | 
