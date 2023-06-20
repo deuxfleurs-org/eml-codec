@@ -10,7 +10,7 @@ pub struct Parsed<'a> {
 impl<'a> From<field_eager::Parsed<'a>> for Parsed<'a> {
     fn from(p: field_eager::Parsed<'a>) -> Self {
         Parsed {
-            fields: p.fields.into(),
+            fields: Section::from_iter(p.fields.into_iter()),
             body: p.body,
         }
     }

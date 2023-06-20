@@ -45,10 +45,10 @@ pub enum Field<'a> {
 }
 use Field::*;
 
-impl<'a> TryFrom<&'a Lazy<'a>> for Field<'a> {
+impl<'a> TryFrom<Lazy<'a>> for Field<'a> {
     type Error = IMFError<'a>;
 
-    fn try_from(l: &'a Lazy<'a>) -> Result<Self, Self::Error> {
+    fn try_from(l: Lazy<'a>) -> Result<Self, Self::Error> {
         match l {
             Lazy::Date(v) => v.try_into().map(|v| Date(v)),
             Lazy::From(v) => v.try_into().map(|v| From(v)),
@@ -66,7 +66,7 @@ impl<'a> TryFrom<&'a Lazy<'a>> for Field<'a> {
             Lazy::Received(v) => v.try_into().map(|v| Received(v)),
             Lazy::ReturnPath(v) => v.try_into().map(|v| ReturnPath(v)),
             Lazy::Optional(k, v) => v.try_into().map(|v| Optional(k, v)),
-            Lazy::Rescue(v) => Ok(Rescue(*v)),
+            Lazy::Rescue(v) => Ok(Rescue(v)),
         }
     }
 }

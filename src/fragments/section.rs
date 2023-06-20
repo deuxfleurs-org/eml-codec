@@ -49,33 +49,31 @@ pub struct Section<'a> {
 
 //@FIXME min and max limits are not enforced,
 // it may result in missing data or silently overriden data.
-impl<'a> From<Vec<Field<'a>>> for Section<'a> {
-    fn from(field_list: Vec<Field<'a>>) -> Self {
-        field_list.into_iter().fold(
-            Section::default(),
-            |mut section, field| {
-                match field {
-                    Field::Date(v) => section.date = Some(v),
-                    Field::From(v) => section.from.extend(v),
-                    Field::Sender(v) => section.sender = Some(v),
-                    Field::ReplyTo(v) => section.reply_to.extend(v),
-                    Field::To(v) => section.to.extend(v),
-                    Field::Cc(v) => section.cc.extend(v),
-                    Field::Bcc(v) => section.bcc.extend(v),
-                    Field::MessageID(v) => section.msg_id = Some(v),
-                    Field::InReplyTo(v) => section.in_reply_to.extend(v),
-                    Field::References(v) => section.references.extend(v),
-                    Field::Subject(v) => section.subject = Some(v),
-                    Field::Comments(v) => section.comments.push(v),
-                    Field::Keywords(v) => section.keywords.push(v),
-                    Field::ReturnPath(v) => section.return_path.push(v),
-                    Field::Received(v) => section.received.push(v),
-                    Field::Optional(k, v) => { section.optional.insert(k, v); },
-                    Field::Rescue(v) => section.unparsed.push(v),
-                };
-                section
+impl<'a> FromIterator<Field<'a>> for Section<'a> {
+    fn from_iter<I: IntoIterator<Item=Field<'a>>>(iter: I) -> Self {
+        let mut section = Section::default();
+        for field in iter {
+            match field {
+                Field::Date(v) => section.date = Some(v),
+                Field::From(v) => section.from.extend(v),
+                Field::Sender(v) => section.sender = Some(v),
+                Field::ReplyTo(v) => section.reply_to.extend(v),
+                Field::To(v) => section.to.extend(v),
+                Field::Cc(v) => section.cc.extend(v),
+                Field::Bcc(v) => section.bcc.extend(v),
+                Field::MessageID(v) => section.msg_id = Some(v),
+                Field::InReplyTo(v) => section.in_reply_to.extend(v),
+                Field::References(v) => section.references.extend(v),
+                Field::Subject(v) => section.subject = Some(v),
+                Field::Comments(v) => section.comments.push(v),
+                Field::Keywords(v) => section.keywords.push(v),
+                Field::ReturnPath(v) => section.return_path.push(v),
+                Field::Received(v) => section.received.push(v),
+                Field::Optional(k, v) => { section.optional.insert(k, v); },
+                Field::Rescue(v) => section.unparsed.push(v),
             }
-        )
+        }
+        section
     }
 }
 

@@ -14,40 +14,40 @@ use crate::fragments::misc_token::phrase;
 use crate::fragments::whitespace::{cfws};
 use crate::error::IMFError;
 
-impl<'a> TryFrom<&'a lazy::Mailbox<'a>> for MailboxRef {
+impl<'a> TryFrom<lazy::Mailbox<'a>> for MailboxRef {
     type Error = IMFError<'a>;
 
-    fn try_from(mx: &'a lazy::Mailbox<'a>) -> Result<Self, Self::Error> {
+    fn try_from(mx: lazy::Mailbox<'a>) -> Result<Self, Self::Error> {
         mailbox(mx.0)
             .map(|(_, m)| m)
             .map_err(|e| IMFError::Mailbox(e))
     }
 }
 
-impl<'a> TryFrom<&'a lazy::MailboxList<'a>> for MailboxList {
+impl<'a> TryFrom<lazy::MailboxList<'a>> for MailboxList {
     type Error = IMFError<'a>;
 
-    fn try_from(ml: &'a lazy::MailboxList<'a>) -> Result<Self, Self::Error> {
+    fn try_from(ml: lazy::MailboxList<'a>) -> Result<Self, Self::Error> {
         mailbox_list(ml.0)
             .map(|(_, m)| m)
             .map_err(|e| IMFError::MailboxList(e))
     }
 }
 
-impl<'a> TryFrom<&'a lazy::AddressList<'a>> for AddressList {
+impl<'a> TryFrom<lazy::AddressList<'a>> for AddressList {
     type Error = IMFError<'a>;
 
-    fn try_from(al: &'a lazy::AddressList<'a>) -> Result<Self, Self::Error> {
+    fn try_from(al: lazy::AddressList<'a>) -> Result<Self, Self::Error> {
         address_list(al.0)
             .map(|(_, a)| a)
             .map_err(|e| IMFError::AddressList(e))
     }
 }
 
-impl<'a> TryFrom<&'a lazy::NullableAddressList<'a>> for AddressList {
+impl<'a> TryFrom<lazy::NullableAddressList<'a>> for AddressList {
     type Error = IMFError<'a>;
 
-    fn try_from(nal: &'a lazy::NullableAddressList<'a>) -> Result<Self, Self::Error> {
+    fn try_from(nal: lazy::NullableAddressList<'a>) -> Result<Self, Self::Error> {
         opt(alt((address_list, address_list_cfws)))(nal.0)
             .map(|(_, a)| a.unwrap_or(vec![]))
             .map_err(|e| IMFError::NullableAddressList(e))

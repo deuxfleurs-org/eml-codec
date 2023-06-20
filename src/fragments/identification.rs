@@ -15,20 +15,20 @@ use crate::fragments::mailbox::is_dtext;
 use crate::fragments::model::{MessageId, MessageIdList};
 use crate::error::IMFError;
 
-impl<'a> TryFrom<&'a lazy::Identifier<'a>> for MessageId<'a> {
+impl<'a> TryFrom<lazy::Identifier<'a>> for MessageId<'a> {
     type Error = IMFError<'a>;
 
-    fn try_from(id: &'a lazy::Identifier<'a>) -> Result<Self, Self::Error> {
+    fn try_from(id: lazy::Identifier<'a>) -> Result<Self, Self::Error> {
         msg_id(id.0)
             .map(|(_, i)| i)
             .map_err(|e| IMFError::MessageID(e))
     }
 }
 
-impl<'a> TryFrom<&'a lazy::IdentifierList<'a>> for MessageIdList<'a> {
+impl<'a> TryFrom<lazy::IdentifierList<'a>> for MessageIdList<'a> {
     type Error = IMFError<'a>;
 
-    fn try_from(id: &'a lazy::IdentifierList<'a>) -> Result<Self, Self::Error> {
+    fn try_from(id: lazy::IdentifierList<'a>) -> Result<Self, Self::Error> {
         many1(msg_id)(id.0)
             .map(|(_, i)| i)
             .map_err(|e| IMFError::MessageIDList(e))

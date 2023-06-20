@@ -21,20 +21,20 @@ pub struct Unstructured(pub String);
 #[derive(Debug, PartialEq, Default)]
 pub struct PhraseList(pub Vec<String>);
 
-impl<'a> TryFrom<&'a lazy::Unstructured<'a>> for Unstructured {
+impl<'a> TryFrom<lazy::Unstructured<'a>> for Unstructured {
     type Error = IMFError<'a>;
 
-    fn try_from(input: &'a lazy::Unstructured<'a>) -> Result<Self, Self::Error> {
+    fn try_from(input: lazy::Unstructured<'a>) -> Result<Self, Self::Error> {
         unstructured(input.0)
             .map(|(_, v)| Unstructured(v))
             .map_err(|e| IMFError::Unstructured(e))
     } 
 }
 
-impl<'a> TryFrom<&'a lazy::PhraseList<'a>> for PhraseList {
+impl<'a> TryFrom<lazy::PhraseList<'a>> for PhraseList {
     type Error = IMFError<'a>;
 
-    fn try_from(p: &'a lazy::PhraseList<'a>) -> Result<Self, Self::Error> {
+    fn try_from(p: lazy::PhraseList<'a>) -> Result<Self, Self::Error> {
         separated_list1(tag(","), phrase)(p.0)
             .map(|(_, q)| PhraseList(q))
             .map_err(|e| IMFError::PhraseList(e))
