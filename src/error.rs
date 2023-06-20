@@ -14,4 +14,5 @@ pub enum IMFError<'a> {
     MessageIDList(nom::Err<nom::error::Error<&'a str>>),
     Unstructured(nom::Err<nom::error::Error<&'a str>>),
     PhraseList(nom::Err<nom::error::Error<&'a str>>),
+    ReceivedLog(nom::Err<nom::error::Error<&'a str>>),
 }

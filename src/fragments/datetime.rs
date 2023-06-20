@@ -18,10 +18,10 @@ use crate::error::IMFError;
 const MIN: i32 = 60;
 const HOUR: i32 = 60 * MIN;
 
-impl<'a> TryFrom<lazy::DateTime<'a>> for DateTime<FixedOffset> {
+impl<'a> TryFrom<&'a lazy::DateTime<'a>> for DateTime<FixedOffset> {
     type Error = IMFError<'a>;
 
-    fn try_from(value: lazy::DateTime<'a>) -> Result<Self, Self::Error> {
+    fn try_from(value: &'a lazy::DateTime<'a>) -> Result<Self, Self::Error> {
         match section(value.0) {
             Ok((_, Some(dt))) => Ok(dt),
             Err(e) => Err(IMFError::DateTimeParse(e)),

@@ -14,6 +14,7 @@ mod identification;
 mod trace;
 mod datetime;
 pub mod lazy;
+pub mod eager;
 
 // Header blocks
 pub mod header;

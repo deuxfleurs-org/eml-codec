@@ -8,7 +8,21 @@ use nom::{
     multi::many0,
     sequence::{delimited, pair, tuple},
 };
-use crate::fragments::{datetime, mailbox, model, misc_token, whitespace};
+use crate::fragments::{datetime, mailbox, model, misc_token, whitespace, lazy};
+use crate::error::IMFError;
+
+#[derive(Debug, PartialEq)]
+pub struct ReceivedLog<'a>(pub &'a str);
+
+impl<'a> TryFrom<&'a lazy::ReceivedLog<'a>> for ReceivedLog<'a> {
+    type Error = IMFError<'a>;
+
+    fn try_from(input: &'a lazy::ReceivedLog<'a>) -> Result<Self, Self::Error> {
+        received_body(input.0)
+            .map_err(|e| IMFError::ReceivedLog(e))
+            .map(|(_, v)| ReceivedLog(v))
+    }
+}
 
 pub fn received_body(input: &str) -> IResult<&str, &str> {
     map(

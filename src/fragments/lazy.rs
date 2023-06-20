@@ -71,7 +71,7 @@ pub enum Field<'a> {
     ReturnPath(Mailbox<'a>),
 
     // 3.6.8.  Optional Fields
-    Optional(&'a str, &'a str),
+    Optional(&'a str, Unstructured<'a>),
 
     // None
     Rescue(&'a str),
@@ -126,6 +126,6 @@ fn correct_field(input: &str) -> IResult<&str, Field> {
             "return-path" => ReturnPath(Mailbox(rest)),
             "received" => Received(ReceivedLog(rest)),
 
-            _ => Optional(name, rest),
+            _ => Optional(name, Unstructured(rest)),
     }))
 }
