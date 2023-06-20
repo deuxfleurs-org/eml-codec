@@ -13,6 +13,7 @@ mod address;
 mod identification;
 mod trace;
 mod datetime;
+pub mod field_raw;
 
 // Header blocks
 pub mod header;
