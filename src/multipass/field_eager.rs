@@ -24,7 +24,7 @@ mod tests {
     use chrono::{FixedOffset, TimeZone};
 
     #[test]
-    fn test_field_name() {
+    fn test_field_body() {
         assert_eq!(Parsed::from(&field_lazy::Parsed {
             fields: vec![
                 lazy::Field::From(lazy::MailboxList("hello@world.com,\r\n\talice@wonderlands.com\r\n")),

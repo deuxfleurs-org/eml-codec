@@ -15,10 +15,10 @@ use crate::fragments::whitespace::{fws, is_obs_no_ws_ctl};
 use crate::fragments::words::{atom, is_vchar};
 use crate::error::IMFError;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Default)]
 pub struct Unstructured(pub String);
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Default)]
 pub struct PhraseList(pub Vec<String>);
 
 impl<'a> TryFrom<&'a lazy::Unstructured<'a>> for Unstructured {
