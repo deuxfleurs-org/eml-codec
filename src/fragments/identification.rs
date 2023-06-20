@@ -4,13 +4,36 @@ use nom::{
     branch::alt,
     bytes::complete::{take_while, tag},
     combinator::opt,
+    multi::many1,
     sequence::{delimited, pair, tuple},
 };
 
+use crate::fragments::lazy;
 use crate::fragments::whitespace::cfws;
 use crate::fragments::words::dot_atom_text;
 use crate::fragments::mailbox::is_dtext;
-use crate::fragments::model::MessageId;
+use crate::fragments::model::{MessageId, MessageIdList};
+use crate::error::IMFError;
+
+impl<'a> TryFrom<lazy::Identifier<'a>> for MessageId<'a> {
+    type Error = IMFError<'a>;
+
+    fn try_from(id: lazy::Identifier<'a>) -> Result<Self, Self::Error> {
+        msg_id(id.0)
+            .map(|(_, i)| i)
+            .map_err(|e| IMFError::MessageID(e))
+    }
+}
+
+impl<'a> TryFrom<lazy::IdentifierList<'a>> for MessageIdList<'a> {
+    type Error = IMFError<'a>;
+
+    fn try_from(id: lazy::IdentifierList<'a>) -> Result<Self, Self::Error> {
+        many1(msg_id)(id.0)
+            .map(|(_, i)| i)
+            .map_err(|e| IMFError::MessageIDList(e))
+    }
+}
 
 /// Message identifier
 ///

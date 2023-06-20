@@ -26,6 +26,7 @@ impl From<AddrSpec> for MailboxRef {
         }
     }
 }
+pub type MailboxList = Vec<MailboxRef>;
 
 #[derive(Debug, PartialEq)]
 pub struct GroupRef {
@@ -48,12 +49,14 @@ impl From<GroupRef> for AddressRef {
         AddressRef::Many(grp)
     }
 }
+pub type AddressList = Vec<AddressRef>;
 
 #[derive(Debug, PartialEq)]
 pub struct MessageId<'a> {
     pub left: &'a str,
     pub right: &'a str,
 }
+pub type MessageIdList<'a> = Vec<MessageId<'a>>;
 
 #[derive(Debug, PartialEq)]
 pub enum FieldBody<'a, T> {

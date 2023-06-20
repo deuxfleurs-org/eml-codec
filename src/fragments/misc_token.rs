@@ -2,16 +2,41 @@ use std::borrow::Cow;
 use nom::{
     IResult,
     branch::alt,
-    bytes::complete::take_while1,
+    bytes::complete::{take_while1, tag},
     character::complete::space0,
     combinator::{into, opt},
-    multi::{many0, many1},
+    multi::{many0, many1, separated_list1},
     sequence::{pair, tuple},
 };
 
+use crate::fragments::lazy;
 use crate::fragments::quoted::quoted_string;
 use crate::fragments::whitespace::{fws, is_obs_no_ws_ctl};
 use crate::fragments::words::{atom, is_vchar};
+use crate::error::IMFError;
+
+type Unstructured = String;
+type PhraseList = Vec<String>;
+
+impl<'a> TryFrom<lazy::Unstructured<'a>> for Unstructured {
+    type Error = IMFError<'a>;
+
+    fn try_from(input: lazy::Unstructured<'a>) -> Result<Self, Self::Error> {
+        unstructured(input.0)
+            .map(|(_, v)| v)
+            .map_err(|e| IMFError::Unstructured(e))
+    } 
+}
+
+impl<'a> TryFrom<lazy::PhraseList<'a>> for PhraseList {
+    type Error = IMFError<'a>;
+
+    fn try_from(p: lazy::PhraseList<'a>) -> Result<Self, Self::Error> {
+        separated_list1(tag(","), phrase)(p.0)
+            .map(|(_, q)| q)
+            .map_err(|e| IMFError::PhraseList(e))
+    }
+}
 
 /// Word
 ///
