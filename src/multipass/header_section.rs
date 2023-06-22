@@ -53,14 +53,14 @@ mod tests {
         Parsed {
             fields: Section {
                 from: vec![
-                    model::MailboxRef { 
+                    &model::MailboxRef { 
                         name: None, 
                         addrspec: model::AddrSpec { 
                             local_part: "hello".into(), 
                             domain: "world.com".into() 
                         }
                     }, 
-                    model::MailboxRef { 
+                    &model::MailboxRef { 
                         name: None, 
                         addrspec: model::AddrSpec { 
                             local_part: "alice".into(), 
@@ -69,7 +69,7 @@ mod tests {
                     },
                 ],
 
-                date: Some(FixedOffset::east_opt(0)
+                date: Some(&FixedOffset::east_opt(0)
                     .unwrap()
                     .with_ymd_and_hms(1997, 03, 12, 7, 33, 25)
                     .unwrap()),

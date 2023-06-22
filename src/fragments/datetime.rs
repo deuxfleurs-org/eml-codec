@@ -282,6 +282,7 @@ fn obs_zone(input: &str) -> IResult<&str, Option<FixedOffset>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::TimeZone;
 
     
     #[test]

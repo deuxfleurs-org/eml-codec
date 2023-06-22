@@ -33,7 +33,7 @@ mod tests {
 
     #[test]
     fn test_field_body() {
-        assert_eq!(new(field_lazy::Parsed {
+        assert_eq!(new(&field_lazy::Parsed {
             fields: vec![
                 lazy::Field::From(lazy::MailboxList("hello@world.com,\r\n\talice@wonderlands.com\r\n")),
                 lazy::Field::Date(lazy::DateTime("12 Mar 1997 07:33:25 Z\r\n")),

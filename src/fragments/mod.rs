@@ -5,13 +5,13 @@ pub mod model;
 pub mod whitespace;
 mod words;
 mod quoted;
-mod misc_token;
+pub mod misc_token;
 
 // Header specific
 mod mailbox;
 mod address;
 mod identification;
-mod trace;
+pub mod trace;
 mod datetime;
 pub mod lazy;
 pub mod eager;

@@ -27,7 +27,7 @@ mod tests {
 
     #[test]
     fn test_field_name() {
-        assert_eq!(new(extract_fields::Parsed {
+        assert_eq!(new(&extract_fields::Parsed {
             fields: vec![
                 "From: hello@world.com,\r\n\talice@wonderlands.com\r\n",
                 "Date: 12 Mar 1997 07:33:25 Z\r\n",
