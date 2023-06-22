@@ -1,14 +1,14 @@
 use nom::{
-    IResult,
     branch::alt,
     bytes::complete::{is_not, tag},
     combinator::recognize,
-    sequence::{pair, terminated},
     multi::many0,
+    sequence::{pair, terminated},
+    IResult,
 };
 
-use crate::multipass::guess_charset;
 use crate::error::IMFError;
+use crate::multipass::guess_charset;
 
 #[derive(Debug, PartialEq)]
 pub struct Parsed<'a> {
@@ -21,10 +21,7 @@ const LF: u8 = 0x0A;
 const CRLF: &[u8] = &[CR, LF];
 
 pub fn new<'a>(buffer: &'a [u8]) -> Result<Parsed<'a>, IMFError<'a>> {
-    terminated(
-        recognize(many0(line)), 
-        obs_crlf
-    )(buffer)
+    terminated(recognize(many0(line)), obs_crlf)(buffer)
         .map_err(|e| IMFError::Segment(e))
         .map(|(body, header)| Parsed { header, body })
 }
@@ -36,10 +33,7 @@ impl<'a> Parsed<'a> {
 }
 
 fn line(input: &[u8]) -> IResult<&[u8], (&[u8], &[u8])> {
-    pair(
-        is_not(CRLF), 
-        obs_crlf,
-    )(input)
+    pair(is_not(CRLF), obs_crlf)(input)
 }
 
 fn obs_crlf(input: &[u8]) -> IResult<&[u8], &[u8]> {
@@ -56,7 +50,7 @@ mod tests {
             new(&b"From: hello@world.com\r\nDate: 12 Mar 1997 07:33:25 Z\r\n\r\nHello world!"[..]),
             Ok(Parsed {
                 header: b"From: hello@world.com\r\nDate: 12 Mar 1997 07:33:25 Z\r\n",
-                body: b"Hello world!", 
+                body: b"Hello world!",
             })
         );
     }

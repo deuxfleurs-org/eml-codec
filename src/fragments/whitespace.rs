@@ -1,13 +1,13 @@
+use crate::fragments::quoted::quoted_pair;
 use nom::{
-    IResult,
     branch::alt,
     bytes::complete::tag,
     character::complete::{crlf, satisfy, space0, space1},
-    combinator::{recognize, opt},
+    combinator::{opt, recognize},
     multi::{many0, many1},
     sequence::tuple,
+    IResult,
 };
-use crate::fragments::quoted::quoted_pair;
 
 // --- whitespaces and comments
 
@@ -35,11 +35,10 @@ pub fn fws(input: &str) -> IResult<&str, char> {
     Ok((input, ' '))
 }
 fn fold_marker(input: &str) -> IResult<&str, &str> {
-   let (input, _) = space0(input)?;
-   let (input, _) = perm_crlf(input)?;
-   space1(input)
+    let (input, _) = space0(input)?;
+    let (input, _) = perm_crlf(input)?;
+    space1(input)
 }
-
 
 /// Folding White Space with Comment
 ///
@@ -76,7 +75,7 @@ pub fn comment(input: &str) -> IResult<&str, ()> {
 }
 
 pub fn ccontent(input: &str) -> IResult<&str, &str> {
-   alt((recognize(ctext), recognize(quoted_pair), recognize(comment)))(input) 
+    alt((recognize(ctext), recognize(quoted_pair), recognize(comment)))(input)
 }
 
 pub fn ctext(input: &str) -> IResult<&str, char> {
@@ -92,14 +91,17 @@ pub fn ctext(input: &str) -> IResult<&str, char> {
 ///                       obs-ctext
 ///```
 pub fn is_restr_ctext(c: char) -> bool {
-    (c >= '\x21' && c <= '\x27') || (c >= '\x2A' && c <= '\x5B') || (c >= '\x5D' && c <= '\x7E') || !c.is_ascii()
+    (c >= '\x21' && c <= '\x27')
+        || (c >= '\x2A' && c <= '\x5B')
+        || (c >= '\x5D' && c <= '\x7E')
+        || !c.is_ascii()
 }
 
 pub fn is_ctext(c: char) -> bool {
     is_restr_ctext(c) || is_obs_no_ws_ctl(c)
 }
 
-/// US ASCII control characters without effect 
+/// US ASCII control characters without effect
 ///
 /// ```abnf
 ///   obs-NO-WS-CTL   =   %d1-8 /            ; US-ASCII control
@@ -109,7 +111,11 @@ pub fn is_ctext(c: char) -> bool {
 ///                       %d127              ;  white space characters
 /// ```
 pub fn is_obs_no_ws_ctl(c: char) -> bool {
-    (c >= '\x01' && c <= '\x08') || c == '\x0b' || c == '\x0b' || (c >= '\x0e' && c<= '\x1f') || c == '\x7F'
+    (c >= '\x01' && c <= '\x08')
+        || c == '\x0b'
+        || c == '\x0b'
+        || (c >= '\x0e' && c <= '\x1f')
+        || c == '\x7F'
 }
 
 #[cfg(test)]
@@ -133,8 +139,20 @@ mod tests {
 
     #[test]
     fn test_cfws() {
-        assert_eq!(cfws("(A nice \\) chap) <pete(his account)@silly.test(his host)>"), Ok(("<pete(his account)@silly.test(his host)>", "(A nice \\) chap) ")));
-        assert_eq!(cfws("(Chris's host.)public.example>,"), Ok(("public.example>,", "(Chris's host.)")));
-        assert_eq!(cfws("(double (comment) is fun) wouch"), Ok(("wouch", "(double (comment) is fun) ")));
+        assert_eq!(
+            cfws("(A nice \\) chap) <pete(his account)@silly.test(his host)>"),
+            Ok((
+                "<pete(his account)@silly.test(his host)>",
+                "(A nice \\) chap) "
+            ))
+        );
+        assert_eq!(
+            cfws("(Chris's host.)public.example>,"),
+            Ok(("public.example>,", "(Chris's host.)"))
+        );
+        assert_eq!(
+            cfws("(double (comment) is fun) wouch"),
+            Ok(("wouch", "(double (comment) is fun) "))
+        );
     }
 }

@@ -1,16 +1,16 @@
 use nom::{
-    IResult,
-    character::complete::space1,
     bytes::complete::is_not,
+    character::complete::space1,
     combinator::{all_consuming, recognize},
     multi::{many0, many1},
     sequence::{pair, tuple},
+    IResult,
 };
 
 use crate::error::IMFError;
 use crate::fragments::whitespace;
-use crate::multipass::guess_charset;
 use crate::multipass::field_lazy;
+use crate::multipass::guess_charset;
 
 #[derive(Debug, PartialEq)]
 pub struct Parsed<'a> {
@@ -21,7 +21,10 @@ pub struct Parsed<'a> {
 pub fn new<'a>(gcha: &'a guess_charset::Parsed<'a>) -> Result<Parsed<'a>, IMFError<'a>> {
     all_consuming(many0(foldable_line))(&gcha.header)
         .map_err(|e| IMFError::ExtractFields(e))
-        .map(|(_, fields)| Parsed { fields, body: gcha.body })
+        .map(|(_, fields)| Parsed {
+            fields,
+            body: gcha.body,
+        })
 }
 
 impl<'a> Parsed<'a> {
@@ -35,11 +38,12 @@ impl<'a> Parsed<'a> {
 /// ```
 fn foldable_line(input: &str) -> IResult<&str, &str> {
     recognize(tuple((
-        is_not("\r\n"), 
+        is_not("\r\n"),
         many0(pair(
-                many1(pair(whitespace::perm_crlf, space1)), 
-                is_not("\r\n"))), 
-        whitespace::perm_crlf
+            many1(pair(whitespace::perm_crlf, space1)),
+            is_not("\r\n"),
+        )),
+        whitespace::perm_crlf,
     )))(input)
 }
 

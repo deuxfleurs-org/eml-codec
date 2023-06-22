@@ -2,17 +2,17 @@
 pub mod model;
 
 // Generic
+pub mod misc_token;
+mod quoted;
 pub mod whitespace;
 mod words;
-mod quoted;
-pub mod misc_token;
 
 // Header specific
-mod mailbox;
 mod address;
-mod identification;
-pub mod trace;
 mod datetime;
-pub mod lazy;
 pub mod eager;
+mod identification;
+pub mod lazy;
+mod mailbox;
 pub mod section;
+pub mod trace;

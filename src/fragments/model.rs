@@ -1,5 +1,5 @@
+use chrono::{DateTime, FixedOffset};
 use std::collections::HashMap;
-use chrono::{DateTime,FixedOffset};
 
 #[derive(Debug, PartialEq)]
 pub struct AddrSpec {
@@ -126,7 +126,7 @@ pub struct HeaderSection<'a> {
     pub msg_id: Option<MessageId<'a>>,
     pub in_reply_to: Vec<MessageId<'a>>,
     pub references: Vec<MessageId<'a>>,
-    
+
     // 3.6.5.  Informational Fields
     pub subject: Option<String>,
     pub comments: Vec<String>,

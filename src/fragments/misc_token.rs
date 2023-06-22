@@ -1,19 +1,19 @@
-use std::borrow::Cow;
 use nom::{
-    IResult,
     branch::alt,
-    bytes::complete::{take_while1, tag},
+    bytes::complete::{tag, take_while1},
     character::complete::space0,
     combinator::{into, opt},
     multi::{many0, many1, separated_list1},
     sequence::tuple,
+    IResult,
 };
+use std::borrow::Cow;
 
+use crate::error::IMFError;
 use crate::fragments::lazy;
 use crate::fragments::quoted::quoted_string;
 use crate::fragments::whitespace::{fws, is_obs_no_ws_ctl};
 use crate::fragments::words::{atom, is_vchar};
-use crate::error::IMFError;
 
 #[derive(Debug, PartialEq, Default)]
 pub struct Unstructured(pub String);
@@ -28,7 +28,7 @@ impl<'a> TryFrom<&'a lazy::Unstructured<'a>> for Unstructured {
         unstructured(input.0)
             .map(|(_, v)| Unstructured(v))
             .map_err(|e| IMFError::Unstructured(e))
-    } 
+    }
 }
 
 impl<'a> TryFrom<&'a lazy::PhraseList<'a>> for PhraseList {
@@ -101,7 +101,13 @@ mod tests {
     #[test]
     fn test_phrase() {
         assert_eq!(phrase("hello world"), Ok(("", "hello world".into())));
-        assert_eq!(phrase("salut \"le\" monde"), Ok(("", "salut le monde".into())));
-        assert_eq!(phrase("fin\r\n du\r\nmonde"), Ok(("\r\nmonde", "fin du".into())));
+        assert_eq!(
+            phrase("salut \"le\" monde"),
+            Ok(("", "salut le monde".into()))
+        );
+        assert_eq!(
+            phrase("fin\r\n du\r\nmonde"),
+            Ok(("\r\nmonde", "fin du".into()))
+        );
     }
 }

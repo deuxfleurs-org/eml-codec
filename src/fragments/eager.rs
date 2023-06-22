@@ -1,11 +1,9 @@
-use chrono::{DateTime, FixedOffset};
-use crate::fragments::model::{
-    MailboxList, MailboxRef, AddressList,
-    MessageId, MessageIdList};
-use crate::fragments::misc_token::{Unstructured, PhraseList};
-use crate::fragments::trace::ReceivedLog;
-use crate::fragments::lazy::Field as Lazy;
 use crate::error::IMFError;
+use crate::fragments::lazy::Field as Lazy;
+use crate::fragments::misc_token::{PhraseList, Unstructured};
+use crate::fragments::model::{AddressList, MailboxList, MailboxRef, MessageId, MessageIdList};
+use crate::fragments::trace::ReceivedLog;
+use chrono::{DateTime, FixedOffset};
 
 #[derive(Debug, PartialEq)]
 pub enum Field<'a> {

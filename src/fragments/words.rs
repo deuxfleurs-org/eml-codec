@@ -1,16 +1,15 @@
+use crate::fragments::whitespace::cfws;
 use nom::{
-    IResult,
     bytes::complete::{tag, take_while1},
-    combinator::{recognize, opt},
+    combinator::{opt, recognize},
     multi::many0,
     sequence::{delimited, pair},
+    IResult,
 };
-use crate::fragments::whitespace::cfws;
-
 
 /// VCHAR definition
 pub fn is_vchar(c: char) -> bool {
-  (c >= '\x21' && c <= '\x7E') || !c.is_ascii()
+    (c >= '\x21' && c <= '\x7E') || !c.is_ascii()
 }
 
 /// Sequence of visible chars with the UTF-8 extension
@@ -23,7 +22,7 @@ pub fn is_vchar(c: char) -> bool {
 ///```
 #[allow(dead_code)]
 pub fn vchar_seq(input: &str) -> IResult<&str, &str> {
-   take_while1(is_vchar)(input)
+    take_while1(is_vchar)(input)
 }
 
 /// Atom allowed characters
@@ -31,7 +30,7 @@ fn is_atext(c: char) -> bool {
     c.is_ascii_alphanumeric() || "!#$%&'*+-/=?^_`{|}~".contains(c) || !c.is_ascii()
 }
 
-/// Atom 
+/// Atom
 ///
 /// `[CFWS] 1*atext [CFWS]`
 pub fn atom(input: &str) -> IResult<&str, &str> {
@@ -42,7 +41,10 @@ pub fn atom(input: &str) -> IResult<&str, &str> {
 ///
 /// `1*atext *("." 1*atext)`
 pub fn dot_atom_text(input: &str) -> IResult<&str, &str> {
-    recognize(pair(take_while1(is_atext), many0(pair(tag("."), take_while1(is_atext)))))(input)
+    recognize(pair(
+        take_while1(is_atext),
+        many0(pair(tag("."), take_while1(is_atext))),
+    ))(input)
 }
 
 /// dot-atom
@@ -54,13 +56,19 @@ pub fn dot_atom(input: &str) -> IResult<&str, &str> {
 
 #[allow(dead_code)]
 pub fn is_special(c: char) -> bool {
-    c == '(' || c == ')' || 
-    c == '<' || c == '>' ||
-    c == '[' || c == ']' ||
-    c == ':' || c == ';' ||
-    c == '@' || c == '\\' ||
-    c == ',' || c == '.' ||
-    c == '"'
+    c == '('
+        || c == ')'
+        || c == '<'
+        || c == '>'
+        || c == '['
+        || c == ']'
+        || c == ':'
+        || c == ';'
+        || c == '@'
+        || c == '\\'
+        || c == ','
+        || c == '.'
+        || c == '"'
 }
 
 #[cfg(test)]
@@ -84,16 +92,25 @@ mod tests {
 
     #[test]
     fn test_atom() {
-        assert_eq!(atom("(skip)  imf_codec (hidden) aerogramme"), Ok(("aerogramme", "imf_codec")));
+        assert_eq!(
+            atom("(skip)  imf_codec (hidden) aerogramme"),
+            Ok(("aerogramme", "imf_codec"))
+        );
     }
 
     #[test]
     fn test_dot_atom_text() {
-        assert_eq!(dot_atom_text("quentin.dufour.io abcdef"), Ok((" abcdef", "quentin.dufour.io")));
+        assert_eq!(
+            dot_atom_text("quentin.dufour.io abcdef"),
+            Ok((" abcdef", "quentin.dufour.io"))
+        );
     }
 
     #[test]
     fn test_dot_atom() {
-        assert_eq!(dot_atom("   (skip) quentin.dufour.io abcdef"), Ok(("abcdef", "quentin.dufour.io")));
+        assert_eq!(
+            dot_atom("   (skip) quentin.dufour.io abcdef"),
+            Ok(("abcdef", "quentin.dufour.io"))
+        );
     }
 }

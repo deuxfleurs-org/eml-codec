@@ -1,14 +1,14 @@
 use nom::{
-    IResult,
     branch::alt,
     bytes::complete::tag,
     character::complete::{anychar, satisfy},
     combinator::opt,
     multi::many0,
     sequence::{pair, preceded},
+    IResult,
 };
 
-use crate::fragments::whitespace::{fws, cfws, is_obs_no_ws_ctl};
+use crate::fragments::whitespace::{cfws, fws, is_obs_no_ws_ctl};
 
 /// Quoted pair
 ///
@@ -53,29 +53,29 @@ fn qcontent(input: &str) -> IResult<&str, char> {
 ///                     [CFWS]
 /// ```
 pub fn quoted_string(input: &str) -> IResult<&str, String> {
-  let (input, _) = opt(cfws)(input)?;
-  let (input, _) = tag("\"")(input)?;
-  let (input, content) = many0(pair(opt(fws), qcontent))(input)?;
+    let (input, _) = opt(cfws)(input)?;
+    let (input, _) = tag("\"")(input)?;
+    let (input, content) = many0(pair(opt(fws), qcontent))(input)?;
 
-  // Rebuild string
-  let mut qstring = content.iter().fold(
-    String::with_capacity(16), 
-    |mut acc, (maybe_wsp, c)| {
-      if let Some(wsp) = maybe_wsp {
-        acc.push(*wsp);
-      }
-      acc.push(*c);
-      acc
-    });
+    // Rebuild string
+    let mut qstring = content
+        .iter()
+        .fold(String::with_capacity(16), |mut acc, (maybe_wsp, c)| {
+            if let Some(wsp) = maybe_wsp {
+                acc.push(*wsp);
+            }
+            acc.push(*c);
+            acc
+        });
 
-  let (input, maybe_wsp) = opt(fws)(input)?;
-  if let Some(wsp) = maybe_wsp {
-    qstring.push(wsp);
-  }
+    let (input, maybe_wsp) = opt(fws)(input)?;
+    if let Some(wsp) = maybe_wsp {
+        qstring.push(wsp);
+    }
 
-  let (input, _) = tag("\"")(input)?;
-  let (input, _) = opt(cfws)(input)?;
-  Ok((input, qstring))
+    let (input, _) = tag("\"")(input)?;
+    let (input, _) = opt(cfws)(input)?;
+    Ok((input, qstring))
 }
 
 #[cfg(test)]
@@ -84,7 +84,13 @@ mod tests {
 
     #[test]
     fn test_quoted_string() {
-        assert_eq!(quoted_string(" \"hello\\\"world\" "), Ok(("", "hello\"world".to_string())));
-        assert_eq!(quoted_string("\"hello\r\n world\""), Ok(("", "hello world".to_string())));
+        assert_eq!(
+            quoted_string(" \"hello\\\"world\" "),
+            Ok(("", "hello\"world".to_string()))
+        );
+        assert_eq!(
+            quoted_string("\"hello\r\n world\""),
+            Ok(("", "hello world".to_string()))
+        );
     }
 }

@@ -1,18 +1,18 @@
 use nom::{
-    IResult,
     branch::alt,
-    bytes::complete::{take_while, tag},
+    bytes::complete::{tag, take_while},
     combinator::opt,
     multi::many1,
     sequence::{delimited, pair, tuple},
+    IResult,
 };
 
+use crate::error::IMFError;
 use crate::fragments::lazy;
-use crate::fragments::whitespace::cfws;
-use crate::fragments::words::dot_atom_text;
 use crate::fragments::mailbox::is_dtext;
 use crate::fragments::model::{MessageId, MessageIdList};
-use crate::error::IMFError;
+use crate::fragments::whitespace::cfws;
+use crate::fragments::words::dot_atom_text;
 
 impl<'a> TryFrom<&'a lazy::Identifier<'a>> for MessageId<'a> {
     type Error = IMFError<'a>;
@@ -45,12 +45,12 @@ pub fn msg_id(input: &str) -> IResult<&str, MessageId> {
         tuple((id_left, tag("@"), id_right)),
         pair(tag(">"), opt(cfws)),
     )(input)?;
-    Ok((input, MessageId{ left, right }))
+    Ok((input, MessageId { left, right }))
 }
 
 // Missing obsolete
 fn id_left(input: &str) -> IResult<&str, &str> {
-    dot_atom_text(input)   
+    dot_atom_text(input)
 }
 
 // Missing obsolete
@@ -70,7 +70,13 @@ mod tests {
     fn test_msg_id() {
         assert_eq!(
             msg_id("<5678.21-Nov-1997@example.com>"),
-            Ok(("", MessageId{left: "5678.21-Nov-1997", right: "example.com"})),
+            Ok((
+                "",
+                MessageId {
+                    left: "5678.21-Nov-1997",
+                    right: "example.com"
+                }
+            )),
         );
     }
 }

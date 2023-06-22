@@ -1,10 +1,10 @@
 use std::convert::From;
 
 use nom::{
-    IResult,
-    bytes::complete::{take_while1, tag},
+    bytes::complete::{tag, take_while1},
     character::complete::space0,
     sequence::{terminated, tuple},
+    IResult,
 };
 
 #[derive(Debug, PartialEq)]
@@ -98,34 +98,38 @@ impl<'a> From<&'a str> for Field<'a> {
 fn field_name(input: &str) -> IResult<&str, &str> {
     terminated(
         take_while1(|c| c >= '\x21' && c <= '\x7E' && c != '\x3A'),
-        tuple((space0, tag(":"), space0))
+        tuple((space0, tag(":"), space0)),
     )(input)
 }
 
 fn correct_field(input: &str) -> IResult<&str, Field> {
-    field_name(input)
-        .map(|(rest, name)| ("", match name.to_lowercase().as_ref() {
-            "date" => Date(DateTime(rest)),
+    field_name(input).map(|(rest, name)| {
+        (
+            "",
+            match name.to_lowercase().as_ref() {
+                "date" => Date(DateTime(rest)),
 
-            "from" => From(MailboxList(rest)),
-            "sender" => Sender(Mailbox(rest)),
-            "reply-to" => ReplyTo(AddressList(rest)),
+                "from" => From(MailboxList(rest)),
+                "sender" => Sender(Mailbox(rest)),
+                "reply-to" => ReplyTo(AddressList(rest)),
 
-            "to" => To(AddressList(rest)),
-            "cc" => Cc(AddressList(rest)),
-            "bcc" => Bcc(NullableAddressList(rest)),
+                "to" => To(AddressList(rest)),
+                "cc" => Cc(AddressList(rest)),
+                "bcc" => Bcc(NullableAddressList(rest)),
 
-            "message-id" => MessageID(Identifier(rest)),
-            "in-reply-to" => InReplyTo(IdentifierList(rest)),
-            "references" => References(IdentifierList(rest)),
+                "message-id" => MessageID(Identifier(rest)),
+                "in-reply-to" => InReplyTo(IdentifierList(rest)),
+                "references" => References(IdentifierList(rest)),
 
-            "subject" => Subject(Unstructured(rest)),
-            "comments" => Comments(Unstructured(rest)),
-            "keywords" => Keywords(PhraseList(rest)),
+                "subject" => Subject(Unstructured(rest)),
+                "comments" => Comments(Unstructured(rest)),
+                "keywords" => Keywords(PhraseList(rest)),
 
-            "return-path" => ReturnPath(Mailbox(rest)),
-            "received" => Received(ReceivedLog(rest)),
+                "return-path" => ReturnPath(Mailbox(rest)),
+                "received" => Received(ReceivedLog(rest)),
 
-            _ => Optional(name, Unstructured(rest)),
-    }))
+                _ => Optional(name, Unstructured(rest)),
+            },
+        )
+    })
 }

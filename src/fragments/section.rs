@@ -1,11 +1,11 @@
 use std::collections::HashMap;
 
-use chrono::{DateTime, FixedOffset};
-use crate::fragments::model::{MailboxRef,MessageId, AddressRef};
-use crate::fragments::misc_token::{Unstructured, PhraseList};
-use crate::fragments::trace::ReceivedLog;
 use crate::fragments::eager::Field;
 use crate::fragments::lazy;
+use crate::fragments::misc_token::{PhraseList, Unstructured};
+use crate::fragments::model::{AddressRef, MailboxRef, MessageId};
+use crate::fragments::trace::ReceivedLog;
+use chrono::{DateTime, FixedOffset};
 
 #[derive(Debug, PartialEq, Default)]
 pub struct Section<'a> {
@@ -26,7 +26,7 @@ pub struct Section<'a> {
     pub msg_id: Option<&'a MessageId<'a>>,
     pub in_reply_to: Vec<&'a MessageId<'a>>,
     pub references: Vec<&'a MessageId<'a>>,
-    
+
     // 3.6.5.  Informational Fields
     pub subject: Option<&'a Unstructured>,
     pub comments: Vec<&'a Unstructured>,
@@ -48,7 +48,7 @@ pub struct Section<'a> {
 //@FIXME min and max limits are not enforced,
 // it may result in missing data or silently overriden data.
 impl<'a> FromIterator<&'a Field<'a>> for Section<'a> {
-    fn from_iter<I: IntoIterator<Item=&'a Field<'a>>>(iter: I) -> Self {
+    fn from_iter<I: IntoIterator<Item = &'a Field<'a>>>(iter: I) -> Self {
         let mut section = Section::default();
         for field in iter {
             match field {
@@ -67,11 +67,12 @@ impl<'a> FromIterator<&'a Field<'a>> for Section<'a> {
                 Field::Keywords(v) => section.keywords.push(v),
                 Field::ReturnPath(v) => section.return_path.push(v),
                 Field::Received(v) => section.received.push(v),
-                Field::Optional(k, v) => { section.optional.insert(k, v); },
+                Field::Optional(k, v) => {
+                    section.optional.insert(k, v);
+                }
                 Field::Rescue(v) => section.unparsed.push(v),
             }
         }
         section
     }
 }
-

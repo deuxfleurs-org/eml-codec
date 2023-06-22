@@ -1,18 +1,18 @@
 use nom::{
-    IResult,
     branch::alt,
     bytes::complete::tag,
     combinator::{into, opt},
     multi::separated_list1,
     sequence::tuple,
+    IResult,
 };
 
+use crate::error::IMFError;
 use crate::fragments::lazy;
-use crate::fragments::model::{GroupRef, AddressRef, MailboxRef, MailboxList, AddressList};
 use crate::fragments::mailbox::mailbox;
 use crate::fragments::misc_token::phrase;
-use crate::fragments::whitespace::{cfws};
-use crate::error::IMFError;
+use crate::fragments::model::{AddressList, AddressRef, GroupRef, MailboxList, MailboxRef};
+use crate::fragments::whitespace::cfws;
 
 impl<'a> TryFrom<&'a lazy::Mailbox<'a>> for MailboxRef {
     type Error = IMFError<'a>;
@@ -70,13 +70,16 @@ pub fn address(input: &str) -> IResult<&str, AddressRef> {
 ///    display-name    =   phrase
 /// ```
 pub fn group(input: &str) -> IResult<&str, GroupRef> {
-    let (input, (grp_name, _, grp_list, _, _)) = 
+    let (input, (grp_name, _, grp_list, _, _)) =
         tuple((phrase, tag(":"), opt(group_list), tag(";"), opt(cfws)))(input)?;
 
-    Ok((input, GroupRef {
-        name: grp_name,
-        participants: grp_list.unwrap_or(vec![]),
-    }))
+    Ok((
+        input,
+        GroupRef {
+            name: grp_name,
+            participants: grp_list.unwrap_or(vec![]),
+        },
+    ))
 }
 
 /// Group list
@@ -128,7 +131,9 @@ mod tests {
             _ => panic!(),
         };
 
-        match mailbox_list(r#"Mary Smith <mary@x.test>, jdoe@example.org, Who? <one@y.test>, <boss@nil.test>, "Giant; \"Big\" Box" <sysservices@example.net>"#) {
+        match mailbox_list(
+            r#"Mary Smith <mary@x.test>, jdoe@example.org, Who? <one@y.test>, <boss@nil.test>, "Giant; \"Big\" Box" <sysservices@example.net>"#,
+        ) {
             Ok(("", _)) => (),
             _ => panic!(),
         };
@@ -137,30 +142,47 @@ mod tests {
     #[test]
     fn test_address_list() {
         assert_eq!(
-            address_list(r#"A Group:Ed Jones <c@a.test>,joe@where.test,John <jdoe@one.test>;, Mary Smith <mary@x.test>"#),
-            Ok(("", vec![
-                AddressRef::Many(GroupRef { 
-                    name: "A Group".to_string(), 
-                    participants: vec![
-                        MailboxRef {
-                            name: Some("Ed Jones".into()),
-                            addrspec: AddrSpec { local_part: "c".into(), domain: "a.test".into() },
+            address_list(
+                r#"A Group:Ed Jones <c@a.test>,joe@where.test,John <jdoe@one.test>;, Mary Smith <mary@x.test>"#
+            ),
+            Ok((
+                "",
+                vec![
+                    AddressRef::Many(GroupRef {
+                        name: "A Group".to_string(),
+                        participants: vec![
+                            MailboxRef {
+                                name: Some("Ed Jones".into()),
+                                addrspec: AddrSpec {
+                                    local_part: "c".into(),
+                                    domain: "a.test".into()
+                                },
+                            },
+                            MailboxRef {
+                                name: None,
+                                addrspec: AddrSpec {
+                                    local_part: "joe".into(),
+                                    domain: "where.test".into()
+                                },
+                            },
+                            MailboxRef {
+                                name: Some("John".into()),
+                                addrspec: AddrSpec {
+                                    local_part: "jdoe".into(),
+                                    domain: "one.test".into()
+                                },
+                            },
+                        ],
+                    }),
+                    AddressRef::Single(MailboxRef {
+                        name: Some("Mary Smith".into()),
+                        addrspec: AddrSpec {
+                            local_part: "mary".into(),
+                            domain: "x.test".into()
                         },
-                        MailboxRef {
-                            name: None,
-                            addrspec: AddrSpec { local_part: "joe".into(), domain: "where.test".into() },
-                        },
-                        MailboxRef {
-                            name: Some("John".into()),
-                            addrspec: AddrSpec { local_part: "jdoe".into(), domain: "one.test".into() },
-                        },
-                    ],
-                }),
-                AddressRef::Single(MailboxRef { 
-                    name: Some("Mary Smith".into()),
-                    addrspec: AddrSpec { local_part: "mary".into(), domain: "x.test".into() },
-                }),
-            ]))
+                    }),
+                ]
+            ))
         );
     }
 }

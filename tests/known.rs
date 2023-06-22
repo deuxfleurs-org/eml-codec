@@ -1,10 +1,12 @@
 use chrono::{FixedOffset, TimeZone};
-use std::collections::HashMap;
+use imf_codec::fragments::{misc_token, model, section, trace};
 use imf_codec::multipass;
-use imf_codec::fragments::{model, misc_token, trace, section};
+use std::collections::HashMap;
 
 fn parser<'a, F>(input: &'a [u8], func: F) -> ()
-where F: FnOnce(&section::Section) -> () {
+where
+    F: FnOnce(&section::Section) -> (),
+{
     let seg = multipass::segment::new(input).unwrap();
     let charset = seg.charset();
     let fields = charset.fields().unwrap();
@@ -48,29 +50,35 @@ References: <1234@local.machine.example>
 Unknown: unknown
 
 This is a reply to your hello.
-"#.as_bytes();
-    parser(fullmail, |parsed_section| 
+"#
+    .as_bytes();
+    parser(fullmail, |parsed_section| {
         assert_eq!(
             parsed_section,
             &section::Section {
-                date: Some(&FixedOffset::east_opt(2 * 3600)
-                           .unwrap()
-                           .with_ymd_and_hms(2023, 06, 13, 10, 01, 10)
-                           .unwrap()),
+                date: Some(
+                    &FixedOffset::east_opt(2 * 3600)
+                        .unwrap()
+                        .with_ymd_and_hms(2023, 06, 13, 10, 01, 10)
+                        .unwrap()
+                ),
 
-                from: vec![&model::MailboxRef {
-                    name: Some("Mary Smith".into()),
-                    addrspec: model::AddrSpec {
-                        local_part: "mary".into(),
-                        domain: "example.net".into(),
+                from: vec![
+                    &model::MailboxRef {
+                        name: Some("Mary Smith".into()),
+                        addrspec: model::AddrSpec {
+                            local_part: "mary".into(),
+                            domain: "example.net".into(),
+                        }
+                    },
+                    &model::MailboxRef {
+                        name: Some("Alan".into()),
+                        addrspec: model::AddrSpec {
+                            local_part: "alan".into(),
+                            domain: "example".into(),
+                        }
                     }
-                }, &model::MailboxRef {
-                    name: Some("Alan".into()),
-                    addrspec: model::AddrSpec {
-                        local_part: "alan".into(),
-                        domain: "example".into(),
-                    }
-                }],
+                ],
 
                 sender: Some(&model::MailboxRef {
                     name: None,
@@ -106,33 +114,41 @@ This is a reply to your hello.
 
                 bcc: vec![],
 
-                msg_id: Some(&model::MessageId { left: "3456", right: "example.net" }),
-                in_reply_to: vec![&model::MessageId { left: "1234", right: "local.machine.example" }],
-                references: vec![&model::MessageId { left: "1234", right: "local.machine.example" }],
+                msg_id: Some(&model::MessageId {
+                    left: "3456",
+                    right: "example.net"
+                }),
+                in_reply_to: vec![&model::MessageId {
+                    left: "1234",
+                    right: "local.machine.example"
+                }],
+                references: vec![&model::MessageId {
+                    left: "1234",
+                    right: "local.machine.example"
+                }],
 
                 subject: Some(&misc_token::Unstructured("Re: Saying Hello".into())),
 
                 comments: vec![
                     &misc_token::Unstructured("A simple message".into()),
                     &misc_token::Unstructured("Not that complicated".into()),
-                    &misc_token::Unstructured("not valid header name but should be accepted by the parser.".into()),
+                    &misc_token::Unstructured(
+                        "not valid header name but should be accepted by the parser.".into()
+                    ),
                 ],
 
                 keywords: vec![
-                    &misc_token::PhraseList(vec![
-                        "hello".into(), 
-                        "world".into(), 
-                    ]),
-                    &misc_token::PhraseList(vec![
-                        "salut".into(), 
-                        "le".into(), 
-                        "monde".into(),
-                    ]),
+                    &misc_token::PhraseList(vec!["hello".into(), "world".into(),]),
+                    &misc_token::PhraseList(vec!["salut".into(), "le".into(), "monde".into(),]),
                 ],
 
-                received: vec![ 
-                    &trace::ReceivedLog("from smtp.example.com ([10.83.2.2])\n\tby doradille with LMTP\n\tid xyzabcd\n\t(envelope-from <gitlab@example.com>)\n\tfor <quentin@example.com>")
-                ],
+                received: vec![&trace::ReceivedLog(
+                    r#"from smtp.example.com ([10.83.2.2])
+	by doradille with LMTP
+	id xyzabcd
+	(envelope-from <gitlab@example.com>)
+	for <quentin@example.com>"#
+                )],
 
                 return_path: vec![&model::MailboxRef {
                     name: None,
@@ -143,8 +159,11 @@ This is a reply to your hello.
                 }],
 
                 optional: HashMap::from([
-                    ("Delivered-To", &misc_token::Unstructured("quentin@example.com".into())),
-                    ("Unknown", &misc_token::Unstructured("unknown".into())), 
+                    (
+                        "Delivered-To",
+                        &misc_token::Unstructured("quentin@example.com".into())
+                    ),
+                    ("Unknown", &misc_token::Unstructured("unknown".into())),
                 ]),
 
                 bad_fields: vec![],
@@ -155,5 +174,5 @@ This is a reply to your hello.
                 ],
             }
         )
-    )
+    })
 }

@@ -1,13 +1,13 @@
+use crate::error::IMFError;
+use crate::fragments::{datetime, lazy, mailbox, misc_token, model, whitespace};
 use nom::{
-    IResult,
     branch::alt,
     bytes::complete::tag,
     combinator::{map, opt, recognize},
     multi::many0,
     sequence::tuple,
+    IResult,
 };
-use crate::fragments::{datetime, mailbox, model, misc_token, whitespace, lazy};
-use crate::error::IMFError;
 
 #[derive(Debug, PartialEq)]
 pub struct ReceivedLog<'a>(pub &'a str);
@@ -29,15 +29,12 @@ pub fn received_body(input: &str) -> IResult<&str, &str> {
             tag(";"),
             datetime::section,
         )),
-        |(tokens, _, _)| tokens, 
+        |(tokens, _, _)| tokens,
     )(input)
 }
 
 pub fn return_path_body(input: &str) -> IResult<&str, Option<model::MailboxRef>> {
-    alt((
-        map(mailbox::angle_addr, |a| Some(a)), 
-        empty_path
-    ))(input)
+    alt((map(mailbox::angle_addr, |a| Some(a)), empty_path))(input)
 }
 
 fn empty_path(input: &str) -> IResult<&str, Option<model::MailboxRef>> {
@@ -57,10 +54,9 @@ fn received_tokens(input: &str) -> IResult<&str, &str> {
         recognize(mailbox::angle_addr),
         recognize(mailbox::addr_spec),
         recognize(mailbox::obs_domain),
-        recognize(misc_token::word), 
+        recognize(misc_token::word),
     ))(input)
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -76,11 +72,14 @@ mod tests {
 
         assert_eq!(
             received_body(hdrs),
-            Ok(("",  r#"from smtp.example.com ([10.83.2.2])
+            Ok((
+                "",
+                r#"from smtp.example.com ([10.83.2.2])
     by server with LMTP
     id xxxxxxxxx
     (envelope-from <gitlab@example.com>)
-    for <me@example.com>"#))
+    for <me@example.com>"#
+            ))
         );
     }
 }
