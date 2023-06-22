@@ -24,8 +24,8 @@ fn main() {
     parser(&rawmail[..], |section| {
         // Checks/debug
         println!("{:?}", section);
-        //assert!(hdrs.date.is_some());
-        //assert!(hdrs.from.len() > 0);
-        //assert!(hdrs.bad_fields.len() == 0);
+        assert!(section.date.is_some());
+        assert!(section.from.len() > 0);
+        assert!(section.bad_fields.len() == 0);
     });
 }

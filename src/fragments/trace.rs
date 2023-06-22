@@ -65,7 +65,6 @@ fn received_tokens(input: &str) -> IResult<&str, &str> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::{FixedOffset, TimeZone};
 
     #[test]
     fn test_received_body() {
