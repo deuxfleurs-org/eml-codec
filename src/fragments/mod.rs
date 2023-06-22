@@ -16,6 +16,3 @@ mod datetime;
 pub mod lazy;
 pub mod eager;
 pub mod section;
-
-// Header blocks
-pub mod header;
