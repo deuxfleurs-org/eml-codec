@@ -7,12 +7,10 @@ pub struct Parsed<'a> {
     pub body: &'a [u8],
 }
 
-impl<'a> From<field_eager::Parsed<'a>> for Parsed<'a> {
-    fn from(p: field_eager::Parsed<'a>) -> Self {
-        Parsed {
-            fields: Section::from_iter(p.fields.into_iter()),
-            body: p.body,
-        }
+pub fn new<'a>(p: &'a field_eager::Parsed<'a>) -> Parsed<'a> {
+    Parsed {
+        fields: Section::from_iter(p.fields.iter()),
+        body: p.body,
     }
 }
 
@@ -25,7 +23,7 @@ mod tests {
 
     #[test]
     fn test_section() {
-        assert_eq!(Parsed::from(field_eager::Parsed {
+        assert_eq!(new(&field_eager::Parsed {
             fields: vec![
                 eager::Field::From(vec![
                     model::MailboxRef { 

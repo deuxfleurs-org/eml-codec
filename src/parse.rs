@@ -1,7 +1,25 @@
-use imf_codec::multipass;
+use imf_codec::multipass::{
+    segment,
+    guess_charset,
+    field_lazy,
+    field_eager,
+    header_section
+};
+use imf_codec::fragments::section::Section;
 use std::io;
 use std::io::Read;
 
+fn parser<'a, F>(input: &'a [u8], func: F) -> ()
+where F: FnOnce(&Section) -> () {
+    let seg = segment::new(input).unwrap();
+    let charset = seg.charset();
+    let fields = charset.fields().unwrap();
+    let field_names = fields.names();
+    let field_body = field_names.body();
+    let section = field_body.section();
+
+    func(&section.fields);
+}
 
 fn main() {
     // Read full mail in memory
@@ -9,21 +27,11 @@ fn main() {
     io::stdin().lock().read_to_end(&mut rawmail).unwrap();
 
     // Parse it
-    let segment = multipass::segment::Segment::try_from(&rawmail[..]).unwrap();
-    let charng = multipass::guess_charset::GuessCharset::from(segment);
-    let extr = multipass::extract_fields::ExtractFields::try_from(&charng).unwrap();
-    let lazy = multipass::field_lazy::Parsed::from(extr);
-    let eager = multipass::field_eager::Parsed::from(lazy);
-    let section = multipass::header_section::Parsed::from(eager);
-    //let section: multipass::header_section::Parsed = rawmail.as_ref().into();
-    //let (email, encoding, malformed) = header::from_bytes(&rawmail);
-    //println!("Encoding: {:?}, Malformed: {:?}", encoding, malformed);
-
-    //let (input, hdrs) = header::section(&email).unwrap();
-
-    // Checks/debug
-    println!("{:?}", section);
-    //assert!(hdrs.date.is_some());
-    //assert!(hdrs.from.len() > 0);
-    //assert!(hdrs.bad_fields.len() == 0);
+    parser(&rawmail[..], |section| {
+        // Checks/debug
+        println!("{:?}", section);
+        //assert!(hdrs.date.is_some());
+        //assert!(hdrs.from.len() > 0);
+        //assert!(hdrs.bad_fields.len() == 0);
+    });
 }

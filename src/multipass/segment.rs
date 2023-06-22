@@ -8,40 +8,43 @@ use nom::{
     multi::many0,
 };
 
+use crate::multipass::guess_charset;
 use crate::error::IMFError;
 
 #[derive(Debug, PartialEq)]
-pub struct Segment<'a> {
+pub struct Parsed<'a> {
     pub header: &'a [u8],
     pub body: &'a [u8],
 }
 
-const cr: u8 = 0x0D;
-const lf: u8 = 0x0A;
-const crlf: &[u8] = &[cr, lf];
+const CR: u8 = 0x0D;
+const LF: u8 = 0x0A;
+const CRLF: &[u8] = &[CR, LF];
 
-impl<'a> TryFrom<&'a [u8]> for Segment<'a> {
-    type Error = IMFError<'a>;
+pub fn new<'a>(buffer: &'a [u8]) -> Result<Parsed<'a>, IMFError<'a>> {
+    terminated(
+        recognize(many0(line)), 
+        obs_crlf
+    )(buffer)
+        .map_err(|e| IMFError::Segment(e))
+        .map(|(body, header)| Parsed { header, body })
+}
 
-    fn try_from(buffer: &'a [u8]) -> Result<Self, Self::Error> {
-        terminated(
-            recognize(many0(line)), 
-            obs_crlf
-        )(buffer)
-            .map_err(|e| IMFError::Segment(e))
-            .map(|(body, header)| Segment { header, body })
+impl<'a> Parsed<'a> {
+    pub fn charset(&'a self) -> guess_charset::Parsed<'a> {
+        guess_charset::new(self)
     }
 }
 
 fn line(input: &[u8]) -> IResult<&[u8], (&[u8], &[u8])> {
     pair(
-        is_not(crlf), 
+        is_not(CRLF), 
         obs_crlf,
     )(input)
 }
 
 fn obs_crlf(input: &[u8]) -> IResult<&[u8], &[u8]> {
-    alt((tag(crlf), tag(&[cr]), tag(&[lf])))(input)
+    alt((tag(CRLF), tag(&[CR]), tag(&[LF])))(input)
 }
 
 #[cfg(test)]
@@ -51,10 +54,10 @@ mod tests {
     #[test]
     fn test_segment() {
         assert_eq!(
-            Segment::try_from(&b"From: hello@world.com\r\nDate: 12 Mar 1997 07:33:25 Z\r\n\r\nHello world!"[..]),
-            Ok(Segment {
-                body: b"Hello world!", 
+            new(&b"From: hello@world.com\r\nDate: 12 Mar 1997 07:33:25 Z\r\n\r\nHello world!"[..]),
+            Ok(Parsed {
                 header: b"From: hello@world.com\r\nDate: 12 Mar 1997 07:33:25 Z\r\n",
+                body: b"Hello world!", 
             })
         );
     }

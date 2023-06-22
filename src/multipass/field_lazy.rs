@@ -1,5 +1,6 @@
 use crate::fragments::lazy;
-use crate::multipass::extract_fields::ExtractFields;
+use crate::multipass::extract_fields;
+use crate::multipass::field_eager;
 
 #[derive(Debug, PartialEq)]
 pub struct Parsed<'a> {
@@ -7,12 +8,16 @@ pub struct Parsed<'a> {
     pub body: &'a [u8],
 }
 
-impl<'a> From <ExtractFields<'a>> for Parsed<'a> {
-    fn from(ef: ExtractFields<'a>) -> Self {
-        Parsed {
-            fields: ef.fields.iter().map(|e| (*e).into()).collect(),
-            body: ef.body,
-        }
+pub fn new<'a>(ef: &'a extract_fields::Parsed<'a>) -> Parsed<'a> {
+    Parsed {
+        fields: ef.fields.iter().map(|e| (*e).into()).collect(),
+        body: ef.body,
+    }
+}
+
+impl<'a> Parsed<'a> {
+    pub fn body(&'a self) -> field_eager::Parsed<'a> {
+        field_eager::new(self)
     }
 }
 
@@ -22,7 +27,7 @@ mod tests {
 
     #[test]
     fn test_field_name() {
-        assert_eq!(Parsed::from(ExtractFields {
+        assert_eq!(new(extract_fields::Parsed {
             fields: vec![
                 "From: hello@world.com,\r\n\talice@wonderlands.com\r\n",
                 "Date: 12 Mar 1997 07:33:25 Z\r\n",

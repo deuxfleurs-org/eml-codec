@@ -14,10 +14,10 @@ use crate::error::IMFError;
 #[derive(Debug, PartialEq)]
 pub struct ReceivedLog<'a>(pub &'a str);
 
-impl<'a> TryFrom<lazy::ReceivedLog<'a>> for ReceivedLog<'a> {
+impl<'a> TryFrom<&'a lazy::ReceivedLog<'a>> for ReceivedLog<'a> {
     type Error = IMFError<'a>;
 
-    fn try_from(input: lazy::ReceivedLog<'a>) -> Result<Self, Self::Error> {
+    fn try_from(input: &'a lazy::ReceivedLog<'a>) -> Result<Self, Self::Error> {
         received_body(input.0)
             .map_err(|e| IMFError::ReceivedLog(e))
             .map(|(_, v)| ReceivedLog(v))

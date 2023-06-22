@@ -12,45 +12,45 @@ use crate::fragments::lazy;
 #[derive(Debug, PartialEq, Default)]
 pub struct Section<'a> {
     // 3.6.1.  The Origination Date Field
-    pub date: Option<DateTime<FixedOffset>>,
+    pub date: Option<&'a DateTime<FixedOffset>>,
 
     // 3.6.2.  Originator Fields
-    pub from: Vec<MailboxRef>,
-    pub sender: Option<MailboxRef>,
-    pub reply_to: Vec<AddressRef>,
+    pub from: Vec<&'a MailboxRef>,
+    pub sender: Option<&'a MailboxRef>,
+    pub reply_to: Vec<&'a AddressRef>,
 
     // 3.6.3.  Destination Address Fields
-    pub to: Vec<AddressRef>,
-    pub cc: Vec<AddressRef>,
-    pub bcc: Vec<AddressRef>,
+    pub to: Vec<&'a AddressRef>,
+    pub cc: Vec<&'a AddressRef>,
+    pub bcc: Vec<&'a AddressRef>,
 
     // 3.6.4.  Identification Fields
-    pub msg_id: Option<MessageId<'a>>,
-    pub in_reply_to: Vec<MessageId<'a>>,
-    pub references: Vec<MessageId<'a>>,
+    pub msg_id: Option<&'a MessageId<'a>>,
+    pub in_reply_to: Vec<&'a MessageId<'a>>,
+    pub references: Vec<&'a MessageId<'a>>,
     
     // 3.6.5.  Informational Fields
-    pub subject: Option<Unstructured>,
-    pub comments: Vec<Unstructured>,
-    pub keywords: Vec<PhraseList>,
+    pub subject: Option<&'a Unstructured>,
+    pub comments: Vec<&'a Unstructured>,
+    pub keywords: Vec<&'a PhraseList>,
 
     // 3.6.6 Not implemented
     // 3.6.7 Trace Fields
-    pub return_path: Vec<MailboxRef>,
-    pub received: Vec<ReceivedLog<'a>>,
+    pub return_path: Vec<&'a MailboxRef>,
+    pub received: Vec<&'a ReceivedLog<'a>>,
 
     // 3.6.8.  Optional Fields
-    pub optional: HashMap<&'a str, Unstructured>,
+    pub optional: HashMap<&'a str, &'a Unstructured>,
 
     // Recovery
-    pub bad_fields: Vec<lazy::Field<'a>>,
+    pub bad_fields: Vec<&'a lazy::Field<'a>>,
     pub unparsed: Vec<&'a str>,
 }
 
 //@FIXME min and max limits are not enforced,
 // it may result in missing data or silently overriden data.
-impl<'a> FromIterator<Field<'a>> for Section<'a> {
-    fn from_iter<I: IntoIterator<Item=Field<'a>>>(iter: I) -> Self {
+impl<'a> FromIterator<&'a Field<'a>> for Section<'a> {
+    fn from_iter<I: IntoIterator<Item=&'a Field<'a>>>(iter: I) -> Self {
         let mut section = Section::default();
         for field in iter {
             match field {

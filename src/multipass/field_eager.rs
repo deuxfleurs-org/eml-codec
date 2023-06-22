@@ -1,5 +1,6 @@
 use crate::fragments::eager;
 use crate::multipass::field_lazy;
+use crate::multipass::header_section;
 
 #[derive(Debug, PartialEq)]
 pub struct Parsed<'a> {
@@ -7,12 +8,19 @@ pub struct Parsed<'a> {
     pub body: &'a [u8],
 }
 
-impl<'a> From <field_lazy::Parsed<'a>> for Parsed<'a> {
-    fn from(p: field_lazy::Parsed<'a>) -> Self {
-        Parsed {
-            fields: p.fields.into_iter().filter_map(|entry| entry.try_into().ok()).collect(),
-            body: p.body,
-        }
+pub fn new<'a>(p: &'a field_lazy::Parsed<'a>) -> Parsed<'a> {
+    Parsed {
+        fields: p.fields
+            .iter()
+            .filter_map(|entry| entry.try_into().ok())
+            .collect(),
+        body: p.body,
+    }
+}
+
+impl<'a> Parsed<'a> {
+    pub fn section(&'a self) -> header_section::Parsed<'a> {
+        header_section::new(self)
     }
 }
 
@@ -25,7 +33,7 @@ mod tests {
 
     #[test]
     fn test_field_body() {
-        assert_eq!(Parsed::from(field_lazy::Parsed {
+        assert_eq!(new(field_lazy::Parsed {
             fields: vec![
                 lazy::Field::From(lazy::MailboxList("hello@world.com,\r\n\talice@wonderlands.com\r\n")),
                 lazy::Field::Date(lazy::DateTime("12 Mar 1997 07:33:25 Z\r\n")),

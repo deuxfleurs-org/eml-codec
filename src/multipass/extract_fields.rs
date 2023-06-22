@@ -8,23 +8,26 @@ use nom::{
     sequence::{pair, tuple},
 };
 
-use crate::multipass::guess_charset::GuessCharset;
 use crate::error::IMFError;
 use crate::fragments::whitespace;
+use crate::multipass::guess_charset;
+use crate::multipass::field_lazy;
 
 #[derive(Debug, PartialEq)]
-pub struct ExtractFields<'a> {
+pub struct Parsed<'a> {
     pub fields: Vec<&'a str>,
     pub body: &'a [u8],
 }
 
-impl<'a> TryFrom<&'a GuessCharset<'a>> for ExtractFields<'a> {
-    type Error = IMFError<'a>;
+pub fn new<'a>(gcha: &'a guess_charset::Parsed<'a>) -> Result<Parsed<'a>, IMFError<'a>> {
+    all_consuming(many0(foldable_line))(&gcha.header)
+        .map_err(|e| IMFError::ExtractFields(e))
+        .map(|(_, fields)| Parsed { fields, body: gcha.body })
+}
 
-    fn try_from(gcha: &'a GuessCharset<'a>) -> Result<Self, Self::Error> {
-        all_consuming(many0(foldable_line))(&gcha.header)
-            .map_err(|e| IMFError::ExtractFields(e))
-            .map(|(_, fields)| ExtractFields { fields, body: gcha.body })
+impl<'a> Parsed<'a> {
+    pub fn names(&'a self) -> field_lazy::Parsed<'a> {
+        field_lazy::new(self)
     }
 }
 
@@ -48,13 +51,13 @@ mod tests {
     #[test]
     fn test_extract() {
         assert_eq!(
-            ExtractFields::try_from(&GuessCharset {
+            new(&guess_charset::Parsed {
                 header: "From: hello@world.com,\r\n\talice@wonderlands.com\r\nDate: 12 Mar 1997 07:33:25 Z\r\n".into(),
                 encoding: encoding_rs::UTF_8,
                 malformed: false,
                 body: b"Hello world!",
             }),
-            Ok(ExtractFields {
+            Ok(Parsed {
                 fields: vec![
                     "From: hello@world.com,\r\n\talice@wonderlands.com\r\n",
                     "Date: 12 Mar 1997 07:33:25 Z\r\n",

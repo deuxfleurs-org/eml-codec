@@ -2,10 +2,12 @@ use std::borrow::Cow;
 use chardetng::EncodingDetector;
 use encoding_rs::Encoding;
 
-use crate::multipass::segment::Segment;
+use crate::error::IMFError;
+use crate::multipass::segment;
+use crate::multipass::extract_fields;
 
 #[derive(Debug, PartialEq)]
-pub struct GuessCharset<'a> {
+pub struct Parsed<'a> {
     pub header: Cow<'a, str>,
     pub encoding: &'static Encoding,
     pub malformed: bool,
@@ -16,17 +18,25 @@ const IS_LAST_BUFFER: bool = true;
 const ALLOW_UTF8: bool = true;
 const NO_TLD: Option<&[u8]> = None;
 
-impl<'a> From<Segment<'a>> for GuessCharset<'a> {
-    fn from(seg: Segment<'a>) -> Self {
-        // Create detector
-        let mut detector = EncodingDetector::new();
-        detector.feed(&seg.header, IS_LAST_BUFFER);
+pub fn new<'a>(seg: &'a segment::Parsed<'a>) -> Parsed<'a> {
+    // Create detector
+    let mut detector = EncodingDetector::new();
+    detector.feed(&seg.header, IS_LAST_BUFFER);
 
-        // Get encoding
-        let enc: &Encoding = detector.guess(NO_TLD, ALLOW_UTF8);
-        let (header, encoding, malformed) = enc.decode(&seg.header);
+    // Get encoding
+    let enc: &Encoding = detector.guess(NO_TLD, ALLOW_UTF8);
+    let (header, encoding, malformed) = enc.decode(&seg.header);
+    Parsed { 
+        header, 
+        encoding, 
+        malformed, 
+        body: seg.body 
+    }
+}
 
-        GuessCharset { header, encoding, malformed, body: seg.body }
+impl<'a> Parsed<'a> {
+    pub fn fields(&'a self) -> Result<extract_fields::Parsed<'a>, IMFError<'a>> {
+        extract_fields::new(self)
     }
 }
 
@@ -37,11 +47,12 @@ mod tests {
     #[test]
     fn test_charset() {
         assert_eq!(
-            GuessCharset::from(Segment {
-                body: b"Hello world!", 
-                header: b"From: hello@world.com\r\nDate: 12 Mar 1997 07:33:25 Z\r\n",
-            }),
-            GuessCharset {
+            new(&segment::Parsed {
+                    body: b"Hello world!", 
+                    header: b"From: hello@world.com\r\nDate: 12 Mar 1997 07:33:25 Z\r\n",
+                }
+            ),
+            Parsed {
                 header: "From: hello@world.com\r\nDate: 12 Mar 1997 07:33:25 Z\r\n".into(),
                 encoding: encoding_rs::UTF_8,
                 malformed: false,
