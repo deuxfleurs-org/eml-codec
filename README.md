@@ -76,7 +76,7 @@ Do not use it in production or any software at all.
 Todo:
  - [X] test over the enron dataset
  - [X] convert to multipass parser
- - [ ] fix warnings, put examples, refactor the code
+ - [X] fix warnings, put examples, refactor the code
  - [ ] implement mime part 3 (encoded headers)
  - [ ] implement mime part 1 (new headers)
  - [ ] review part 2 (media types) and part 4 (registration procedure) but might be out of scope
