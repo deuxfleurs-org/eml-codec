@@ -2,9 +2,21 @@ use std::collections::HashSet;
 use std::path::PathBuf;
 use std::fs::File;
 use std::io::Read;
-use imf_codec::fragments::header;
+use imf_codec::multipass;
+use imf_codec::fragments::section;
 use walkdir::WalkDir;
 
+fn parser<'a, F>(input: &'a [u8], func: F) -> ()
+where F: FnOnce(&section::Section) -> () {
+    let seg = multipass::segment::new(input).unwrap();
+    let charset = seg.charset();
+    let fields = charset.fields().unwrap();
+    let field_names = fields.names();
+    let field_body = field_names.body();
+    let section = field_body.section();
+
+    func(&section.fields);
+}
 
 #[test]
 #[ignore]
@@ -91,34 +103,30 @@ fn test_enron500k() {
             f.read_to_end(&mut raw).unwrap();
 
             // parse
-            let (email, encoding, malformed) = header::from_bytes(&raw);
-            //println!("Encoding: {:?}, Malformed: {:?}", encoding, malformed);
+            parser(&raw, |hdrs| {
+                let ok_date = hdrs.date.is_some();
+                let ok_from = hdrs.from.len() > 0;
+                let ok_fields = hdrs.bad_fields.len() == 0;
 
-            let (input, hdrs) = header::section(&email).unwrap();
-            //println!("{:?}", hdrs);
-            let ok_date = hdrs.date.is_some();
-            let ok_from = hdrs.from.len() > 0;
-            let ok_fields = hdrs.bad_fields.len() == 0;
+                if !ok_date || !ok_from || !ok_fields {
+                    println!("Issue with: {}", suffix);
+                }
 
-            let p = entry.path();
-            if !ok_date || !ok_from || !ok_fields {
-                println!("Issue with: {}", suffix);
-            }
+                assert!(ok_date);
 
-            assert!(ok_date);
+                if !known_bad_from.contains(suffix) {
+                    assert!(ok_from);
+                }
 
-            if !known_bad_from.contains(suffix) {
-                assert!(ok_from);
-            }
+                if !known_bad_fields.contains(suffix) {
+                    assert!(ok_fields);
+                }
 
-            if !known_bad_fields.contains(suffix) {
-                assert!(ok_fields);
-            }
-
-            i += 1;
-            if i % 1000 == 0 {
-                println!("Analyzed emails: {}", i);
-            }
+                i += 1;
+                if i % 1000 == 0 {
+                    println!("Analyzed emails: {}", i);
+                }
+            })
         } 
     }
 }
