@@ -1,16 +1,13 @@
-use chrono::{DateTime, FixedOffset, NaiveDate, NaiveTime, TimeZone};
+use chrono::{DateTime, FixedOffset, NaiveDate, NaiveTime};
 use nom::{
     IResult,
-    AsChar,
     branch::alt,
-    bytes::complete::{tag, tag_no_case, take_while, take_while1, take_while_m_n, is_a},
+    bytes::complete::{tag, tag_no_case, take_while_m_n, is_a},
     character,
-    character::is_digit,
     character::complete::{one_of, alphanumeric1, digit0},
     combinator::{map, opt, value},
     sequence::{preceded, terminated, tuple, delimited },
 };
-use crate::fragments::misc_token;
 use crate::fragments::lazy;
 use crate::fragments::whitespace::{fws, cfws};
 use crate::error::IMFError;

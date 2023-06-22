@@ -1,10 +1,8 @@
 use std::borrow::Cow;
-use chrono::{DateTime, FixedOffset};
 use nom::{
     IResult,
-    Parser,
     branch::alt,
-    bytes::complete::{is_not, take_while1, take_while, tag, tag_no_case},
+    bytes::complete::{is_not, take_while1, tag, tag_no_case},
     character::complete::space0,
     combinator::{map, opt, recognize},
     multi::{many0, many1, fold_many0, separated_list1},
@@ -15,13 +13,12 @@ use chardetng::EncodingDetector;
 use encoding_rs::Encoding;
 
 use crate::fragments::whitespace::{fws, perm_crlf};
-use crate::fragments::words::vchar_seq;
 use crate::fragments::misc_token::{phrase, unstructured};
-use crate::fragments::model::{HeaderSection, MailboxRef, AddressRef, Field, FieldBody};
+use crate::fragments::model::{HeaderSection, Field, FieldBody};
 use crate::fragments::mailbox::mailbox;
 use crate::fragments::address::{mailbox_list, address_list, address_list_cfws};
 use crate::fragments::identification::msg_id;
-use crate::fragments::{datetime, trace, model};
+use crate::fragments::{datetime, trace};
 
 /// HEADERS
 

@@ -5,7 +5,7 @@ use nom::{
     character::complete::{crlf, satisfy, space0, space1},
     combinator::{recognize, opt},
     multi::{many0, many1},
-    sequence::{pair, tuple},
+    sequence::tuple,
 };
 use crate::fragments::quoted::quoted_pair;
 

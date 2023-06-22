@@ -2,14 +2,14 @@ use nom::{
     IResult,
     branch::alt,
     bytes::complete::tag,
-    combinator::{into, opt, map_res},
+    combinator::{into, opt},
     multi::separated_list1,
     sequence::tuple,
 };
 
 use crate::fragments::lazy;
 use crate::fragments::model::{GroupRef, AddressRef, MailboxRef, MailboxList, AddressList};
-use crate::fragments::mailbox::{addr_spec, mailbox};
+use crate::fragments::mailbox::mailbox;
 use crate::fragments::misc_token::phrase;
 use crate::fragments::whitespace::{cfws};
 use crate::error::IMFError;

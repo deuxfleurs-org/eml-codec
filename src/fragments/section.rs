@@ -1,9 +1,7 @@
 use std::collections::HashMap;
 
 use chrono::{DateTime, FixedOffset};
-use crate::fragments::model::{
-    MailboxList, MailboxRef, AddressList,
-    MessageId, MessageIdList, AddressRef};
+use crate::fragments::model::{MailboxRef,MessageId, AddressRef};
 use crate::fragments::misc_token::{Unstructured, PhraseList};
 use crate::fragments::trace::ReceivedLog;
 use crate::fragments::eager::Field;

@@ -1,10 +1,4 @@
-use imf_codec::multipass::{
-    segment,
-    guess_charset,
-    field_lazy,
-    field_eager,
-    header_section
-};
+use imf_codec::multipass::segment;
 use imf_codec::fragments::section::Section;
 use std::io;
 use std::io::Read;

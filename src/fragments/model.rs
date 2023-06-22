@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use chrono::{DateTime,FixedOffset,ParseError};
+use chrono::{DateTime,FixedOffset};
 
 #[derive(Debug, PartialEq)]
 pub struct AddrSpec {

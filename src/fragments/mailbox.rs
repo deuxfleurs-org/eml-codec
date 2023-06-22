@@ -1,12 +1,11 @@
 use std::borrow::Cow;
 use nom::{
     IResult,
-    Parser,
     branch::alt,
     bytes::complete::{tag, is_a},
     character::complete::satisfy,
     combinator::{into,map,opt,recognize},
-    multi::{separated_list1, fold_many0, many0, many1},
+    multi::{separated_list1, fold_many0, many0},
     sequence::{delimited,pair,preceded,terminated,tuple},
 };
 
@@ -98,6 +97,7 @@ pub fn addr_spec(input: &str) -> IResult<&str, AddrSpec> {
 /// ```abnf
 ///    local-part      =   dot-atom / quoted-string / obs-local-part
 /// ```
+#[allow(dead_code)]
 fn strict_local_part(input: &str) -> IResult<&str, String> {
     alt((into(dot_atom), quoted_string))(input)
 }
@@ -126,6 +126,7 @@ fn obs_local_part(input: &str) -> IResult<&str, String> {
 /// ```abnf
 ///    domain          =   dot-atom / domain-literal
 /// ```
+#[allow(dead_code)]
 pub fn strict_domain(input: &str) -> IResult<&str, String> {
     alt((into(dot_atom), domain_litteral))(input)
 }

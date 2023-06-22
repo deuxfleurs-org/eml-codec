@@ -1,4 +1,3 @@
-use std::borrow::Cow;
 use nom::{
     IResult,
     branch::alt,

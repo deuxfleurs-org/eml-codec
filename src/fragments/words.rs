@@ -21,6 +21,7 @@ pub fn is_vchar(c: char) -> bool {
 /// VCHAR   =/  UTF8-non-ascii
 /// SEQ     = 1*VCHAR
 ///```
+#[allow(dead_code)]
 pub fn vchar_seq(input: &str) -> IResult<&str, &str> {
    take_while1(is_vchar)(input)
 }
@@ -51,6 +52,7 @@ pub fn dot_atom(input: &str) -> IResult<&str, &str> {
     delimited(opt(cfws), dot_atom_text, opt(cfws))(input)
 }
 
+#[allow(dead_code)]
 pub fn is_special(c: char) -> bool {
     c == '(' || c == ')' || 
     c == '<' || c == '>' ||

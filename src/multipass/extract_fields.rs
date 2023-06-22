@@ -1,10 +1,9 @@
-use std::borrow::Cow;
 use nom::{
     IResult,
     character::complete::space1,
     bytes::complete::is_not,
     combinator::{all_consuming, recognize},
-    multi::{fold_many0, many0, many1},
+    multi::{many0, many1},
     sequence::{pair, tuple},
 };
 

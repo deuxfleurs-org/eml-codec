@@ -1,12 +1,10 @@
-use std::collections::HashMap;
 use nom::{
     IResult,
     branch::alt,
     bytes::complete::tag,
-    character::complete::space0,
     combinator::{map, opt, recognize},
     multi::many0,
-    sequence::{delimited, pair, tuple},
+    sequence::tuple,
 };
 use crate::fragments::{datetime, mailbox, model, misc_token, whitespace, lazy};
 use crate::error::IMFError;
