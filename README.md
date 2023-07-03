@@ -88,7 +88,7 @@ Todo:
  - [ ] test over other datasets (jpbush, ml, my inbox)
  - [ ] backport to aerogramme
 
-## Targeted RFC
+## Targeted RFC and IANA references
 
 | 🚩 | # | Name |
 |----|---|------|
@@ -103,6 +103,10 @@ Todo:
 | 🔴 |2183  | Communicating Presentation Information in Internet Messages: The Content-Disposition Header Field |
 | 🟩 |6532	| Internationalized Email Headers |
 | 🔴 |9228   | Delivered-To Email Header Field |
+
+IANA references :
+ - (tbd) MIME subtypes
+ - [IANA character sets](https://www.iana.org/assignments/character-sets/character-sets.xhtml)
 
 ## Alternatives
 
