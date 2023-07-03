@@ -65,6 +65,7 @@ impl<'a> TryFrom<&'a Lazy<'a>> for Field<'a> {
             Lazy::ReturnPath(v) => v.try_into().map(|v| ReturnPath(v)),
             Lazy::Optional(k, v) => v.try_into().map(|v| Optional(k, v)),
             Lazy::Rescue(v) => Ok(Rescue(v)),
+            _ => todo!(),
         }
     }
 }

@@ -41,6 +41,15 @@ pub struct ReceivedLog<'a>(pub &'a str);
 pub struct Path<'a>(pub &'a str);
 
 #[derive(Debug, PartialEq)]
+pub struct Version<'a>(pub &'a str);
+
+#[derive(Debug, PartialEq)]
+pub struct Type<'a>(pub &'a str);
+
+#[derive(Debug, PartialEq)]
+pub struct Mechanism<'a>(pub &'a str);
+
+#[derive(Debug, PartialEq)]
 pub enum Field<'a> {
     // 3.6.1.  The Origination Date Field
     Date(DateTime<'a>),
@@ -69,6 +78,13 @@ pub enum Field<'a> {
     // 3.6.7   Trace Fields
     Received(ReceivedLog<'a>),
     ReturnPath(Mailbox<'a>),
+
+    // MIME RFC 2045
+    MIMEVersion(Version<'a>),
+    ContentType(Type<'a>),
+    ContentTransferEncoding(Mechanism<'a>),
+    ContentID(Identifier<'a>),
+    ContentDescription(Unstructured<'a>),
 
     // 3.6.8.  Optional Fields
     Optional(&'a str, Unstructured<'a>),
@@ -127,6 +143,12 @@ fn correct_field(input: &str) -> IResult<&str, Field> {
 
                 "return-path" => ReturnPath(Mailbox(rest)),
                 "received" => Received(ReceivedLog(rest)),
+
+                "mime-version" => MIMEVersion(Version(rest)),
+                "content-type" => ContentType(Type(rest)),
+                "content-transfer-encoding" => ContentTransferEncoding(Mechanism(rest)),
+                "content-id" => ContentID(Identifier(rest)),
+                "content-description" => ContentDescription(Unstructured(rest)),
 
                 _ => Optional(name, Unstructured(rest)),
             },
