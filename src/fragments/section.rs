@@ -71,6 +71,7 @@ impl<'a> FromIterator<&'a Field<'a>> for Section<'a> {
                     section.optional.insert(k, v);
                 }
                 Field::Rescue(v) => section.unparsed.push(v),
+                _ => todo!(),
             }
         }
         section

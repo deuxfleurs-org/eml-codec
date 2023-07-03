@@ -16,3 +16,5 @@ pub mod lazy;
 mod mailbox;
 pub mod section;
 pub mod trace;
+
+pub mod mime;

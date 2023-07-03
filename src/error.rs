@@ -15,4 +15,5 @@ pub enum IMFError<'a> {
     Unstructured(nom::Err<nom::error::Error<&'a str>>),
     PhraseList(nom::Err<nom::error::Error<&'a str>>),
     ReceivedLog(nom::Err<nom::error::Error<&'a str>>),
+    Version(nom::Err<nom::error::Error<&'a str>>),
 }

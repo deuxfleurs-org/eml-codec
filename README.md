@@ -5,14 +5,14 @@
 
 ## Goals
 
- - Correctness: do no deviate from the RFC, support edge and obsolete cases
- - Straightforward/maintainable: implement the RFCs as close as possible, minimizing the amount of clever tricks and optimizations
- - Multiple syntax: Write the parser so it's easy to alternate between the strict and obsolete/compatible syntax
- - Never fail: Provide as many fallbacks as possible
+- Maintainability - modifying the code does not create regression and is possible for someone exterior to the project. Keep cyclomatic complexity low.
+- Composability - build your own parser by picking the relevant passes, avoid work that is not needed.
+- Compatibility - always try to parse something, do not panic or return an error.
 
 ## Non goals
 
-  - Parsing optimization (greedy parser, etc.) as it would require to significantly deviate from the RFC ABNF syntax (would consider this case if we could prove that the transformation we make are equivalent)
+  - Parsing optimization that would make more complicated to understand the logic.
+  - Optimization for a specific use case, to the detriment of other use cases.
   - Pipelining/streaming/buffering as the parser can arbitrarily backtrack + our result contains reference to the whole buffer, imf-codec must keep the whole buffer in memory. Avoiding the sequential approach would certainly speed-up a little bit the parsing, but it's too much work to implement currently.
   - Zerocopy. It might be implementable in the future, but to quickly bootstrap this project, I avoided it for now.
 
@@ -23,21 +23,24 @@ Current known limitations/bugs:
  - Resent Header Fields are not implemented
  - Return-Path/Received headers might be hard to use as their order is important, and it's currently lost in the final datastructure.
  - Datetime parsing of invalid date might return `None` instead of falling back to the `bad_body` field
- - Comments are dropped
+ - Comments contained in the email headers are dropped during parsing
+ - No support is provided for message/external-body (read data from local computer) and message/partial (aggregate multiple fragmented emails) as they seem obsolete and dangerous to implement.
 
 ## Design
 
-Based on nom, a parser combinator lib in Rust.
-multipass parser
- - extract header block: `&[u8]` (find \r\n\r\n OR \n\n OR \r\r OR \r\n)
- - decode/convert it with chardet + encoding\_rs to support latin-1: Cow<&str>
- - extract header lines iter::&str (requires only to search for FWS + obs\_CRLF)
- - extract header names iter::Name::From(&str)
- - extract header body iter::Body::From(Vec<MailboxRef>)
- - extract header section Section
+Multipass design: each pass is in charge of a specific work.
+*Having multiple pass does not necessarily lead to abyssmal performances.
+For example, the [Chez Scheme compiler](https://legacy.cs.indiana.edu/~dyb/pubs/commercial-nanopass.pdf) 
+pioneered the "Nanopass" concept and showcases excellent performances.*
 
-recovery
- - based on multipass, equivalent to sentinel / synchronization tokens
+Currently, you can use the following passes:
+ - `segment.rs` - Extract the header section by finding the `CRLFCRLF` token.
+ - `guess_charset.rs` - Find the header section encoding (should be ASCII or UTF8 but some corpus contains ISO-8859-1 headers)
+ - `extract_fields.rs` - Extract the headers line by lines, taking into account Foldable White Space.
+ - `field_lazy.rs` - Try to recognize the header fields (`From`, `To`, `Date`, etc.) but do not parse their value.  
+ - `field_eager.rs` - Parse the value of each known header fields.  
+ - `header_section.rs` - Aggregate the various fields in a single structure.  
+
 
 ## Testing strategy
 
