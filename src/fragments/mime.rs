@@ -485,13 +485,12 @@ mod tests {
         );
     }
 
-/*    #[test]
-    fn test_parameter() {
+    #[test]
+    fn test_parameter_ascii() {
         assert_eq!(
             parameter("charset=us-ascii (Plain text)"),
-            Ok(("", Parameter::charset(EmailCharset::US_ASCII)))
+            Ok(("", Parameter::Charset(EmailCharset::US_ASCII)))
         );
 
     }
-*/
 }
