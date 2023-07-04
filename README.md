@@ -102,6 +102,8 @@ Todo:
 | 🔴 |2048	| ↳ Multipurpose Internet Mail Extensions (MIME) Part Four: Registration Procedures | 
 | 🔴 |2049	| ↳ Multipurpose Internet Mail Extensions (MIME) Part Five: Conformance Criteria and Examples |
 | 🔴 |2183  | Communicating Presentation Information in Internet Messages: The Content-Disposition Header Field |
+| 🔴 |3462 | The Multipart/Report Content Type for the Reporting of Mail System Administrative Messages |
+| 🔴 |3798 | Message Disposition Notification |
 | 🟩 |6532	| Internationalized Email Headers |
 | 🔴 |9228   | Delivered-To Email Header Field |
 

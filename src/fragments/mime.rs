@@ -51,6 +51,7 @@ pub enum MultipartSubtype<'a> {
     Mixed,
     Digest,
     Parallel,
+    Report,
     Other(&'a str),
 }
 
@@ -248,6 +249,7 @@ impl<'a> From<&'a str> for MultipartSubtype<'a> {
             "mixed" => MultipartSubtype::Mixed,
             "digest" => MultipartSubtype::Digest,
             "parallel" => MultipartSubtype::Parallel,
+            "report" => MultipartSubtype::Report,
             _ => MultipartSubtype::Other(csub),
         }
     }
@@ -327,8 +329,6 @@ pub fn content_type(input: &str) -> IResult<&str, Type> {
             let (boundary_param, unknown_parameters): (Vec<Parameter>, Vec<Parameter>) = params
                 .into_iter()
                 .partition(|p| matches!(p, Parameter::Boundary(_)));
-
-            println!("{:?} //// {:?}", boundary_param, unknown_parameters);
 
             // @FIXME: if multiple boundary value is set, only the 
             // first one is picked. We should check that it makes
