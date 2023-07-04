@@ -328,6 +328,8 @@ pub fn content_type(input: &str) -> IResult<&str, Type> {
                 .into_iter()
                 .partition(|p| matches!(p, Parameter::Boundary(_)));
 
+            println!("{:?} //// {:?}", boundary_param, unknown_parameters);
+
             // @FIXME: if multiple boundary value is set, only the 
             // first one is picked. We should check that it makes
             // sense with other implementation.
@@ -456,6 +458,18 @@ mod tests {
                 charset: Some(EmailCharset::UTF_8),
                 subtype: TextSubtype::Plain,
                 unknown_parameters: vec![],
+            }))
+        );
+    }
+
+    #[test]
+    fn test_content_type_multipart() {
+        assert_eq!(
+            Type::try_from(&lazy::Type("multipart/mixed;\r\n\tboundary=\"--==_mimepart_64a3f2c69114f_2a13d020975fe\";\r\n\tcharset=UTF-8")),
+            Ok(Type::Multipart(MultipartDesc {
+                subtype: MultipartSubtype::Mixed,
+                boundary: "--==_mimepart_64a3f2c69114f_2a13d020975fe".into(),
+                unknown_parameters: vec![Parameter::Charset(EmailCharset::UTF_8)],
             }))
         );
     }
