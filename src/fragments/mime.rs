@@ -474,6 +474,17 @@ mod tests {
         );
     }
 
+    #[test]
+    fn test_content_type_message() {
+        assert_eq!(
+            Type::try_from(&lazy::Type("message/rfc822")),
+            Ok(Type::Message(MessageDesc {
+                subtype: MessageSubtype::RFC822,
+                unknown_parameters: vec![],
+            }))
+        );
+    }
+
 /*    #[test]
     fn test_parameter() {
         assert_eq!(
