@@ -101,11 +101,16 @@ Todo:
 | 🔴 |2047	| ↳ MIME (Multipurpose Internet Mail Extensions) Part Three: Message Header Extensions for Non-ASCII Text | 
 | 🔴 |2048	| ↳ Multipurpose Internet Mail Extensions (MIME) Part Four: Registration Procedures | 
 | 🔴 |2049	| ↳ Multipurpose Internet Mail Extensions (MIME) Part Five: Conformance Criteria and Examples |
-| 🔴 |2183  | Communicating Presentation Information in Internet Messages: The Content-Disposition Header Field |
-| 🔴 |3462 | The Multipart/Report Content Type for the Reporting of Mail System Administrative Messages |
-| 🔴 |3798 | Message Disposition Notification |
-| 🟩 |6532	| Internationalized Email Headers |
-| 🔴 |9228   | Delivered-To Email Header Field |
+|    |      | **Headers extensions** |
+| 🔴 |2183  | ↳ Communicating Presentation Information in Internet Messages: The Content-Disposition Header Field |
+| 🟩 |6532	| ↳ Internationalized Email Headers |
+| 🔴 |9228  | ↳ Delivered-To Email Header Field |
+|    |      | **MIME extensions** |
+| 🔴 |1847  | ↳ Security Multiparts for MIME: Multipart/Signed and Multipart/Encrypted |
+| 🔴 |2387  | ↳ The MIME Multipart/Related Content-type |
+| 🔴 |3462  | ↳ The Multipart/Report Content Type for the Reporting of Mail System Administrative Messages |
+| 🔴 |3798  | ↳ Message Disposition Notification |
+| 🔴 |6838  | ↳ Media Type Specifications and Registration Procedures |
 
 IANA references :
  - (tbd) MIME subtypes

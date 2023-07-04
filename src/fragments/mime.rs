@@ -238,7 +238,9 @@ impl<'a> TryFrom<&'a lazy::Mechanism<'a>> for Mechanism<'a> {
     type Error = IMFError<'a>;
 
     fn try_from(mc: &'a lazy::Mechanism<'a>) -> Result<Self, Self::Error> {
-        Ok(Mechanism::Other(""))
+        mechanism(mc.0)
+            .map(|(_, v)| v)
+            .map_err(|e| IMFError::Mechanism(e))
     }
 }
 
@@ -385,6 +387,22 @@ pub fn content_type(input: &str) -> IResult<&str, Type> {
     Ok((rest, parsed))
 }
 
+pub fn mechanism(input: &str) -> IResult<&str, Mechanism> {
+    use Mechanism::*;
+
+    let (input, mecha) = token(input)?;
+    let parsed = match mecha.to_lowercase().as_ref() {
+        "7bit" => _7Bit,
+        "8bit" => _8Bit,
+        "binary" => Binary,
+        "quoted-printable" => QuotedPrintable,
+        "base64" => Base64,
+        _ => Other(mecha),
+    };
+
+    Ok((input, parsed))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -491,6 +509,33 @@ mod tests {
             parameter("charset=us-ascii (Plain text)"),
             Ok(("", Parameter::Charset(EmailCharset::US_ASCII)))
         );
+    }
 
+    #[test]
+    fn test_mechanism() {
+        assert_eq!(
+            Mechanism::try_from(&lazy::Mechanism("7bit")),
+            Ok(Mechanism::_7Bit),
+        );
+
+        assert_eq!(
+            Mechanism::try_from(&lazy::Mechanism("(youhou) 8bit")),
+            Ok(Mechanism::_8Bit),
+        );
+        
+        assert_eq!(
+            Mechanism::try_from(&lazy::Mechanism("(blip) bInArY (blip blip)")),
+            Ok(Mechanism::Binary),
+        );
+
+        assert_eq!(
+            Mechanism::try_from(&lazy::Mechanism(" base64 ")),
+            Ok(Mechanism::Base64),
+        );
+
+        assert_eq!(
+            Mechanism::try_from(&lazy::Mechanism(" Quoted-Printable ")),
+            Ok(Mechanism::QuotedPrintable),
+        );
     }
 }

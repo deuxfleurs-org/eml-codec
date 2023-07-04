@@ -17,4 +17,5 @@ pub enum IMFError<'a> {
     ReceivedLog(nom::Err<nom::error::Error<&'a str>>),
     Version(nom::Err<nom::error::Error<&'a str>>),
     ContentType(nom::Err<nom::error::Error<&'a str>>),
+    Mechanism(nom::Err<nom::error::Error<&'a str>>),
 }
