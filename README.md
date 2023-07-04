@@ -8,6 +8,7 @@
 - Maintainability - modifying the code does not create regression and is possible for someone exterior to the project. Keep cyclomatic complexity low.
 - Composability - build your own parser by picking the relevant passes, avoid work that is not needed.
 - Compatibility - always try to parse something, do not panic or return an error.
+- Exhaustivity - serve as a common project to encode knowledge about emails (existing mime types, existing headers, etc.).
 
 ## Non goals
 

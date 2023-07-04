@@ -1,12 +1,19 @@
+use std::borrow::Cow;
 use encoding_rs::Encoding;
 use nom::{
-    bytes::complete::tag, character::complete as character, combinator::opt, sequence::tuple,
+    branch::alt,
+    bytes::complete::{tag,take_while1}, 
+    character::complete as character, 
+    combinator::{into, opt}, 
+    multi::many0,
+    sequence::{delimited, preceded, tuple},
     IResult,
 };
 
 use crate::error::IMFError;
 use crate::fragments::lazy;
 use crate::fragments::whitespace::cfws;
+use crate::fragments::quoted::quoted_string;
 
 #[derive(Debug, PartialEq)]
 pub struct Version {
@@ -17,42 +24,69 @@ pub struct Version {
 #[derive(Debug, PartialEq)]
 pub enum Type<'a> {
     // Composite types
-    Multipart(MultipartSubtype<'a>),
-    Message(MessageSubtype<'a>),
+    Multipart(MultipartDesc<'a>),
+    Message(MessageDesc<'a>),
 
     // Discrete types
-    Text(&'a str),
-    Image(&'a str),
-    Audio(&'a str),
-    Video(&'a str),
-    Application(&'a str),
+    Text(TextDesc<'a>),
+    Image(&'a str, Vec<Parameter<'a>>),
+    Audio(&'a str, Vec<Parameter<'a>>),
+    Video(&'a str, Vec<Parameter<'a>>),
+    Application(&'a str, Vec<Parameter<'a>>),
 
     // Unknown
     Other(&'a str, &'a str, Vec<Parameter<'a>>),
 }
 
 #[derive(Debug, PartialEq)]
+pub struct MultipartDesc<'a> {
+    boundary: String,
+    subtype: MultipartSubtype<'a>,
+    unknown_parameters: Vec<Parameter<'a>>,
+}
+
+#[derive(Debug, PartialEq)]
 pub enum MultipartSubtype<'a> {
-    Alternative(Parameter<'a>),
-    Mixed(Parameter<'a>),
-    Digest(Parameter<'a>),
-    Parallel(Parameter<'a>),
-    Other(&'a str, Parameter<'a>),
+    Alternative,
+    Mixed,
+    Digest,
+    Parallel,
+    Other(&'a str),
+}
+
+#[derive(Debug, PartialEq)]
+pub struct MessageDesc<'a> {
+    subtype: MessageSubtype<'a>,
+    unknown_parameters: Vec<Parameter<'a>>,
 }
 
 #[derive(Debug, PartialEq)]
 pub enum MessageSubtype<'a> {
-    RFC822(Vec<Parameter<'a>>),
-    Partial(Vec<Parameter<'a>>),
-    External(Vec<Parameter<'a>>),
-    Other(&'a str, Vec<Parameter<'a>>),
+    RFC822,
+    Partial,
+    External,
+    Other(&'a str),
+}
+
+#[derive(Debug, PartialEq)]
+pub struct TextDesc<'a> {
+    charset: Option<EmailCharset<'a>>,
+    subtype: TextSubtype<'a>,
+    unknown_parameters: Vec<Parameter<'a>>,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum TextSubtype<'a> {
+    Plain,
+    Html,
+    Other(&'a str),
 }
 
 #[derive(Debug, PartialEq)]
 pub enum Parameter<'a> {
     Charset(EmailCharset<'a>),
-    Boundary(&'a str),
-    Other(&'a str, &'a str),
+    Boundary(String),
+    Other(&'a str, String),
 }
 
 /// Specific implementation of charset
@@ -89,7 +123,7 @@ pub enum EmailCharset<'a> {
     Big5,
     KOI8_R,
     UTF_8,
-    Other(&'a str),
+    Other(Cow<'a, str>),
 }
 
 #[derive(Debug, PartialEq)]
@@ -101,11 +135,16 @@ pub enum Mechanism<'a> {
     Base64,
     Other(&'a str),
 }
-
 impl<'a> From<&'a str> for EmailCharset<'a> {
     fn from(s: &'a str) -> Self {
+        EmailCharset::from(Cow::Borrowed(s))
+    }
+}
+
+impl<'a> From<Cow<'a, str>> for EmailCharset<'a> {
+    fn from(s: Cow<'a, str>) -> Self {
         match s.to_lowercase().as_ref() {
-            "us-ascii" => EmailCharset::US_ASCII,
+            "us-ascii" | "ascii" => EmailCharset::US_ASCII,
             "iso-8859-1" => EmailCharset::ISO_8859_1,
             "iso-8859-2" => EmailCharset::ISO_8859_2,
             "iso-8859-3" => EmailCharset::ISO_8859_3,
@@ -129,14 +168,14 @@ impl<'a> From<&'a str> for EmailCharset<'a> {
             "gb2312" => EmailCharset::GB2312,
             "big5" => EmailCharset::Big5,
             "koi8-r" => EmailCharset::KOI8_R,
-            "utf-8" => EmailCharset::UTF_8,
+            "utf-8" | "utf8" => EmailCharset::UTF_8,
             _ => EmailCharset::Other(s)
         }
     }   
 }
 
 impl<'a> EmailCharset<'a> {
-    pub fn as_str(&self) -> &'a str {
+    pub fn as_str(&'a self) -> &'a str {
         use EmailCharset::*;
         match self {
             US_ASCII => "US-ASCII",
@@ -164,7 +203,7 @@ impl<'a> EmailCharset<'a> {
             Big5 => "Big5",
             KOI8_R => "KOI8-R",
             UTF_8 => "UTF-8",
-            Other(raw) => raw,
+            Other(raw) => raw.as_ref(),
         }
     }
 
@@ -188,7 +227,9 @@ impl<'a> TryFrom<&'a lazy::Type<'a>> for Type<'a> {
     type Error = IMFError<'a>;
 
     fn try_from(tp: &'a lazy::Type<'a>) -> Result<Self, Self::Error> {
-        Ok(Type::Other("", "", vec![]))
+        content_type(tp.0)
+            .map(|(_, v)| v)
+            .map_err(|e| IMFError::ContentType(e))
     }
 }
 
@@ -199,6 +240,40 @@ impl<'a> TryFrom<&'a lazy::Mechanism<'a>> for Mechanism<'a> {
         Ok(Mechanism::Other(""))
     }
 }
+
+impl<'a> From<&'a str> for MultipartSubtype<'a> {
+    fn from(csub: &'a str) -> Self {
+        match csub.to_lowercase().as_ref() {
+            "alternative" => MultipartSubtype::Alternative,
+            "mixed" => MultipartSubtype::Mixed,
+            "digest" => MultipartSubtype::Digest,
+            "parallel" => MultipartSubtype::Parallel,
+            _ => MultipartSubtype::Other(csub),
+        }
+    }
+}
+
+impl<'a> From<&'a str> for MessageSubtype<'a> {
+    fn from(csub: &'a str) -> Self {
+        match csub.to_lowercase().as_ref() {
+            "rfc822" => MessageSubtype::RFC822,
+            "partial" => MessageSubtype::Partial,
+            "external" => MessageSubtype::External,
+            _ => MessageSubtype::Other(csub),
+        }
+    }
+}
+
+impl<'a> From<&'a str> for TextSubtype<'a> {
+    fn from(csub: &'a str) -> Self {
+        match csub.to_lowercase().as_ref() {
+            "html" => TextSubtype::Html,
+            "plain" => TextSubtype::Plain,
+            _ => TextSubtype::Other(csub),
+        }
+    }
+}
+
 
 pub fn version(input: &str) -> IResult<&str, Version> {
     let (rest, (_, major, _, _, _, minor, _)) = tuple((
@@ -213,9 +288,105 @@ pub fn version(input: &str) -> IResult<&str, Version> {
     Ok((rest, Version { major, minor }))
 }
 
+/// Token allowed characters
+fn is_token_text(c: char) -> bool {
+    c.is_ascii() && !c.is_ascii_control() && !c.is_ascii_whitespace() && !"()<>@,;:\\\"/[]?=".contains(c)
+}
+
+/// Token
+///
+/// `[CFWS] 1*token_text [CFWS]`
+pub fn token(input: &str) -> IResult<&str, &str> {
+    delimited(opt(cfws), take_while1(is_token_text), opt(cfws))(input)
+}
+
+pub fn parameter(input: &str) -> IResult<&str, Parameter> {
+    let (rest, (pname, _, pvalue)) = tuple((
+            token, 
+            tag("="), 
+            alt((quoted_string, into(token)))
+        ))(input)?;
+    
+    let param = match pname.to_lowercase().as_ref() {
+        "charset" => Parameter::Charset(EmailCharset::from(Cow::Owned(pvalue))),
+        "boundary" => Parameter::Boundary(pvalue),
+        _ => Parameter::Other(pname, pvalue),
+    };
+
+    Ok((rest, param))
+}
+
+pub fn content_type(input: &str) -> IResult<&str, Type> {
+    let (rest, (ctype, _, csub, params)) = tuple((
+            token, tag("/"), token, 
+            many0(preceded(tag(";"), parameter))
+    ))(input)?;
+
+    let parsed = match ctype.to_lowercase().as_ref() {
+        "multipart" => {
+            let (boundary_param, unknown_parameters): (Vec<Parameter>, Vec<Parameter>) = params
+                .into_iter()
+                .partition(|p| matches!(p, Parameter::Boundary(_)));
+
+            // @FIXME: if multiple boundary value is set, only the 
+            // first one is picked. We should check that it makes
+            // sense with other implementation.
+            match boundary_param.into_iter().next() {
+                // @FIXME boundary is mandatory. If it is missing,
+                // fallback to text/plain. Must check that this behavior
+                // is standard...
+                None => Type::Text(TextDesc {
+                    charset: None,
+                    subtype: TextSubtype::Plain, 
+                    unknown_parameters
+                }),
+                Some(Parameter::Boundary(v)) => Type::Multipart(MultipartDesc {
+                    subtype: MultipartSubtype::from(csub),
+                    unknown_parameters,
+                    boundary: v.into(),
+                }),
+                Some(_) => unreachable!(), // checked above
+            }
+        },
+
+        "message" => {
+            Type::Message(MessageDesc {
+                subtype: MessageSubtype::from(csub),
+                unknown_parameters: params,
+            })
+        },
+
+        "text" => {
+            let (charset_param, unknown_parameters): (Vec<Parameter>, Vec<Parameter>) = params
+                .into_iter()
+                .partition(|p| matches!(p, Parameter::Charset(_)));
+
+            let charset = match charset_param.into_iter().next() {
+                Some(Parameter::Charset(emlchar)) => Some(emlchar),
+                _ => None,
+            };
+
+            Type::Text(TextDesc {
+                subtype: TextSubtype::from(csub),
+                charset: charset,
+                unknown_parameters,
+            })
+        },
+
+        "image" => Type::Image(csub, params),
+        "audio" => Type::Audio(csub, params),
+        "video" => Type::Video(csub, params),
+        "application" => Type::Application(csub, params),
+        _ => Type::Other(ctype, csub, params),
+    };
+
+    Ok((rest, parsed))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::fragments::lazy;
 
     #[test]
     fn test_version() {
@@ -262,6 +433,30 @@ mod tests {
         assert_eq!(
             EmailCharset::from("utf8").as_encoding(),
             encoding_rs::UTF_8,
+        );
+    }
+
+    #[test]
+    fn test_parameter() {
+        assert_eq!(
+            parameter("charset=utf-8"),
+            Ok(("", Parameter::Charset(EmailCharset::UTF_8))),
+        );
+        assert_eq!(
+            parameter("charset=\"utf-8\""),
+            Ok(("", Parameter::Charset(EmailCharset::UTF_8))),
+        );
+    }
+
+    #[test]
+    fn test_content_type_plaintext() {
+        assert_eq!(
+            Type::try_from(&lazy::Type("text/plain; charset=utf-8")),
+            Ok(Type::Text(TextDesc {
+                charset: Some(EmailCharset::UTF_8),
+                subtype: TextSubtype::Plain,
+                unknown_parameters: vec![],
+            }))
         );
     }
 

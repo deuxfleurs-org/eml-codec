@@ -16,4 +16,5 @@ pub enum IMFError<'a> {
     PhraseList(nom::Err<nom::error::Error<&'a str>>),
     ReceivedLog(nom::Err<nom::error::Error<&'a str>>),
     Version(nom::Err<nom::error::Error<&'a str>>),
+    ContentType(nom::Err<nom::error::Error<&'a str>>),
 }
