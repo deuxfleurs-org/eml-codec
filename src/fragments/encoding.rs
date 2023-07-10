@@ -2,7 +2,7 @@ use std::borrow::Cow;
 use nom::{
     IResult,
     branch::alt,
-    bytes::complete::{tag, take_while1},
+    bytes::complete::{tag, take, take_while1},
     character::complete::{hex_digit1, one_of},
     combinator::map,
     sequence::{preceded, tuple},
@@ -33,6 +33,7 @@ fn is_encoded_text(c: char) -> bool {
     c.is_ascii() && !c.is_ascii_control() && !c.is_ascii_whitespace()
 }
 
+#[derive(PartialEq,Debug)]
 pub enum QuotedChunk<'a> {
     Safe(&'a str),
     Encoded(u8),
@@ -56,7 +57,7 @@ fn hex_octet(input: &str) -> IResult<&str, QuotedChunk> {
     use nom;
     use nom::error::*;
 
-    let (rest, hstr) = preceded(tag("="), hex_digit1)(input)?;
+    let (rest, hstr) = preceded(tag("="), take(2usize))(input)?;
 
     let parsed = u8::from_str_radix(hstr, 16)
         .map_err(|_| nom::Err::Error(Error::new(input, ErrorKind::Verify)))?;
@@ -72,14 +73,19 @@ mod tests {
     use super::*;
 
     // =?iso8859-1?Q?Accus=E9_de_r=E9ception_(affich=E9)?=
-
     #[test]
     fn test_ptext() {
         assert_eq!(
             ptext("Accus=E9_de_r=E9ception_(affich=E9)"),
-            vec![
+            Ok(("", vec![
                 QuotedChunk::Safe("Accus"),
-            ]
+                QuotedChunk::Encoded(0xe9),
+                QuotedChunk::Safe("_de_r"),
+                QuotedChunk::Encoded(0xe9),
+                QuotedChunk::Safe("ception_(affich"),
+                QuotedChunk::Encoded(0xe9),
+                QuotedChunk::Safe(")"),
+            ]))
         );
     }
 }
