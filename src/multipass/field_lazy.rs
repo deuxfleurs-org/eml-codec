@@ -46,4 +46,30 @@ mod tests {
             }
         );
     }
+
+    #[test]
+    fn test_mime_fields() {
+        assert_eq!(
+            new(&extract_fields::Parsed {
+                fields: vec![
+                    "MIME-Version: 1.0 \r\n",
+                    "Content-Type: multipart/alternative; boundary=\"bound\"\r\n",
+                    "Content-Transfer-Encoding: 7bit\r\n",
+                    "Content-ID: <foo4*foo1@bar.net>\r\n",
+                    "Content-Description: hello world\r\n",
+                ],
+                body: b"Hello world!",
+            }),
+            Parsed {
+                fields: vec![
+                    lazy::Field::MIMEVersion(lazy::Version("1.0 \r\n")),
+                    lazy::Field::ContentType(lazy::Type("multipart/alternative; boundary=\"bound\"\r\n")),
+                    lazy::Field::ContentTransferEncoding(lazy::Mechanism("7bit\r\n")),
+                    lazy::Field::ContentID(lazy::Identifier("<foo4*foo1@bar.net>\r\n")),
+                    lazy::Field::ContentDescription(lazy::Unstructured("hello world\r\n")),
+                ],
+                body: b"Hello world!",
+            }
+        );
+    }
 }
