@@ -17,4 +17,6 @@ mod mailbox;
 pub mod section;
 pub mod trace;
 
+// MIME related
 pub mod mime;
+pub mod encoding;
