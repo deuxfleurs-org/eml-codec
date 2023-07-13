@@ -2,30 +2,42 @@ use std::borrow::Cow;
 use nom::{
     IResult,
     branch::alt,
-    bytes::complete::{tag, take, take_while1},
-    character::complete::{hex_digit1, one_of},
+    bytes::complete::{tag, take, take_while1, take_while},
+    character::complete::{one_of},
     combinator::map,
-    sequence::{preceded, tuple},
+    sequence::{preceded, terminated, tuple},
     multi::many0,
 };
 use encoding_rs::Encoding;
+use base64::{Engine as _, engine::general_purpose};
 
 use crate::fragments::mime;
 
 pub fn encoded_word(input: &str) -> IResult<&str, String> {
-    let (rest, (_, charset, _, enc, _, txt, _)) = tuple((
-        tag("=?"), mime::token, tag("?"), one_of("QBqb"), tag("?"), ptext, tag("?=")
-    ))(input)?;
+    alt((encoded_word_quoted, encoded_word_base64))(input)
+}
 
-    let renc =  Encoding::for_label(charset.as_bytes()).unwrap_or(encoding_rs::WINDOWS_1252);
+pub fn encoded_word_quoted(input: &str) -> IResult<&str, String> {
+    let (rest, (_, charset, _, _, _, txt, _)) = tuple((
+        tag("=?"), mime::token, 
+        tag("?"), one_of("Qq"),
+        tag("?"), ptext,
+        tag("?=")))(input)?;
 
-    let parsed = match enc {
-        // quoted printable
-        'q'|'Q' => decode_quoted_encoding(renc, txt.iter()),
-        // base64
-        'b'|'B' => todo!(),
-        _ => unreachable!(),
-    };
+    let renc = Encoding::for_label(charset.as_bytes()).unwrap_or(encoding_rs::WINDOWS_1252);
+    let parsed = decode_quoted_encoding(renc, txt.iter());
+    Ok((rest, parsed))
+}
+
+pub fn encoded_word_base64(input: &str) -> IResult<&str, String> {
+    let (rest, (_, charset, _, _, _, txt, _)) = tuple((
+        tag("=?"), mime::token, 
+        tag("?"), one_of("Bb"),
+        tag("?"), btext,
+        tag("?=")))(input)?;
+
+    let renc = Encoding::for_label(charset.as_bytes()).unwrap_or(encoding_rs::WINDOWS_1252);
+    let parsed = general_purpose::STANDARD_NO_PAD.decode(txt).map(|d| renc.decode(d.as_slice()).0.to_string()).unwrap_or("".into());
 
     Ok((rest, parsed))
 }
@@ -61,6 +73,7 @@ pub fn ptext(input: &str) -> IResult<&str, Vec<QuotedChunk>> {
     many0(alt((safe_char2, encoded_space, hex_octet)))(input)
 }
 
+
 fn safe_char2(input: &str) -> IResult<&str, QuotedChunk> {
   map(take_while1(is_safe_char2), |v| QuotedChunk::Safe(v))(input)  
 }
@@ -74,17 +87,17 @@ fn is_safe_char2(c: char) -> bool {
     c.is_ascii() && !c.is_ascii_control() && c != '_' && c != '?' && c != '='
 }
 
+/*
 fn is_safe_char(c: char) -> bool {
     (c >= '\x21' && c <= '\x3c') ||
         (c >= '\x3e' && c <= '\x7e')
-}
+}*/
 
 fn encoded_space(input: &str) -> IResult<&str, QuotedChunk> {
     map(tag("_"), |_| QuotedChunk::Space)(input)
 }
 
 fn hex_octet(input: &str) -> IResult<&str, QuotedChunk> {
-    use nom;
     use nom::error::*;
 
     let (rest, hstr) = preceded(tag("="), take(2usize))(input)?;
@@ -96,7 +109,13 @@ fn hex_octet(input: &str) -> IResult<&str, QuotedChunk> {
 }
 
 //base64 (maybe use a crate)
+pub fn btext(input: &str) -> IResult<&str, &str> {
+    terminated(take_while(is_bchar), many0(tag("=")))(input)
+}
 
+fn is_bchar(c: char) -> bool {
+    c.is_ascii_alphanumeric() || c == '+' || c == '/'
+}
 
 #[cfg(test)]
 mod tests {
@@ -130,6 +149,15 @@ mod tests {
         assert_eq!(
             encoded_word("=?iso8859-1?Q?Accus=E9_de_r=E9ception_(affich=E9)?="),
             Ok(("", "Accusé de réception (affiché)".into())),
+        );
+    }
+
+    // =?ISO-8859-1?B?SWYgeW91IGNhbiByZWFkIHRoaXMgeW8=?=
+    #[test]
+    fn test_decode_word_b64() {
+        assert_eq!(
+            encoded_word("=?ISO-8859-1?B?SWYgeW91IGNhbiByZWFkIHRoaXMgeW8=?="),
+            Ok(("", "If you can read this yo".into()))
         );
     }
 }
