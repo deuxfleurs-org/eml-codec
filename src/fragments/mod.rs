@@ -20,3 +20,4 @@ pub mod trace;
 // MIME related
 pub mod mime;
 pub mod encoding;
+pub mod part;

@@ -1,5 +1,5 @@
 use crate::fragments::section::Section;
-use crate::multipass::field_eager;
+use crate::multipass::{field_eager, body_structure};
 
 #[derive(Debug, PartialEq)]
 pub struct Parsed<'a> {
@@ -11,6 +11,12 @@ pub fn new<'a>(p: &'a field_eager::Parsed<'a>) -> Parsed<'a> {
     Parsed {
         fields: Section::from_iter(p.fields.iter()),
         body: p.body,
+    }
+}
+
+impl<'a> Parsed<'a> {
+    pub fn body_structure(&self) -> body_structure::Parsed<'a> {
+        todo!()
     }
 }
 

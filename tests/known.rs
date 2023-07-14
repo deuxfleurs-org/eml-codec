@@ -1,5 +1,5 @@
 use chrono::{FixedOffset, TimeZone};
-use imf_codec::fragments::{misc_token, model, section, trace};
+use imf_codec::fragments::{misc_token, model, section, part, trace};
 use imf_codec::multipass;
 use std::collections::HashMap;
 
@@ -245,4 +245,93 @@ for all folk to come=
             }
         );
    })
+}
+
+fn parser_bodystruct<'a, F>(input: &'a [u8], func: F) -> ()
+where
+    F: FnOnce(&part::PartNode) -> (),
+{
+    let seg = multipass::segment::new(input).unwrap();
+    let charset = seg.charset();
+    let fields = charset.fields().unwrap();
+    let field_names = fields.names();
+    let field_body = field_names.body();
+    let section = field_body.section();
+    let bodystruct = section.body_structure();
+
+    func(&bodystruct.body);
+}
+
+#[test]
+fn test_multipart() {
+    let fullmail: &[u8] = r#"Date: Sat, 8 Jul 2023 07:14:29 +0200
+From: Grrrnd Zero <grrrndzero@example.org>
+To: John Doe <jdoe@machine.example>
+Subject: Re: Saying Hello
+Message-ID: <NTAxNzA2AC47634Y366BAMTY4ODc5MzQyODY0ODY5@www.grrrndzero.org>
+MIME-Version: 1.0
+Content-Type: multipart/alternative;
+ boundary="b1_e376dc71bafc953c0b0fdeb9983a9956"
+Content-Transfer-Encoding: 7bit
+
+This is a multi-part message in MIME format.
+
+--b1_e376dc71bafc953c0b0fdeb9983a9956
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: quoted-printable
+
+GZ
+OoOoO
+oOoOoOoOo
+oOoOoOoOoOoOoOoOo
+oOoOoOoOoOoOoOoOoOoOoOo
+oOoOoOoOoOoOoOoOoOoOoOoOoOoOo
+OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO
+
+--b1_e376dc71bafc953c0b0fdeb9983a9956
+Content-Type: text/html; charset=us-ascii
+
+<div style="text-align: center;"><strong>GZ</strong><br />
+OoOoO<br />
+oOoOoOoOo<br />
+oOoOoOoOoOoOoOoOo<br />
+oOoOoOoOoOoOoOoOoOoOoOo<br />
+oOoOoOoOoOoOoOoOoOoOoOoOoOoOo<br />
+OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
+
+--b1_e376dc71bafc953c0b0fdeb9983a9956--
+"#.as_bytes();
+    
+    parser_bodystruct(fullmail, |part| {
+        assert_eq!(part, &part::PartNode::Composite(
+            part::PartHeader {
+                ..part::PartHeader::default()
+            },
+            vec![
+                part::PartNode::Discrete(
+                    part::PartHeader {
+                        ..part::PartHeader::default()
+                    },
+                    r#"GZ
+OoOoO
+oOoOoOoOo
+oOoOoOoOoOoOoOoOo
+oOoOoOoOoOoOoOoOoOoOoOo
+oOoOoOoOoOoOoOoOoOoOoOoOoOoOo
+OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO"#.as_bytes()
+                ),
+                part::PartNode::Discrete(
+                    part::PartHeader {
+                        ..part::PartHeader::default()
+                    },
+                    r#"<div style="text-align: center;"><strong>GZ</strong><br />
+OoOoO<br />
+oOoOoOoOo<br />
+oOoOoOoOoOoOoOoOo<br />
+oOoOoOoOoOoOoOoOoOoOoOo<br />
+oOoOoOoOoOoOoOoOoOoOoOoOoOoOo<br />
+OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />"#.as_bytes()
+                ),
+            ]));
+    });
 }
