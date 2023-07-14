@@ -17,8 +17,8 @@ use crate::fragments::quoted::quoted_string;
 
 #[derive(Debug, PartialEq)]
 pub struct Version {
-    major: u32,
-    minor: u32,
+    pub major: u32,
+    pub minor: u32,
 }
 
 #[derive(Debug, PartialEq)]
@@ -40,9 +40,9 @@ pub enum Type<'a> {
 
 #[derive(Debug, PartialEq)]
 pub struct MultipartDesc<'a> {
-    boundary: String,
-    subtype: MultipartSubtype<'a>,
-    unknown_parameters: Vec<Parameter<'a>>,
+    pub boundary: String,
+    pub subtype: MultipartSubtype<'a>,
+    pub unknown_parameters: Vec<Parameter<'a>>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -57,8 +57,8 @@ pub enum MultipartSubtype<'a> {
 
 #[derive(Debug, PartialEq)]
 pub struct MessageDesc<'a> {
-    subtype: MessageSubtype<'a>,
-    unknown_parameters: Vec<Parameter<'a>>,
+    pub subtype: MessageSubtype<'a>,
+    pub unknown_parameters: Vec<Parameter<'a>>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -71,9 +71,9 @@ pub enum MessageSubtype<'a> {
 
 #[derive(Debug, PartialEq)]
 pub struct TextDesc<'a> {
-    charset: Option<EmailCharset<'a>>,
-    subtype: TextSubtype<'a>,
-    unknown_parameters: Vec<Parameter<'a>>,
+    pub charset: Option<EmailCharset<'a>>,
+    pub subtype: TextSubtype<'a>,
+    pub unknown_parameters: Vec<Parameter<'a>>,
 }
 
 #[derive(Debug, PartialEq)]

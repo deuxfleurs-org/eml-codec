@@ -8,6 +8,7 @@ use nom::{
     sequence::tuple,
     IResult,
 };
+use crate::fragments::encoding::encoded_word;
 
 // --- whitespaces and comments
 
@@ -75,7 +76,7 @@ pub fn comment(input: &str) -> IResult<&str, ()> {
 }
 
 pub fn ccontent(input: &str) -> IResult<&str, &str> {
-    alt((recognize(ctext), recognize(quoted_pair), recognize(comment)))(input)
+    alt((recognize(ctext), recognize(quoted_pair), recognize(encoded_word), recognize(comment)))(input)
 }
 
 pub fn ctext(input: &str) -> IResult<&str, char> {
@@ -153,6 +154,14 @@ mod tests {
         assert_eq!(
             cfws("(double (comment) is fun) wouch"),
             Ok(("wouch", "(double (comment) is fun) "))
+        );
+    }
+
+    #[test]
+    fn test_cfws_encoded_word() {
+       assert_eq!(
+            cfws("(=?US-ASCII?Q?Keith_Moore?=)"),
+            Ok(("", "(=?US-ASCII?Q?Keith_Moore?=)")),
         );
     }
 }

@@ -2,7 +2,7 @@ use nom::{
     branch::alt,
     bytes::complete::{tag, take_while1},
     character::complete::space0,
-    combinator::{into, opt},
+    combinator::{into, map, opt},
     multi::{many0, many1, separated_list1},
     sequence::tuple,
     IResult,
@@ -14,6 +14,7 @@ use crate::fragments::lazy;
 use crate::fragments::quoted::quoted_string;
 use crate::fragments::whitespace::{fws, is_obs_no_ws_ctl};
 use crate::fragments::words::{atom, is_vchar};
+use crate::fragments::encoding::encoded_word;
 
 #[derive(Debug, PartialEq, Default)]
 pub struct Unstructured(pub String);
@@ -47,7 +48,7 @@ impl<'a> TryFrom<&'a lazy::PhraseList<'a>> for PhraseList {
 ///    word            =   atom / quoted-string
 /// ```
 pub fn word(input: &str) -> IResult<&str, Cow<str>> {
-    alt((into(quoted_string), into(atom)))(input)
+    alt((into(quoted_string), into(encoded_word), into(atom)))(input)
 }
 
 /// Phrase
@@ -70,30 +71,45 @@ fn is_unstructured(c: char) -> bool {
     is_vchar(c) || is_obs_no_ws_ctl(c) || c == '\x00'
 }
 
+enum UnstrToken {
+    Init,
+    Encoded,
+    Plain,
+}
+
 /// Unstructured header field body
 ///
 /// ```abnf
 /// unstructured    =   (*([FWS] VCHAR_SEQ) *WSP) / obs-unstruct
 /// ```
 pub fn unstructured(input: &str) -> IResult<&str, String> {
-    let (input, r) = many0(tuple((opt(fws), take_while1(is_unstructured))))(input)?;
+    let (input, r) = many0(tuple((opt(fws), alt((
+                        map(encoded_word, |v| (Cow::Owned(v), UnstrToken::Encoded)), 
+                        map(take_while1(is_unstructured), |v| (Cow::Borrowed(v), UnstrToken::Plain)),
+                    )))))(input)?;
+
     let (input, _) = space0(input)?;
 
     // Try to optimize for the most common cases
     let body = match r.as_slice() {
-        [(None, content)] => content.to_string(),
-        [(Some(_), content)] => " ".to_string() + content,
-        lines => lines.iter().fold(String::with_capacity(255), |acc, item| {
-            let (may_ws, content) = item;
-            match may_ws {
-                Some(_) => acc + " " + content,
-                None => acc + content,
-            }
-        }),
+        // Optimization when there is only one line
+        [(None, (content, _))] | [(_, (content, UnstrToken::Encoded))] => content.to_string(),
+        [(Some(_), (content, _))] => " ".to_string() + content,
+        // Generic case, with multiple lines
+        lines => lines.iter().fold(
+            (&UnstrToken::Init, String::with_capacity(255)), 
+            |(prev_token, result), (may_ws, (content, current_token))| {
+            let new_res = match (may_ws, prev_token, current_token) {
+                (_, UnstrToken::Encoded, UnstrToken::Encoded) | (None, _, _) => result + content, 
+                _ => result + " " + content,
+            };
+            (current_token, new_res)
+        }).1,
     };
 
     Ok((input, body))
 }
+
 
 #[cfg(test)]
 mod tests {

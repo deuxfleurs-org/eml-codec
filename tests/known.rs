@@ -172,7 +172,77 @@ This is a reply to your hello.
                     "Héron: Raté\n Raté raté\n",
                     "Not a real header but should still recover\n",
                 ],
+                ..section::Section::default()
             }
         )
     })
+}
+
+#[test]
+fn test_headers_mime() {
+    use imf_codec::fragments::mime;
+    let fullmail: &[u8] = r#"From: =?US-ASCII?Q?Keith_Moore?= <moore@cs.utk.edu>
+To: =?ISO-8859-1?Q?Keld_J=F8rn_Simonsen?= <keld@dkuug.dk>
+CC: =?ISO-8859-1?Q?Andr=E9?= Pirard <PIRARD@vm1.ulg.ac.be>
+Subject: =?ISO-8859-1?B?SWYgeW91IGNhbiByZWFkIHRoaXMgeW8=?=
+    =?ISO-8859-2?B?dSB1bmRlcnN0YW5kIHRoZSBleGFtcGxlLg==?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=ISO-8859-1
+Content-Transfer-Encoding: quoted-printable
+Content-ID: <a@example.com>
+Content-Description: hello
+
+Now's the time =
+for all folk to come=
+ to the aid of their country.
+"#
+    .as_bytes();
+
+   parser(fullmail, |parsed_section| {
+        assert_eq!(
+            parsed_section,
+            &section::Section {
+                from: vec![
+                    &model::MailboxRef {
+                        name: Some("Keith Moore".into()),
+                        addrspec: model::AddrSpec {
+                            local_part: "moore".into(),
+                            domain: "cs.utk.edu".into(),
+                        }
+                    },
+                ],
+
+                to: vec![&model::AddressRef::Single(model::MailboxRef {
+                    name: Some("Keld Jørn Simonsen".into()),
+                    addrspec: model::AddrSpec {
+                        local_part: "keld".into(),
+                        domain: "dkuug.dk".into(),
+                    }
+                })],
+
+                cc: vec![&model::AddressRef::Single(model::MailboxRef {
+                    name: Some("André Pirard".into()),
+                    addrspec: model::AddrSpec {
+                        local_part: "PIRARD".into(),
+                        domain: "vm1.ulg.ac.be".into(),
+                    }
+                })],
+
+                subject: Some(&misc_token::Unstructured("If you can read this you understand the example.".into())),
+                mime_version: Some(&mime::Version{ major: 1, minor: 0 }),
+                content_type: Some(&mime::Type::Text(mime::TextDesc { 
+                    charset: Some(mime::EmailCharset::ISO_8859_1), 
+                    subtype: mime::TextSubtype::Plain, 
+                    unknown_parameters: vec![]
+                })),
+                content_transfer_encoding: Some(&mime::Mechanism::QuotedPrintable),
+                content_id: Some(&model::MessageId {
+                    left: "a",
+                    right: "example.com"
+                }),
+                content_description: Some(&misc_token::Unstructured("hello".into())),
+                ..section::Section::default()
+            }
+        );
+   })
 }
