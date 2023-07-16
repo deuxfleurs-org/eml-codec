@@ -1,14 +1,28 @@
 use crate::fragments::quoted::quoted_pair;
 use nom::{
     branch::alt,
-    bytes::complete::tag,
+    bytes::complete::{is_not, tag},
     character::complete::{crlf, satisfy, space0, space1},
     combinator::{opt, recognize},
     multi::{many0, many1},
-    sequence::tuple,
+    sequence::{pair, tuple},
     IResult,
 };
 use crate::fragments::encoding::encoded_word;
+
+// Bytes CRLF
+const CR: u8 = 0x0D;
+const LF: u8 = 0x0A;
+const CRLF: &[u8] = &[CR, LF];
+
+pub fn line(input: &[u8]) -> IResult<&[u8], (&[u8], &[u8])> {
+    pair(is_not(CRLF), obs_crlf)(input)
+}
+
+pub fn obs_crlf(input: &[u8]) -> IResult<&[u8], &[u8]> {
+    alt((tag(CRLF), tag(&[CR]), tag(&[LF])))(input)
+}
+
 
 // --- whitespaces and comments
 
