@@ -24,6 +24,7 @@ pub enum PartNode<'a> {
     Composite(PartHeader<'a>, Vec<PartNode<'a>>),
 }
 
+#[derive(Debug, PartialEq)]
 pub enum Delimiter {
     Next,
     Last
@@ -44,6 +45,18 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_boundary() {
+    fn test_boundary_next() {
+        assert_eq!(
+            boundary(b"hello")(b"\r\n--hello\r\n"),
+            Ok((&b""[..], Delimiter::Next))
+        );
+    }
+
+    #[test]
+    fn test_boundary_last() {
+        assert_eq!(
+            boundary(b"hello")(b"\r\n--hello--\r\n"),
+            Ok((&b""[..], Delimiter::Last))
+        );
     }
 }
