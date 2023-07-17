@@ -1,12 +1,6 @@
-use nom::{
-    combinator::recognize,
-    multi::many0,
-    sequence::terminated,
-};
-
 use crate::error::IMFError;
 use crate::multipass::guess_charset;
-use crate::fragments::whitespace::{obs_crlf, line};
+use crate::fragments::whitespace::headers;
 
 #[derive(Debug, PartialEq)]
 pub struct Parsed<'a> {
@@ -15,7 +9,7 @@ pub struct Parsed<'a> {
 }
 
 pub fn new<'a>(buffer: &'a [u8]) -> Result<Parsed<'a>, IMFError<'a>> {
-    terminated(recognize(many0(line)), obs_crlf)(buffer)
+    headers(buffer)
         .map_err(|e| IMFError::Segment(e))
         .map(|(body, header)| Parsed { header, body })
 }

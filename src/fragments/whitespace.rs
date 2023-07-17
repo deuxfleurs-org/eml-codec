@@ -5,15 +5,22 @@ use nom::{
     character::complete::{crlf, satisfy, space0, space1},
     combinator::{opt, recognize},
     multi::{many0, many1},
-    sequence::{pair, tuple},
+    sequence::{pair, terminated, tuple},
     IResult,
 };
 use crate::fragments::encoding::encoded_word;
+
+/// Whitespace (space, new line, tab) content and 
+/// delimited content (eg. comment, line, sections, etc.)
 
 // Bytes CRLF
 const CR: u8 = 0x0D;
 const LF: u8 = 0x0A;
 pub const CRLF: &[u8] = &[CR, LF];
+
+pub fn headers(input: &[u8]) -> IResult<&[u8], &[u8]> {
+    terminated(recognize(many0(line)), obs_crlf)(input)
+}
 
 pub fn line(input: &[u8]) -> IResult<&[u8], (&[u8], &[u8])> {
     // is_not(CRLF) is a hack, it means "is not CR or LF"
