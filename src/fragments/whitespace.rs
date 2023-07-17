@@ -13,9 +13,12 @@ use crate::fragments::encoding::encoded_word;
 // Bytes CRLF
 const CR: u8 = 0x0D;
 const LF: u8 = 0x0A;
-const CRLF: &[u8] = &[CR, LF];
+pub const CRLF: &[u8] = &[CR, LF];
 
 pub fn line(input: &[u8]) -> IResult<&[u8], (&[u8], &[u8])> {
+    // is_not(CRLF) is a hack, it means "is not CR or LF"
+    // and not "is not CRLF". In other words, it continues while
+    // it does not encounter 0x0D or 0x0A.
     pair(is_not(CRLF), obs_crlf)(input)
 }
 

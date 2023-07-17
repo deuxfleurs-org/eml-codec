@@ -1,14 +1,15 @@
 use nom::{
     IResult,
-    bytes::complete::tag,
-    sequence::tuple,
-    combinator::opt,
+    bytes::complete::{is_not, tag},
+    multi::many0,
+    sequence::{pair, tuple},
+    combinator::{not, opt, recognize},
 };
 
 use crate::fragments::mime::{Mechanism, Type};
 use crate::fragments::model::MessageId;
 use crate::fragments::misc_token::Unstructured;
-use crate::fragments::whitespace::obs_crlf;
+use crate::fragments::whitespace::{CRLF, obs_crlf};
 
 #[derive(Debug, PartialEq, Default)]
 pub struct PartHeader<'a> {
@@ -40,6 +41,36 @@ pub fn boundary<'a>(boundary: &'a [u8]) -> impl Fn(&'a [u8]) -> IResult<&'a [u8]
     }
 }
 
+pub fn part(input: &[u8]) -> IResult<&[u8], (PartNode, Delimiter)> {
+    todo!();
+    // parse headers up to CRLF
+    // parse body up to boundary
+    // returns (PartNode + Delimiter)
+}
+
+pub fn preamble<'a>(bound: &'a [u8]) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], &'a [u8]> {
+    move |input: &[u8]| {
+        recognize(many0(tuple((
+            is_not(CRLF), 
+            many0(pair(not(boundary(bound)), obs_crlf)),
+        ))))(input)
+    }
+}
+
+
+pub fn multipart<'a>(bound: &'a [u8]) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], Vec<PartNode<'a>>> {
+    move |input: &[u8]| {
+        
+        todo!();
+
+    }
+    // skip to boundary
+    // if boundary last stop
+    // do
+    // --parse part (return PartNode + Delimiter)
+    // while boundary not last
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -57,6 +88,27 @@ mod tests {
         assert_eq!(
             boundary(b"hello")(b"\r\n--hello--\r\n"),
             Ok((&b""[..], Delimiter::Last))
+        );
+    }
+
+    #[test]
+    fn test_preamble() {
+        assert_eq!(
+            preamble(b"hello")(b"blip
+bloup
+
+blip
+bloup--
+--bim
+--bim--
+
+--hello
+Field: Body
+"),
+            Ok((
+                &b"\n--hello\nField: Body\n"[..],
+                &b"blip\nbloup\n\nblip\nbloup--\n--bim\n--bim--\n"[..],
+            ))
         );
     }
 }
