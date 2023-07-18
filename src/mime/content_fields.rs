@@ -292,18 +292,6 @@ pub fn version(input: &str) -> IResult<&str, Version> {
     Ok((rest, Version { major, minor }))
 }
 
-/// Token allowed characters
-fn is_token_text(c: char) -> bool {
-    c.is_ascii() && !c.is_ascii_control() && !c.is_ascii_whitespace() && !"()<>@,;:\\\"/[]?=".contains(c)
-}
-
-/// Token
-///
-/// `[CFWS] 1*token_text [CFWS]`
-pub fn token(input: &str) -> IResult<&str, &str> {
-    delimited(opt(cfws), take_while1(is_token_text), opt(cfws))(input)
-}
-
 pub fn parameter(input: &str) -> IResult<&str, Parameter> {
     let (rest, (pname, _, pvalue)) = tuple((
             token, 

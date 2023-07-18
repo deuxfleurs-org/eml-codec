@@ -11,8 +11,31 @@ use crate::error::IMFError;
 use crate::fragments::lazy;
 use crate::fragments::mailbox::mailbox;
 use crate::fragments::misc_token::phrase;
-use crate::fragments::model::{AddressList, AddressRef, GroupRef, MailboxList, MailboxRef};
+//use crate::fragments::model::{AddressList, AddressRef, GroupRef, MailboxList, MailboxRef};
 use crate::fragments::whitespace::cfws;
+
+#[derive(Debug, PartialEq)]
+pub struct GroupRef {
+    pub name: String,
+    pub participants: Vec<MailboxRef>,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum AddressRef {
+    Single(MailboxRef),
+    Many(GroupRef),
+}
+impl From<MailboxRef> for AddressRef {
+    fn from(mx: MailboxRef) -> Self {
+        AddressRef::Single(mx)
+    }
+}
+impl From<GroupRef> for AddressRef {
+    fn from(grp: GroupRef) -> Self {
+        AddressRef::Many(grp)
+    }
+}
+pub type AddressList = Vec<AddressRef>;
 
 impl<'a> TryFrom<&'a lazy::Mailbox<'a>> for MailboxRef {
     type Error = IMFError<'a>;

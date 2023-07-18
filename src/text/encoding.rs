@@ -1,5 +1,3 @@
-use std::borrow::Cow;
-use chardetng::EncodingDetector;
 use encoding_rs::Encoding;
 
 use nom::{
@@ -7,92 +5,107 @@ use nom::{
     branch::alt,
     bytes::complete::{tag, take, take_while1, take_while},
     character::complete::{one_of},
+    character::is_alphanumeric,
     combinator::map,
     sequence::{preceded, terminated, tuple},
     multi::many0,
 };
-use encoding_rs::Encoding;
 use base64::{Engine as _, engine::general_purpose};
 
-use crate::fragments::mime;
+use crate::text::words;
+use crate::text::ascii;
 
-const IS_LAST_BUFFER: bool = true;
-const ALLOW_UTF8: bool = true;
-const NO_TLD: Option<&[u8]> = None;
-
-pub fn header_decode(input: &[u8]) -> Cow<str> {
-    // Create detector
-    let mut detector = EncodingDetector::new();
-    detector.feed(input, IS_LAST_BUFFER);
-
-    // Get encoding
-    let enc: &Encoding = detector.guess(NO_TLD, ALLOW_UTF8);
-    let (header, _, _) = enc.decode(input);
-    header
-}
-
-pub fn encoded_word(input: &str) -> IResult<&str, String> {
+pub fn encoded_word(input: &[u8]) -> IResult<&[u8], EncodedWord> {
     alt((encoded_word_quoted, encoded_word_base64))(input)
 }
 
-pub fn encoded_word_quoted(input: &str) -> IResult<&str, String> {
+pub fn encoded_word_quoted(input: &[u8]) -> IResult<&[u8], EncodedWord> {
     let (rest, (_, charset, _, _, _, txt, _)) = tuple((
-        tag("=?"), mime::token, 
+        tag("=?"), words::mime_token, 
         tag("?"), one_of("Qq"),
         tag("?"), ptext,
         tag("?=")))(input)?;
 
-    let renc = Encoding::for_label(charset.as_bytes()).unwrap_or(encoding_rs::WINDOWS_1252);
-    let parsed = decode_quoted_encoding(renc, txt.iter());
+    let renc = Encoding::for_label(charset).unwrap_or(encoding_rs::WINDOWS_1252);
+    let parsed = EncodedWord::Quoted(QuotedWord { enc: renc, chunks: txt });
     Ok((rest, parsed))
 }
 
-pub fn encoded_word_base64(input: &str) -> IResult<&str, String> {
+pub fn encoded_word_base64(input: &[u8]) -> IResult<&[u8], EncodedWord> {
     let (rest, (_, charset, _, _, _, txt, _)) = tuple((
-        tag("=?"), mime::token, 
+        tag("=?"), words::mime_token, 
         tag("?"), one_of("Bb"),
         tag("?"), btext,
         tag("?=")))(input)?;
 
-    let renc = Encoding::for_label(charset.as_bytes()).unwrap_or(encoding_rs::WINDOWS_1252);
-    let parsed = general_purpose::STANDARD_NO_PAD.decode(txt).map(|d| renc.decode(d.as_slice()).0.to_string()).unwrap_or("".into());
-
+    let renc = Encoding::for_label(charset).unwrap_or(encoding_rs::WINDOWS_1252);
+    let parsed = EncodedWord::Base64(Base64Word { enc: renc, content: txt });
     Ok((rest, parsed))
 }
 
-fn decode_quoted_encoding<'a>(enc: &'static Encoding, q: impl Iterator<Item = &'a QuotedChunk<'a>>) -> String {
-    q.fold(
-        String::new(), 
-        |mut acc, c| {
-            let dec = match c {
-                QuotedChunk::Safe(v) => Cow::Borrowed(*v),
-                QuotedChunk::Space => Cow::Borrowed(" "),
-                QuotedChunk::Encoded(v) => {
-                    let w = &[*v];
-                    let (d, _, _) = enc.decode(w);
-                    Cow::Owned(d.into_owned())
-                },
-            };
-            acc.push_str(dec.as_ref());
-            acc
-        })
+#[derive(PartialEq,Debug)]
+pub enum EncodedWord<'a> {
+    Quoted(QuotedWord<'a>),
+    Base64(Base64Word<'a>),
 }
 
+#[derive(PartialEq,Debug)]
+pub struct Base64Word<'a> {
+    pub enc: &'static Encoding,
+    pub content: &'a [u8],
+}
+
+impl<'a> Base64Word<'a> {
+    pub fn to_string(&self) -> String {
+        general_purpose::STANDARD_NO_PAD
+            .decode(self.content)
+            .map(|d| self.enc.decode(d.as_slice()).0.to_string())
+            .unwrap_or("".into())
+    }
+}
+
+#[derive(PartialEq,Debug)]
+pub struct QuotedWord<'a> {
+    pub enc: &'static Encoding,
+    pub chunks: Vec<QuotedChunk<'a>>,
+}
+
+impl<'a> QuotedWord<'a> {
+    pub fn to_string(&self) -> String {
+        self.chunks.iter().fold(
+            String::new(), 
+            |mut acc, c| {
+                match c {
+                    QuotedChunk::Safe(v) => {
+                        let (content, _) = encoding_rs::UTF_8.decode_without_bom_handling(v);
+                        acc.push_str(content.as_ref());
+                    }
+                    QuotedChunk::Space => acc.push(' '),
+                    QuotedChunk::Encoded(v) => {
+                        let w = &[*v];
+                        let (d, _) = self.enc.decode_without_bom_handling(w);
+                        acc.push_str(d.as_ref());
+                    },
+                };
+                acc
+            })
+    }
+}
 
 #[derive(PartialEq,Debug)]
 pub enum QuotedChunk<'a> {
-    Safe(&'a str),
+    Safe(&'a [u8]),
     Encoded(u8),
     Space,
 }
 
 //quoted_printable
-pub fn ptext(input: &str) -> IResult<&str, Vec<QuotedChunk>> {
+pub fn ptext(input: &[u8]) -> IResult<&[u8], Vec<QuotedChunk>> {
     many0(alt((safe_char2, encoded_space, hex_octet)))(input)
 }
 
 
-fn safe_char2(input: &str) -> IResult<&str, QuotedChunk> {
+fn safe_char2(input: &[u8]) -> IResult<&[u8], QuotedChunk> {
   map(take_while1(is_safe_char2), |v| QuotedChunk::Safe(v))(input)  
 }
 
@@ -101,8 +114,8 @@ fn safe_char2(input: &str) -> IResult<&str, QuotedChunk> {
 /// 8-bit values which correspond to printable ASCII characters other
 /// than "=", "?", and "_" (underscore), MAY be represented as those
 /// characters.
-fn is_safe_char2(c: char) -> bool {
-    c.is_ascii() && !c.is_ascii_control() && c != '_' && c != '?' && c != '='
+fn is_safe_char2(c: u8) -> bool {
+    c >= ascii::SP && c != ascii::UNDERSCORE && c != ascii::QUESTION && c != ascii::EQ
 }
 
 /*
@@ -111,28 +124,30 @@ fn is_safe_char(c: char) -> bool {
         (c >= '\x3e' && c <= '\x7e')
 }*/
 
-fn encoded_space(input: &str) -> IResult<&str, QuotedChunk> {
+fn encoded_space(input: &[u8]) -> IResult<&[u8], QuotedChunk> {
     map(tag("_"), |_| QuotedChunk::Space)(input)
 }
 
-fn hex_octet(input: &str) -> IResult<&str, QuotedChunk> {
+fn hex_octet(input: &[u8]) -> IResult<&[u8], QuotedChunk> {
     use nom::error::*;
 
-    let (rest, hstr) = preceded(tag("="), take(2usize))(input)?;
+    let (rest, hbytes) = preceded(tag("="), take(2usize))(input)?;
 
-    let parsed = u8::from_str_radix(hstr, 16)
+    let (hstr, _) = encoding_rs::UTF_8.decode_without_bom_handling(hbytes);
+
+    let parsed = u8::from_str_radix(hstr.as_ref(), 16)
         .map_err(|_| nom::Err::Error(Error::new(input, ErrorKind::Verify)))?;
 
     Ok((rest, QuotedChunk::Encoded(parsed)))
 }
 
 //base64 (maybe use a crate)
-pub fn btext(input: &str) -> IResult<&str, &str> {
+pub fn btext(input: &[u8]) -> IResult<&[u8], &[u8]> {
     terminated(take_while(is_bchar), many0(tag("=")))(input)
 }
 
-fn is_bchar(c: char) -> bool {
-    c.is_ascii_alphanumeric() || c == '+' || c == '/'
+fn is_bchar(c: u8) -> bool {
+    is_alphanumeric(c) || c == ascii::PLUS || c == ascii::SLASH
 }
 
 #[cfg(test)]

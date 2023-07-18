@@ -10,10 +10,36 @@ use nom::{
 use std::borrow::Cow;
 
 use crate::fragments::misc_token::{phrase, word};
-use crate::fragments::model::{AddrSpec, MailboxRef};
 use crate::fragments::quoted::quoted_string;
 use crate::fragments::whitespace::{cfws, fws, is_obs_no_ws_ctl};
 use crate::fragments::words::{atom, dot_atom};
+
+#[derive(Debug, PartialEq)]
+pub struct AddrSpec {
+    pub local_part: String,
+    pub domain: String,
+}
+impl AddrSpec {
+    pub fn fully_qualified(&self) -> String {
+        format!("{}@{}", self.local_part, self.domain)
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub struct MailboxRef {
+    // The actual "email address" like hello@example.com
+    pub addrspec: AddrSpec,
+    pub name: Option<String>,
+}
+impl From<AddrSpec> for MailboxRef {
+    fn from(addr: AddrSpec) -> Self {
+        MailboxRef {
+            name: None,
+            addrspec: addr,
+        }
+    }
+}
+pub type MailboxList = Vec<MailboxRef>;
 
 /// Mailbox
 ///

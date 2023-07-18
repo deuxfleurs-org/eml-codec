@@ -1,42 +1,49 @@
-use crate::fragments::quoted::quoted_pair;
 use nom::{
     branch::alt,
-    bytes::complete::{is_not, tag},
-    character::complete::{crlf, satisfy, space0, space1},
+    bytes::complete::{is_not, tag, take_while1},
+    character::complete::{space0, space1},
     combinator::{opt, recognize},
     multi::{many0, many1},
-    sequence::{pair, terminated, tuple},
+    sequence::{pair, tuple},
     IResult,
 };
-use crate::fragments::encoding::encoded_word;
+use crate::text::encoding::encoded_word;
+use crate::text::quoted::quoted_pair;
+use crate::text::ascii;
 
 /// Whitespace (space, new line, tab) content and 
 /// delimited content (eg. comment, line, sections, etc.)
 
-// Bytes CRLF
-const CR: u8 = 0x0D;
-const LF: u8 = 0x0A;
-pub const CRLF: &[u8] = &[CR, LF];
+/// Obsolete/Compatible CRLF
+///
+/// Theoretically, all lines must end with \r\n
+/// but some mail servers like Dovecot support malformated emails,
+/// for example with only \n eol. It works because
+/// \r or \n is allowed nowhere else, so we also add this support.
 
-pub fn headers(input: &[u8]) -> IResult<&[u8], &[u8]> {
-    terminated(recognize(many0(line)), obs_crlf)(input)
+pub fn obs_crlf(input: &[u8]) -> IResult<&[u8], &[u8]> {
+    alt((tag(ascii::CRLF), tag(&[ascii::CR]), tag(&[ascii::LF])))(input)
 }
-
-pub fn fields(input: &str) -> IResult<&str, Vec<&str>> {
-    all_consuming(many0(foldable_line))(input)
-} 
-
 pub fn line(input: &[u8]) -> IResult<&[u8], (&[u8], &[u8])> {
     // is_not(CRLF) is a hack, it means "is not CR or LF"
     // and not "is not CRLF". In other words, it continues while
     // it does not encounter 0x0D or 0x0A.
-    pair(is_not(CRLF), obs_crlf)(input)
+    pair(is_not(ascii::CRLF), obs_crlf)(input)
 }
 
-pub fn obs_crlf(input: &[u8]) -> IResult<&[u8], &[u8]> {
-    alt((tag(CRLF), tag(&[CR]), tag(&[LF])))(input)
+/// ```abnf
+/// fold_line = any *(1*(crlf WS) any) crlf
+/// ```
+pub fn foldable_line(input: &[u8]) -> IResult<&[u8], &[u8]> {
+    recognize(tuple((
+        is_not(ascii::CRLF),
+        many0(pair(
+            many1(pair(obs_crlf, space1)),
+            is_not(ascii::CRLF),
+        )),
+        obs_crlf,
+    )))(input)
 }
-
 
 // --- whitespaces and comments
 
@@ -44,28 +51,18 @@ pub fn obs_crlf(input: &[u8]) -> IResult<&[u8], &[u8]> {
 // nom::*::space0 = *WSP
 // nom::*::space1 = 1*WSP
 
-/// Permissive CRLF
-///
-/// Theoretically, all lines must end with \r\n
-/// but some mail servers like Dovecot support malformated emails,
-/// for example with only \n eol. It works because
-/// \r or \n is allowed nowhere else, so we also add this support.
-pub fn perm_crlf(input: &str) -> IResult<&str, &str> {
-    alt((crlf, tag("\r"), tag("\n")))(input)
-}
-
 /// Permissive foldable white space
 ///
 /// Folding white space are used for long headers splitted on multiple lines.
 /// The obsolete syntax allowes multiple lines without content; implemented for compatibility
 /// reasons
-pub fn fws(input: &str) -> IResult<&str, char> {
+pub fn fws(input: &[u8]) -> IResult<&[u8], u8> {
     let (input, _) = alt((recognize(many1(fold_marker)), space1))(input)?;
-    Ok((input, ' '))
+    Ok((input, ascii::SP))
 }
-fn fold_marker(input: &str) -> IResult<&str, &str> {
+fn fold_marker(input: &[u8]) -> IResult<&[u8], &[u8]> {
     let (input, _) = space0(input)?;
-    let (input, _) = perm_crlf(input)?;
+    let (input, _) = obs_crlf(input)?;
     space1(input)
 }
 
@@ -85,17 +82,17 @@ fn fold_marker(input: &str) -> IResult<&str, &str> {
 ///
 ///   CFWS            =   (1*([FWS] comment) [FWS]) / FWS
 /// ```
-pub fn cfws(input: &str) -> IResult<&str, &str> {
+pub fn cfws(input: &[u8]) -> IResult<&[u8], &[u8]> {
     alt((recognize(comments), recognize(fws)))(input)
 }
 
-pub fn comments(input: &str) -> IResult<&str, ()> {
+pub fn comments(input: &[u8]) -> IResult<&[u8], ()> {
     let (input, _) = many1(tuple((opt(fws), comment)))(input)?;
     let (input, _) = opt(fws)(input)?;
     Ok((input, ()))
 }
 
-pub fn comment(input: &str) -> IResult<&str, ()> {
+pub fn comment(input: &[u8]) -> IResult<&[u8], ()> {
     let (input, _) = tag("(")(input)?;
     let (input, _) = many0(tuple((opt(fws), ccontent)))(input)?;
     let (input, _) = opt(fws)(input)?;
@@ -103,12 +100,16 @@ pub fn comment(input: &str) -> IResult<&str, ()> {
     Ok((input, ()))
 }
 
-pub fn ccontent(input: &str) -> IResult<&str, &str> {
-    alt((recognize(ctext), recognize(quoted_pair), recognize(encoded_word), recognize(comment)))(input)
+pub fn ccontent(input: &[u8]) -> IResult<&[u8], &[u8]> {
+    alt((ctext, recognize(quoted_pair), recognize(encoded_word), recognize(comment)))(input)
 }
 
-pub fn ctext(input: &str) -> IResult<&str, char> {
-    satisfy(is_ctext)(input)
+pub fn ctext(input: &[u8]) -> IResult<&[u8], &[u8]> {
+    take_while1(is_ctext)(input)
+}
+
+pub fn is_ctext(c: u8) -> bool {
+    is_restr_ctext(c) || is_obs_no_ws_ctl(c)
 }
 
 /// Check if it's a comment text character
@@ -119,15 +120,10 @@ pub fn ctext(input: &str) -> IResult<&str, char> {
 ///                       %d93-126 /         ;  "(", ")", or "\"
 ///                       obs-ctext
 ///```
-pub fn is_restr_ctext(c: char) -> bool {
-    (c >= '\x21' && c <= '\x27')
-        || (c >= '\x2A' && c <= '\x5B')
-        || (c >= '\x5D' && c <= '\x7E')
-        || !c.is_ascii()
-}
-
-pub fn is_ctext(c: char) -> bool {
-    is_restr_ctext(c) || is_obs_no_ws_ctl(c)
+pub fn is_restr_ctext(c: u8) -> bool {
+    (c >= ascii::EXCLAMATION && c <= ascii::SQUOTE)
+        || (c >= ascii::ASTERISK && c <= ascii::LEFT_BRACKET)
+        || (c >= ascii::RIGHT_BRACKET && c <= ascii::TILDE)
 }
 
 /// US ASCII control characters without effect
@@ -139,12 +135,12 @@ pub fn is_ctext(c: char) -> bool {
 ///                       %d14-31 /          ;  return, line feed, and
 ///                       %d127              ;  white space characters
 /// ```
-pub fn is_obs_no_ws_ctl(c: char) -> bool {
-    (c >= '\x01' && c <= '\x08')
-        || c == '\x0b'
-        || c == '\x0b'
-        || (c >= '\x0e' && c <= '\x1f')
-        || c == '\x7F'
+pub fn is_obs_no_ws_ctl(c: u8) -> bool {
+    (c >= ascii::SOH && c <= ascii::BS)
+        || c == ascii::VT 
+        || c == ascii::FF
+        || (c >= ascii::SO && c <= ascii::US)
+        || c == ascii::DEL
 }
 
 #[cfg(test)]
@@ -152,10 +148,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_perm_crlf() {
-        assert_eq!(perm_crlf("\rworld"), Ok(("world", "\r")));
-        assert_eq!(perm_crlf("\r\nworld"), Ok(("world", "\r\n")));
-        assert_eq!(perm_crlf("\nworld"), Ok(("world", "\n")));
+    fn test_obs_crlf() {
+        assert_eq!(obs_crlf("\rworld"), Ok(("world", "\r")));
+        assert_eq!(obs_crlf("\r\nworld"), Ok(("world", "\r\n")));
+        assert_eq!(obs_crlf("\nworld"), Ok(("world", "\n")));
     }
 
     #[test]

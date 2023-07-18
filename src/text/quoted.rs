@@ -1,14 +1,16 @@
 use nom::{
     branch::alt,
-    bytes::complete::tag,
-    character::complete::{anychar, satisfy},
-    combinator::opt,
+    bytes::complete::{take_while1, tag},
+    character::complete::anychar,
+    combinator::{recognize, opt},
     multi::many0,
     sequence::{pair, preceded},
     IResult,
 };
 
-use crate::fragments::whitespace::{cfws, fws, is_obs_no_ws_ctl};
+use crate::text::whitespace::{cfws, fws, is_obs_no_ws_ctl};
+use crate::text::ascii;
+use crate::text::buffer;
 
 /// Quoted pair
 ///
@@ -16,8 +18,8 @@ use crate::fragments::whitespace::{cfws, fws, is_obs_no_ws_ctl};
 ///    quoted-pair     =   ("\" (VCHAR / WSP)) / obs-qp
 ///    obs-qp          =   "\" (%d0 / obs-NO-WS-CTL / LF / CR)
 /// ```
-pub fn quoted_pair(input: &str) -> IResult<&str, char> {
-    preceded(tag("\\"), anychar)(input)
+pub fn quoted_pair(input: &[u8]) -> IResult<&[u8], u8> {
+    preceded(tag(&[ascii::SLASH]), anychar)(input)
 }
 
 /// Allowed characters in quote
@@ -28,11 +30,11 @@ pub fn quoted_pair(input: &str) -> IResult<&str, char> {
 ///                       %d93-126 /         ;  "\" or the quote character
 ///                       obs-qtext
 /// ```
-fn is_restr_qtext(c: char) -> bool {
-    c == '\x21' || (c >= '\x23' && c <= '\x5B') || (c >= '\x5D' && c <= '\x7E')
+fn is_restr_qtext(c: u8) -> bool {
+    c == ascii::EXCLAMATION || (c >= ascii::NUM && c <= ascii::LEFT_BRACKET) || (c >= ascii::RIGHT_BRACKET && c <= ascii::TILDE)
 }
 
-fn is_qtext(c: char) -> bool {
+fn is_qtext(c: u8) -> bool {
     is_restr_qtext(c) || is_obs_no_ws_ctl(c)
 }
 
@@ -41,8 +43,8 @@ fn is_qtext(c: char) -> bool {
 /// ```abnf
 ///   qcontent        =   qtext / quoted-pair
 /// ```
-fn qcontent(input: &str) -> IResult<&str, char> {
-    alt((satisfy(is_qtext), quoted_pair))(input)
+fn qcontent(input: &u8) -> IResult<&[u8], &[u8]> {
+    alt((take_while1(is_qtext), recognize(quoted_pair)))(input)
 }
 
 /// Quoted string
@@ -52,7 +54,7 @@ fn qcontent(input: &str) -> IResult<&str, char> {
 ///                     DQUOTE *([FWS] qcontent) [FWS] DQUOTE
 ///                     [CFWS]
 /// ```
-pub fn quoted_string(input: &str) -> IResult<&str, String> {
+pub fn quoted_string(input: &[u8]) -> IResult<&[u8], buffer::Text> {
     let (input, _) = opt(cfws)(input)?;
     let (input, _) = tag("\"")(input)?;
     let (input, content) = many0(pair(opt(fws), qcontent))(input)?;
@@ -60,11 +62,11 @@ pub fn quoted_string(input: &str) -> IResult<&str, String> {
     // Rebuild string
     let mut qstring = content
         .iter()
-        .fold(String::with_capacity(16), |mut acc, (maybe_wsp, c)| {
+        .fold(buffer::Text::default(), |mut acc, (maybe_wsp, c)| {
             if let Some(wsp) = maybe_wsp {
-                acc.push(*wsp);
+                acc.push(&[ascii::SP]);
             }
-            acc.push(*c);
+            acc.push(c);
             acc
         });
 
@@ -84,13 +86,22 @@ mod tests {
 
     #[test]
     fn test_quoted_string() {
+        let mut text = buffer::Text::default();
+        text.push(b"hello");
+        text.push(&[ascii::DQUOTE]);
+        text.push(b"world");
         assert_eq!(
-            quoted_string(" \"hello\\\"world\" "),
-            Ok(("", "hello\"world".to_string()))
+            quoted_string(b" \"hello\\\"world\" "),
+            Ok(("", text))
         );
+
+        let mut text = buffer::Text::default();
+        text.push(b"hello");
+        text.push(&[ascii::SP]);
+        text.push(b"world");
         assert_eq!(
-            quoted_string("\"hello\r\n world\""),
-            Ok(("", "hello world".to_string()))
+            quoted_string(b"\"hello\r\n world\""),
+            Ok(("", text))
         );
     }
 }

@@ -14,6 +14,14 @@ use crate::fragments::model::{MessageId, MessageIdList};
 use crate::fragments::whitespace::cfws;
 use crate::fragments::words::dot_atom_text;
 
+
+#[derive(Debug, PartialEq)]
+pub struct MessageId<'a> {
+    pub left: &'a str,
+    pub right: &'a str,
+}
+pub type MessageIdList<'a> = Vec<MessageId<'a>>;
+
 impl<'a> TryFrom<&'a lazy::Identifier<'a>> for MessageId<'a> {
     type Error = IMFError<'a>;
 
