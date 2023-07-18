@@ -8,7 +8,7 @@ use nom::{
 };
 
 use crate::error::IMFError;
-use crate::fragments::whitespace;
+use crate::fragments::fields;
 use crate::multipass::field_lazy;
 use crate::multipass::guess_charset;
 
@@ -19,7 +19,7 @@ pub struct Parsed<'a> {
 }
 
 pub fn new<'a>(gcha: &'a guess_charset::Parsed<'a>) -> Result<Parsed<'a>, IMFError<'a>> {
-    all_consuming(many0(foldable_line))(&gcha.header)
+    fields(&gcha.header)
         .map_err(|e| IMFError::ExtractFields(e))
         .map(|(_, fields)| Parsed {
             fields,
@@ -31,20 +31,6 @@ impl<'a> Parsed<'a> {
     pub fn names(&'a self) -> field_lazy::Parsed<'a> {
         field_lazy::new(self)
     }
-}
-
-/// ```abnf
-/// fold_line = any *(1*(crlf WS) any) crlf
-/// ```
-fn foldable_line(input: &str) -> IResult<&str, &str> {
-    recognize(tuple((
-        is_not("\r\n"),
-        many0(pair(
-            many1(pair(whitespace::perm_crlf, space1)),
-            is_not("\r\n"),
-        )),
-        whitespace::perm_crlf,
-    )))(input)
 }
 
 #[cfg(test)]

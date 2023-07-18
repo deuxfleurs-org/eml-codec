@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::fragments::eager::Field;
+use crate::fragments::eager::{Field, MIMEField};
 use crate::fragments::lazy;
 use crate::fragments::misc_token::{PhraseList, Unstructured};
 use crate::fragments::mime::{Version,Type,Mechanism};
@@ -43,13 +43,20 @@ pub struct Section<'a> {
 
     // MIME
     pub mime_version: Option<&'a Version>,
+    pub mime: MIMESection<'a>,
+
+    // Recovery
+    pub bad_fields: Vec<&'a lazy::Field<'a>>,
+    pub unparsed: Vec<&'a str>,
+}
+
+#[derive(Debug, PartialEq, Default)]
+pub struct MIMESection<'a> {
     pub content_type: Option<&'a Type<'a>>,
     pub content_transfer_encoding: Option<&'a Mechanism<'a>>,
     pub content_id: Option<&'a MessageId<'a>>,
     pub content_description: Option<&'a Unstructured>,
-
-    // Recovery
-    pub bad_fields: Vec<&'a lazy::Field<'a>>,
+    pub optional: HashMap<&'a str, &'a Unstructured>,
     pub unparsed: Vec<&'a str>,
 }
 
@@ -80,11 +87,35 @@ impl<'a> FromIterator<&'a Field<'a>> for Section<'a> {
                 }
                 Field::Rescue(v) => section.unparsed.push(v),
                 Field::MIMEVersion(v) => section.mime_version = Some(v),
-                Field::ContentType(v) => section.content_type = Some(v),
-                Field::ContentTransferEncoding(v) => section.content_transfer_encoding = Some(v),
-                Field::ContentID(v) => section.content_id = Some(v),
-                Field::ContentDescription(v) => section.content_description = Some(v),
+                Field::MIME(v) => match v {
+                    MIMEField::ContentType(v) => section.mime.content_type = Some(v),
+                    MIMEField::ContentTransferEncoding(v) => section.mime.content_transfer_encoding = Some(v),
+                    MIMEField::ContentID(v) => section.mime.content_id = Some(v),
+                    MIMEField::ContentDescription(v) => section.mime.content_description = Some(v),
+                    MIMEField::Optional(k, v) => {
+                        section.mime.optional.insert(k, v);
+                    }
+                    MIMEField::Rescue(v) => section.mime.unparsed.push(v),
+
+                },
             }
+        }
+        section
+    }
+}
+
+impl<'a> FromIterator<&'a MIMEField<'a>> for MIMESection<'a> {
+    fn from_iter<I: IntoIterator<Item = &'a MIMEField<'a>>>(iter: I) -> Self {
+        let mut section = MIMESection::default();
+        for field in iter {
+            match field {
+                MIMEField::ContentType(v) => section.content_type = Some(v),
+                MIMEField::ContentTransferEncoding(v) => section.content_transfer_encoding = Some(v),
+                MIMEField::ContentID(v) => section.content_id = Some(v),
+                MIMEField::ContentDescription(v) => section.content_description = Some(v),
+                MIMEField::Optional(k, v) => { section.optional.insert(k, v); },
+                MIMEField::Rescue(v) => section.unparsed.push(v),
+            };
         }
         section
     }

@@ -11,25 +11,35 @@ use crate::fragments::mime::{Mechanism, Type};
 use crate::fragments::model::MessageId;
 use crate::fragments::misc_token::Unstructured;
 use crate::fragments::whitespace::{CRLF, headers, line, obs_crlf};
+use crate::fragments::{eager,lazy};
+use crate::fragments::section::MIMESection;
 
-#[derive(Debug, PartialEq, Default)]
-pub struct PartHeader<'a> {
-    pub content_type: Option<&'a Type<'a>>,
-    pub content_transfer_encoding: Option<&'a Mechanism<'a>>,
-    pub content_id: Option<&'a MessageId<'a>>,
-    pub content_description: Option<&'a Unstructured>,
+
+
+#[derive(Debug, PartialEq)]
+pub enum PartNodeLazy<'a>{
+    Discrete(MIMESection<'a>, &'a [u8]),
+    Composite(MIMESection<'a>, &'a [u8]),
 }
 
 #[derive(Debug, PartialEq)]
 pub enum PartNode<'a> {
-    Discrete(PartHeader<'a>, &'a [u8]),
-    Composite(PartHeader<'a>, Vec<PartNode<'a>>),
+    Discrete(MIMESection<'a>, &'a [u8]),
+    Composite(MIMESection<'a>, Vec<PartNode<'a>>),
 }
 
 #[derive(Debug, PartialEq)]
 pub enum Delimiter {
     Next,
     Last
+}
+
+const IS_LAST_BUFFER: bool = true;
+const ALLOW_UTF8: bool = true;
+const NO_TLD: Option<&[u8]> = None;
+fn part_node_lazy(input: &[u8]) -> IResult<&[u8], PartNodeLazy> {
+    //let mime = header.iter().map(|e| eager::MIMEField::from(lazy::MIMEField::from(e)));
+    todo!();
 }
 
 pub fn boundary<'a>(boundary: &'a [u8]) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], Delimiter> {
@@ -60,6 +70,9 @@ pub fn preamble<'a>(bound: &'a [u8]) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], &
     }
 }
 
+// FIXME parse email here
+
+
 // Returns Ok even if an error is encountered while parsing
 // the different mimes.
 pub fn multipart<'a>(bound: &'a [u8]) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], Vec<&'a [u8]>> {
@@ -67,21 +80,21 @@ pub fn multipart<'a>(bound: &'a [u8]) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], 
         let (mut input_loop, _) = preamble(bound)(input)?;
         let mut parts: Vec<&[u8]> = vec![];
         loop {
-            let input2 = match boundary(bound)(input_loop) {
+            let input = match boundary(bound)(input_loop) {
                 Err(_) => return Ok((input_loop, parts)),
                 Ok((inp, Delimiter::Last)) => return Ok((inp, parts)),
                 Ok((inp, Delimiter::Next)) => inp,
             };
 
-            let input3 = match part(bound)(input2) {
-                Err(_) => return Ok((input2, parts)),
+            let input = match part(bound)(input) {
+                Err(_) => return Ok((input, parts)),
                 Ok((inp, part)) => {
                     parts.push(part);
                     inp
                 }
             };
 
-            input_loop = input3;
+            input_loop = input;
         }
     }
 }

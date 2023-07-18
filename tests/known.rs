@@ -230,17 +230,20 @@ for all folk to come=
 
                 subject: Some(&misc_token::Unstructured("If you can read this you understand the example.".into())),
                 mime_version: Some(&mime::Version{ major: 1, minor: 0 }),
-                content_type: Some(&mime::Type::Text(mime::TextDesc { 
-                    charset: Some(mime::EmailCharset::ISO_8859_1), 
-                    subtype: mime::TextSubtype::Plain, 
-                    unknown_parameters: vec![]
-                })),
-                content_transfer_encoding: Some(&mime::Mechanism::QuotedPrintable),
-                content_id: Some(&model::MessageId {
-                    left: "a",
-                    right: "example.com"
-                }),
-                content_description: Some(&misc_token::Unstructured("hello".into())),
+                mime: section::MIMESection {
+                    content_type: Some(&mime::Type::Text(mime::TextDesc { 
+                        charset: Some(mime::EmailCharset::ISO_8859_1), 
+                        subtype: mime::TextSubtype::Plain, 
+                        unknown_parameters: vec![]
+                    })),
+                    content_transfer_encoding: Some(&mime::Mechanism::QuotedPrintable),
+                    content_id: Some(&model::MessageId {
+                        left: "a",
+                        right: "example.com"
+                    }),
+                    content_description: Some(&misc_token::Unstructured("hello".into())),
+                    ..section::MIMESection::default()
+                },
                 ..section::Section::default()
             }
         );

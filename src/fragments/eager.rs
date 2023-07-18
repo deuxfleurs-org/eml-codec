@@ -1,5 +1,5 @@
 use crate::error::IMFError;
-use crate::fragments::lazy::Field as Lazy;
+use crate::fragments::lazy::{Field as Lazy, MIMEField as LazyMIME};
 use crate::fragments::mime::{Mechanism, Type, Version};
 use crate::fragments::misc_token::{PhraseList, Unstructured};
 use crate::fragments::model::{AddressList, MailboxList, MailboxRef, MessageId, MessageIdList};
@@ -38,10 +38,7 @@ pub enum Field<'a> {
 
     // MIME RFC2045
     MIMEVersion(Version),
-    ContentType(Type<'a>),
-    ContentTransferEncoding(Mechanism<'a>),
-    ContentID(MessageId<'a>),
-    ContentDescription(Unstructured),
+    MIME(MIMEField<'a>),
 
     // 3.6.8.  Optional Fields
     Optional(&'a str, Unstructured),
@@ -49,12 +46,22 @@ pub enum Field<'a> {
     // None
     Rescue(&'a str),
 }
-use Field::*;
+
+#[derive(Debug, PartialEq)]
+pub enum MIMEField<'a> {
+    ContentType(Type<'a>),
+    ContentTransferEncoding(Mechanism<'a>),
+    ContentID(MessageId<'a>),
+    ContentDescription(Unstructured),
+    Optional(&'a str, Unstructured),
+    Rescue(&'a str),
+}
 
 impl<'a> TryFrom<&'a Lazy<'a>> for Field<'a> {
     type Error = IMFError<'a>;
 
     fn try_from(l: &'a Lazy<'a>) -> Result<Self, Self::Error> {
+        use Field::*;
         match l {
             Lazy::Date(v) => v.try_into().map(|v| Date(v)),
             Lazy::From(v) => v.try_into().map(|v| From(v)),
@@ -72,12 +79,25 @@ impl<'a> TryFrom<&'a Lazy<'a>> for Field<'a> {
             Lazy::Received(v) => v.try_into().map(|v| Received(v)),
             Lazy::ReturnPath(v) => v.try_into().map(|v| ReturnPath(v)),
             Lazy::MIMEVersion(v) => v.try_into().map(|v| MIMEVersion(v)),
-            Lazy::ContentType(v) => v.try_into().map(|v| ContentType(v)),
-            Lazy::ContentTransferEncoding(v) => v.try_into().map(|v| ContentTransferEncoding(v)),
-            Lazy::ContentID(v) => v.try_into().map(|v| ContentID(v)),
-            Lazy::ContentDescription(v) => v.try_into().map(|v| ContentDescription(v)),
+            Lazy::MIME(v) => v.try_into().map(|v| MIME(v)),
             Lazy::Optional(k, v) => v.try_into().map(|v| Optional(k, v)),
             Lazy::Rescue(v) => Ok(Rescue(v)),
+        }
+    }
+}
+
+impl<'a> TryFrom<&'a LazyMIME<'a>> for MIMEField<'a> {
+    type Error = IMFError<'a>;
+
+    fn try_from(l: &'a LazyMIME<'a>) -> Result<Self, Self::Error> {
+        use MIMEField::*;
+        match l {
+            LazyMIME::ContentType(v) => v.try_into().map(|v| ContentType(v)),
+            LazyMIME::ContentTransferEncoding(v) => v.try_into().map(|v| ContentTransferEncoding(v)),
+            LazyMIME::ContentID(v) => v.try_into().map(|v| ContentID(v)),
+            LazyMIME::ContentDescription(v) => v.try_into().map(|v| ContentDescription(v)),
+            LazyMIME::Optional(k, v) => v.try_into().map(|v| Optional(k, v)),
+            LazyMIME::Rescue(v) => Ok(Rescue(v)),
         }
     }
 }

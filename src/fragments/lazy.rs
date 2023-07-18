@@ -81,10 +81,7 @@ pub enum Field<'a> {
 
     // MIME RFC 2045
     MIMEVersion(Version<'a>),
-    ContentType(Type<'a>),
-    ContentTransferEncoding(Mechanism<'a>),
-    ContentID(Identifier<'a>),
-    ContentDescription(Unstructured<'a>),
+    MIME(MIMEField<'a>),
 
     // 3.6.8.  Optional Fields
     Optional(&'a str, Unstructured<'a>),
@@ -92,16 +89,35 @@ pub enum Field<'a> {
     // None
     Rescue(&'a str),
 }
-use Field::*;
 
 impl<'a> From<&'a str> for Field<'a> {
     fn from(input: &'a str) -> Self {
         match correct_field(input) {
             Ok((_, field)) => field,
-            Err(_) => Rescue(input),
+            Err(_) => Field::Rescue(input),
         }
     }
 }
+
+#[derive(Debug, PartialEq)]
+pub enum MIMEField<'a> {
+    ContentType(Type<'a>),
+    ContentTransferEncoding(Mechanism<'a>),
+    ContentID(Identifier<'a>),
+    ContentDescription(Unstructured<'a>),
+
+    Optional(&'a str, Unstructured<'a>),
+    Rescue(&'a str),
+}
+impl<'a> From<&'a str> for MIMEField<'a> {
+    fn from(input: &'a str) -> Self {
+        match correct_mime_field(input) {
+            Ok((_, field)) => field,
+            Err(_) => MIMEField::Rescue(input),
+        }
+    }
+}
+
 /// Optional field
 ///
 /// ```abnf
@@ -119,6 +135,7 @@ fn field_name(input: &str) -> IResult<&str, &str> {
 }
 
 fn correct_field(input: &str) -> IResult<&str, Field> {
+    use Field::*;
     field_name(input).map(|(rest, name)| {
         (
             "",
@@ -144,14 +161,30 @@ fn correct_field(input: &str) -> IResult<&str, Field> {
                 "return-path" => ReturnPath(Mailbox(rest)),
                 "received" => Received(ReceivedLog(rest)),
 
+                "content-type" => MIME(MIMEField::ContentType(Type(rest))),
+                "content-transfer-encoding" => MIME(MIMEField::ContentTransferEncoding(Mechanism(rest))),
+                "content-id" => MIME(MIMEField::ContentID(Identifier(rest))),
+                "content-description" => MIME(MIMEField::ContentDescription(Unstructured(rest))),
+
                 "mime-version" => MIMEVersion(Version(rest)),
+                _ => Optional(name, Unstructured(rest)),
+            },
+        )
+    })
+}
+
+fn correct_mime_field(input: &str) -> IResult<&str, MIMEField> {
+    use MIMEField::*;
+    field_name(input).map(|(rest, name)| {
+        (
+            "",
+            match name.to_lowercase().as_ref() {
                 "content-type" => ContentType(Type(rest)),
                 "content-transfer-encoding" => ContentTransferEncoding(Mechanism(rest)),
                 "content-id" => ContentID(Identifier(rest)),
                 "content-description" => ContentDescription(Unstructured(rest)),
-
                 _ => Optional(name, Unstructured(rest)),
-            },
+            }
         )
     })
 }

@@ -22,6 +22,10 @@ pub fn headers(input: &[u8]) -> IResult<&[u8], &[u8]> {
     terminated(recognize(many0(line)), obs_crlf)(input)
 }
 
+pub fn fields(input: &str) -> IResult<&str, Vec<&str>> {
+    all_consuming(many0(foldable_line))(input)
+} 
+
 pub fn line(input: &[u8]) -> IResult<&[u8], (&[u8], &[u8])> {
     // is_not(CRLF) is a hack, it means "is not CR or LF"
     // and not "is not CRLF". In other words, it continues while

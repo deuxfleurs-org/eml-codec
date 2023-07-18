@@ -1,4 +1,7 @@
 use std::borrow::Cow;
+use chardetng::EncodingDetector;
+use encoding_rs::Encoding;
+
 use nom::{
     IResult,
     branch::alt,
@@ -12,6 +15,21 @@ use encoding_rs::Encoding;
 use base64::{Engine as _, engine::general_purpose};
 
 use crate::fragments::mime;
+
+const IS_LAST_BUFFER: bool = true;
+const ALLOW_UTF8: bool = true;
+const NO_TLD: Option<&[u8]> = None;
+
+pub fn header_decode(input: &[u8]) -> Cow<str> {
+    // Create detector
+    let mut detector = EncodingDetector::new();
+    detector.feed(input, IS_LAST_BUFFER);
+
+    // Get encoding
+    let enc: &Encoding = detector.guess(NO_TLD, ALLOW_UTF8);
+    let (header, _, _) = enc.decode(input);
+    header
+}
 
 pub fn encoded_word(input: &str) -> IResult<&str, String> {
     alt((encoded_word_quoted, encoded_word_base64))(input)

@@ -63,10 +63,10 @@ mod tests {
             Parsed {
                 fields: vec![
                     lazy::Field::MIMEVersion(lazy::Version("1.0 \r\n")),
-                    lazy::Field::ContentType(lazy::Type("multipart/alternative; boundary=\"bound\"\r\n")),
-                    lazy::Field::ContentTransferEncoding(lazy::Mechanism("7bit\r\n")),
-                    lazy::Field::ContentID(lazy::Identifier("<foo4*foo1@bar.net>\r\n")),
-                    lazy::Field::ContentDescription(lazy::Unstructured("hello world\r\n")),
+                    lazy::Field::MIME(lazy::MIMEField::ContentType(lazy::Type("multipart/alternative; boundary=\"bound\"\r\n"))),
+                    lazy::Field::MIME(lazy::MIMEField::ContentTransferEncoding(lazy::Mechanism("7bit\r\n"))),
+                    lazy::Field::MIME(lazy::MIMEField::ContentID(lazy::Identifier("<foo4*foo1@bar.net>\r\n"))),
+                    lazy::Field::MIME(lazy::MIMEField::ContentDescription(lazy::Unstructured("hello world\r\n"))),
                 ],
                 body: b"Hello world!",
             }
