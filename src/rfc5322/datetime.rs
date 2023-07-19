@@ -329,9 +329,9 @@ mod tests {
     #[test]
     fn test_section_rfc_strict() {
         assert_eq!(
-            section("Fri, 21 Nov 1997 09:55:06 -0600"),
+            section(b"Fri, 21 Nov 1997 09:55:06 -0600"),
             Ok((
-                "",
+                &b""[..],
                 Some(
                     FixedOffset::west_opt(6 * HOUR)
                         .unwrap()
@@ -345,9 +345,9 @@ mod tests {
     #[test]
     fn test_section_received() {
         assert_eq!(
-            section("Sun, 18 Jun 2023 15:39:08 +0200 (CEST)"),
+            section(b"Sun, 18 Jun 2023 15:39:08 +0200 (CEST)"),
             Ok((
-                "",
+                &b""[..],
                 Some(
                     FixedOffset::east_opt(2 * HOUR)
                         .unwrap()
@@ -367,10 +367,10 @@ mod tests {
            Feb
              1969
          23:32
-                  -0330 (Newfoundland Time)"#
+                  -0330 (Newfoundland Time)"#.as_bytes()
             ),
             Ok((
-                "",
+                &b""[..],
                 Some(
                     FixedOffset::west_opt(3 * HOUR + 30 * MIN)
                         .unwrap()
@@ -384,9 +384,9 @@ mod tests {
     #[test]
     fn test_section_rfc_obs() {
         assert_eq!(
-            section("21 Nov 97 09:55:06 GMT"),
+            section(b"21 Nov 97 09:55:06 GMT"),
             Ok((
-                "",
+                &b""[..],
                 Some(
                     FixedOffset::east_opt(0)
                         .unwrap()
@@ -400,9 +400,9 @@ mod tests {
     #[test]
     fn test_section_3digit_year() {
         assert_eq!(
-            section("21 Nov 103 09:55:06 UT"),
+            section(b"21 Nov 103 09:55:06 UT"),
             Ok((
-                "",
+                &b""[..],
                 Some(
                     FixedOffset::east_opt(0)
                         .unwrap()
@@ -416,9 +416,9 @@ mod tests {
     #[test]
     fn test_section_rfc_obs_ws() {
         assert_eq!(
-            section("Fri, 21 Nov 1997 09(comment):   55  :  06 -0600"),
+            section(b"Fri, 21 Nov 1997 09(comment):   55  :  06 -0600"),
             Ok((
-                "",
+                &b""[..],
                 Some(
                     FixedOffset::west_opt(6 * HOUR)
                         .unwrap()
@@ -432,9 +432,9 @@ mod tests {
     #[test]
     fn test_section_2digit_year() {
         assert_eq!(
-            section("21 Nov 23 09:55:06Z"),
+            section(b"21 Nov 23 09:55:06Z"),
             Ok((
-                "",
+                &b""[..],
                 Some(
                     FixedOffset::east_opt(0)
                         .unwrap()
@@ -452,9 +452,9 @@ mod tests {
             .enumerate()
             .for_each(|(i, x)| {
                 assert_eq!(
-                    section(format!("1 Jan 22 08:00:00 {}", x).as_str()),
+                    section(format!("1 Jan 22 08:00:00 {}", x).as_bytes()),
                     Ok((
-                        "",
+                        &b""[..],
                         Some(
                             FixedOffset::east_opt((i as i32 + 1) * HOUR)
                                 .unwrap()
@@ -473,9 +473,9 @@ mod tests {
             .enumerate()
             .for_each(|(i, x)| {
                 assert_eq!(
-                    section(format!("1 Jan 22 08:00:00 {}", x).as_str()),
+                    section(format!("1 Jan 22 08:00:00 {}", x).as_bytes()),
                     Ok((
-                        "",
+                        &b""[..],
                         Some(
                             FixedOffset::west_opt((i as i32 + 1) * HOUR)
                                 .unwrap()
@@ -490,9 +490,9 @@ mod tests {
     #[test]
     fn test_section_gmt() {
         assert_eq!(
-            section("21 Nov 2023 07:07:07 +0000"),
+            section(b"21 Nov 2023 07:07:07 +0000"),
             Ok((
-                "",
+                &b""[..],
                 Some(
                     FixedOffset::east_opt(0)
                         .unwrap()
@@ -502,9 +502,9 @@ mod tests {
             )),
         );
         assert_eq!(
-            section("21 Nov 2023 07:07:07 -0000"),
+            section(b"21 Nov 2023 07:07:07 -0000"),
             Ok((
-                "",
+                &b""[..],
                 Some(
                     FixedOffset::east_opt(0)
                         .unwrap()
@@ -514,9 +514,9 @@ mod tests {
             )),
         );
         assert_eq!(
-            section("21 Nov 2023 07:07:07 Z"),
+            section(b"21 Nov 2023 07:07:07 Z"),
             Ok((
-                "",
+                &b""[..],
                 Some(
                     FixedOffset::east_opt(0)
                         .unwrap()
@@ -526,9 +526,9 @@ mod tests {
             )),
         );
         assert_eq!(
-            section("21 Nov 2023 07:07:07 GMT"),
+            section(b"21 Nov 2023 07:07:07 GMT"),
             Ok((
-                "",
+                &b""[..],
                 Some(
                     FixedOffset::east_opt(0)
                         .unwrap()
@@ -538,9 +538,9 @@ mod tests {
             )),
         );
         assert_eq!(
-            section("21 Nov 2023 07:07:07 UT"),
+            section(b"21 Nov 2023 07:07:07 UT"),
             Ok((
-                "",
+                &b""[..],
                 Some(
                     FixedOffset::east_opt(0)
                         .unwrap()
@@ -550,9 +550,9 @@ mod tests {
             )),
         );
         assert_eq!(
-            section("21 Nov 2023 07:07:07 UTC"),
+            section(b"21 Nov 2023 07:07:07 UTC"),
             Ok((
-                "",
+                &b""[..],
                 Some(
                     FixedOffset::east_opt(0)
                         .unwrap()
@@ -566,9 +566,9 @@ mod tests {
     #[test]
     fn test_section_usa() {
         assert_eq!(
-            section("21 Nov 2023 4:4:4 CST"),
+            section(b"21 Nov 2023 4:4:4 CST"),
             Ok((
-                "",
+                &b""[..],
                 Some(
                     FixedOffset::west_opt(6 * HOUR)
                         .unwrap()
