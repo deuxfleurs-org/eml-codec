@@ -18,27 +18,6 @@ pub struct MessageId<'a> {
 }
 pub type MessageIdList<'a> = Vec<MessageId<'a>>;
 
-/*
-impl<'a> TryFrom<&'a lazy::Identifier<'a>> for MessageId<'a> {
-    type Error = IMFError<'a>;
-
-    fn try_from(id: &'a lazy::Identifier<'a>) -> Result<Self, Self::Error> {
-        msg_id(id.0)
-            .map(|(_, i)| i)
-            .map_err(|e| IMFError::MessageID(e))
-    }
-}
-
-impl<'a> TryFrom<&'a lazy::IdentifierList<'a>> for MessageIdList<'a> {
-    type Error = IMFError<'a>;
-
-    fn try_from(id: &'a lazy::IdentifierList<'a>) -> Result<Self, Self::Error> {
-        many1(msg_id)(id.0)
-            .map(|(_, i)| i)
-            .map_err(|e| IMFError::MessageIDList(e))
-    }
-}*/
-
 /// Message identifier
 ///
 /// ```abnf
@@ -51,6 +30,10 @@ pub fn msg_id(input: &[u8]) -> IResult<&[u8], MessageId> {
         pair(tag(">"), opt(cfws)),
     )(input)?;
     Ok((input, MessageId { left, right }))
+}
+
+pub fn msg_list(input: &[u8]) -> IResult<&[u8], MessageIdList> {
+    many1(msg_id)(input)
 }
 
 // @FIXME Missing obsolete

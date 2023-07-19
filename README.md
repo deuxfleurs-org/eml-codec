@@ -29,19 +29,7 @@ Current known limitations/bugs:
 
 ## Design
 
-Multipass design: each pass is in charge of a specific work.
-*Having multiple pass does not necessarily lead to abyssmal performances.
-For example, the [Chez Scheme compiler](https://legacy.cs.indiana.edu/~dyb/pubs/commercial-nanopass.pdf) 
-pioneered the "Nanopass" concept and showcases excellent performances.*
-
-Currently, you can use the following passes:
- - `segment.rs` - Extract the header section by finding the `CRLFCRLF` token.
- - `guess_charset.rs` - Find the header section encoding (should be ASCII or UTF8 but some corpus contains ISO-8859-1 headers)
- - `extract_fields.rs` - Extract the headers line by lines, taking into account Foldable White Space.
- - `field_lazy.rs` - Try to recognize the header fields (`From`, `To`, `Date`, etc.) but do not parse their value.  
- - `field_eager.rs` - Parse the value of each known header fields.  
- - `header_section.rs` - Aggregate the various fields in a single structure.  
-
+*Todo*
 
 ## Testing strategy
 

@@ -9,56 +9,62 @@ use crate::fragments::trace::ReceivedLog;
 use chrono::{DateTime, FixedOffset};
 
 #[derive(Debug, PartialEq, Default)]
-pub struct Section<'a> {
+pub struct Message<'a> {
     // 3.6.1.  The Origination Date Field
-    pub date: Option<&'a DateTime<FixedOffset>>,
+    pub date: Option<DateTime<FixedOffset>>,
 
     // 3.6.2.  Originator Fields
-    pub from: Vec<&'a MailboxRef>,
-    pub sender: Option<&'a MailboxRef>,
-    pub reply_to: Vec<&'a AddressRef>,
+    pub from: Vec<MailboxRef<'a>>,
+    pub sender: Option<MailboxRef<'a>>,
+    pub reply_to: Vec<AddressRef<'a>>,
 
     // 3.6.3.  Destination Address Fields
-    pub to: Vec<&'a AddressRef>,
-    pub cc: Vec<&'a AddressRef>,
-    pub bcc: Vec<&'a AddressRef>,
+    pub to: Vec<AddressRef<'a>>,
+    pub cc: Vec<AddressRef<'a>>,
+    pub bcc: Vec<AddressRef<'a>>,
 
     // 3.6.4.  Identification Fields
-    pub msg_id: Option<&'a MessageId<'a>>,
-    pub in_reply_to: Vec<&'a MessageId<'a>>,
-    pub references: Vec<&'a MessageId<'a>>,
+    pub msg_id: Option<MessageId<'a>>,
+    pub in_reply_to: Vec<MessageId<'a>>,
+    pub references: Vec<MessageId<'a>>,
 
     // 3.6.5.  Informational Fields
-    pub subject: Option<&'a Unstructured>,
-    pub comments: Vec<&'a Unstructured>,
-    pub keywords: Vec<&'a PhraseList>,
+    pub subject: Option<Unstructured<'a>>,
+    pub comments: Vec<Unstructured<'a>>,
+    pub keywords: Vec<PhraseList<'a>>,
 
     // 3.6.6 Not implemented
     // 3.6.7 Trace Fields
-    pub return_path: Vec<&'a MailboxRef>,
-    pub received: Vec<&'a ReceivedLog<'a>>,
+    pub return_path: Vec<MailboxRef<'a>>,
+    pub received: Vec<ReceivedLog<'a>>,
 
     // 3.6.8.  Optional Fields
-    pub optional: HashMap<&'a str, &'a Unstructured>,
-
-    // MIME
-    pub mime_version: Option<&'a Version>,
-    pub mime: MIMESection<'a>,
+    pub optional: HashMap<&'a [u8], Unstructured<'a>>,
 
     // Recovery
-    pub bad_fields: Vec<&'a lazy::Field<'a>>,
-    pub unparsed: Vec<&'a str>,
+    pub unparsed: Vec<&'a [u8]>,
 }
 
-#[derive(Debug, PartialEq, Default)]
-pub struct MIMESection<'a> {
-    pub content_type: Option<&'a Type<'a>>,
-    pub content_transfer_encoding: Option<&'a Mechanism<'a>>,
-    pub content_id: Option<&'a MessageId<'a>>,
-    pub content_description: Option<&'a Unstructured>,
-    pub optional: HashMap<&'a str, &'a Unstructured>,
-    pub unparsed: Vec<&'a str>,
+impl<'a> FromIterator<&'a [u8]> for Message<'a> {
+    fn from_iter<I: IntoIterator<Item = &'a [u8]>>(iter: I) -> Self {
+        iter.fold(
+            Message::default(),
+            |mut msg, field| {
+                match field_name(field) {
+                    Ok((name, value)) => xx,
+
+                }
+
+                match field {
+
+                }
+                msg
+            }
+        )
+    }
 }
+
+
 
 //@FIXME min and max limits are not enforced,
 // it may result in missing data or silently overriden data.
@@ -104,19 +110,3 @@ impl<'a> FromIterator<&'a Field<'a>> for Section<'a> {
     }
 }
 
-impl<'a> FromIterator<&'a MIMEField<'a>> for MIMESection<'a> {
-    fn from_iter<I: IntoIterator<Item = &'a MIMEField<'a>>>(iter: I) -> Self {
-        let mut section = MIMESection::default();
-        for field in iter {
-            match field {
-                MIMEField::ContentType(v) => section.content_type = Some(v),
-                MIMEField::ContentTransferEncoding(v) => section.content_transfer_encoding = Some(v),
-                MIMEField::ContentID(v) => section.content_id = Some(v),
-                MIMEField::ContentDescription(v) => section.content_description = Some(v),
-                MIMEField::Optional(k, v) => { section.optional.insert(k, v); },
-                MIMEField::Rescue(v) => section.unparsed.push(v),
-            };
-        }
-        section
-    }
-}

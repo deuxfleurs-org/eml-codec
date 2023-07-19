@@ -16,12 +16,6 @@ use crate::fragments::whitespace::cfws;
 use crate::fragments::quoted::quoted_string;
 
 #[derive(Debug, PartialEq)]
-pub struct Version {
-    pub major: u32,
-    pub minor: u32,
-}
-
-#[derive(Debug, PartialEq)]
 pub enum Type<'a> {
     // Composite types
     Multipart(MultipartDesc<'a>),
@@ -276,20 +270,6 @@ impl<'a> From<&'a str> for TextSubtype<'a> {
             _ => TextSubtype::Other(csub),
         }
     }
-}
-
-
-pub fn version(input: &str) -> IResult<&str, Version> {
-    let (rest, (_, major, _, _, _, minor, _)) = tuple((
-        opt(cfws),
-        character::u32,
-        opt(cfws),
-        tag("."),
-        opt(cfws),
-        character::u32,
-        opt(cfws),
-    ))(input)?;
-    Ok((rest, Version { major, minor }))
 }
 
 pub fn parameter(input: &str) -> IResult<&str, Parameter> {

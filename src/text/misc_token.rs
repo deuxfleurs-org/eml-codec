@@ -18,6 +18,9 @@ use crate::text::{
 
 #[derive(Debug, PartialEq, Default)]
 pub struct PhraseList(pub Vec<String>);
+pub fn phrase_list(input: &'a [u8]) -> IResult<&[u8], PhraseList> {
+    separated_list1(tag(","), phrase)(input)
+}
 
 /*
 impl<'a> TryFrom<&'a lazy::Unstructured<'a>> for Unstructured {

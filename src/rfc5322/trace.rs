@@ -35,7 +35,7 @@ impl<'a> TryFrom<&'a lazy::ReceivedLog<'a>> for ReceivedLog<'a> {
     }
 }*/
 
-pub fn received_body(input: &[u8]) -> IResult<&[u8], ReceivedLog> {
+pub fn received_log(input: &[u8]) -> IResult<&[u8], ReceivedLog> {
     map(
         tuple((
             many0(received_tokens),
@@ -46,7 +46,7 @@ pub fn received_body(input: &[u8]) -> IResult<&[u8], ReceivedLog> {
     )(input)
 }
 
-pub fn return_path_body(input: &[u8]) -> IResult<&[u8], Option<mailbox::AddrSpec>> {
+pub fn return_path(input: &[u8]) -> IResult<&[u8], Option<mailbox::AddrSpec>> {
     alt((map(mailbox::angle_addr, |a| Some(a)), empty_path))(input)
 }
 

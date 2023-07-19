@@ -140,6 +140,13 @@ pub fn address_list_cfws(input: &[u8]) -> IResult<&[u8], Vec<AddressRef>> {
     Ok((input, vec![]))
 }
 
+pub fn nullable_address_list(input: &[u8]) -> IResult<&[u8], Vec<>> {
+    map(
+        opt(alt((address_list, address_list_cfws))), 
+        |v| v.unwrap_or(vec![]),
+    )(input)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
