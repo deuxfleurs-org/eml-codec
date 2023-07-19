@@ -1,8 +1,7 @@
 use nom::{
     branch::alt,
-    bytes::complete::{take_while1, tag},
-    character::complete::anychar,
-    combinator::{recognize, opt},
+    bytes::complete::{take_while1, take, tag},
+    combinator::{opt},
     multi::many0,
     sequence::{pair, preceded},
     IResult,
@@ -18,9 +17,11 @@ use crate::text::buffer;
 ///    quoted-pair     =   ("\" (VCHAR / WSP)) / obs-qp
 ///    obs-qp          =   "\" (%d0 / obs-NO-WS-CTL / LF / CR)
 /// ```
-pub fn quoted_pair(input: &[u8]) -> IResult<&[u8], u8> {
-    preceded(tag(&[ascii::SLASH]), anychar)(input)
+pub fn quoted_pair(input: &[u8]) -> IResult<&[u8], &[u8]> {
+    preceded(tag(&[ascii::SLASH]), take(1usize))(input)
 }
+
+
 
 /// Allowed characters in quote
 ///
@@ -43,8 +44,8 @@ fn is_qtext(c: u8) -> bool {
 /// ```abnf
 ///   qcontent        =   qtext / quoted-pair
 /// ```
-fn qcontent(input: &u8) -> IResult<&[u8], &[u8]> {
-    alt((take_while1(is_qtext), recognize(quoted_pair)))(input)
+fn qcontent(input: &[u8]) -> IResult<&[u8], &[u8]> {
+    alt((take_while1(is_qtext), quoted_pair))(input)
 }
 
 /// Quoted string
@@ -63,7 +64,7 @@ pub fn quoted_string(input: &[u8]) -> IResult<&[u8], buffer::Text> {
     let mut qstring = content
         .iter()
         .fold(buffer::Text::default(), |mut acc, (maybe_wsp, c)| {
-            if let Some(wsp) = maybe_wsp {
+            if let Some(_) = maybe_wsp {
                 acc.push(&[ascii::SP]);
             }
             acc.push(c);
@@ -71,8 +72,8 @@ pub fn quoted_string(input: &[u8]) -> IResult<&[u8], buffer::Text> {
         });
 
     let (input, maybe_wsp) = opt(fws)(input)?;
-    if let Some(wsp) = maybe_wsp {
-        qstring.push(wsp);
+    if let Some(_) = maybe_wsp {
+        qstring.push(&[ascii::SP]);
     }
 
     let (input, _) = tag("\"")(input)?;

@@ -103,7 +103,7 @@ Todo:
 | 🔴 |2049	| ↳ Multipurpose Internet Mail Extensions (MIME) Part Five: Conformance Criteria and Examples |
 |    |      | **Headers extensions** |
 | 🔴 |2183  | ↳ Communicating Presentation Information in Internet Messages: The Content-Disposition Header Field |
-| 🟩 |6532	| ↳ Internationalized Email Headers |
+| 🔴 |6532	| ↳ Internationalized Email Headers |
 | 🔴 |9228  | ↳ Delivered-To Email Header Field |
 |    |      | **MIME extensions** |
 | 🔴 |1847  | ↳ Security Multiparts for MIME: Multipart/Signed and Multipart/Encrypted |

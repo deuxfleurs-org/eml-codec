@@ -1,12 +1,10 @@
-use encoding_rs::Encoding;
-
 #[derive(Debug, PartialEq, Default)]
 pub struct Text<'a> {
     parts: Vec<&'a [u8]>,
 }
 
 impl<'a> Text<'a> {
-    pub fn push(&mut self, e: &[u8]) {
+    pub fn push(&mut self, e: &'a [u8]) {
         self.parts.push(e)
     }
 

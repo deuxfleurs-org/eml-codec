@@ -48,6 +48,14 @@ pub enum EncodedWord<'a> {
     Quoted(QuotedWord<'a>),
     Base64(Base64Word<'a>),
 }
+impl<'a> EncodedWord<'a> {
+    pub fn to_string(&self) -> String  {
+        match self {
+            EncodedWord::Quoted(v) => v.to_string(),
+            EncodedWord::Base64(v) => v.to_string(),
+        }
+    }
+}
 
 #[derive(PartialEq,Debug)]
 pub struct Base64Word<'a> {

@@ -2,12 +2,11 @@ use nom::{
     branch::alt,
     bytes::complete::take_while1,
     character::complete::space0,
-    combinator::{into, map, opt},
+    combinator::{map, opt},
     multi::{many0, many1},
-    sequence::{preceded, tuple},
+    sequence::{preceded},
     IResult,
 };
-use std::borrow::Cow;
 
 use crate::text::{
     quoted::quoted_string,
@@ -52,7 +51,7 @@ impl<'a> Word<'a> {
         match self {
             Word::Quoted(v) => v.to_string(),
             Word::Encoded(v) => v.to_string(),
-            Word::Atom(v) => v.to_string(),
+            Word::Atom(v) => encoding_rs::UTF_8.decode_without_bom_handling(v).0.to_string(),
         }
     }
 }
@@ -73,7 +72,7 @@ pub fn word(input: &[u8]) -> IResult<&[u8], Word> {
 pub struct Phrase<'a>(pub Vec<Word<'a>>);
 impl<'a> Phrase<'a> {
     pub fn to_string(&self) -> String {
-        self.0.join(" ")
+        self.0.iter().map(|v| v.to_string()).collect::<Vec<String>>().join(" ")
     }
 }
 
@@ -96,7 +95,7 @@ fn is_unstructured(c: u8) -> bool {
     is_vchar(c) || is_obs_no_ws_ctl(c) || c == ascii::NULL
 }
 
-enum UnstrToken<'a> {
+pub enum UnstrToken<'a> {
     Init,
     Encoded(encoding::EncodedWord<'a>),
     Plain(&'a [u8]),
@@ -106,7 +105,7 @@ impl<'a> UnstrToken<'a> {
         match self {
             UnstrToken::Init => "".into(),
             UnstrToken::Encoded(e) => e.to_string(),
-            UnstrToken::Plain(e) => encoding_rs::UTF_8.decode_without_bom_handling(e).into_owned(),
+            UnstrToken::Plain(e) => encoding_rs::UTF_8.decode_without_bom_handling(e).0.into_owned(),
         }
     }
 }
@@ -116,19 +115,19 @@ impl<'a> Unstructured<'a> {
     pub fn to_string(&self) -> String {
         self.0.iter().fold(
             (&UnstrToken::Init, String::new()),
-            |(prev_token, result), current_token| {
+            |(prev_token, mut result), current_token| {
                 match (prev_token, current_token) {
                     (UnstrToken::Init, v) => result.push_str(v.to_string().as_ref()),
-                    (UnstrToken::EncodedWord(_), UnstrToken::EncodedWord(v)) => result.push_str(v.to_string()).as_ref(),
+                    (UnstrToken::Encoded(_), UnstrToken::Encoded(v)) => result.push_str(v.to_string().as_ref()),
                     (_, v) => {
                         result.push(' ');
                         result.push_str(v.to_string().as_ref())
                     },
                 };
 
-                result
+                (current_token, result)
             }
-        )
+        ).1
     }
 }
 
