@@ -63,9 +63,8 @@ pub fn mailbox(input: &[u8]) -> IResult<&[u8], MailboxRef> {
 /// ```
 fn name_addr(input: &[u8]) -> IResult<&[u8], MailboxRef> {
     let (input, name) = opt(phrase)(input)?;
-    let (input, mut mbox) = angle_addr(input)?;
-    mbox.name = name;
-    Ok((input, mbox))
+    let (input, addrspec) = angle_addr(input)?;
+    Ok((input, MailboxRef { name, addrspec }))
 }
 
 /// Enclosed addr-spec with < and >
@@ -74,10 +73,10 @@ fn name_addr(input: &[u8]) -> IResult<&[u8], MailboxRef> {
 /// angle-addr      =   [CFWS] "<" addr-spec ">" [CFWS] /
 ///                     obs-angle-addr
 /// ```
-pub fn angle_addr(input: &[u8]) -> IResult<&[u8], MailboxRef> {
+pub fn angle_addr(input: &[u8]) -> IResult<&[u8], AddrSpec> {
     delimited(
         tuple((opt(cfws), tag(&[ascii::LT]), opt(obs_route))),
-        into(addr_spec),
+        addr_spec,
         pair(tag(&[ascii::GT]), opt(cfws)),
     )(input)
 }
