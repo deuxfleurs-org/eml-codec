@@ -9,11 +9,10 @@ use nom::{
 };
 
 use crate::text::{
-    quoted::quoted_string,
+    quoted::{QuotedString, quoted_string},
     whitespace::{fws, is_obs_no_ws_ctl},
     words::{atom, is_vchar},
     encoding::{self, encoded_word},
-    buffer,
     ascii,
 };
 
@@ -43,7 +42,7 @@ impl<'a> TryFrom<&'a lazy::PhraseList<'a>> for PhraseList {
 
 #[derive(Debug, PartialEq)]
 pub enum Word<'a> {
-    Quoted(buffer::Text<'a>),
+    Quoted(QuotedString<'a>),
     Encoded(encoding::EncodedWord<'a>),
     Atom(&'a [u8]),
 }

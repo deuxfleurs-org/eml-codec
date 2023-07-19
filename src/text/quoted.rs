@@ -9,7 +9,29 @@ use nom::{
 
 use crate::text::whitespace::{cfws, fws, is_obs_no_ws_ctl};
 use crate::text::ascii;
-use crate::text::buffer;
+
+#[derive(Debug, PartialEq, Default)]
+pub struct QuotedString<'a>(pub Vec<&'a [u8]>);
+
+impl<'a> QuotedString<'a> {
+    pub fn push(&mut self, e: &'a [u8]) {
+        self.0.push(e)
+    }
+
+    pub fn to_string(&self) -> String {
+        let enc = encoding_rs::UTF_8;
+        let size = self.0.iter().fold(0, |acc, v| acc + v.len());
+
+        self.0.iter().fold(
+            String::with_capacity(size),
+            |mut acc, v| {
+                let (content, _) = enc.decode_without_bom_handling(v);
+                acc.push_str(content.as_ref());
+                acc
+            },
+        )
+    }
+}
 
 /// Quoted pair
 ///
@@ -55,7 +77,7 @@ fn qcontent(input: &[u8]) -> IResult<&[u8], &[u8]> {
 ///                     DQUOTE *([FWS] qcontent) [FWS] DQUOTE
 ///                     [CFWS]
 /// ```
-pub fn quoted_string(input: &[u8]) -> IResult<&[u8], buffer::Text> {
+pub fn quoted_string(input: &[u8]) -> IResult<&[u8], QuotedString> {
     let (input, _) = opt(cfws)(input)?;
     let (input, _) = tag("\"")(input)?;
     let (input, content) = many0(pair(opt(fws), qcontent))(input)?;
@@ -63,7 +85,7 @@ pub fn quoted_string(input: &[u8]) -> IResult<&[u8], buffer::Text> {
     // Rebuild string
     let mut qstring = content
         .iter()
-        .fold(buffer::Text::default(), |mut acc, (maybe_wsp, c)| {
+        .fold(QuotedString::default(), |mut acc, (maybe_wsp, c)| {
             if let Some(_) = maybe_wsp {
                 acc.push(&[ascii::SP]);
             }
@@ -86,23 +108,25 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_quoted_string() {
-        let mut text = buffer::Text::default();
-        text.push(b"hello");
-        text.push(&[ascii::DQUOTE]);
-        text.push(b"world");
+    fn test_quoted_string_parser() {
         assert_eq!(
-            quoted_string(b" \"hello\\\"world\" "),
-            Ok((&b""[..], text))
+            quoted_string(b" \"hello\\\"world\" ").unwrap().1,
+            QuotedString(vec![b"hello", &[ascii::DQUOTE], b"world"])
         );
 
-        let mut text = buffer::Text::default();
-        text.push(b"hello");
-        text.push(&[ascii::SP]);
-        text.push(b"world");
         assert_eq!(
             quoted_string(b"\"hello\r\n world\""),
-            Ok((&b""[..], text))
+            Ok((&b""[..], QuotedString(vec![b"hello", &[ascii::SP], b"world"]))),
+        );
+    }
+
+    use crate::text::ascii;
+
+    #[test]
+    fn test_quoted_string_object() {
+        assert_eq!(
+            QuotedString(vec![b"hello", &[ascii::SP], b"world"]).to_string(),
+            "hello world".to_string(),
         );
     }
 }
