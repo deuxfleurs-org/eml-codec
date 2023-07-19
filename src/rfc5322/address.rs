@@ -7,7 +7,7 @@ use nom::{
     IResult,
 };
 
-use crate::error::IMFError;
+//use crate::error::IMFError;
 use crate::rfc5322::mailbox::{mailbox, MailboxRef};
 use crate::text::misc_token::{phrase, Phrase};
 use crate::text::whitespace::cfws;

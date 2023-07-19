@@ -1,20 +1,21 @@
-use crate::error::IMFError;
-use crate::fragments::lazy;
-use crate::fragments::whitespace::{cfws, fws};
 use chrono::{DateTime, FixedOffset, NaiveDate, NaiveTime};
 use nom::{
     branch::alt,
     bytes::complete::{is_a, tag, tag_no_case, take_while_m_n},
     character,
-    character::complete::{alphanumeric1, digit0, one_of},
+    character::complete::{alphanumeric1, digit0},
     combinator::{map, opt, value},
     sequence::{delimited, preceded, terminated, tuple},
     IResult,
 };
 
+use crate::text::whitespace::{cfws, fws};
+//use crate::error::IMFError;
+
 const MIN: i32 = 60;
 const HOUR: i32 = 60 * MIN;
 
+/*
 impl<'a> TryFrom<&'a lazy::DateTime<'a>> for DateTime<FixedOffset> {
     type Error = IMFError<'a>;
 
@@ -25,7 +26,7 @@ impl<'a> TryFrom<&'a lazy::DateTime<'a>> for DateTime<FixedOffset> {
             _ => Err(IMFError::DateTimeLogic),
         }
     }
-}
+}*/
 
 /// Read datetime
 ///
@@ -42,7 +43,7 @@ impl<'a> TryFrom<&'a lazy::DateTime<'a>> for DateTime<FixedOffset> {
 ///   - Obsolete military zones should be considered as NaiveTime
 /// due to an error in RFC0822 but are interpreted as their respective
 /// timezone according to the RFC5322 definition
-pub fn section(input: &str) -> IResult<&str, Option<DateTime<FixedOffset>>> {
+pub fn section(input: &[u8]) -> IResult<&[u8], Option<DateTime<FixedOffset>>> {
     map(
         terminated(
             alt((
@@ -71,95 +72,96 @@ pub fn section(input: &str) -> IResult<&str, Option<DateTime<FixedOffset>>> {
 }
 
 ///    day-of-week     =   ([FWS] day-name) / obs-day-of-week
-fn strict_day_of_week(input: &str) -> IResult<&str, &str> {
+fn strict_day_of_week(input: &[u8]) -> IResult<&[u8], &[u8]> {
     preceded(opt(fws), day_name)(input)
 }
 
 ///    obs-day-of-week =   [CFWS] day-name [CFWS]
-fn obs_day_of_week(input: &str) -> IResult<&str, &str> {
+fn obs_day_of_week(input: &[u8]) -> IResult<&[u8], &[u8]> {
     delimited(opt(cfws), day_name, opt(cfws))(input)
 }
 
 ///   day-name        =   "Mon" / "Tue" / "Wed" / "Thu" /
 ///                       "Fri" / "Sat" / "Sun"
-fn day_name(input: &str) -> IResult<&str, &str> {
+fn day_name(input: &[u8]) -> IResult<&[u8], &[u8]> {
     alt((
-        tag_no_case("Mon"),
-        tag_no_case("Tue"),
-        tag_no_case("Wed"),
-        tag_no_case("Thu"),
-        tag_no_case("Fri"),
-        tag_no_case("Sat"),
-        tag_no_case("Sun"),
+        tag_no_case(b"Mon"),
+        tag_no_case(b"Tue"),
+        tag_no_case(b"Wed"),
+        tag_no_case(b"Thu"),
+        tag_no_case(b"Fri"),
+        tag_no_case(b"Sat"),
+        tag_no_case(b"Sun"),
     ))(input)
 }
 
 ///    date            =   day month year
-fn strict_date(input: &str) -> IResult<&str, Option<NaiveDate>> {
+fn strict_date(input: &[u8]) -> IResult<&[u8], Option<NaiveDate>> {
     map(tuple((strict_day, month, strict_year)), |(d, m, y)| {
         NaiveDate::from_ymd_opt(y, m, d)
     })(input)
 }
 
 ///    date            =   day month year
-fn obs_date(input: &str) -> IResult<&str, Option<NaiveDate>> {
+fn obs_date(input: &[u8]) -> IResult<&[u8], Option<NaiveDate>> {
     map(tuple((obs_day, month, obs_year)), |(d, m, y)| {
         NaiveDate::from_ymd_opt(y, m, d)
     })(input)
 }
 
 ///    day             =   ([FWS] 1*2DIGIT FWS) / obs-day
-fn strict_day(input: &str) -> IResult<&str, u32> {
+fn strict_day(input: &[u8]) -> IResult<&[u8], u32> {
     delimited(opt(fws), character::complete::u32, fws)(input)
 }
 
 ///    obs-day         =   [CFWS] 1*2DIGIT [CFWS]
-fn obs_day(input: &str) -> IResult<&str, u32> {
+fn obs_day(input: &[u8]) -> IResult<&[u8], u32> {
     delimited(opt(cfws), character::complete::u32, opt(cfws))(input)
 }
 
 ///  month           =   "Jan" / "Feb" / "Mar" / "Apr" /
 ///                      "May" / "Jun" / "Jul" / "Aug" /
 ///                      "Sep" / "Oct" / "Nov" / "Dec"
-fn month(input: &str) -> IResult<&str, u32> {
+fn month(input: &[u8]) -> IResult<&[u8], u32> {
     alt((
-        value(1, tag_no_case("Jan")),
-        value(2, tag_no_case("Feb")),
-        value(3, tag_no_case("Mar")),
-        value(4, tag_no_case("Apr")),
-        value(5, tag_no_case("May")),
-        value(6, tag_no_case("Jun")),
-        value(7, tag_no_case("Jul")),
-        value(8, tag_no_case("Aug")),
-        value(9, tag_no_case("Sep")),
-        value(10, tag_no_case("Oct")),
-        value(11, tag_no_case("Nov")),
-        value(12, tag_no_case("Dec")),
+        value(1, tag_no_case(b"Jan")),
+        value(2, tag_no_case(b"Feb")),
+        value(3, tag_no_case(b"Mar")),
+        value(4, tag_no_case(b"Apr")),
+        value(5, tag_no_case(b"May")),
+        value(6, tag_no_case(b"Jun")),
+        value(7, tag_no_case(b"Jul")),
+        value(8, tag_no_case(b"Aug")),
+        value(9, tag_no_case(b"Sep")),
+        value(10, tag_no_case(b"Oct")),
+        value(11, tag_no_case(b"Nov")),
+        value(12, tag_no_case(b"Dec")),
     ))(input)
 }
 
 ///   year            =   (FWS 4*DIGIT FWS) / obs-year
-fn strict_year(input: &str) -> IResult<&str, i32> {
+fn strict_year(input: &[u8]) -> IResult<&[u8], i32> {
     delimited(
         fws,
         map(
-            terminated(take_while_m_n(4, 9, |c| c >= '\x30' && c <= '\x39'), digit0),
-            |d: &str| d.parse::<i32>().unwrap(),
+            terminated(take_while_m_n(4, 9, |c| c >= 0x30 && c <= 0x39), digit0),
+            |d: &[u8]| encoding_rs::UTF_8.decode_without_bom_handling(d).0.parse::<i32>().unwrap_or(0),
         ),
         fws,
     )(input)
 }
 
 ///   obs-year        =   [CFWS] 2*DIGIT [CFWS]
-fn obs_year(input: &str) -> IResult<&str, i32> {
+fn obs_year(input: &[u8]) -> IResult<&[u8], i32> {
     map(
         delimited(
             opt(cfws),
-            terminated(take_while_m_n(2, 7, |c| c >= '\x30' && c <= '\x39'), digit0),
+            terminated(take_while_m_n(2, 7, |c| c >= 0x30 && c <= 0x39), digit0),
             opt(cfws),
         ),
-        |cap: &str| {
-            let d = cap.parse::<i32>().unwrap();
+        |cap: &[u8]| {
+            let year_txt = encoding_rs::UTF_8.decode_without_bom_handling(cap).0;
+            let d = year_txt.parse::<i32>().unwrap_or(0);
             if d >= 0 && d <= 49 {
                 2000 + d
             } else if d >= 50 && d <= 999 {
@@ -172,7 +174,7 @@ fn obs_year(input: &str) -> IResult<&str, i32> {
 }
 
 ///   time-of-day     =   hour ":" minute [ ":" second ]
-fn strict_time_of_day(input: &str) -> IResult<&str, Option<NaiveTime>> {
+fn strict_time_of_day(input: &[u8]) -> IResult<&[u8], Option<NaiveTime>> {
     map(
         tuple((
             strict_time_digit,
@@ -187,7 +189,7 @@ fn strict_time_of_day(input: &str) -> IResult<&str, Option<NaiveTime>> {
 }
 
 ///   time-of-day     =   hour ":" minute [ ":" second ]
-fn obs_time_of_day(input: &str) -> IResult<&str, Option<NaiveTime>> {
+fn obs_time_of_day(input: &[u8]) -> IResult<&[u8], Option<NaiveTime>> {
     map(
         tuple((
             obs_time_digit,
@@ -201,11 +203,11 @@ fn obs_time_of_day(input: &str) -> IResult<&str, Option<NaiveTime>> {
     )(input)
 }
 
-fn strict_time_digit(input: &str) -> IResult<&str, u32> {
+fn strict_time_digit(input: &[u8]) -> IResult<&[u8], u32> {
     character::complete::u32(input)
 }
 
-fn obs_time_digit(input: &str) -> IResult<&str, u32> {
+fn obs_time_digit(input: &[u8]) -> IResult<&[u8], u32> {
     delimited(opt(cfws), character::complete::u32, opt(cfws))(input)
 }
 
@@ -214,20 +216,20 @@ fn obs_time_digit(input: &str) -> IResult<&str, u32> {
 /// ```abnf
 ///   zone            =   (FWS ( "+" / "-" ) 4DIGIT) / (FWS obs-zone)
 /// ```
-fn strict_zone(input: &str) -> IResult<&str, Option<FixedOffset>> {
+fn strict_zone(input: &[u8]) -> IResult<&[u8], Option<FixedOffset>> {
     map(
         tuple((
             opt(fws),
             is_a("+-"),
-            take_while_m_n(2, 2, |c| c >= '\x30' && c <= '\x39'),
-            take_while_m_n(2, 2, |c| c >= '\x30' && c <= '\x39'),
+            take_while_m_n(2, 2, |c| c >= 0x30 && c <= 0x39),
+            take_while_m_n(2, 2, |c| c >= 0x30 && c <= 0x39),
         )),
         |(_, op, dig_zone_hour, dig_zone_min)| {
-            let zone_hour = dig_zone_hour.parse::<i32>().unwrap() * HOUR;
-            let zone_min = dig_zone_min.parse::<i32>().unwrap() * MIN;
+            let zone_hour: i32 =  ((dig_zone_hour[0] - 0x30) * 10 + (dig_zone_hour[1] - 0x30)) as i32 * HOUR;
+            let zone_min: i32 = ((dig_zone_min[0] - 0x30) * 10 + (dig_zone_min[1] - 0x30)) as i32 * MIN;
             match op {
-                "+" => FixedOffset::east_opt(zone_hour + zone_min),
-                "-" => FixedOffset::west_opt(zone_hour + zone_min),
+                b"+" => FixedOffset::east_opt(zone_hour + zone_min),
+                b"-" => FixedOffset::west_opt(zone_hour + zone_min),
                 _ => unreachable!(),
             }
         },
@@ -250,7 +252,7 @@ fn strict_zone(input: &str) -> IResult<&str, Option<FixedOffset>> {
 ///                       %d107-122 /        ; upper and lower case
 ///                                          ;
 ///                       1*(ALPHA / DIGIT)  ; Unknown legacy timezones
-fn obs_zone(input: &str) -> IResult<&str, Option<FixedOffset>> {
+fn obs_zone(input: &[u8]) -> IResult<&[u8], Option<FixedOffset>> {
     // The writing of this function is volontarily verbose
     // to keep it straightforward to understand.
     // @FIXME: Could return a TimeZone and not an Option<TimeZone>
@@ -262,57 +264,57 @@ fn obs_zone(input: &str) -> IResult<&str, Option<FixedOffset>> {
             // Legacy UTC/GMT
             value(
                 FixedOffset::west_opt(0 * HOUR),
-                alt((tag("UTC"), tag("UT"), tag("GMT"))),
+                alt((tag_no_case(b"UTC"), tag_no_case(b"UT"), tag_no_case(b"GMT"))),
             ),
             // USA Timezones
-            value(FixedOffset::west_opt(4 * HOUR), tag("EDT")),
+            value(FixedOffset::west_opt(4 * HOUR), tag_no_case(b"EDT")),
             value(
                 FixedOffset::west_opt(5 * HOUR),
-                alt((tag("EST"), tag("CDT"))),
+                alt((tag_no_case(b"EST"), tag_no_case(b"CDT"))),
             ),
             value(
                 FixedOffset::west_opt(6 * HOUR),
-                alt((tag("CST"), tag("MDT"))),
+                alt((tag_no_case(b"CST"), tag_no_case(b"MDT"))),
             ),
             value(
                 FixedOffset::west_opt(7 * HOUR),
-                alt((tag("MST"), tag("PDT"))),
+                alt((tag_no_case(b"MST"), tag_no_case(b"PDT"))),
             ),
-            value(FixedOffset::west_opt(8 * HOUR), tag("PST")),
+            value(FixedOffset::west_opt(8 * HOUR), tag_no_case(b"PST")),
             // Military Timezone UTC
-            value(FixedOffset::west_opt(0 * HOUR), tag("Z")),
+            value(FixedOffset::west_opt(0 * HOUR), tag_no_case(b"Z")),
             // Military Timezones East
-            map(one_of("ABCDEFGHIKLMabcdefghiklm"), |c| match c {
-                'A' | 'a' => FixedOffset::east_opt(1 * HOUR),
-                'B' | 'b' => FixedOffset::east_opt(2 * HOUR),
-                'C' | 'c' => FixedOffset::east_opt(3 * HOUR),
-                'D' | 'd' => FixedOffset::east_opt(4 * HOUR),
-                'E' | 'e' => FixedOffset::east_opt(5 * HOUR),
-                'F' | 'f' => FixedOffset::east_opt(6 * HOUR),
-                'G' | 'g' => FixedOffset::east_opt(7 * HOUR),
-                'H' | 'h' => FixedOffset::east_opt(8 * HOUR),
-                'I' | 'i' => FixedOffset::east_opt(9 * HOUR),
-                'K' | 'k' => FixedOffset::east_opt(10 * HOUR),
-                'L' | 'l' => FixedOffset::east_opt(11 * HOUR),
-                'M' | 'm' => FixedOffset::east_opt(12 * HOUR),
-                _ => unreachable!(),
-            }),
+            alt((
+                value(FixedOffset::east_opt(1 * HOUR), tag_no_case(b"A")),
+                value(FixedOffset::east_opt(2 * HOUR), tag_no_case(b"B")),
+                value(FixedOffset::east_opt(3 * HOUR), tag_no_case(b"C")),
+                value(FixedOffset::east_opt(4 * HOUR), tag_no_case(b"D")),
+                value(FixedOffset::east_opt(5 * HOUR), tag_no_case(b"E")),
+                value(FixedOffset::east_opt(6 * HOUR), tag_no_case(b"F")),
+                value(FixedOffset::east_opt(7 * HOUR), tag_no_case(b"G")),
+                value(FixedOffset::east_opt(8 * HOUR), tag_no_case(b"H")),
+                value(FixedOffset::east_opt(9 * HOUR), tag_no_case(b"I")),
+                value(FixedOffset::east_opt(10 * HOUR), tag_no_case(b"K")),
+                value(FixedOffset::east_opt(11 * HOUR), tag_no_case(b"L")),
+                value(FixedOffset::east_opt(12 * HOUR), tag_no_case(b"M")),
+            )),
+
             // Military Timezones West
-            map(one_of("nopqrstuvwxyNOPQRSTUVWXY"), |c| match c {
-                'N' | 'n' => FixedOffset::west_opt(1 * HOUR),
-                'O' | 'o' => FixedOffset::west_opt(2 * HOUR),
-                'P' | 'p' => FixedOffset::west_opt(3 * HOUR),
-                'Q' | 'q' => FixedOffset::west_opt(4 * HOUR),
-                'R' | 'r' => FixedOffset::west_opt(5 * HOUR),
-                'S' | 's' => FixedOffset::west_opt(6 * HOUR),
-                'T' | 't' => FixedOffset::west_opt(7 * HOUR),
-                'U' | 'u' => FixedOffset::west_opt(8 * HOUR),
-                'V' | 'v' => FixedOffset::west_opt(9 * HOUR),
-                'W' | 'w' => FixedOffset::west_opt(10 * HOUR),
-                'X' | 'x' => FixedOffset::west_opt(11 * HOUR),
-                'Y' | 'y' => FixedOffset::west_opt(12 * HOUR),
-                _ => unreachable!(),
-            }),
+            alt((
+                value(FixedOffset::west_opt(1 * HOUR), tag_no_case(b"N")),
+                value(FixedOffset::west_opt(2 * HOUR), tag_no_case(b"O")),
+                value(FixedOffset::west_opt(3 * HOUR), tag_no_case(b"P")),
+                value(FixedOffset::west_opt(4 * HOUR), tag_no_case(b"Q")),
+                value(FixedOffset::west_opt(5 * HOUR), tag_no_case(b"R")),
+                value(FixedOffset::west_opt(6 * HOUR), tag_no_case(b"S")),
+                value(FixedOffset::west_opt(7 * HOUR), tag_no_case(b"T")),
+                value(FixedOffset::west_opt(8 * HOUR), tag_no_case(b"U")),
+                value(FixedOffset::west_opt(9 * HOUR), tag_no_case(b"V")),
+                value(FixedOffset::west_opt(10 * HOUR), tag_no_case(b"W")),
+                value(FixedOffset::west_opt(11 * HOUR), tag_no_case(b"X")),
+                value(FixedOffset::west_opt(12 * HOUR), tag_no_case(b"Y")),
+            )),
+
             // Unknown timezone
             value(FixedOffset::west_opt(0 * HOUR), alphanumeric1),
         )),
