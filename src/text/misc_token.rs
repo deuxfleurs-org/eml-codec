@@ -41,11 +41,13 @@ impl<'a> TryFrom<&'a lazy::PhraseList<'a>> for PhraseList {
     }
 }*/
 
+#[derive(Debug, PartialEq)]
 pub enum Word<'a> {
     Quoted(buffer::Text<'a>),
     Encoded(encoding::EncodedWord<'a>),
     Atom(&'a [u8]),
 }
+
 impl<'a> Word<'a> {
     pub fn to_string(&self) -> String {
         match self {
@@ -69,7 +71,9 @@ pub fn word(input: &[u8]) -> IResult<&[u8], Word> {
     ))(input)
 }
 
+#[derive(Debug, PartialEq)]
 pub struct Phrase<'a>(pub Vec<Word<'a>>);
+
 impl<'a> Phrase<'a> {
     pub fn to_string(&self) -> String {
         self.0.iter().map(|v| v.to_string()).collect::<Vec<String>>().join(" ")
@@ -95,11 +99,13 @@ fn is_unstructured(c: u8) -> bool {
     is_vchar(c) || is_obs_no_ws_ctl(c) || c == ascii::NULL
 }
 
+#[derive(Debug, PartialEq)]
 pub enum UnstrToken<'a> {
     Init,
     Encoded(encoding::EncodedWord<'a>),
     Plain(&'a [u8]),
 }
+
 impl<'a> UnstrToken<'a> {
     pub fn to_string(&self) -> String {
         match self {
@@ -110,7 +116,9 @@ impl<'a> UnstrToken<'a> {
     }
 }
 
+#[derive(Debug, PartialEq)]
 pub struct Unstructured<'a>(pub Vec<UnstrToken<'a>>);
+
 impl<'a> Unstructured<'a> {
     pub fn to_string(&self) -> String {
         self.0.iter().fold(
