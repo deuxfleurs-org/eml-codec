@@ -149,43 +149,43 @@ mod tests {
 
     #[test]
     fn test_obs_crlf() {
-        assert_eq!(obs_crlf("\rworld"), Ok(("world", "\r")));
-        assert_eq!(obs_crlf("\r\nworld"), Ok(("world", "\r\n")));
-        assert_eq!(obs_crlf("\nworld"), Ok(("world", "\n")));
+        assert_eq!(obs_crlf(b"\rworld"), Ok((&b"world"[..], &b"\r"[..])));
+        assert_eq!(obs_crlf(b"\r\nworld"), Ok((&b"world"[..], &b"\r\n"[..])));
+        assert_eq!(obs_crlf(b"\nworld"), Ok((&b"world"[..], &b"\n"[..])));
     }
 
     #[test]
     fn test_fws() {
-        assert_eq!(fws("\r\n world"), Ok(("world", ' ')));
-        assert_eq!(fws(" \r\n \r\n world"), Ok(("world", ' ')));
-        assert_eq!(fws(" world"), Ok(("world", ' ')));
-        assert!(fws("\r\nFrom: test").is_err());
+        assert_eq!(fws(b"\r\n world"), Ok((&b"world"[..], ascii::SP)));
+        assert_eq!(fws(b" \r\n \r\n world"), Ok((&b"world"[..], ascii::SP)));
+        assert_eq!(fws(b" world"), Ok((&b"world"[..], ascii::SP)));
+        assert!(fws(b"\r\nFrom: test").is_err());
     }
 
     #[test]
     fn test_cfws() {
         assert_eq!(
-            cfws("(A nice \\) chap) <pete(his account)@silly.test(his host)>"),
+            cfws(b"(A nice \\) chap) <pete(his account)@silly.test(his host)>"),
             Ok((
-                "<pete(his account)@silly.test(his host)>",
-                "(A nice \\) chap) "
+                &b"<pete(his account)@silly.test(his host)>"[..],
+                &b"(A nice \\) chap) "[..]
             ))
         );
         assert_eq!(
-            cfws("(Chris's host.)public.example>,"),
-            Ok(("public.example>,", "(Chris's host.)"))
+            cfws(b"(Chris's host.)public.example>,"),
+            Ok((&b"public.example>,"[..], &b"(Chris's host.)"[..]))
         );
         assert_eq!(
-            cfws("(double (comment) is fun) wouch"),
-            Ok(("wouch", "(double (comment) is fun) "))
+            cfws(b"(double (comment) is fun) wouch"),
+            Ok((&b"wouch"[..], &b"(double (comment) is fun) "[..]))
         );
     }
 
     #[test]
     fn test_cfws_encoded_word() {
        assert_eq!(
-            cfws("(=?US-ASCII?Q?Keith_Moore?=)"),
-            Ok(("", "(=?US-ASCII?Q?Keith_Moore?=)")),
+            cfws(b"(=?US-ASCII?Q?Keith_Moore?=)"),
+            Ok((&b""[..], &b"(=?US-ASCII?Q?Keith_Moore?=)"[..])),
         );
     }
 }

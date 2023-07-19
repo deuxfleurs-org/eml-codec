@@ -18,7 +18,7 @@ use crate::text::buffer;
 ///    obs-qp          =   "\" (%d0 / obs-NO-WS-CTL / LF / CR)
 /// ```
 pub fn quoted_pair(input: &[u8]) -> IResult<&[u8], &[u8]> {
-    preceded(tag(&[ascii::SLASH]), take(1usize))(input)
+    preceded(tag(&[ascii::BACKSLASH]), take(1usize))(input)
 }
 
 
@@ -93,7 +93,7 @@ mod tests {
         text.push(b"world");
         assert_eq!(
             quoted_string(b" \"hello\\\"world\" "),
-            Ok(("", text))
+            Ok((&b""[..], text))
         );
 
         let mut text = buffer::Text::default();
@@ -102,7 +102,7 @@ mod tests {
         text.push(b"world");
         assert_eq!(
             quoted_string(b"\"hello\r\n world\""),
-            Ok(("", text))
+            Ok((&b""[..], text))
         );
     }
 }

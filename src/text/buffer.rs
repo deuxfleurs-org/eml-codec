@@ -26,6 +26,7 @@ impl<'a> Text<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::text::ascii;
 
     #[test]
     fn test_text() {

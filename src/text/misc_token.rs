@@ -152,14 +152,17 @@ mod tests {
     use super::*;
     #[test]
     fn test_phrase() {
-        assert_eq!(phrase("hello world"), Ok(("", "hello world".into())));
         assert_eq!(
-            phrase("salut \"le\" monde"),
-            Ok(("", "salut le monde".into()))
+            phrase(b"hello world").unwrap().1.to_string(), 
+            "hello world".to_string(),
         );
         assert_eq!(
-            phrase("fin\r\n du\r\nmonde"),
-            Ok(("\r\nmonde", "fin du".into()))
+            phrase(b"salut \"le\" monde").unwrap().1.to_string(),
+            "salut le monde".to_string(),
         );
+
+        let (rest, parsed) = phrase(b"fin\r\n du\r\nmonde").unwrap();
+        assert_eq!(rest, &b"\r\nmonde"[..]);
+        assert_eq!(parsed.to_string(), "fin du".to_string());
     }
 }

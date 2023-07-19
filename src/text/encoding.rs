@@ -166,20 +166,20 @@ mod tests {
     #[test]
     fn test_ptext() {
         assert_eq!(
-            ptext("Accus=E9_de_r=E9ception_(affich=E9)"),
-            Ok(("", vec![
-                QuotedChunk::Safe("Accus"),
+            ptext(b"Accus=E9_de_r=E9ception_(affich=E9)"),
+            Ok((&b""[..], vec![
+                QuotedChunk::Safe(&b"Accus"[..]),
                 QuotedChunk::Encoded(0xe9),
                 QuotedChunk::Space,
-                QuotedChunk::Safe("de"),
+                QuotedChunk::Safe(&b"de"[..]),
                 QuotedChunk::Space,
-                QuotedChunk::Safe("r"),
+                QuotedChunk::Safe(&b"r"[..]),
                 QuotedChunk::Encoded(0xe9),
-                QuotedChunk::Safe("ception"),
+                QuotedChunk::Safe(&b"ception"[..]),
                 QuotedChunk::Space,
-                QuotedChunk::Safe("(affich"),
+                QuotedChunk::Safe(&b"(affich"[..]),
                 QuotedChunk::Encoded(0xe9),
-                QuotedChunk::Safe(")"),
+                QuotedChunk::Safe(&b")"[..]),
             ]))
         );
     }
@@ -188,8 +188,8 @@ mod tests {
     #[test]
     fn test_decode_word() {
         assert_eq!(
-            encoded_word("=?iso8859-1?Q?Accus=E9_de_r=E9ception_(affich=E9)?="),
-            Ok(("", "Accusé de réception (affiché)".into())),
+            encoded_word(b"=?iso8859-1?Q?Accus=E9_de_r=E9ception_(affich=E9)?=").unwrap().1.to_string(),
+            "Accusé de réception (affiché)".to_string(),
         );
     }
 
@@ -197,8 +197,8 @@ mod tests {
     #[test]
     fn test_decode_word_b64() {
         assert_eq!(
-            encoded_word("=?ISO-8859-1?B?SWYgeW91IGNhbiByZWFkIHRoaXMgeW8=?="),
-            Ok(("", "If you can read this yo".into()))
+            encoded_word(b"=?ISO-8859-1?B?SWYgeW91IGNhbiByZWFkIHRoaXMgeW8=?=").unwrap().1.to_string(),
+            "If you can read this yo".to_string(),
         );
     }
 }

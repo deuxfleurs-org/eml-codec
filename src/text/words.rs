@@ -118,16 +118,16 @@ mod tests {
     #[test]
     fn test_dot_atom_text() {
         assert_eq!(
-            dot_atom_text("quentin.dufour.io abcdef"),
-            Ok((" abcdef", "quentin.dufour.io"))
+            dot_atom_text(b"quentin.dufour.io abcdef"),
+            Ok((&b" abcdef"[..], &b"quentin.dufour.io"[..]))
         );
     }
 
     #[test]
     fn test_dot_atom() {
         assert_eq!(
-            dot_atom("   (skip) quentin.dufour.io abcdef"),
-            Ok(("abcdef", "quentin.dufour.io"))
+            dot_atom(b"   (skip) quentin.dufour.io abcdef"),
+            Ok((&b"abcdef"[..], &b"quentin.dufour.io"[..]))
         );
     }
 }
