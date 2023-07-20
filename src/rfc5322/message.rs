@@ -1,8 +1,6 @@
-use std::collections::HashMap;
-
 use crate::text::misc_token::{PhraseList, Unstructured};
 use crate::rfc5322::mime::Version;
-use crate::rfc5322::mailbox::{MailboxRef};
+use crate::rfc5322::mailbox::{AddrSpec, MailboxRef};
 use crate::rfc5322::address::{AddressRef};
 use crate::rfc5322::identification::{MessageID, MessageIDList};
 use crate::rfc5322::field::Field;
@@ -12,7 +10,7 @@ use chrono::{DateTime, FixedOffset};
 #[derive(Debug, PartialEq, Default)]
 pub struct Message<'a> {
     // 3.6.1.  The Origination Date Field
-    pub date: &'a Option<DateTime<FixedOffset>>,
+    pub date: Option<DateTime<FixedOffset>>,
 
     // 3.6.2.  Originator Fields
     pub from: Vec<&'a MailboxRef<'a>>,
@@ -26,8 +24,8 @@ pub struct Message<'a> {
 
     // 3.6.4.  Identification Fields
     pub msg_id: Option<&'a MessageID<'a>>,
-    pub in_reply_to: MessageIDList<'a>,
-    pub references: MessageIDList<'a>,
+    pub in_reply_to: Vec<&'a MessageID<'a>>,
+    pub references: Vec<&'a MessageID<'a>>,
 
     // 3.6.5.  Informational Fields
     pub subject: Option<&'a Unstructured<'a>>,
@@ -36,7 +34,7 @@ pub struct Message<'a> {
 
     // 3.6.6 Not implemented
     // 3.6.7 Trace Fields
-    pub return_path: Vec<&'a MailboxRef<'a>>,
+    pub return_path: Vec<&'a AddrSpec<'a>>,
     pub received: Vec<&'a ReceivedLog<'a>>,
 
     // MIME
@@ -51,7 +49,7 @@ impl<'a> FromIterator<&'a Field<'a>> for Message<'a> {
             Message::default(),
             |mut section, field| {
                 match field {
-                    Field::Date(v) => section.date = v,
+                    Field::Date(v) => section.date = *v,
                     Field::From(v) => section.from.extend(v),
                     Field::Sender(v) => section.sender = Some(v),
                     Field::ReplyTo(v) => section.reply_to.extend(v),
@@ -64,7 +62,7 @@ impl<'a> FromIterator<&'a Field<'a>> for Message<'a> {
                     Field::Subject(v) => section.subject = Some(v),
                     Field::Comments(v) => section.comments.push(v),
                     Field::Keywords(v) => section.keywords.push(v),
-                    Field::ReturnPath(v) => section.return_path.push(v),
+                    Field::ReturnPath(v) => v.as_ref().map(|x| section.return_path.push(x)).unwrap_or(()),
                     Field::Received(v) => section.received.push(v),
                     Field::MIMEVersion(v) => section.mime_version = Some(v),
                 };
