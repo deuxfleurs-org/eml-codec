@@ -2,11 +2,9 @@ use chrono::{DateTime, FixedOffset};
 use nom::{
     IResult,
     branch::alt,
-    bytes::complete::{tag, tag_no_case, take_while1},
-    character::complete::space0,
     combinator::map,
     multi::many0,
-    sequence::{pair, preceded, terminated, tuple},
+    sequence::{preceded, terminated},
 };
 
 use crate::text::whitespace::{obs_crlf, foldable_line};
