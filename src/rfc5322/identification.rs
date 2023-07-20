@@ -2,6 +2,7 @@ use nom::{
     branch::alt,
     bytes::complete::{tag, take_while},
     combinator::opt,
+    multi::many1,
     sequence::{delimited, pair, tuple},
     IResult,
 };
@@ -12,27 +13,27 @@ use crate::text::words::dot_atom_text;
 
 
 #[derive(Debug, PartialEq)]
-pub struct MessageId<'a> {
+pub struct MessageID<'a> {
     pub left: &'a [u8],
     pub right: &'a [u8],
 }
-pub type MessageIdList<'a> = Vec<MessageId<'a>>;
+pub type MessageIDList<'a> = Vec<MessageID<'a>>;
 
 /// Message identifier
 ///
 /// ```abnf
 ///    msg-id          =   [CFWS] "<" id-left "@" id-right ">" [CFWS]
 /// ```
-pub fn msg_id(input: &[u8]) -> IResult<&[u8], MessageId> {
+pub fn msg_id(input: &[u8]) -> IResult<&[u8], MessageID> {
     let (input, (left, _, right)) = delimited(
         pair(opt(cfws), tag("<")),
         tuple((id_left, tag("@"), id_right)),
         pair(tag(">"), opt(cfws)),
     )(input)?;
-    Ok((input, MessageId { left, right }))
+    Ok((input, MessageID { left, right }))
 }
 
-pub fn msg_list(input: &[u8]) -> IResult<&[u8], MessageIdList> {
+pub fn msg_list(input: &[u8]) -> IResult<&[u8], MessageIDList> {
     many1(msg_id)(input)
 }
 
@@ -60,7 +61,7 @@ mod tests {
             msg_id(b"<5678.21-Nov-1997@example.com>"),
             Ok((
                 &b""[..],
-                MessageId {
+                MessageID {
                     left: &b"5678.21-Nov-1997"[..],
                     right: &b"example.com"[..],
                 }

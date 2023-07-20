@@ -1,9 +1,9 @@
 use nom::{
     branch::alt,
-    bytes::complete::take_while1,
+    bytes::complete::{tag, take_while1},
     character::complete::space0,
     combinator::{map, opt},
-    multi::{many0, many1},
+    multi::{many0, many1, separated_list1},
     sequence::{preceded},
     IResult,
 };
@@ -17,31 +17,10 @@ use crate::text::{
 };
 
 #[derive(Debug, PartialEq, Default)]
-pub struct PhraseList(pub Vec<String>);
-pub fn phrase_list(input: &'a [u8]) -> IResult<&[u8], PhraseList> {
-    separated_list1(tag(","), phrase)(input)
+pub struct PhraseList<'a>(pub Vec<Phrase<'a>>);
+pub fn phrase_list(input: &[u8]) -> IResult<&[u8], PhraseList> {
+    map(separated_list1(tag(","), phrase), PhraseList)(input)
 }
-
-/*
-impl<'a> TryFrom<&'a lazy::Unstructured<'a>> for Unstructured {
-    type Error = IMFError<'a>;
-
-    fn try_from(input: &'a lazy::Unstructured<'a>) -> Result<Self, Self::Error> {
-        unstructured(input.0)
-            .map(|(_, v)| Unstructured(v))
-            .map_err(|e| IMFError::Unstructured(e))
-    }
-}
-
-impl<'a> TryFrom<&'a lazy::PhraseList<'a>> for PhraseList {
-    type Error = IMFError<'a>;
-
-    fn try_from(p: &'a lazy::PhraseList<'a>) -> Result<Self, Self::Error> {
-        separated_list1(tag(","), phrase)(p.0)
-            .map(|(_, q)| PhraseList(q))
-            .map_err(|e| IMFError::PhraseList(e))
-    }
-}*/
 
 #[derive(Debug, PartialEq)]
 pub enum Word<'a> {

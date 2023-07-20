@@ -85,7 +85,7 @@ mod tests {
     for <me@example.com>; Tue, 13 Jun 2023 19:01:08 +0000"#.as_bytes();
 
         assert_eq!(
-            received_body(hdrs),
+            received_log(hdrs),
             Ok((
                 &b""[..],
                 ReceivedLog {
