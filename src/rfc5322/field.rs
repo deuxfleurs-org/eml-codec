@@ -17,6 +17,7 @@ use crate::rfc5322::identification::{MessageID, MessageIDList, msg_id, msg_list}
 use crate::rfc5322::trace::{ReceivedLog, return_path, received_log};
 use crate::rfc5322::mime::{Version, version};
 use crate::rfc5322::message::Message;
+use crate::header::*;
 use crate::text::misc_token::{Unstructured, PhraseList, unstructured, phrase_list};
 
 #[derive(Debug, PartialEq)]
@@ -61,24 +62,6 @@ impl<'a> FieldList<'a> {
     }
 }
 
-#[derive(Debug, PartialEq)]
-pub enum CompField<'a> {
-    Known(Field<'a>),
-    Unknown(&'a [u8], Unstructured<'a>),
-    Bad(&'a [u8]),
-}
-
-#[derive(Debug, PartialEq)]
-pub struct CompFieldList<'a>(pub Vec<CompField<'a>>);
-impl<'a> CompFieldList<'a> {
-    pub fn message(self) -> Message<'a> {
-        Message::from_iter(self.0.into_iter().map(|v| match v {
-            CompField::Known(f) => Some(f),
-            _ => None,
-        }).flatten())
-    }
-}
-
 pub fn field(input: &[u8]) -> IResult<&[u8], Field> {
     terminated(alt((
         preceded(field_name(b"date"), map(date, Field::Date)),
@@ -106,36 +89,7 @@ pub fn field(input: &[u8]) -> IResult<&[u8], Field> {
     )), obs_crlf)(input)
 }
 
-
-fn field_name<'a>(name: &'static [u8]) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], &'a [u8]> {
-    move |input| {
-        terminated(
-            tag_no_case(name),
-            tuple((space0, tag(b":"), space0)),
-        )(input)
-    }
-}
-
-/// Optional field
-///
-/// ```abnf
-/// field      =   field-name ":" unstructured CRLF
-/// field-name =   1*ftext
-/// ftext      =   %d33-57 /          ; Printable US-ASCII
-///                %d59-126           ;  characters not including
-///                                   ;  ":".
-/// ```
-fn opt_field(input: &[u8]) -> IResult<&[u8], (&[u8], Unstructured)> {
-    pair(
-        terminated(
-            take_while1(|c| c >= 0x21 && c <= 0x7E && c != 0x3A),
-            tuple((space0, tag(b":"), space0)),
-        ),
-        unstructured,
-    )(input)
-} 
-
-pub fn header(input: &[u8]) -> IResult<&[u8], CompFieldList> {
+pub fn header(input: &[u8]) -> IResult<&[u8], CompFieldList<Field>> {
     map(terminated(many0(alt((
         map(field, CompField::Known),
         map(opt_field, |(k,v)| CompField::Unknown(k,v)),
@@ -163,7 +117,7 @@ This is the plain text body of the message. Note the blank line
 between the header information and the body of the message.";
 
         assert_eq!(
-            map(header, |v| v.message())(fullmail),
+            map(header, |v| FieldList(v.known()).message())(fullmail),
             Ok((
                 &b"This is the plain text body of the message. Note the blank line\nbetween the header information and the body of the message."[..],
                 Message {
