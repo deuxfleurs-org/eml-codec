@@ -5,15 +5,18 @@ use nom::{
     bytes::complete::{tag, tag_no_case, take_while1},
     character::complete::space0,
     combinator::map,
+    multi::many0,
     sequence::{pair, preceded, terminated, tuple},
 };
 
+use crate::text::whitespace::{obs_crlf, foldable_line};
 use crate::rfc5322::address::{AddressList, address_list, nullable_address_list, mailbox_list};
 use crate::rfc5322::datetime::section as date;
 use crate::rfc5322::mailbox::{MailboxRef, MailboxList, AddrSpec, mailbox};
 use crate::rfc5322::identification::{MessageID, MessageIDList, msg_id, msg_list};
 use crate::rfc5322::trace::{ReceivedLog, return_path, received_log};
 use crate::rfc5322::mime::{Version, version};
+use crate::rfc5322::message::Message;
 use crate::text::misc_token::{Unstructured, PhraseList, unstructured, phrase_list};
 
 #[derive(Debug, PartialEq)]
@@ -49,8 +52,35 @@ pub enum Field<'a> {
     MIMEVersion(Version),
 }
 
+
+#[derive(Debug, PartialEq)]
+pub struct FieldList<'a>(pub Vec<Field<'a>>);
+impl<'a> FieldList<'a> {
+    pub fn message(self) -> Message<'a> {
+        Message::from_iter(self.0)
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub enum CompField<'a> {
+    Known(Field<'a>),
+    Unknown(&'a [u8], Unstructured<'a>),
+    Bad(&'a [u8]),
+}
+
+#[derive(Debug, PartialEq)]
+pub struct CompFieldList<'a>(pub Vec<CompField<'a>>);
+impl<'a> CompFieldList<'a> {
+    pub fn message(self) -> Message<'a> {
+        Message::from_iter(self.0.into_iter().map(|v| match v {
+            CompField::Known(f) => Some(f),
+            _ => None,
+        }).flatten())
+    }
+}
+
 pub fn field(input: &[u8]) -> IResult<&[u8], Field> {
-    alt((
+    terminated(alt((
         preceded(field_name(b"date"), map(date, Field::Date)),
 
         preceded(field_name(b"from"), map(mailbox_list, Field::From)),
@@ -73,7 +103,7 @@ pub fn field(input: &[u8]) -> IResult<&[u8], Field> {
         preceded(field_name(b"received"), map(received_log, Field::Received)), 
 
         preceded(field_name(b"mime-version"), map(version, Field::MIMEVersion)), 
-    ))(input)
+    )), obs_crlf)(input)
 }
 
 
@@ -105,4 +135,63 @@ fn opt_field(input: &[u8]) -> IResult<&[u8], (&[u8], Unstructured)> {
     )(input)
 } 
 
-// @TODO write a parse header function
+pub fn header(input: &[u8]) -> IResult<&[u8], CompFieldList> {
+    map(terminated(many0(alt((
+        map(field, CompField::Known),
+        map(opt_field, |(k,v)| CompField::Unknown(k,v)),
+        map(foldable_line, CompField::Bad),
+    ))), obs_crlf), CompFieldList)(input)
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::{DateTime, FixedOffset, TimeZone};
+    use crate::rfc5322::mailbox::*;
+    use crate::rfc5322::address::*;
+    use crate::text::misc_token::*;
+
+    #[test]
+    fn test_header() {
+        let fullmail = b"Date: 7 Mar 2023 08:00:00 +0200
+From: someone@example.com
+To: someone_else@example.com
+Subject: An RFC 822 formatted message
+
+This is the plain text body of the message. Note the blank line
+between the header information and the body of the message.";
+
+        assert_eq!(
+            map(header, |v| v.message())(fullmail),
+            Ok((
+                &b"This is the plain text body of the message. Note the blank line\nbetween the header information and the body of the message."[..],
+                Message {
+                    date: Some(FixedOffset::east_opt(2 * 3600).unwrap().with_ymd_and_hms(2023, 3, 7, 8, 0, 0).unwrap()),
+                    from: vec![MailboxRef {
+                        name: None,
+                        addrspec: AddrSpec {
+                            local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(&b"someone"[..]))]),
+                            domain: Domain::Atoms(vec![&b"example"[..], &b"com"[..]]),
+                        }
+                    }],
+                    to: vec![AddressRef::Single(MailboxRef {
+                        name: None,
+                        addrspec: AddrSpec {
+                            local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(&b"someone_else"[..]))]),
+                            domain: Domain::Atoms(vec![&b"example"[..], &b"com"[..]]),
+                        }
+                    })],
+                    subject: Some(Unstructured(vec![
+                        UnstrToken::Plain(&b"An"[..]),
+                        UnstrToken::Plain(&b"RFC"[..]),
+                        UnstrToken::Plain(&b"822"[..]), 
+                        UnstrToken::Plain(&b"formatted"[..]), 
+                        UnstrToken::Plain(&b"message"[..]),
+                    ])),
+                    ..Message::default()
+                }
+            )),
+        )
+    }
+}
