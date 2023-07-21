@@ -11,7 +11,7 @@ use nom::{
 use crate::text::{
     quoted::{QuotedString, quoted_string},
     whitespace::{fws, is_obs_no_ws_ctl},
-    words::{atom, is_vchar},
+    words::{atom, mime_atom, is_vchar},
     encoding::{self, encoded_word},
     ascii,
 };
@@ -20,6 +20,26 @@ use crate::text::{
 pub struct PhraseList<'a>(pub Vec<Phrase<'a>>);
 pub fn phrase_list(input: &[u8]) -> IResult<&[u8], PhraseList> {
     map(separated_list1(tag(","), phrase), PhraseList)(input)
+}
+
+#[derive(Debug, PartialEq)]
+pub enum MIMEWord<'a> {
+    Quoted(QuotedString<'a>),
+    Atom(&'a [u8]),
+}
+impl<'a> MIMEWord<'a> {
+    pub fn to_string(&self) -> String {
+        match self {
+            Quoted(v) => v.to_string(),
+            Atom(v) => encoding_rs::UTF_8.decode_without_bom_handling(v).1.to_string(),
+        }
+    }
+}
+pub fn mime_word(input: &[u8]) -> IResult<&[u8], MIMEWord> {
+    alt((
+        map(quoted_string, MIMEWord::Quoted), 
+        map(mime_atom, MIMEWord::Atom),
+    ))(input)
 }
 
 #[derive(Debug, PartialEq)]

@@ -16,7 +16,7 @@ pub fn is_vchar(c: u8) -> bool {
 /// MIME Token allowed characters
 ///
 /// forbidden: ()<>@,;:\"/[]?=
-fn is_mime_token_text(c: u8) -> bool {
+fn is_mime_atom_text(c: u8) -> bool {
     is_alphanumeric(c) 
     || c == ascii::EXCLAMATION
     || c == ascii::NUM
@@ -40,8 +40,8 @@ fn is_mime_token_text(c: u8) -> bool {
 /// MIME Token
 ///
 /// `[CFWS] 1*token_text [CFWS]`
-pub fn mime_token(input: &[u8]) -> IResult<&[u8], &[u8]> {
-    delimited(opt(cfws), take_while1(is_mime_token_text), opt(cfws))(input)
+pub fn mime_atom(input: &[u8]) -> IResult<&[u8], &[u8]> {
+    delimited(opt(cfws), take_while1(is_mime_atom_text), opt(cfws))(input)
 }
 
 /// Atom allowed characters
