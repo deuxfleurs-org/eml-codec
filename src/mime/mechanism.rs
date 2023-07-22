@@ -8,8 +8,9 @@ use nom::{
 use crate::text::whitespace::cfws;
 use crate::text::words::mime_atom as token;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub enum Mechanism<'a> {
+    #[default]
     _7Bit,
     _8Bit,
     Binary,

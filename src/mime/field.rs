@@ -37,6 +37,7 @@ pub fn content(input: &[u8]) -> IResult<&[u8], Content> {
 mod tests {
     use super::*;
     use crate::mime::r#type::*;
+    use crate::mime::mime::*;
     use crate::mime::charset::EmailCharset;
     use crate::text::misc_token::MIMEWord;
     use crate::text::quoted::QuotedString;

@@ -19,7 +19,7 @@ pub struct Part<'a> {
 pub fn message() -> IResult<&[u8], Part> {
 }
 
-pub fn multipart<'a>(ctype: Type) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], Part<'a>> {
+pub fn multipart<'a>(ctype: Multipart) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], Part<'a>> {
     move |input: &[u8]| {
         let (mut input_loop, _) = preamble(ctype.boundary)(input)?;
         let mut parts: Vec<Part> = vec![];
@@ -31,7 +31,9 @@ pub fn multipart<'a>(ctype: Type) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], Part
             };
 
             // parse mime headers
-            header(content)(input)?;
+            let (input, fields) = header_in_boundaries(ctype.boundary, content)(input)?;
+            let mime = fields.to_mime();
+            match mime.
 
             // based on headers, parse part
 
@@ -71,33 +73,6 @@ pub fn preamble<'a>(bound: &'a [u8]) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], &
 }
 
 // FIXME parse email here
-
-
-// Returns Ok even if an error is encountered while parsing
-// the different mimes.
-pub fn multipart<'a>(bound: &'a [u8]) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], Vec<&'a [u8]>> {
-    move |input: &[u8]| {
-        let (mut input_loop, _) = preamble(bound)(input)?;
-        let mut parts: Vec<&[u8]> = vec![];
-        loop {
-            let input = match boundary(bound)(input_loop) {
-                Err(_) => return Ok((input_loop, parts)),
-                Ok((inp, Delimiter::Last)) => return Ok((inp, parts)),
-                Ok((inp, Delimiter::Next)) => inp,
-            };
-
-            let input = match part(bound)(input) {
-                Err(_) => return Ok((input, parts)),
-                Ok((inp, part)) => {
-                    parts.push(part);
-                    inp
-                }
-            };
-
-            input_loop = input;
-        }
-    }
-}
 
 #[cfg(test)]
 mod tests {
