@@ -30,8 +30,8 @@ pub enum MIMEWord<'a> {
 impl<'a> MIMEWord<'a> {
     pub fn to_string(&self) -> String {
         match self {
-            Quoted(v) => v.to_string(),
-            Atom(v) => encoding_rs::UTF_8.decode_without_bom_handling(v).1.to_string(),
+            Self::Quoted(v) => v.to_string(),
+            Self::Atom(v) => encoding_rs::UTF_8.decode_without_bom_handling(v).1.to_string(),
         }
     }
 }

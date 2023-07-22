@@ -6,7 +6,7 @@ use nom::{
     sequence::delimited,
 };
 use crate::text::whitespace::cfws;
-use crate::text::words::mime_token as token;
+use crate::text::words::mime_atom as token;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Mechanism<'a> {

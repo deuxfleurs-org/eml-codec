@@ -21,7 +21,7 @@ pub fn encoded_word(input: &[u8]) -> IResult<&[u8], EncodedWord> {
 
 pub fn encoded_word_quoted(input: &[u8]) -> IResult<&[u8], EncodedWord> {
     let (rest, (_, charset, _, _, _, txt, _)) = tuple((
-        tag("=?"), words::mime_token, 
+        tag("=?"), words::mime_atom, 
         tag("?"), one_of("Qq"),
         tag("?"), ptext,
         tag("?=")))(input)?;
@@ -33,7 +33,7 @@ pub fn encoded_word_quoted(input: &[u8]) -> IResult<&[u8], EncodedWord> {
 
 pub fn encoded_word_base64(input: &[u8]) -> IResult<&[u8], EncodedWord> {
     let (rest, (_, charset, _, _, _, txt, _)) = tuple((
-        tag("=?"), words::mime_token, 
+        tag("=?"), words::mime_atom, 
         tag("?"), one_of("Bb"),
         tag("?"), btext,
         tag("?=")))(input)?;
