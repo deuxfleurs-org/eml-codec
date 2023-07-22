@@ -3,11 +3,10 @@ use nom::{
     IResult,
     branch::alt,
     combinator::map,
-    multi::many0,
     sequence::{preceded, terminated},
 };
 
-use crate::text::whitespace::{obs_crlf, foldable_line};
+use crate::text::whitespace::{obs_crlf};
 use crate::rfc5322::address::{AddressList, address_list, nullable_address_list, mailbox_list};
 use crate::rfc5322::datetime::section as date;
 use crate::rfc5322::mailbox::{MailboxRef, MailboxList, AddrSpec, mailbox};
@@ -15,7 +14,7 @@ use crate::rfc5322::identification::{MessageID, MessageIDList, msg_id, msg_list}
 use crate::rfc5322::trace::{ReceivedLog, return_path, received_log};
 use crate::rfc5322::mime::{Version, version};
 use crate::rfc5322::message::Message;
-use crate::header::{header, field_name, CompFieldList};
+use crate::header::{field_name};
 use crate::text::misc_token::{Unstructured, PhraseList, unstructured, phrase_list};
 
 #[derive(Debug, PartialEq)]
@@ -94,6 +93,7 @@ mod tests {
     use crate::rfc5322::mailbox::*;
     use crate::rfc5322::address::*;
     use crate::text::misc_token::*;
+    use crate::header::header;
 
     #[test]
     fn test_header() {

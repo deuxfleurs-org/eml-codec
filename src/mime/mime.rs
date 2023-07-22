@@ -1,28 +1,30 @@
+use crate::mime::r#type::NaiveType;
+use crate::mime::mechanism::Mechanism;
+use crate::rfc5322::identification::MessageID;
+use crate::text::misc_token::Unstructured;
+use crate::mime::field::Content;
 
 #[derive(Debug, PartialEq, Default)]
-pub struct MIMESection<'a> {
-    pub content_type: Option<&'a Type<'a>>,
+pub struct MIME<'a> {
+    pub content_type: Option<&'a NaiveType<'a>>,
     pub content_transfer_encoding: Option<&'a Mechanism<'a>>,
-    pub content_id: Option<&'a MessageId<'a>>,
-    pub content_description: Option<&'a Unstructured>,
-    pub optional: HashMap<&'a str, &'a Unstructured>,
-    pub unparsed: Vec<&'a str>,
+    pub content_id: Option<&'a MessageID<'a>>,
+    pub content_description: Option<&'a Unstructured<'a>>,
 }
 
-
-impl<'a> FromIterator<&'a MIMEField<'a>> for MIMESection<'a> {
-    fn from_iter<I: IntoIterator<Item = &'a MIMEField<'a>>>(iter: I) -> Self {
-        let mut section = MIMESection::default();
-        for field in iter {
-            match field {
-                MIMEField::ContentType(v) => section.content_type = Some(v),
-                MIMEField::ContentTransferEncoding(v) => section.content_transfer_encoding = Some(v),
-                MIMEField::ContentID(v) => section.content_id = Some(v),
-                MIMEField::ContentDescription(v) => section.content_description = Some(v),
-                MIMEField::Optional(k, v) => { section.optional.insert(k, v); },
-                MIMEField::Rescue(v) => section.unparsed.push(v),
-            };
-        }
-        section
+impl<'a> FromIterator<&'a Content<'a>> for MIME<'a> {
+    fn from_iter<I: IntoIterator<Item = &'a Content<'a>>>(source: I) -> Self {
+        source.into_iter().fold(
+            MIME::default(),
+            |mut section, field| {
+                match field {
+                    Content::Type(v) => section.content_type = Some(v),
+                    Content::TransferEncoding(v) => section.content_transfer_encoding = Some(v),
+                    Content::ID(v) => section.content_id = Some(v),
+                    Content::Description(v) => section.content_description = Some(v),
+                };
+                section
+            }
+        )
     }
 }

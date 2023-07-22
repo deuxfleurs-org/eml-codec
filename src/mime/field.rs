@@ -8,7 +8,7 @@ use nom::{
 use crate::text::whitespace::obs_crlf;
 use crate::text::misc_token::{Unstructured, unstructured};
 use crate::rfc5322::identification::{MessageID, msg_id};
-use crate::header::{field_name, header, CompFieldList};
+use crate::header::{field_name};
 use crate::mime::r#type::{NaiveType, naive_type};
 use crate::mime::mechanism::{Mechanism, mechanism};
 //use crate::mime::mime::MIME;
@@ -24,7 +24,7 @@ pub enum Content<'a> {
     pub fn to_mime(&self) -> MIME { self.into() }
 }*/
 
-fn content(input: &[u8]) -> IResult<&[u8], Content> {
+pub fn content(input: &[u8]) -> IResult<&[u8], Content> {
     terminated(alt((
         preceded(field_name(b"content-type"), map(naive_type, Content::Type)),
         preceded(field_name(b"content-transfer-encoding"), map(mechanism, Content::TransferEncoding)),
@@ -40,6 +40,7 @@ mod tests {
     use crate::mime::charset::EmailCharset;
     use crate::text::misc_token::MIMEWord;
     use crate::text::quoted::QuotedString;
+    use crate::header::{header, CompFieldList};
 
     #[test]
     fn test_content_type() {
