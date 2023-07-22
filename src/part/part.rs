@@ -10,30 +10,42 @@ use nom::{
 use crate::mime::r#type;
 
 pub struct Part<'a> {
-    Multipart(r#type::Multipart, Vec<Part<'a>>),
-    Message(r#type::Message, Message, Part<'a>),
-    Text(r#type::Text, &'a [u8]),
-    Binary(&'a [u8]),
+    Multipart(Multipart<MIME>, Vec<Part<'a>>),
+    Message(MIME<Message>, Message, Part<'a>),
+    Text(MIME<Text>, &'a [u8]),
+    Binary(MIME<Binary>, &'a [u8]),
+}
+
+pub struct Part<'a> {
+    List(Vec<Part<'a>>),
+    Single(Part<'a>),
+    Leaf(&'a [u8]),
 }
 
 pub fn message() -> IResult<&[u8], Part> {
 }
 
-pub fn multipart<'a>(ctype: Multipart) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], Part<'a>> {
+pub fn multipart<'a>(m: Multipart<MIME>) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], Part<'a>> {
     move |input: &[u8]| {
-        let (mut input_loop, _) = preamble(ctype.boundary)(input)?;
+        let (mut input_loop, _) = preamble(m.ctype.boundary)(input)?;
         let mut parts: Vec<Part> = vec![];
         loop {
-            let input = match boundary(ctype.boundary)(input_loop) {
+            let input = match boundary(m.ctype.boundary)(input_loop) {
                 Err(_) => return Ok((input_loop, parts)),
-                Ok((inp, Delimiter::Last)) => return Ok((inp, Part::Multipart(ctype, parts))),
+                Ok((inp, Delimiter::Last)) => return Ok((inp, Part::List(parts))),
                 Ok((inp, Delimiter::Next)) => inp,
             };
 
             // parse mime headers
             let (input, fields) = header_in_boundaries(ctype.boundary, content)(input)?;
             let mime = fields.to_mime();
-            match mime.
+
+            // parse mime body
+            match mime.part_type {
+                Type::Multipart(m) => multipart(m),
+                Type::Message(m) => message(m),
+                Type::Text(t) | Type::Binary
+            }
 
             // based on headers, parse part
 
@@ -48,7 +60,6 @@ pub fn multipart<'a>(ctype: Multipart) -> impl Fn(&'a [u8]) -> IResult<&'a [u8],
             input_loop = input;
         }
     }
-
 }
 
 pub fn discrete() -> IResult<&[u8], Part> {

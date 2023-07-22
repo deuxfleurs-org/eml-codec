@@ -11,7 +11,7 @@ use crate::rfc5322::identification::{MessageID, msg_id};
 use crate::header::{field_name, CompFieldList};
 use crate::mime::r#type::{NaiveType, naive_type};
 use crate::mime::mechanism::{Mechanism, mechanism};
-use crate::mime::mime::MIME;
+use crate::mime::mime::AnyMIME;
 
 #[derive(Debug, PartialEq)]
 pub enum Content<'a> {
@@ -20,8 +20,25 @@ pub enum Content<'a> {
     ID(MessageID<'a>),
     Description(Unstructured<'a>),
 }
+impl<'a> Content<'a> {
+    pub fn ctype(&'a self) -> Option<&'a NaiveType<'a>> {
+        match self { Content::Type(v) => Some(v), _ => None }
+    }
+    pub fn transfer_encoding(&'a self) -> Option<&'a Mechanism<'a>> {
+        match self { Content::TransferEncoding(v) => Some(v), _ => None }
+    }
+    pub fn id(&'a self) -> Option<&'a MessageID<'a>> {
+        match self { Content::ID(v) => Some(v), _ => None }
+    }    
+    pub fn description(&'a self) -> Option<&'a Unstructured<'a>> {
+        match self { Content::Description(v) => Some(v), _ => None }
+    }
+}
+
 impl<'a> CompFieldList<'a, Content<'a>> {
-    pub fn to_mime(self) -> MIME<'a> { self.known().into_iter().collect::<MIME>() }
+    pub fn to_mime(self) -> AnyMIME<'a> { 
+        self.known().into_iter().collect::<AnyMIME>()
+    }
 }
 
 pub fn content(input: &[u8]) -> IResult<&[u8], Content> {
@@ -37,7 +54,6 @@ pub fn content(input: &[u8]) -> IResult<&[u8], Content> {
 mod tests {
     use super::*;
     use crate::mime::r#type::*;
-    use crate::mime::mime::*;
     use crate::mime::charset::EmailCharset;
     use crate::text::misc_token::MIMEWord;
     use crate::text::quoted::QuotedString;
@@ -51,7 +67,7 @@ mod tests {
         if let Content::Type(nt) = content {
             assert_eq!(
                 nt.to_type(),
-                Type::Text(Text {
+                AnyType::Text(Text {
                     charset: EmailCharset::UTF_8,
                     subtype: TextSubtype::Plain,
                 }),
