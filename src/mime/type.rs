@@ -13,9 +13,9 @@ use crate::text::words::{mime_atom};
 // --------- NAIVE TYPE
 #[derive(Debug, PartialEq)]
 pub struct NaiveType<'a> {
-    main: &'a [u8],
-    sub: &'a [u8],
-    params: Vec<Parameter<'a>>,
+    pub main: &'a [u8],
+    pub sub: &'a [u8],
+    pub params: Vec<Parameter<'a>>,
 }
 impl<'a> NaiveType<'a> {
     pub fn to_type(&self) -> Type { self.into() } 
@@ -29,8 +29,8 @@ pub fn naive_type(input: &[u8]) -> IResult<&[u8], NaiveType> {
 
 #[derive(Debug, PartialEq)]
 pub struct Parameter<'a> {
-    name: &'a [u8],
-    value: MIMEWord<'a>,
+    pub name: &'a [u8],
+    pub value: MIMEWord<'a>,
 }
 pub fn parameter(input: &[u8]) -> IResult<&[u8], Parameter> {
     map(tuple((mime_atom, tag(b"="), mime_word)), |(name, _, value)| Parameter { name, value })(input)

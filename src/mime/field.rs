@@ -8,9 +8,10 @@ use nom::{
 use crate::text::whitespace::obs_crlf;
 use crate::text::misc_token::{Unstructured, unstructured};
 use crate::rfc5322::identification::{MessageID, msg_id};
-use crate::header::field_name;
+use crate::header::{field_name, header, CompFieldList};
 use crate::mime::r#type::{NaiveType, naive_type};
 use crate::mime::mechanism::{Mechanism, mechanism};
+//use crate::mime::mime::MIME;
 
 #[derive(Debug, PartialEq)]
 pub enum Content<'a> {
@@ -19,8 +20,11 @@ pub enum Content<'a> {
     ID(MessageID<'a>),
     Description(Unstructured<'a>),
 }
+/*impl<'a> CompFieldList<Content<'a>> {
+    pub fn to_mime(&self) -> MIME { self.into() }
+}*/
 
-fn field(input: &[u8]) -> IResult<&[u8], Content> {
+fn content(input: &[u8]) -> IResult<&[u8], Content> {
     terminated(alt((
         preceded(field_name(b"content-type"), map(naive_type, Content::Type)),
         preceded(field_name(b"content-transfer-encoding"), map(mechanism, Content::TransferEncoding)),
@@ -34,10 +38,12 @@ mod tests {
     use super::*;
     use crate::mime::r#type::*;
     use crate::mime::charset::EmailCharset;
+    use crate::text::misc_token::MIMEWord;
+    use crate::text::quoted::QuotedString;
 
     #[test]
     fn test_content_type() {
-        let (rest, content) = field(b"Content-Type: text/plain; charset=UTF-8; format=flowed\r\n").unwrap();
+        let (rest, content) = content(b"Content-Type: text/plain; charset=UTF-8; format=flowed\r\n").unwrap();
         assert_eq!(&b""[..], rest);
 
         if let Content::Type(nt) = content {
@@ -51,5 +57,42 @@ mod tests {
         } else {
             panic!("Expected Content::Type, got {:?}", content);
         }
+    }
+
+    #[test]
+    fn test_header() {
+        let fullmail: &[u8] = r#"Date: Sat, 8 Jul 2023 07:14:29 +0200
+From: Grrrnd Zero <grrrndzero@example.org>
+To: John Doe <jdoe@machine.example>
+Subject: Re: Saying Hello
+Message-ID: <NTAxNzA2AC47634Y366BAMTY4ODc5MzQyODY0ODY5@www.grrrndzero.org>
+MIME-Version: 1.0
+Content-Type: multipart/alternative;
+ boundary="b1_e376dc71bafc953c0b0fdeb9983a9956"
+Content-Transfer-Encoding: 7bit
+
+This is a multipart message.
+
+"#.as_bytes();
+
+        assert_eq!(
+            map(header(content), CompFieldList::known)(fullmail),
+            Ok((
+                &b"This is a multipart message.\n\n"[..],
+                vec![
+                    Content::Type(NaiveType {
+                        main: &b"multipart"[..],
+                        sub: &b"alternative"[..],
+                        params: vec![
+                            Parameter {
+                                name: &b"boundary"[..],
+                                value: MIMEWord::Quoted(QuotedString(vec![&b"b1_e376dc71bafc953c0b0fdeb9983a9956"[..]])),
+                            }
+                        ]
+                    }),
+                    Content::TransferEncoding(Mechanism::_7Bit),
+                ],
+            )),
+        );
     }
 }

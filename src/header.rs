@@ -1,9 +1,13 @@
 use nom::{
     IResult,
+    branch::alt,
     bytes::complete::{tag_no_case, tag, take_while1},
     character::complete::space0,
+    combinator::map,
+    multi::many0,
     sequence::{pair, terminated, tuple},
 };
+use crate::text::whitespace::{foldable_line, obs_crlf};
 use crate::text::misc_token::{Unstructured, unstructured};
 
 #[derive(Debug, PartialEq)]
@@ -22,6 +26,16 @@ impl<'a, T> CompFieldList<'a, T> {
             _ => None,
         }).flatten().collect()
     }
+}
+
+pub fn header<'a, T>(fx: impl Fn(&'a [u8]) -> IResult<&[u8], T> + Copy) 
+    -> impl Fn(&'a [u8]) -> IResult<&[u8], CompFieldList<T>>
+{
+    move |input| map(terminated(many0(alt((
+        map(fx, CompField::Known),
+        map(opt_field, |(k,v)| CompField::Unknown(k,v)),
+        map(foldable_line, CompField::Bad),
+    ))), obs_crlf), CompFieldList)(input)
 }
 
 pub fn field_name<'a>(name: &'static [u8]) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], &'a [u8]> {
@@ -43,13 +57,14 @@ pub fn field_name<'a>(name: &'static [u8]) -> impl Fn(&'a [u8]) -> IResult<&'a [
 ///                                   ;  ":".
 /// ```
 pub fn opt_field(input: &[u8]) -> IResult<&[u8], (&[u8], Unstructured)> {
-    pair(
-        terminated(
-            take_while1(|c| c >= 0x21 && c <= 0x7E && c != 0x3A),
-            tuple((space0, tag(b":"), space0)),
-        ),
-        unstructured,
-    )(input)
+    terminated(
+        pair(
+            terminated(
+                take_while1(|c| c >= 0x21 && c <= 0x7E && c != 0x3A),
+                tuple((space0, tag(b":"), space0)),
+            ),
+            unstructured,
+        ), obs_crlf)(input)
 }
 
 
