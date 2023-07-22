@@ -8,10 +8,10 @@ use nom::{
 use crate::text::whitespace::obs_crlf;
 use crate::text::misc_token::{Unstructured, unstructured};
 use crate::rfc5322::identification::{MessageID, msg_id};
-use crate::header::{field_name};
+use crate::header::{field_name, CompFieldList};
 use crate::mime::r#type::{NaiveType, naive_type};
 use crate::mime::mechanism::{Mechanism, mechanism};
-//use crate::mime::mime::MIME;
+use crate::mime::mime::MIME;
 
 #[derive(Debug, PartialEq)]
 pub enum Content<'a> {
@@ -20,9 +20,9 @@ pub enum Content<'a> {
     ID(MessageID<'a>),
     Description(Unstructured<'a>),
 }
-/*impl<'a> CompFieldList<Content<'a>> {
-    pub fn to_mime(&self) -> MIME { self.into() }
-}*/
+impl<'a> CompFieldList<'a, Content<'a>> {
+    pub fn to_mime(self) -> MIME<'a> { self.known().into_iter().collect::<MIME>() }
+}
 
 pub fn content(input: &[u8]) -> IResult<&[u8], Content> {
     terminated(alt((

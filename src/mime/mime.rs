@@ -6,14 +6,14 @@ use crate::mime::field::Content;
 
 #[derive(Debug, PartialEq, Default)]
 pub struct MIME<'a> {
-    pub content_type: Option<&'a NaiveType<'a>>,
-    pub content_transfer_encoding: Option<&'a Mechanism<'a>>,
-    pub content_id: Option<&'a MessageID<'a>>,
-    pub content_description: Option<&'a Unstructured<'a>>,
+    pub content_type: Option<NaiveType<'a>>,
+    pub content_transfer_encoding: Option<Mechanism<'a>>,
+    pub content_id: Option<MessageID<'a>>,
+    pub content_description: Option<Unstructured<'a>>,
 }
 
-impl<'a> FromIterator<&'a Content<'a>> for MIME<'a> {
-    fn from_iter<I: IntoIterator<Item = &'a Content<'a>>>(source: I) -> Self {
+impl<'a> FromIterator<Content<'a>> for MIME<'a> {
+    fn from_iter<I: IntoIterator<Item = Content<'a>>>(source: I) -> Self {
         source.into_iter().fold(
             MIME::default(),
             |mut section, field| {
