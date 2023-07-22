@@ -195,4 +195,40 @@ mod tests {
             })
         );
     }
+
+
+    #[test]
+    fn test_content_type_multipart() {
+        let (rest, nt) = naive_type(b"multipart/mixed;\r\n\tboundary=\"--==_mimepart_64a3f2c69114f_2a13d020975fe\";\r\n\tcharset=UTF-8").unwrap();
+        assert_eq!(rest, &[]);
+        assert_eq!(
+            nt.to_type(),
+            Type::Multipart(MultipartDesc {
+                subtype: MultipartSubtype::Mixed,
+                boundary: "--==_mimepart_64a3f2c69114f_2a13d020975fe".into(),
+            })
+        );
+    }
+
+    #[test]
+    fn test_content_type_message() {
+        let (rest, nt) = naive_type(b"message/rfc822").unwrap();
+        assert_eq!(rest, &[]);
+
+        assert_eq!(
+            nt.to_type(),
+            Type::Message(MessageSubtype::RFC822),
+        );
+    }
+
+    #[test]
+    fn test_parameter_ascii() {
+        assert_eq!(
+            parameter(b"charset = (simple) us-ascii (Plain text)"),
+            Ok((&b""[..], Parameter {
+                name: &b"charset"[..],
+                value: MIMEWord::Atom(&b"us-ascii"[..]),
+            }))
+        );
+    }
 }
