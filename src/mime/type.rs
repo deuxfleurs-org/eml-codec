@@ -43,41 +43,41 @@ pub fn parameter_list(input: &[u8]) -> IResult<&[u8], Vec<Parameter>> {
 #[derive(Debug, PartialEq)]
 pub enum Type {
     // Composite types
-    Multipart(MultipartDesc),
-    Message(MessageSubtype),
+    Multipart(Multipart),
+    Message(Message),
 
     // Discrete types
-    Text(TextDesc),
+    Text(Text),
     Binary,
 }
 impl Default for Type {
     fn default() -> Self {
-        Self::Text(TextDesc::default())
+        Self::Text(Text::default())
     }
 }
 impl<'a> From<&'a NaiveType<'a>> for Type {
     fn from(nt: &'a NaiveType<'a>) -> Self {
         match nt.main.to_ascii_lowercase().as_slice() {
-            b"multipart" => MultipartDesc::try_from(nt).map(Self::Multipart).unwrap_or(Self::default()),
-            b"message" => Self::Message(MessageSubtype::from(nt)),
-            b"text" => Self::Text(TextDesc::from(nt)),
+            b"multipart" => Multipart::try_from(nt).map(Self::Multipart).unwrap_or(Self::default()),
+            b"message" => Self::Message(Message::from(nt)),
+            b"text" => Self::Text(Text::from(nt)),
             _ => Self::Binary,
         }
     }
 }
 
 #[derive(Debug, PartialEq)]
-pub struct MultipartDesc {
+pub struct Multipart {
     pub subtype: MultipartSubtype,
     pub boundary: String,
 }
-impl<'a> TryFrom<&'a NaiveType<'a>> for MultipartDesc {
+impl<'a> TryFrom<&'a NaiveType<'a>> for Multipart {
     type Error = ();
 
     fn try_from(nt: &'a NaiveType<'a>) -> Result<Self, Self::Error> {
         nt.params.iter()
             .find(|x| x.name.to_ascii_lowercase().as_slice() == b"boundary")
-            .map(|boundary| MultipartDesc {
+            .map(|boundary| Multipart {
                 subtype: MultipartSubtype::from(nt),
                 boundary: boundary.value.to_string(),
             })
@@ -108,13 +108,13 @@ impl<'a> From<&NaiveType<'a>> for MultipartSubtype {
 }
 
 #[derive(Debug, PartialEq)]
-pub enum MessageSubtype {
+pub enum Message {
     RFC822,
     Partial,
     External,
     Unknown,
 }
-impl<'a> From<&NaiveType<'a>> for MessageSubtype {
+impl<'a> From<&NaiveType<'a>> for Message {
     fn from(nt: &NaiveType<'a>) -> Self {
         match nt.sub.to_ascii_lowercase().as_slice() {
             b"rfc822" => Self::RFC822,
@@ -126,13 +126,13 @@ impl<'a> From<&NaiveType<'a>> for MessageSubtype {
 }
 
 #[derive(Debug, PartialEq, Default)]
-pub struct TextDesc {
+pub struct Text {
     pub subtype: TextSubtype,
     pub charset: EmailCharset,
 }
-impl<'a> From<&NaiveType<'a>> for TextDesc {
+impl<'a> From<&NaiveType<'a>> for Text {
     fn from(nt: &NaiveType<'a>) -> Self {
-        TextDesc {
+        Self {
             subtype: TextSubtype::from(nt),
             charset: nt.params.iter()
                 .find(|x| x.name.to_ascii_lowercase().as_slice() == b"charset")
@@ -189,7 +189,7 @@ mod tests {
 
         assert_eq!(
             nt.to_type(), 
-            Type::Text(TextDesc {
+            Type::Text(Text {
                 charset: EmailCharset::UTF_8,
                 subtype: TextSubtype::Plain,
             })
@@ -203,7 +203,7 @@ mod tests {
         assert_eq!(rest, &[]);
         assert_eq!(
             nt.to_type(),
-            Type::Multipart(MultipartDesc {
+            Type::Multipart(Multipart {
                 subtype: MultipartSubtype::Mixed,
                 boundary: "--==_mimepart_64a3f2c69114f_2a13d020975fe".into(),
             })
@@ -217,7 +217,7 @@ mod tests {
 
         assert_eq!(
             nt.to_type(),
-            Type::Message(MessageSubtype::RFC822),
+            Type::Message(Message::RFC822),
         );
     }
 

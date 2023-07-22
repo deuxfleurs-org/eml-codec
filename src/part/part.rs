@@ -7,12 +7,14 @@ use nom::{
     combinator::{not, opt, recognize},
 };
 
-use crate::fragments::mime::{Mechanism, Type};
-use crate::fragments::model::MessageId;
-use crate::fragments::misc_token::Unstructured;
-use crate::fragments::whitespace::{CRLF, headers, line, obs_crlf};
-use crate::fragments::{eager,lazy};
-use crate::fragments::section::MIMESection;
+
+pub struct Part<'a, T> {
+
+}
+
+impl<'a> Part<'a, r#type::Text<'a>> {
+
+}
 
 
 
