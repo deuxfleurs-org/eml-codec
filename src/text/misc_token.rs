@@ -27,11 +27,16 @@ pub enum MIMEWord<'a> {
     Quoted(QuotedString<'a>),
     Atom(&'a [u8]),
 }
+impl Default for MIMEWord<'static> {
+    fn default() -> Self {
+        Self::Atom(&[])
+    }
+}
 impl<'a> MIMEWord<'a> {
     pub fn to_string(&self) -> String {
         match self {
             Self::Quoted(v) => v.to_string(),
-            Self::Atom(v) => encoding_rs::UTF_8.decode_without_bom_handling(v).1.to_string(),
+            Self::Atom(v) => encoding_rs::UTF_8.decode_without_bom_handling(v).0.to_string(),
         }
     }
 }

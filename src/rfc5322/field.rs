@@ -99,7 +99,7 @@ pub fn header(input: &[u8]) -> IResult<&[u8], CompFieldList<Field>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::{DateTime, FixedOffset, TimeZone};
+    use chrono::{FixedOffset, TimeZone};
     use crate::rfc5322::mailbox::*;
     use crate::rfc5322::address::*;
     use crate::text::misc_token::*;

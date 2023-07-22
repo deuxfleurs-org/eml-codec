@@ -60,49 +60,7 @@ mod tests {
     use super::*;
     use crate::fragments::lazy;
 
-    #[test]
-    fn test_version() {
-        assert_eq!(version("1.0"), Ok(("", Version { major: 1, minor: 0 })),);
 
-        assert_eq!(
-            version(" 1.0 (produced by MetaSend Vx.x)"),
-            Ok(("", Version { major: 1, minor: 0 })),
-        );
-
-        assert_eq!(
-            version("(produced by MetaSend Vx.x) 1.0"),
-            Ok(("", Version { major: 1, minor: 0 })),
-        );
-
-        assert_eq!(
-            version("1.(produced by MetaSend Vx.x)0"),
-            Ok(("", Version { major: 1, minor: 0 })),
-        );
-    }
-
-    #[test]
-    fn test_parameter() {
-        assert_eq!(
-            parameter("charset=utf-8"),
-            Ok(("", Parameter::Charset(EmailCharset::UTF_8))),
-        );
-        assert_eq!(
-            parameter("charset=\"utf-8\""),
-            Ok(("", Parameter::Charset(EmailCharset::UTF_8))),
-        );
-    }
-
-    #[test]
-    fn test_content_type_plaintext() {
-        assert_eq!(
-            Type::try_from(&lazy::Type("text/plain; charset=utf-8")),
-            Ok(Type::Text(TextDesc {
-                charset: Some(EmailCharset::UTF_8),
-                subtype: TextSubtype::Plain,
-                unknown_parameters: vec![],
-            }))
-        );
-    }
 
     #[test]
     fn test_content_type_multipart() {

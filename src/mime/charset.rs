@@ -7,8 +7,9 @@ use encoding_rs::Encoding;
 /// using encoding_rs datastructures directly would lead to a loss of information.
 /// https://www.iana.org/assignments/character-sets/character-sets.xhtml
 #[allow(non_camel_case_types)]
-#[derive(Debug, PartialEq)]
-pub enum EmailCharset<'a> {
+#[derive(Debug, PartialEq, Default)]
+pub enum EmailCharset {
+    #[default]
     US_ASCII,
     ISO_8859_1,
     ISO_8859_2,
@@ -34,10 +35,16 @@ pub enum EmailCharset<'a> {
     Big5,
     KOI8_R,
     UTF_8,
-    Other(&'a [u8]),
+    Unknown,
 }
 
-impl<'a> From<&'a [u8]> for EmailCharset<'a> {
+impl<'a> From<&'a str> for EmailCharset {
+    fn from(s: &'a str) -> Self {
+        Self::from(s.as_bytes())
+    }
+}
+
+impl<'a> From<&'a [u8]> for EmailCharset {
     fn from(s: &'a [u8]) -> Self {
         match s.to_ascii_lowercase().as_slice() {
             b"us-ascii" | b"ascii" => EmailCharset::US_ASCII,
@@ -65,13 +72,13 @@ impl<'a> From<&'a [u8]> for EmailCharset<'a> {
             b"big5" => EmailCharset::Big5,
             b"koi8-r" => EmailCharset::KOI8_R,
             b"utf-8" | b"utf8" => EmailCharset::UTF_8,
-            _ => EmailCharset::Other(s)
+            _ => EmailCharset::Unknown,
         }
 
     }
 }
 
-impl<'a> EmailCharset<'a> {
+impl EmailCharset {
     pub fn as_str(&self) -> &'static str {
         use EmailCharset::*;
         match self {
@@ -100,7 +107,7 @@ impl<'a> EmailCharset<'a> {
             Big5 => "Big5",
             KOI8_R => "KOI8-R",
             UTF_8 => "UTF-8",
-            Other(_) => "UTF-8", //@FIXME bad idea...
+            Unknown => "UTF-8",
         }
     }
 
