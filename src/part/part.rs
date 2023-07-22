@@ -7,51 +7,49 @@ use nom::{
     combinator::{not, opt, recognize},
 };
 
+use crate::mime::r#type;
 
-pub struct Part<'a, T> {
-
+pub struct Part<'a> {
+    Multipart(r#type::Multipart, Vec<Part<'a>>),
+    Message(r#type::Message, Message, Part<'a>),
+    Text(r#type::Text, &'a [u8]),
+    Binary(&'a [u8]),
 }
 
-impl<'a> Part<'a, r#type::Text<'a>> {
-
+pub fn message() -> IResult<&[u8], Part> {
 }
 
-
-
-#[derive(Debug, PartialEq)]
-pub enum PartNodeLazy<'a>{
-    Discrete(MIMESection<'a>, &'a [u8]),
-    Composite(MIMESection<'a>, &'a [u8]),
-}
-
-#[derive(Debug, PartialEq)]
-pub enum PartNode<'a> {
-    Discrete(MIMESection<'a>, &'a [u8]),
-    Composite(MIMESection<'a>, Vec<PartNode<'a>>),
-}
-
-#[derive(Debug, PartialEq)]
-pub enum Delimiter {
-    Next,
-    Last
-}
-
-const IS_LAST_BUFFER: bool = true;
-const ALLOW_UTF8: bool = true;
-const NO_TLD: Option<&[u8]> = None;
-fn part_node_lazy(input: &[u8]) -> IResult<&[u8], PartNodeLazy> {
-    //let mime = header.iter().map(|e| eager::MIMEField::from(lazy::MIMEField::from(e)));
-    todo!();
-}
-
-pub fn boundary<'a>(boundary: &'a [u8]) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], Delimiter> {
+pub fn multipart<'a>(ctype: Type) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], Part<'a>> {
     move |input: &[u8]| {
-        let (rest, (_, _, _, last, _)) = tuple((obs_crlf, tag(b"--"), tag(boundary), opt(tag(b"--")), opt(obs_crlf)))(input)?;
-        match last {
-            Some(_) => Ok((rest, Delimiter::Last)),
-            None => Ok((rest, Delimiter::Next)),
+        let (mut input_loop, _) = preamble(ctype.boundary)(input)?;
+        let mut parts: Vec<Part> = vec![];
+        loop {
+            let input = match boundary(ctype.boundary)(input_loop) {
+                Err(_) => return Ok((input_loop, parts)),
+                Ok((inp, Delimiter::Last)) => return Ok((inp, Part::Multipart(ctype, parts))),
+                Ok((inp, Delimiter::Next)) => inp,
+            };
+
+            // parse mime headers
+            header(content)(input)?;
+
+            // based on headers, parse part
+
+            let input = match part(bound)(input) {
+                Err(_) => return Ok((input, parts)),
+                Ok((inp, part)) => {
+                    parts.push(part);
+                    inp
+                }
+            };
+
+            input_loop = input;
         }
     }
+
+}
+
+pub fn discrete() -> IResult<&[u8], Part> {
 }
 
 pub fn part<'a>(bound: &'a [u8]) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], &'a [u8]> {
@@ -104,22 +102,6 @@ pub fn multipart<'a>(bound: &'a [u8]) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_boundary_next() {
-        assert_eq!(
-            boundary(b"hello")(b"\r\n--hello\r\n"),
-            Ok((&b""[..], Delimiter::Next))
-        );
-    }
-
-    #[test]
-    fn test_boundary_last() {
-        assert_eq!(
-            boundary(b"hello")(b"\r\n--hello--\r\n"),
-            Ok((&b""[..], Delimiter::Last))
-        );
-    }
 
     #[test]
     fn test_preamble() {

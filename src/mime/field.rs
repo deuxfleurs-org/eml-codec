@@ -50,7 +50,7 @@ mod tests {
         if let Content::Type(nt) = content {
             assert_eq!(
                 nt.to_type(),
-                Type::Text(TextDesc {
+                Type::Text(Text {
                     charset: EmailCharset::UTF_8,
                     subtype: TextSubtype::Plain,
                 }),
