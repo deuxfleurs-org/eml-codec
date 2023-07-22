@@ -34,3 +34,28 @@ fn is_digit(c: &[u8]) -> bool {
 fn ascii_to_u8(c: &[u8]) -> u8 {
     c[0] - ascii::N0
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_version() {
+        assert_eq!(version(b"1.0"), Ok((&b""[..], Version { major: 1, minor: 0 })),);
+
+        assert_eq!(
+            version(b" 1.0 (produced by MetaSend Vx.x)"),
+            Ok((&b""[..], Version { major: 1, minor: 0 })),
+        );
+
+        assert_eq!(
+            version(b"(produced by MetaSend Vx.x) 1.0"),
+            Ok((&b""[..], Version { major: 1, minor: 0 })),
+        );
+
+        assert_eq!(
+            version(b"1.(produced by MetaSend Vx.x)0"),
+            Ok((&b""[..], Version { major: 1, minor: 0 })),
+        );
+    }
+}

@@ -91,8 +91,8 @@ pub enum MultipartSubtype {
     Report,
     Unknown,
 }
-impl<'a> MultipartSubtype<'a> {
-    pub fn from_naive_type(nt: &NaiveType<'a>) -> Self {
+impl<'a> From<&NaiveType<'a>> for MultipartSubtype<'a> {
+    pub fn from(nt: &NaiveType<'a>) -> Self {
         match nt.sub.as_ascii_lowercase().as_slice() {
             b"alternative" => Self::Alternative,
             b"mixed" => Self::Mixed,
@@ -105,11 +105,21 @@ impl<'a> MultipartSubtype<'a> {
 }
 
 #[derive(Debug, PartialEq)]
-pub enum MessageSubtype<'a> {
+pub enum MessageSubtype {
     RFC822,
     Partial,
     External,
-    Other(&'a str),
+    Unknown,
+}
+impl<'a> From<&NaiveType<'a>> for MessageSubtype {
+    fn from(nt: &NaiveType<'a>) -> Self {
+        match csub.to_lowercase().as_ref() {
+            "rfc822" => MessageSubtype::RFC822,
+            "partial" => MessageSubtype::Partial,
+            "external" => MessageSubtype::External,
+            _ => Self::Unknown,
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Default)]
