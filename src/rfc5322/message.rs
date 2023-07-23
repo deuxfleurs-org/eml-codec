@@ -71,4 +71,3 @@ impl<'a> FromIterator<Field<'a>> for Message<'a> {
         )
     }
 }
-

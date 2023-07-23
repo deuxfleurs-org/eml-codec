@@ -14,7 +14,7 @@ use crate::rfc5322::identification::{MessageID, MessageIDList, msg_id, msg_list}
 use crate::rfc5322::trace::{ReceivedLog, return_path, received_log};
 use crate::rfc5322::mime::{Version, version};
 use crate::rfc5322::message::Message;
-use crate::header::{field_name};
+use crate::header::{field_name, header};
 use crate::text::misc_token::{Unstructured, PhraseList, unstructured, phrase_list};
 
 #[derive(Debug, PartialEq)]
@@ -86,6 +86,10 @@ pub fn field(input: &[u8]) -> IResult<&[u8], Field> {
     )), obs_crlf)(input)
 }
 
+pub fn message(input: &[u8]) -> IResult<&[u8], Message> {
+    map(header(field), |v| FieldList(v.known()).message())(input)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -93,7 +97,6 @@ mod tests {
     use crate::rfc5322::mailbox::*;
     use crate::rfc5322::address::*;
     use crate::text::misc_token::*;
-    use crate::header::header;
 
     #[test]
     fn test_header() {
@@ -106,7 +109,7 @@ This is the plain text body of the message. Note the blank line
 between the header information and the body of the message.";
 
         assert_eq!(
-            map(header(field), |v| FieldList(v.known()).message())(fullmail),
+            message(fullmail),
             Ok((
                 &b"This is the plain text body of the message. Note the blank line\nbetween the header information and the body of the message."[..],
                 Message {
