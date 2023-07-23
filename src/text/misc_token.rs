@@ -51,7 +51,7 @@ pub fn mime_word(input: &[u8]) -> IResult<&[u8], MIMEWord> {
     ))(input)
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(PartialEq)]
 pub enum Word<'a> {
     Quoted(QuotedString<'a>),
     Encoded(encoding::EncodedWord<'a>),
@@ -70,11 +70,11 @@ impl<'a> ToString for Word<'a> {
         }
     }
 }
-/*impl<'a> fmt::Debug for Word<'a> {
+impl<'a> fmt::Debug for Word<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt.debug_tuple("Word").field(&format_args!("\"{}\"", self.to_string())).finish()
     }
-}*/
+}
 
 /// Word
 ///
@@ -89,7 +89,7 @@ pub fn word(input: &[u8]) -> IResult<&[u8], Word> {
     ))(input)
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(PartialEq)]
 pub struct Phrase<'a>(pub Vec<Word<'a>>);
 
 impl<'a> ToString for Phrase<'a> {
@@ -101,11 +101,11 @@ impl<'a> ToString for Phrase<'a> {
             .join(" ")
     }
 }
-/*impl<'a> fmt::Debug for Phrase<'a> {
+impl<'a> fmt::Debug for Phrase<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt.debug_tuple("Phrase").field(&format_args!("\"{}\"", self.to_string())).finish()
     }
-}*/
+}
 
 /// Phrase
 ///

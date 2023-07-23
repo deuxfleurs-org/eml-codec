@@ -146,13 +146,11 @@ fn hex_octet(input: &[u8]) -> IResult<&[u8], u8> {
     use nom::error::*;
 
     let (rest, hbytes) = preceded(tag("="), take(2usize))(input)?;
-    println!("TOOK: {:?}", hbytes);
 
     let hstr = String::from_utf8_lossy(hbytes); 
     let parsed = u8::from_str_radix(hstr.as_ref(), 16)
         .map_err(|_| nom::Err::Error(Error::new(input, ErrorKind::Verify)))?;
 
-    println!("PARSED: {}", parsed);
     Ok((rest, parsed))
 }
 
