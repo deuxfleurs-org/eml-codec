@@ -372,7 +372,7 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                                     enc: encoding_rs::WINDOWS_1252,
                                     chunks: vec![
                                         QuotedChunk::Safe(&b"Andr"[..]),
-                                        QuotedChunk::Encoded(0xE9),
+                                        QuotedChunk::Encoded(vec![0xE9]),
                                     ],
                                 })),
                                 Word::Atom(&b"Pirard"[..])

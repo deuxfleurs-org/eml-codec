@@ -35,46 +35,6 @@ impl<'a> From<GroupRef<'a>> for AddressRef<'a> {
 }
 pub type AddressList<'a> = Vec<AddressRef<'a>>;
 
-/*impl<'a> TryFrom<&'a lazy::Mailbox<'a>> for MailboxRef {
-    type Error = IMFError<'a>;
-
-    fn try_from(mx: &'a lazy::Mailbox<'a>) -> Result<Self, Self::Error> {
-        mailbox(mx.0)
-            .map(|(_, m)| m)
-            .map_err(|e| IMFError::Mailbox(e))
-    }
-}
-
-impl<'a> TryFrom<&'a lazy::MailboxList<'a>> for MailboxList {
-    type Error = IMFError<'a>;
-
-    fn try_from(ml: &'a lazy::MailboxList<'a>) -> Result<Self, Self::Error> {
-        mailbox_list(ml.0)
-            .map(|(_, m)| m)
-            .map_err(|e| IMFError::MailboxList(e))
-    }
-}
-
-impl<'a> TryFrom<&'a lazy::AddressList<'a>> for AddressList {
-    type Error = IMFError<'a>;
-
-    fn try_from(al: &'a lazy::AddressList<'a>) -> Result<Self, Self::Error> {
-        address_list(al.0)
-            .map(|(_, a)| a)
-            .map_err(|e| IMFError::AddressList(e))
-    }
-}
-
-impl<'a> TryFrom<&'a lazy::NullableAddressList<'a>> for AddressList {
-    type Error = IMFError<'a>;
-
-    fn try_from(nal: &'a lazy::NullableAddressList<'a>) -> Result<Self, Self::Error> {
-        opt(alt((address_list, address_list_cfws)))(nal.0)
-            .map(|(_, a)| a.unwrap_or(vec![]))
-            .map_err(|e| IMFError::NullableAddressList(e))
-    }
-}*/
-
 /// Address (section 3.4 of RFC5322)
 ///
 /// ```abnf
@@ -213,6 +173,63 @@ mod tests {
                     }),
                 ]
             ))
+        );
+    }
+
+    use crate::text::quoted::QuotedString;
+    use crate::text::encoding::{EncodedWord, QuotedWord, QuotedChunk};
+
+    #[test]
+    fn test_strange_groups() {
+        assert_eq!(
+            address_list(
+                br#""Colleagues": "James Smythe" <james@vandelay.com>;, Friends:
+  jane@example.com, =?UTF-8?Q?John_Sm=C3=AEth?= <john@example.com>;"#
+            ),
+            Ok((&b""[..], vec![
+                AddressRef::Many(GroupRef {
+                    name: Phrase(vec![Word::Quoted(QuotedString(vec![&b"Colleagues"[..]]))]),
+                    participants: vec![
+                        MailboxRef {
+                            name: Some(Phrase(vec![Word::Quoted(QuotedString(vec![
+                                &b"James"[..], &b" "[..], &b"Smythe"[..]
+                            ]))])),
+                            addrspec: AddrSpec {
+                                local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(&b"james"[..]))]),
+                                domain: Domain::Atoms(vec![&b"vandelay"[..], &b"com"[..]]),
+                            }
+                        },
+                    ],
+                }),
+                AddressRef::Many(GroupRef {
+                    name: Phrase(vec![Word::Atom(&b"Friends"[..])]),
+                    participants: vec![
+                        MailboxRef{
+                            name: None,
+                            addrspec: AddrSpec {
+                                local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(&b"jane"[..]))]),
+                                domain: Domain::Atoms(vec![&b"example"[..], &b"com"[..]]),
+                            }
+                        },
+                        MailboxRef{
+                            name: Some(Phrase(vec![Word::Encoded(EncodedWord::Quoted(QuotedWord {
+                                enc: encoding_rs::UTF_8,
+                                chunks: vec![
+                                    QuotedChunk::Safe(&b"John"[..]),
+                                    QuotedChunk::Space,
+                                    QuotedChunk::Safe(&b"Sm"[..]),
+                                    QuotedChunk::Encoded(vec![0xc3, 0xae]),
+                                    QuotedChunk::Safe(&b"th"[..]),
+                                ]
+                            }))])),
+                            addrspec: AddrSpec {
+                                local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(&b"john"[..]))]),
+                                domain: Domain::Atoms(vec![&b"example"[..], &b"com"[..]]),
+                            }
+                        },
+                    ]
+                }),
+            ]))
         );
     }
 }
