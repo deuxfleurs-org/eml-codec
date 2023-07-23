@@ -15,11 +15,19 @@ use crate::text::whitespace::obs_crlf;
 use crate::text::ascii::CRLF;
 use crate::header::{header, CompFieldList};
 
+#[derive(Debug, PartialEq)]
 pub struct Multipart<'a>(pub mime::mime::Multipart<'a>, pub Vec<AnyPart<'a>>);
+
+#[derive(Debug, PartialEq)]
 pub struct Message<'a>(pub mime::mime::Message<'a>, pub imf::message::Message<'a>, pub Box<AnyPart<'a>>);
+
+#[derive(Debug, PartialEq)]
 pub struct Text<'a>(pub mime::mime::Text<'a>, pub &'a [u8]);
+
+#[derive(Debug, PartialEq)]
 pub struct Binary<'a>(pub mime::mime::Binary<'a>, pub &'a [u8]);
 
+#[derive(Debug, PartialEq)]
 pub enum AnyPart<'a> {
     Mult(Multipart<'a>),
     Msg(Message<'a>),
@@ -189,11 +197,19 @@ It DOES end with a linebreak.
             ))
         );
     }
-/*
+
     #[test]
     fn test_multipart() {
+        let base_mime = mime::mime::Multipart(
+            mime::r#type::Multipart {
+                subtype: mime::r#type::MultipartSubtype::Alternative,
+                boundary: "simple boundary".to_string(),
+            },
+            mime::mime::Generic::default(),
+        );
+
         assert_eq!(
-            multipart(b"simple boundary")(b"This is the preamble.  It is to be ignored, though it
+            multipart(base_mime.clone())(b"This is the preamble.  It is to be ignored, though it
 is a handy place for composition agents to include an
 explanatory note to non-MIME conformant readers.
 
@@ -212,12 +228,32 @@ It DOES end with a linebreak.
 This is the epilogue. It is also to be ignored.
 "),
             Ok((&b"\nThis is the epilogue. It is also to be ignored.\n"[..],
-                vec![
-                    &b"\nThis is implicitly typed plain US-ASCII text.\nIt does NOT end with a linebreak."[..],
-                    &b"Content-type: text/plain; charset=us-ascii\n\nThis is explicitly typed plain US-ASCII text.\nIt DOES end with a linebreak.\n"[..],
-                ]
-            )),
+                Multipart(
+                    base_mime,
+                    vec![
+                        AnyPart::Txt(Text(
+                            mime::mime::Text(
+                                mime::r#type::Text {
+                                    subtype: mime::r#type::TextSubtype::Plain,
+                                    charset: mime::charset::EmailCharset::US_ASCII,
+                                },
+                                mime::mime::Generic::default(),
+                            ),
+                            &b"This is implicitly typed plain US-ASCII text.\nIt does NOT end with a linebreak."[..],
+                        )),
+                        AnyPart::Txt(Text(
+                            mime::mime::Text(
+                                mime::r#type::Text {
+                                    subtype: mime::r#type::TextSubtype::Plain,
+                                    charset: mime::charset::EmailCharset::US_ASCII,
+                                },
+                                mime::mime::Generic::default(),
+                            ),
+                            &b"This is explicitly typed plain US-ASCII text.\nIt DOES end with a linebreak.\n"[..],
+                        )),
+                    ],
+                ),
+            ))
         );
     }
-    */
 }

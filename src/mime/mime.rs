@@ -5,16 +5,16 @@ use crate::mime::field::Content;
 use crate::mime::r#type::{AnyType, self as ctype}; //Multipart, Message, Text, Binary};
  
 #[derive(Debug, PartialEq, Clone)]
-pub struct Multipart<'a>(pub ctype::Multipart, Generic<'a>);
+pub struct Multipart<'a>(pub ctype::Multipart, pub Generic<'a>);
 
 #[derive(Debug, PartialEq, Clone)]
-pub struct Message<'a>(pub ctype::Message, Generic<'a>);
+pub struct Message<'a>(pub ctype::Message, pub Generic<'a>);
 
 #[derive(Debug, PartialEq, Clone, Default)]
-pub struct Text<'a>(pub ctype::Text, Generic<'a>);
+pub struct Text<'a>(pub ctype::Text, pub Generic<'a>);
 
 #[derive(Debug, PartialEq, Clone)]
-pub struct Binary<'a>(pub ctype::Binary, Generic<'a>);
+pub struct Binary<'a>(pub ctype::Binary, pub Generic<'a>);
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum AnyMIME<'a> {
