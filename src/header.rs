@@ -3,13 +3,12 @@ use nom::{
     branch::alt,
     bytes::complete::{tag_no_case, tag, take_while1},
     character::complete::space0,
-    combinator::{not, map},
+    combinator::{map},
     multi::many0,
-    sequence::{pair, preceded, terminated, tuple},
+    sequence::{pair, terminated, tuple},
 };
 use crate::text::whitespace::{foldable_line, obs_crlf};
 use crate::text::misc_token::{Unstructured, unstructured};
-use crate::text::boundary::boundary;
 
 #[derive(Debug, PartialEq)]
 pub enum CompField<'a, T> {
@@ -39,6 +38,7 @@ pub fn header<'a, T>(fx: impl Fn(&'a [u8]) -> IResult<&[u8], T> + Copy)
     ))), obs_crlf), CompFieldList)(input)
 }
 
+/*
 pub fn header_in_boundaries<'a, T>(bound: &'a [u8], fx: impl Fn(&'a [u8]) -> IResult<&[u8], T> + Copy) 
     -> impl Fn(&'a [u8]) -> IResult<&[u8], CompFieldList<T>>
 {
@@ -50,6 +50,7 @@ pub fn header_in_boundaries<'a, T>(bound: &'a [u8], fx: impl Fn(&'a [u8]) -> IRe
             map(foldable_line, CompField::Bad),
         )))), obs_crlf), CompFieldList)(input)
 }
+*/
 
 pub fn field_name<'a>(name: &'static [u8]) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], &'a [u8]> {
     move |input| {

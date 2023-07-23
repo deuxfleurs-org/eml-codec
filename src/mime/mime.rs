@@ -2,21 +2,28 @@ use crate::mime::mechanism::Mechanism;
 use crate::rfc5322::identification::MessageID;
 use crate::text::misc_token::Unstructured;
 use crate::mime::field::Content;
-use crate::mime::r#type::{AnyType, Multipart, Message, Text, Binary};
+use crate::mime::r#type::{AnyType, self as ctype}; //Multipart, Message, Text, Binary};
+                                                   //
+pub struct Multipart<'a>(pub ctype::Multipart, Generic<'a>);
+pub struct Message<'a>(pub ctype::Message, Generic<'a>);
+pub struct Text<'a>(pub ctype::Text, Generic<'a>);
+pub struct Binary<'a>(pub ctype::Binary, Generic<'a>);
 
 pub enum AnyMIME<'a> {
-    Multipart(Multipart, Generic<'a>),
-    Message(Message, Generic<'a>),
-    Text(Text, Generic<'a>),
-    Binary(Binary, Generic<'a>),
+    Mult(Multipart<'a>),
+    Msg(Message<'a>),
+    Txt(Text<'a>),
+    Bin(Binary<'a>),
 }
+
+
 impl<'a> AnyMIME<'a> {
     pub fn from_pair(at: AnyType, gen: Generic<'a>) -> Self {
         match at {
-            AnyType::Multipart(m) => AnyMIME::Multipart(m, gen),
-            AnyType::Message(m) => AnyMIME::Message(m, gen),
-            AnyType::Text(m) => AnyMIME::Text(m, gen),
-            AnyType::Binary(m) => AnyMIME::Binary(m, gen),
+            AnyType::Multipart(m) => AnyMIME::Mult(Multipart(m, gen)),
+            AnyType::Message(m) => AnyMIME::Msg(Message(m, gen)),
+            AnyType::Text(m) => AnyMIME::Txt(Text(m, gen)),
+            AnyType::Binary(m) => AnyMIME::Bin(Binary(m, gen)),
         }
     }
 }
