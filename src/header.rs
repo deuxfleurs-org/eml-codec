@@ -28,8 +28,8 @@ impl<'a, T> CompFieldList<'a, T> {
     }
 }
 
-pub fn header<'a, T>(fx: impl Fn(&'a [u8]) -> IResult<&[u8], T> + Copy) 
-    -> impl Fn(&'a [u8]) -> IResult<&[u8], CompFieldList<T>>
+pub fn header<'a, T>(fx: impl Fn(&'a [u8]) -> IResult<&'a [u8], T> + Copy) 
+    -> impl Fn(&'a [u8]) -> IResult<&'a [u8], CompFieldList<T>>
 {
     move |input| map(terminated(many0(alt((
         map(fx, CompField::Known),

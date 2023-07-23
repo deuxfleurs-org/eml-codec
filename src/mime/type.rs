@@ -68,7 +68,7 @@ impl<'a> From<&'a NaiveType<'a>> for AnyType {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Multipart {
     pub subtype: MultipartSubtype,
     pub boundary: String,
@@ -87,7 +87,7 @@ impl<'a> TryFrom<&'a NaiveType<'a>> for Multipart {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum MultipartSubtype {
     Alternative,
     Mixed,
@@ -109,7 +109,7 @@ impl<'a> From<&NaiveType<'a>> for MultipartSubtype {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Message {
     RFC822,
     Partial,
@@ -127,7 +127,7 @@ impl<'a> From<&NaiveType<'a>> for Message {
     }
 }
 
-#[derive(Debug, PartialEq, Default)]
+#[derive(Debug, PartialEq, Default, Clone)]
 pub struct Text {
     pub subtype: TextSubtype,
     pub charset: EmailCharset,
@@ -144,7 +144,7 @@ impl<'a> From<&NaiveType<'a>> for Text {
     }
 }
 
-#[derive(Debug, PartialEq, Default)]
+#[derive(Debug, PartialEq, Default, Clone)]
 pub enum TextSubtype {
     #[default]
     Plain,
@@ -161,7 +161,7 @@ impl<'a> From<&NaiveType<'a>> for TextSubtype {
     }
 }
 
-#[derive(Debug, PartialEq, Default)]
+#[derive(Debug, PartialEq, Default, Clone)]
 pub struct Binary {}
 
 #[cfg(test)]

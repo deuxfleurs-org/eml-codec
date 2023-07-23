@@ -12,7 +12,7 @@ use crate::text::whitespace::cfws;
 use crate::text::words::dot_atom_text;
 
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct MessageID<'a> {
     pub left: &'a [u8],
     pub right: &'a [u8],

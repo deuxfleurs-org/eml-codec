@@ -3,12 +3,20 @@ use crate::rfc5322::identification::MessageID;
 use crate::text::misc_token::Unstructured;
 use crate::mime::field::Content;
 use crate::mime::r#type::{AnyType, self as ctype}; //Multipart, Message, Text, Binary};
-                                                   //
+ 
+#[derive(Debug, PartialEq, Clone)]
 pub struct Multipart<'a>(pub ctype::Multipart, Generic<'a>);
+
+#[derive(Debug, PartialEq, Clone)]
 pub struct Message<'a>(pub ctype::Message, Generic<'a>);
+
+#[derive(Debug, PartialEq, Clone, Default)]
 pub struct Text<'a>(pub ctype::Text, Generic<'a>);
+
+#[derive(Debug, PartialEq, Clone)]
 pub struct Binary<'a>(pub ctype::Binary, Generic<'a>);
 
+#[derive(Debug, PartialEq, Clone)]
 pub enum AnyMIME<'a> {
     Mult(Multipart<'a>),
     Msg(Message<'a>),
@@ -47,7 +55,7 @@ impl<'a> FromIterator<Content<'a>> for AnyMIME<'a> {
     }
 }
 
-#[derive(Debug, PartialEq, Default)]
+#[derive(Debug, PartialEq, Default, Clone)]
 pub struct Generic<'a> {
     pub transfer_encoding: Mechanism<'a>,
     pub id: Option<MessageID<'a>>,

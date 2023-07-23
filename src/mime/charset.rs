@@ -7,7 +7,7 @@ use encoding_rs::Encoding;
 /// using encoding_rs datastructures directly would lead to a loss of information.
 /// https://www.iana.org/assignments/character-sets/character-sets.xhtml
 #[allow(non_camel_case_types)]
-#[derive(Debug, PartialEq, Default)]
+#[derive(Debug, PartialEq, Default, Clone)]
 pub enum EmailCharset {
     #[default]
     US_ASCII,

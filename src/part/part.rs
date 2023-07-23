@@ -1,22 +1,26 @@
 use nom::{
     IResult,
     branch::alt,
-    bytes::complete::{is_not, tag},
+    bytes::complete::{is_not},
     multi::many0,
-    sequence::{pair, preceded, tuple},
-    combinator::{not, opt, recognize},
+    sequence::{pair},
+    combinator::{map, not, recognize},
 };
 
-use crate::mime::r#type as ctype;
-use crate::mime::mime;
+use crate::mime;
+use crate::mime::mime::{AnyMIME};
 use crate::rfc5322::{self as imf};
+use crate::text::boundary::{Delimiter, boundary};
+use crate::text::whitespace::obs_crlf;
+use crate::text::ascii::CRLF;
+use crate::header::{header, CompFieldList};
 
-pub struct Multipart(pub mime::Multipart, pub Vec<Part<'a>>);
-pub struct Message(pub mime::Message, pub imf::message::Message, pub Part<'a>);
-pub struct Text(pub mime::Text, pub &'a [u8]);
-pub struct Binary(pub mime::Binary, pub &'a [u8]);
+pub struct Multipart<'a>(pub mime::mime::Multipart<'a>, pub Vec<AnyPart<'a>>);
+pub struct Message<'a>(pub mime::mime::Message<'a>, pub imf::message::Message<'a>, pub Box<AnyPart<'a>>);
+pub struct Text<'a>(pub mime::mime::Text<'a>, pub &'a [u8]);
+pub struct Binary<'a>(pub mime::mime::Binary<'a>, pub &'a [u8]);
 
-pub struct AnyPart<'a> {
+pub enum AnyPart<'a> {
     Mult(Multipart<'a>),
     Msg(Message<'a>),
     Txt(Text<'a>),
@@ -24,89 +28,107 @@ pub struct AnyPart<'a> {
 }
 
 pub enum MixedField<'a> {
-    MIME(mime::fields::Content<'a>),
-    IMF(rfc5322::fields::Field<'a>),
+    MIME(mime::field::Content<'a>),
+    IMF(imf::field::Field<'a>),
 }
 impl<'a> MixedField<'a> {
-    pub fn mime(&self) -> Option<&mime::fields::Content<'a>> {
+    pub fn mime(&self) -> Option<&mime::field::Content<'a>> {
         match self {
-            MIME(v) => Some(v),
+            Self::MIME(v) => Some(v),
             _ => None,
         }
     }
-    pub fn imf(&self) -> Option<&rfc5322::fields::Field<'a>> {
+    pub fn to_mime(self) -> Option<mime::field::Content<'a>> {
         match self {
-            IMF(v) => Some(v),
+            Self::MIME(v) => Some(v),
+            _ => None,
+        }
+    }
+    pub fn imf(&self) -> Option<&imf::field::Field<'a>> {
+        match self {
+            Self::IMF(v) => Some(v),
+            _ => None,
+        }
+    }
+    pub fn to_imf(self) -> Option<imf::field::Field<'a>> {
+        match self {
+            Self::IMF(v) => Some(v),
             _ => None,
         }
     }
 }
-impl<'a, MixedField> CompFieldList<'a, MixedField> {
+impl<'a> CompFieldList<'a, MixedField<'a>> {
     pub fn sections(self) -> (mime::mime::AnyMIME<'a>, imf::message::Message<'a>) {
         let k = self.known();
-        let mime = k.iter().map(MixedField::mime).flatten().collect::<mime::mime::AnyMIME>();
-        let imf = k.iter().map(MixedField::imf).flatten().collect::<imf::message::Message>();
+        let (v1, v2): (Vec<MixedField>, Vec<MixedField>) = k.into_iter().partition(|v| v.mime().is_some());
+        let mime = v1.into_iter().map(|v| v.to_mime()).flatten().collect::<mime::mime::AnyMIME>();
+        let imf = v2.into_iter().map(|v| v.to_imf()).flatten().collect::<imf::message::Message>();
         (mime, imf)
     }
 }
 pub fn mixed_field(input: &[u8]) -> IResult<&[u8], MixedField> {
     alt((
-        map(mime::fields::content, MixedField::MIME),
-        map(rfc5322::fields::field, MixedField::IMF),
+        map(mime::field::content, MixedField::MIME),
+        map(imf::field::field, MixedField::IMF),
     ))(input)
 }
 
-pub fn message<'a>(m: mime::Message<'a>) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], Message<'a>> {
+pub fn message<'a>(m: mime::mime::Message<'a>) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], Message<'a>> {
     move |input: &[u8]| {
         let (input, fields) = header(mixed_field)(input)?;
         let (in_mime, imf) = fields.sections();
 
         let part = to_anypart(in_mime, input);
 
-        Ok((&b[], Message(m, imf, part)))
+        Ok((&[], Message(m.clone(), imf, Box::new(part))))
     }
 }
 
-pub fn multipart<'a>(m: mime::Multipart<'a>) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], Multipart<'a>> {
-    move |input: &[u8]| {
-        let (mut input_loop, _) = part_raw(m.ctype.boundary)(input)?;
+pub fn multipart<'a>(m: mime::mime::Multipart<'a>) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], Multipart<'a>> {
+    let m = m.clone();
+
+    move |input| {
+        let bound = m.0.boundary.as_bytes();
+        let (mut input_loop, _) = part_raw(bound)(input)?;
         let mut mparts: Vec<AnyPart> = vec![];
         loop {
-            let input = match boundary(m.ctype.boundary)(input_loop) {
-                Err(_) => return Ok((input_loop, Multipart(m, mparts))),
-                Ok((inp, Delimiter::Last)) => return Ok((inp, Multipart(m, mparts))),
+            let input = match boundary(bound)(input_loop) {
+                Err(_) => return Ok((input_loop, Multipart(m.clone(), mparts))),
+                Ok((inp, Delimiter::Last)) => return Ok((inp, Multipart(m.clone(), mparts))),
                 Ok((inp, Delimiter::Next)) => inp,
             };
 
             // parse mime headers
-            let (input, fields) = header(content)(input)?;
+            let (input, fields) = header(mime::field::content)(input)?;
             let mime = fields.to_mime();
 
             // parse raw part
-            let (input, rpart) = part_raw(ctype.boundary.as_bytes())(input)?;
+            let (input, rpart) = part_raw(bound)(input)?;
 
             // parse mime body
-            mparts.push(to_anypart(mime, rpart);
+            mparts.push(to_anypart(mime, rpart));
 
             input_loop = input;
         }
     }
 }
 
-pub fn to_anypart(m: AnyMIME<'a>, rpart: &[u8]) -> AnyPart<'a> {
-    match mime {
+pub fn to_anypart<'a>(m: AnyMIME<'a>, rpart: &'a [u8]) -> AnyPart<'a> {
+    match m {
         AnyMIME::Mult(a) => map(multipart(a), AnyPart::Mult)(rpart)
-                                .unwrap_or(AnyPart::Text(Text::default(), rpart)),
+                                .map(|v| v.1)
+                                .unwrap_or(AnyPart::Txt(Text(mime::mime::Text::default(), rpart))),
         AnyMIME::Msg(a) => map(message(a), AnyPart::Msg)(rpart)
-                                .unwrap_or(AnyPart::Text(Text::default(), rpart)),
+                                .map(|v| v.1)
+                                .unwrap_or(AnyPart::Txt(Text(mime::mime::Text::default(), rpart))),
         AnyMIME::Txt(a) => AnyPart::Txt(Text(a, rpart)),
         AnyMIME::Bin(a) => AnyPart::Bin(Binary(a, rpart)),
     }
 }
 
 
-pub fn part_raw<'a>(bound: &'a [u8]) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], &'a [u8]> {
-    move |input: &[u8]| {
+pub fn part_raw<'a>(bound: &[u8]) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], &'a [u8]> + '_ {
+    move |input| {
         recognize(many0(pair(
             not(boundary(bound)),
             alt((is_not(CRLF), obs_crlf)),

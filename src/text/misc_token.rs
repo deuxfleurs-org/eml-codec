@@ -105,7 +105,7 @@ fn is_unstructured(c: u8) -> bool {
     is_vchar(c) || is_obs_no_ws_ctl(c) || c == ascii::NULL
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum UnstrToken<'a> {
     Init,
     Encoded(encoding::EncodedWord<'a>),
@@ -122,7 +122,7 @@ impl<'a> UnstrToken<'a> {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Unstructured<'a>(pub Vec<UnstrToken<'a>>);
 
 impl<'a> Unstructured<'a> {

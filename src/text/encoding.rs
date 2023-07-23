@@ -43,7 +43,7 @@ pub fn encoded_word_base64(input: &[u8]) -> IResult<&[u8], EncodedWord> {
     Ok((rest, parsed))
 }
 
-#[derive(PartialEq,Debug)]
+#[derive(PartialEq,Debug, Clone)]
 pub enum EncodedWord<'a> {
     Quoted(QuotedWord<'a>),
     Base64(Base64Word<'a>),
@@ -57,7 +57,7 @@ impl<'a> EncodedWord<'a> {
     }
 }
 
-#[derive(PartialEq,Debug)]
+#[derive(PartialEq,Debug,Clone)]
 pub struct Base64Word<'a> {
     pub enc: &'static Encoding,
     pub content: &'a [u8],
@@ -72,7 +72,7 @@ impl<'a> Base64Word<'a> {
     }
 }
 
-#[derive(PartialEq,Debug)]
+#[derive(PartialEq,Debug,Clone)]
 pub struct QuotedWord<'a> {
     pub enc: &'static Encoding,
     pub chunks: Vec<QuotedChunk<'a>>,
@@ -100,7 +100,7 @@ impl<'a> QuotedWord<'a> {
     }
 }
 
-#[derive(PartialEq,Debug)]
+#[derive(PartialEq,Debug,Clone)]
 pub enum QuotedChunk<'a> {
     Safe(&'a [u8]),
     Encoded(u8),

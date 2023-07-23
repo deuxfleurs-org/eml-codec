@@ -13,7 +13,7 @@ pub enum Delimiter {
     Last
 }
 
-pub fn boundary<'a>(boundary: &'a [u8]) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], Delimiter> {
+pub fn boundary<'a>(boundary: &[u8]) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], Delimiter> + '_ {
     move |input: &[u8]| {
         let (rest, (_, _, _, last, _)) = tuple((opt(obs_crlf), tag(b"--"), tag(boundary), opt(tag(b"--")), opt(obs_crlf)))(input)?;
         match last {
