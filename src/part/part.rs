@@ -62,6 +62,7 @@ pub enum MixedField<'a> {
     MIME(mime::field::Content<'a>),
     IMF(imf::field::Field<'a>),
 }
+#[allow(dead_code)]
 impl<'a> MixedField<'a> {
     pub fn mime(&self) -> Option<&mime::field::Content<'a>> {
         match self {

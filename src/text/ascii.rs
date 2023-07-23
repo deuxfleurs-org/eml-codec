@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 // ASCII
 // -- CONTROL CHARACTERS
 pub const NULL: u8 = 0x00; // NULL

@@ -20,6 +20,7 @@ pub enum Content<'a> {
     ID(MessageID<'a>),
     Description(Unstructured<'a>),
 }
+#[allow(dead_code)]
 impl<'a> Content<'a> {
     pub fn ctype(&'a self) -> Option<&'a NaiveType<'a>> {
         match self {

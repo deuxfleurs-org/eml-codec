@@ -90,6 +90,7 @@ pub fn dot_atom_text(input: &[u8]) -> IResult<&[u8], &[u8]> {
 /// dot-atom
 ///
 /// `[CFWS] dot-atom-text [CFWS]`
+#[allow(dead_code)]
 pub fn dot_atom(input: &[u8]) -> IResult<&[u8], &[u8]> {
     delimited(opt(cfws), dot_atom_text, opt(cfws))(input)
 }

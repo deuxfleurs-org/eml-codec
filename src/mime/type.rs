@@ -1,5 +1,5 @@
 use nom::{
-    bytes::complete::{is_not, tag},
+    bytes::complete::{tag},
     combinator::{map, opt},
     multi::many0,
     sequence::{preceded, terminated, tuple},
@@ -9,7 +9,6 @@ use nom::{
 use crate::mime::charset::EmailCharset;
 use crate::text::misc_token::{mime_word, MIMEWord};
 use crate::text::words::mime_atom;
-use crate::text::ascii;
 
 // --------- NAIVE TYPE
 #[derive(Debug, PartialEq)]
