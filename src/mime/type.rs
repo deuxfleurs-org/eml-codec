@@ -109,8 +109,9 @@ impl<'a> From<&NaiveType<'a>> for MultipartSubtype {
     }
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Default, Clone)]
 pub enum Message {
+    #[default]
     RFC822,
     Partial,
     External,

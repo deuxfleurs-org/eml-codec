@@ -7,7 +7,7 @@ use crate::mime::r#type::{AnyType, self as ctype}; //Multipart, Message, Text, B
 #[derive(Debug, PartialEq, Clone)]
 pub struct Multipart<'a>(pub ctype::Multipart, pub Generic<'a>);
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Default)]
 pub struct Message<'a>(pub ctype::Message, pub Generic<'a>);
 
 #[derive(Debug, PartialEq, Clone, Default)]

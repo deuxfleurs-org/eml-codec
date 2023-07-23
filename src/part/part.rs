@@ -144,21 +144,12 @@ pub fn part_raw<'a>(bound: &[u8]) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], &'a 
     }
 }
 
-/*
-pub fn preamble<'a>(bound: &'a [u8]) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], &'a [u8]> {
-    move |input: &[u8]| {
-        recognize(many0(tuple((
-            is_not(CRLF), 
-            many0(pair(not(boundary(bound)), obs_crlf)),
-        ))))(input)
-    }
-}*/
-
-// FIXME parse email here
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::{FixedOffset, TimeZone};
+    use crate::text::misc_token::{Word, Phrase, Unstructured, UnstrToken};
+    use crate::text::encoding::{EncodedWord, QuotedChunk, Base64Word, QuotedWord};
 
     #[test]
     fn test_preamble() {
@@ -252,6 +243,171 @@ This is the epilogue. It is also to be ignored.
                             &b"This is explicitly typed plain US-ASCII text.\nIt DOES end with a linebreak.\n"[..],
                         )),
                     ],
+                ),
+            ))
+        );
+    }
+
+    #[test]
+    fn test_message() {
+        let fullmail: &[u8] = r#"Date: Sat, 8 Jul 2023 07:14:29 +0200
+From: Grrrnd Zero <grrrndzero@example.org>
+To: John Doe <jdoe@machine.example>
+CC: =?ISO-8859-1?Q?Andr=E9?= Pirard <PIRARD@vm1.ulg.ac.be>
+Subject: =?ISO-8859-1?B?SWYgeW91IGNhbiByZWFkIHRoaXMgeW8=?=
+    =?ISO-8859-2?B?dSB1bmRlcnN0YW5kIHRoZSBleGFtcGxlLg==?=
+X-Unknown: something something
+Bad entry
+  on multiple lines
+Message-ID: <NTAxNzA2AC47634Y366BAMTY4ODc5MzQyODY0ODY5@www.grrrndzero.org>
+MIME-Version: 1.0
+Content-Type: multipart/alternative;
+ boundary="b1_e376dc71bafc953c0b0fdeb9983a9956"
+Content-Transfer-Encoding: 7bit
+
+This is a multi-part message in MIME format.
+
+--b1_e376dc71bafc953c0b0fdeb9983a9956
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: quoted-printable
+
+GZ
+OoOoO
+oOoOoOoOo
+oOoOoOoOoOoOoOoOo
+oOoOoOoOoOoOoOoOoOoOoOo
+oOoOoOoOoOoOoOoOoOoOoOoOoOoOo
+OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO
+
+--b1_e376dc71bafc953c0b0fdeb9983a9956
+Content-Type: text/html; charset=us-ascii
+
+<div style="text-align: center;"><strong>GZ</strong><br />
+OoOoO<br />
+oOoOoOoOo<br />
+oOoOoOoOoOoOoOoOo<br />
+oOoOoOoOoOoOoOoOoOoOoOo<br />
+oOoOoOoOoOoOoOoOoOoOoOoOoOoOo<br />
+OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
+</div>
+
+--b1_e376dc71bafc953c0b0fdeb9983a9956--
+"#.as_bytes();
+
+        let base_mime = mime::mime::Message::default();
+        assert_eq!(
+            message(base_mime.clone())(fullmail),
+            Ok((
+                &[][..],
+                Message (
+                    base_mime,
+                    imf::message::Message {
+                        date: Some(FixedOffset::east_opt(2 * 3600)
+                            .unwrap()
+                            .with_ymd_and_hms(2023, 07, 8, 7, 14, 29)
+                            .unwrap()),
+                        from: vec![
+                            imf::mailbox::MailboxRef {
+                                name: Some(Phrase(vec![Word::Atom(&b"Grrrnd"[..]), Word::Atom(&b"Zero"[..])])),
+                                addrspec: imf::mailbox::AddrSpec {
+                                    local_part: imf::mailbox::LocalPart(vec![
+                                        imf::mailbox::LocalPartToken::Word(Word::Atom(&b"grrrndzero"[..]))
+                                    ]),
+                                    domain: imf::mailbox::Domain::Atoms(vec![&b"example"[..], &b"org"[..]]),
+                                }
+                            },
+                        ],
+
+                        to: vec![imf::address::AddressRef::Single(imf::mailbox::MailboxRef {
+                                name: Some(Phrase(vec![Word::Atom(&b"John"[..]), Word::Atom(&b"Doe"[..])])),
+                                addrspec: imf::mailbox::AddrSpec {
+                                    local_part: imf::mailbox::LocalPart(vec![
+                                        imf::mailbox::LocalPartToken::Word(Word::Atom(&b"jdoe"[..]))
+                                    ]),
+                                    domain: imf::mailbox::Domain::Atoms(vec![&b"machine"[..], &b"example"[..]]),
+                                }
+                         })],
+
+                        cc: vec![imf::address::AddressRef::Single(imf::mailbox::MailboxRef {
+                            name: Some(Phrase(vec![
+                                Word::Encoded(EncodedWord::Quoted(QuotedWord {
+                                    enc: encoding_rs::WINDOWS_1252,
+                                    chunks: vec![
+                                        QuotedChunk::Safe(&b"Andr"[..]),
+                                        QuotedChunk::Encoded(0xE9),
+                                    ],
+                                })),
+                                Word::Atom(&b"Pirard"[..])
+                            ])),
+                            addrspec: imf::mailbox::AddrSpec {
+                                local_part: imf::mailbox::LocalPart(vec![
+                                    imf::mailbox::LocalPartToken::Word(Word::Atom(&b"PIRARD"[..]))
+                                ]),
+                                domain: imf::mailbox::Domain::Atoms(vec![
+                                    &b"vm1"[..], &b"ulg"[..], &b"ac"[..], &b"be"[..],
+                                ]),
+                            }
+                        })],
+
+                        subject: Some(Unstructured(vec![
+                            UnstrToken::Encoded(EncodedWord::Base64(Base64Word{
+                                enc: encoding_rs::WINDOWS_1252,
+                                content: &b"SWYgeW91IGNhbiByZWFkIHRoaXMgeW8"[..],
+                            })), 
+                            UnstrToken::Encoded(EncodedWord::Base64(Base64Word{
+                                enc: encoding_rs::ISO_8859_2,
+                                content: &b"dSB1bmRlcnN0YW5kIHRoZSBleGFtcGxlLg"[..],
+                            })),
+                        ])),
+                        msg_id: Some(imf::identification::MessageID {
+                            left: &b"NTAxNzA2AC47634Y366BAMTY4ODc5MzQyODY0ODY5"[..],
+                            right: &b"www.grrrndzero.org"[..],
+                        }),
+                        mime_version: Some(imf::mime::Version { major: 1, minor: 0}),
+                        ..imf::message::Message::default()
+                    },
+                    Box::new(AnyPart::Mult(Multipart (
+                        mime::mime::Multipart(
+                            mime::r#type::Multipart {
+                                subtype: mime::r#type::MultipartSubtype::Alternative,
+                                boundary: "b1_e376dc71bafc953c0b0fdeb9983a9956".to_string(),
+                            },
+                            mime::mime::Generic::default(),
+                        ),
+                        vec![
+                            AnyPart::Txt(Text(
+                                mime::mime::Text(
+                                    mime::r#type::Text {
+                                        subtype: mime::r#type::TextSubtype::Plain,
+                                        charset: mime::charset::EmailCharset::UTF_8,
+                                    },
+                                    mime::mime::Generic {
+                                        transfer_encoding: mime::mechanism::Mechanism::QuotedPrintable,
+                                        ..mime::mime::Generic::default()
+                                    }
+                                ),
+                                &b"GZ\nOoOoO\noOoOoOoOo\noOoOoOoOoOoOoOoOo\noOoOoOoOoOoOoOoOoOoOoOo\noOoOoOoOoOoOoOoOoOoOoOoOoOoOo\nOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO\n"[..],
+                            )), 
+                            AnyPart::Txt(Text(
+                                mime::mime::Text(
+                                    mime::r#type::Text {
+                                        subtype: mime::r#type::TextSubtype::Html,
+                                        charset: mime::charset::EmailCharset::US_ASCII,
+                                    },
+                                    mime::mime::Generic::default(),
+                                ),
+                                &br#"<div style="text-align: center;"><strong>GZ</strong><br />
+OoOoO<br />
+oOoOoOoOo<br />
+oOoOoOoOoOoOoOoOo<br />
+oOoOoOoOoOoOoOoOoOoOoOo<br />
+oOoOoOoOoOoOoOoOoOoOoOoOoOoOo<br />
+OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
+</div>
+"#[..],
+                            )), 
+                        ],
+                    ))),
                 ),
             ))
         );
