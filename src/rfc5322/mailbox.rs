@@ -1,3 +1,4 @@
+use std::fmt;
 use nom::{
     branch::alt,
     bytes::complete::{tag, take_while1},
@@ -12,18 +13,23 @@ use crate::text::misc_token::{phrase, word, Phrase, Word};
 use crate::text::whitespace::{cfws, fws, is_obs_no_ws_ctl};
 use crate::text::words::atom;
 
-#[derive(Debug, PartialEq)]
+#[derive(PartialEq)]
 pub struct AddrSpec<'a> {
     pub local_part: LocalPart<'a>,
     pub domain: Domain<'a>,
 }
-impl<'a> AddrSpec<'a> {
-    pub fn to_string(&self) -> String {
+impl<'a> ToString for AddrSpec<'a> {
+    fn to_string(&self) -> String {
         format!(
             "{}@{}",
             self.local_part.to_string(),
             self.domain.to_string()
         )
+    }
+}
+impl<'a> fmt::Debug for AddrSpec<'a> {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt.debug_tuple("AddrSpec").field(&format_args!("\"{}\"", self.to_string())).finish()
     }
 }
 
@@ -33,8 +39,8 @@ pub struct MailboxRef<'a> {
     pub addrspec: AddrSpec<'a>,
     pub name: Option<Phrase<'a>>,
 }
-impl<'a> MailboxRef<'a> {
-    pub fn to_string(&self) -> String {
+impl<'a> ToString for MailboxRef<'a> {
+    fn to_string(&self) -> String {
         match &self.name {
             Some(n) => format!("{} <{}>", n.to_string(), self.addrspec.to_string()),
             None => self.addrspec.to_string(),
@@ -166,14 +172,14 @@ fn obs_local_part(input: &[u8]) -> IResult<&[u8], LocalPart> {
     )(input)
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(PartialEq)]
 pub enum Domain<'a> {
     Atoms(Vec<&'a [u8]>),
     Litteral(Vec<&'a [u8]>),
 }
 
-impl<'a> Domain<'a> {
-    pub fn to_string(&self) -> String {
+impl<'a> ToString for Domain<'a> {
+    fn to_string(&self) -> String {
         match self {
             Domain::Atoms(v) => v
                 .iter()
@@ -199,6 +205,11 @@ impl<'a> Domain<'a> {
                 format!("[{}]", inner)
             }
         }
+    }
+}
+impl<'a> fmt::Debug for Domain<'a> {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt.debug_tuple("Domain").field(&format_args!("\"{}\"", self.to_string())).finish()
     }
 }
 

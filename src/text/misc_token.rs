@@ -1,3 +1,4 @@
+use std::fmt;
 use nom::{
     branch::alt,
     bytes::complete::{tag, take_while1},
@@ -50,15 +51,15 @@ pub fn mime_word(input: &[u8]) -> IResult<&[u8], MIMEWord> {
     ))(input)
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(PartialEq)]
 pub enum Word<'a> {
     Quoted(QuotedString<'a>),
     Encoded(encoding::EncodedWord<'a>),
     Atom(&'a [u8]),
 }
 
-impl<'a> Word<'a> {
-    pub fn to_string(&self) -> String {
+impl<'a> ToString for Word<'a> {
+    fn to_string(&self) -> String {
         match self {
             Word::Quoted(v) => v.to_string(),
             Word::Encoded(v) => v.to_string(),
@@ -67,6 +68,11 @@ impl<'a> Word<'a> {
                 .0
                 .to_string(),
         }
+    }
+}
+impl<'a> fmt::Debug for Word<'a> {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt.debug_tuple("Word").field(&format_args!("\"{}\"", self.to_string())).finish()
     }
 }
 
@@ -83,16 +89,21 @@ pub fn word(input: &[u8]) -> IResult<&[u8], Word> {
     ))(input)
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(PartialEq)]
 pub struct Phrase<'a>(pub Vec<Word<'a>>);
 
-impl<'a> Phrase<'a> {
-    pub fn to_string(&self) -> String {
+impl<'a> ToString for Phrase<'a> {
+    fn to_string(&self) -> String {
         self.0
             .iter()
             .map(|v| v.to_string())
             .collect::<Vec<String>>()
             .join(" ")
+    }
+}
+impl<'a> fmt::Debug for Phrase<'a> {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt.debug_tuple("Phrase").field(&format_args!("\"{}\"", self.to_string())).finish()
     }
 }
 
@@ -122,8 +133,8 @@ pub enum UnstrToken<'a> {
     Plain(&'a [u8]),
 }
 
-impl<'a> UnstrToken<'a> {
-    pub fn to_string(&self) -> String {
+impl<'a> ToString for UnstrToken<'a> {
+    fn to_string(&self) -> String {
         match self {
             UnstrToken::Init => "".into(),
             UnstrToken::Encoded(e) => e.to_string(),
@@ -135,11 +146,11 @@ impl<'a> UnstrToken<'a> {
     }
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(PartialEq, Clone)]
 pub struct Unstructured<'a>(pub Vec<UnstrToken<'a>>);
 
-impl<'a> Unstructured<'a> {
-    pub fn to_string(&self) -> String {
+impl<'a> ToString for Unstructured<'a> {
+    fn to_string(&self) -> String {
         self.0
             .iter()
             .fold(
@@ -160,6 +171,11 @@ impl<'a> Unstructured<'a> {
                 },
             )
             .1
+    }
+}
+impl<'a> fmt::Debug for Unstructured<'a> {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt.debug_tuple("Unstructured").field(&format_args!("\"{}\"", self.to_string())).finish()
     }
 }
 

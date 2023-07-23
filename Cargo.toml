@@ -1,5 +1,5 @@
 [package]
-name = "imf-codec"
+name = "eml-codec"
 version = "0.1.0"
 edition = "2021"
 license = "GPL-3.0-or-later"
@@ -7,20 +7,19 @@ license = "GPL-3.0-or-later"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [lib]
-name = "imf_codec"
+name = "eml_codec"
 path = "src/lib.rs"
 
 
 [[bin]]
-name = "imf_parse"
+name = "eml_parse"
 path = "src/parse.rs"
 
 [dependencies]
 nom = "7"
 chrono = "0.4"
-chardetng = "0.1"
-encoding_rs = "0.8"
 base64 = "0.21"
+encoding_rs = "0.8"
 
 [dev-dependencies]
 walkdir = "2"
