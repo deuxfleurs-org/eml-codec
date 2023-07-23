@@ -1,21 +1,18 @@
-pub mod error;
-pub mod text;
-pub mod header;
-pub mod rfc5322;
-pub mod mime;
-pub mod part;
+mod error;
+mod text;
+mod header;
+mod rfc5322;
+mod mime;
+mod part;
 
-/*
-use crate::part;
-use crate::mime;
-use crate::rfc5322 as imf;
-use crate::header;
-
-pub fn email(input: &[u8]) -> Result<part::part::Message> {
-    message(mime::mime::Message::default())(input).map(|(_, v)| v)
+pub fn email(input: &[u8]) -> Result<part::part::Message, error::EMLError> {
+    part::part::message(mime::mime::Message::default())(input)
+        .map(|(_, v)| v)
+        .map_err(error::EMLError::ParseError)
 }
 
-pub fn imf(input: &[u8]) -> Result<imf::message::Message> {
-    header::header(imf::field::field)
-    map(header(field), |v| FieldList(v.known()).message())(fullmail)
-}*/
+pub fn imf(input: &[u8]) -> Result<rfc5322::message::Message, error::EMLError> {
+    rfc5322::field::message(input)
+        .map(|(_, v)| v)
+        .map_err(error::EMLError::ParseError)
+}
