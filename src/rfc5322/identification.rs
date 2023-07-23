@@ -1,3 +1,4 @@
+use std::fmt;
 use nom::{
     branch::alt,
     bytes::complete::{tag, take_while},
@@ -11,12 +12,23 @@ use crate::rfc5322::mailbox::is_dtext;
 use crate::text::whitespace::cfws;
 use crate::text::words::dot_atom_text;
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(PartialEq, Clone)]
 pub struct MessageID<'a> {
     pub left: &'a [u8],
     pub right: &'a [u8],
 }
+impl<'a> ToString for MessageID<'a> {
+    fn to_string(&self) -> String {
+        format!("{}@{}", String::from_utf8_lossy(self.left), String::from_utf8_lossy(self.right))
+    }
+}
+impl<'a> fmt::Debug for MessageID<'a> {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt.debug_tuple("MessageID").field(&format_args!("\"{}\"", self.to_string())).finish()
+    }
+}
 pub type MessageIDList<'a> = Vec<MessageID<'a>>;
+
 
 /// Message identifier
 ///
