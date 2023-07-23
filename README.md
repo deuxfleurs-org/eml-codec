@@ -1,7 +1,11 @@
-# imf-codec
+# eml-codec
 
-**Work in progress, do not use in production**
-**This is currently only a decoder (parser), encoding is not supported.**
+**⚠️ Work in progress, do not use in production**  
+**⚠️ This is currently only a decoder (parser), encoding is not yet implemented.**
+
+## About the name
+
+This library does not aim at implementing a specific RFC, but to be a swiss-army knife to decode and encode ("codec") what is generaly considered an email (generally abbreviated "eml"), hence the name: **eml-codec**.
 
 ## Goals
 
@@ -29,7 +33,7 @@ Current known limitations/bugs:
 
 ## Design
 
-*Todo*
+Speak about parser combinators.
 
 ## Testing strategy
 
@@ -104,6 +108,7 @@ IANA references :
  - (tbd) MIME subtypes
  - [IANA character sets](https://www.iana.org/assignments/character-sets/character-sets.xhtml)
 
-## Alternatives
+## State of the art / alternatives
 
 `stalwartlab/mail_parser`
+
