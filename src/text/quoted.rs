@@ -1,14 +1,14 @@
 use nom::{
     branch::alt,
-    bytes::complete::{take_while1, take, tag},
-    combinator::{opt},
+    bytes::complete::{tag, take, take_while1},
+    combinator::opt,
     multi::many0,
     sequence::{pair, preceded},
     IResult,
 };
 
-use crate::text::whitespace::{cfws, fws, is_obs_no_ws_ctl};
 use crate::text::ascii;
+use crate::text::whitespace::{cfws, fws, is_obs_no_ws_ctl};
 
 #[derive(Debug, PartialEq, Default)]
 pub struct QuotedString<'a>(pub Vec<&'a [u8]>);
@@ -22,14 +22,13 @@ impl<'a> QuotedString<'a> {
         let enc = encoding_rs::UTF_8;
         let size = self.0.iter().fold(0, |acc, v| acc + v.len());
 
-        self.0.iter().fold(
-            String::with_capacity(size),
-            |mut acc, v| {
+        self.0
+            .iter()
+            .fold(String::with_capacity(size), |mut acc, v| {
                 let (content, _) = enc.decode_without_bom_handling(v);
                 acc.push_str(content.as_ref());
                 acc
-            },
-        )
+            })
     }
 }
 
@@ -43,8 +42,6 @@ pub fn quoted_pair(input: &[u8]) -> IResult<&[u8], &[u8]> {
     preceded(tag(&[ascii::BACKSLASH]), take(1usize))(input)
 }
 
-
-
 /// Allowed characters in quote
 ///
 /// ```abnf
@@ -54,7 +51,9 @@ pub fn quoted_pair(input: &[u8]) -> IResult<&[u8], &[u8]> {
 ///                       obs-qtext
 /// ```
 fn is_restr_qtext(c: u8) -> bool {
-    c == ascii::EXCLAMATION || (c >= ascii::NUM && c <= ascii::LEFT_BRACKET) || (c >= ascii::RIGHT_BRACKET && c <= ascii::TILDE)
+    c == ascii::EXCLAMATION
+        || (c >= ascii::NUM && c <= ascii::LEFT_BRACKET)
+        || (c >= ascii::RIGHT_BRACKET && c <= ascii::TILDE)
 }
 
 fn is_qtext(c: u8) -> bool {
@@ -116,7 +115,10 @@ mod tests {
 
         assert_eq!(
             quoted_string(b"\"hello\r\n world\""),
-            Ok((&b""[..], QuotedString(vec![b"hello", &[ascii::SP], b"world"]))),
+            Ok((
+                &b""[..],
+                QuotedString(vec![b"hello", &[ascii::SP], b"world"])
+            )),
         );
     }
 

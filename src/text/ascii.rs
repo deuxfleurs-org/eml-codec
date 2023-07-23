@@ -4,7 +4,7 @@ pub const NULL: u8 = 0x00; // NULL
 pub const SOH: u8 = 0x01; // START OF HEADER
 pub const STX: u8 = 0x02; // START OF TEXT
 pub const ETX: u8 = 0x03; // END OF TEXT
-pub const EOT: u8 = 0x04; // 
+pub const EOT: u8 = 0x04; //
 pub const ANQ: u8 = 0x05;
 pub const ACK: u8 = 0x06;
 pub const BEL: u8 = 0x07;
@@ -20,7 +20,7 @@ pub const DLE: u8 = 0x10;
 pub const DC1: u8 = 0x11;
 pub const DC2: u8 = 0x12;
 pub const DC3: u8 = 0x13;
-pub const DC4 : u8 = 0x14;
+pub const DC4: u8 = 0x14;
 pub const NAK: u8 = 0x15;
 pub const SYN: u8 = 0x16;
 pub const ETB: u8 = 0x17;
@@ -36,7 +36,7 @@ pub const DEL: u8 = 0x7F;
 
 // --  GRAPHIC CHARACTERS
 pub const SP: u8 = 0x20; // space
-pub const EXCLAMATION: u8 = 0x21; // ! 
+pub const EXCLAMATION: u8 = 0x21; // !
 pub const DQUOTE: u8 = 0x22; // "
 pub const NUM: u8 = 0x23; // #
 pub const DOLLAR: u8 = 0x24; // $

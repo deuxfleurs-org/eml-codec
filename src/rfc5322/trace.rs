@@ -1,21 +1,21 @@
+use chrono::{DateTime, FixedOffset};
 use nom::{
     branch::alt,
     bytes::complete::{is_a, tag},
-    combinator::{map, opt, not},
+    combinator::{map, not, opt},
     multi::many0,
-    sequence::{tuple, terminated},
+    sequence::{terminated, tuple},
     IResult,
 };
-use chrono::{DateTime, FixedOffset};
 
 use crate::rfc5322::{datetime, mailbox};
-use crate::text::{ascii, whitespace, misc_token };
+use crate::text::{ascii, misc_token, whitespace};
 
 #[derive(Debug, PartialEq)]
 pub enum ReceivedLogToken<'a> {
     Addr(mailbox::AddrSpec<'a>),
     Domain(mailbox::Domain<'a>),
-    Word(misc_token::Word<'a>)
+    Word(misc_token::Word<'a>),
 }
 
 #[derive(Debug, PartialEq)]
@@ -37,12 +37,11 @@ impl<'a> TryFrom<&'a lazy::ReceivedLog<'a>> for ReceivedLog<'a> {
 
 pub fn received_log(input: &[u8]) -> IResult<&[u8], ReceivedLog> {
     map(
-        tuple((
-            many0(received_tokens),
-            tag(";"),
-            datetime::section,
-        )),
-        |(tokens, _, dt)| ReceivedLog { log: tokens, date: dt } ,
+        tuple((many0(received_tokens), tag(";"), datetime::section)),
+        |(tokens, _, dt)| ReceivedLog {
+            log: tokens,
+            date: dt,
+        },
     )(input)
 }
 
@@ -63,7 +62,10 @@ fn empty_path(input: &[u8]) -> IResult<&[u8], Option<mailbox::AddrSpec>> {
 
 fn received_tokens(input: &[u8]) -> IResult<&[u8], ReceivedLogToken> {
     alt((
-        terminated(map(misc_token::word, |x| ReceivedLogToken::Word(x)), not(is_a([ascii::PERIOD, ascii::AT]))),
+        terminated(
+            map(misc_token::word, |x| ReceivedLogToken::Word(x)),
+            not(is_a([ascii::PERIOD, ascii::AT])),
+        ),
         map(mailbox::angle_addr, |x| ReceivedLogToken::Addr(x)),
         map(mailbox::addr_spec, |x| ReceivedLogToken::Addr(x)),
         map(mailbox::obs_domain, |x| ReceivedLogToken::Domain(x)),
@@ -73,8 +75,8 @@ fn received_tokens(input: &[u8]) -> IResult<&[u8], ReceivedLogToken> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::TimeZone;
     use crate::rfc5322::trace::misc_token::Word;
+    use chrono::TimeZone;
 
     #[test]
     fn test_received_body() {
@@ -82,17 +84,27 @@ mod tests {
     by server with LMTP
     id xxxxxxxxx
     (envelope-from <gitlab@example.com>)
-    for <me@example.com>; Tue, 13 Jun 2023 19:01:08 +0000"#.as_bytes();
+    for <me@example.com>; Tue, 13 Jun 2023 19:01:08 +0000"#
+            .as_bytes();
 
         assert_eq!(
             received_log(hdrs),
             Ok((
                 &b""[..],
                 ReceivedLog {
-                    date: Some(FixedOffset::east_opt(0).unwrap().with_ymd_and_hms(2023, 06, 13, 19, 1, 8).unwrap()),
+                    date: Some(
+                        FixedOffset::east_opt(0)
+                            .unwrap()
+                            .with_ymd_and_hms(2023, 06, 13, 19, 1, 8)
+                            .unwrap()
+                    ),
                     log: vec![
                         ReceivedLogToken::Word(Word::Atom(&b"from"[..])),
-                        ReceivedLogToken::Domain(mailbox::Domain::Atoms(vec![&b"smtp"[..], &b"example"[..], &b"com"[..]])),
+                        ReceivedLogToken::Domain(mailbox::Domain::Atoms(vec![
+                            &b"smtp"[..],
+                            &b"example"[..],
+                            &b"com"[..]
+                        ])),
                         ReceivedLogToken::Word(Word::Atom(&b"by"[..])),
                         ReceivedLogToken::Word(Word::Atom(&b"server"[..])),
                         ReceivedLogToken::Word(Word::Atom(&b"with"[..])),
@@ -101,11 +113,13 @@ mod tests {
                         ReceivedLogToken::Word(Word::Atom(&b"xxxxxxxxx"[..])),
                         ReceivedLogToken::Word(Word::Atom(&b"for"[..])),
                         ReceivedLogToken::Addr(mailbox::AddrSpec {
-                            local_part: mailbox::LocalPart(vec![mailbox::LocalPartToken::Word(Word::Atom(&b"me"[..]))]),
-                            domain: mailbox::Domain::Atoms(vec![&b"example"[..], &b"com"[..]]), 
+                            local_part: mailbox::LocalPart(vec![mailbox::LocalPartToken::Word(
+                                Word::Atom(&b"me"[..])
+                            )]),
+                            domain: mailbox::Domain::Atoms(vec![&b"example"[..], &b"com"[..]]),
                         })
                     ],
-                }   
+                }
             ))
         );
     }

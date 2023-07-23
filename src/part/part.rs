@@ -1,25 +1,29 @@
 use nom::{
-    IResult,
     branch::alt,
-    bytes::complete::{is_not},
-    multi::many0,
-    sequence::{pair},
+    bytes::complete::is_not,
     combinator::{map, not, recognize},
+    multi::many0,
+    sequence::pair,
+    IResult,
 };
 
-use crate::mime;
-use crate::mime::mime::{AnyMIME};
-use crate::rfc5322::{self as imf};
-use crate::text::boundary::{Delimiter, boundary};
-use crate::text::whitespace::obs_crlf;
-use crate::text::ascii::CRLF;
 use crate::header::{header, CompFieldList};
+use crate::mime;
+use crate::mime::mime::AnyMIME;
+use crate::rfc5322::{self as imf};
+use crate::text::ascii::CRLF;
+use crate::text::boundary::{boundary, Delimiter};
+use crate::text::whitespace::obs_crlf;
 
 #[derive(Debug, PartialEq)]
 pub struct Multipart<'a>(pub mime::mime::Multipart<'a>, pub Vec<AnyPart<'a>>);
 
 #[derive(Debug, PartialEq)]
-pub struct Message<'a>(pub mime::mime::Message<'a>, pub imf::message::Message<'a>, pub Box<AnyPart<'a>>);
+pub struct Message<'a>(
+    pub mime::mime::Message<'a>,
+    pub imf::message::Message<'a>,
+    pub Box<AnyPart<'a>>,
+);
 
 #[derive(Debug, PartialEq)]
 pub struct Text<'a>(pub mime::mime::Text<'a>, pub &'a [u8]);
@@ -68,9 +72,18 @@ impl<'a> MixedField<'a> {
 impl<'a> CompFieldList<'a, MixedField<'a>> {
     pub fn sections(self) -> (mime::mime::AnyMIME<'a>, imf::message::Message<'a>) {
         let k = self.known();
-        let (v1, v2): (Vec<MixedField>, Vec<MixedField>) = k.into_iter().partition(|v| v.mime().is_some());
-        let mime = v1.into_iter().map(|v| v.to_mime()).flatten().collect::<mime::mime::AnyMIME>();
-        let imf = v2.into_iter().map(|v| v.to_imf()).flatten().collect::<imf::message::Message>();
+        let (v1, v2): (Vec<MixedField>, Vec<MixedField>) =
+            k.into_iter().partition(|v| v.mime().is_some());
+        let mime = v1
+            .into_iter()
+            .map(|v| v.to_mime())
+            .flatten()
+            .collect::<mime::mime::AnyMIME>();
+        let imf = v2
+            .into_iter()
+            .map(|v| v.to_imf())
+            .flatten()
+            .collect::<imf::message::Message>();
         (mime, imf)
     }
 }
@@ -81,7 +94,9 @@ pub fn mixed_field(input: &[u8]) -> IResult<&[u8], MixedField> {
     ))(input)
 }
 
-pub fn message<'a>(m: mime::mime::Message<'a>) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], Message<'a>> {
+pub fn message<'a>(
+    m: mime::mime::Message<'a>,
+) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], Message<'a>> {
     move |input: &[u8]| {
         let (input, fields) = header(mixed_field)(input)?;
         let (in_mime, imf) = fields.sections();
@@ -92,7 +107,9 @@ pub fn message<'a>(m: mime::mime::Message<'a>) -> impl Fn(&'a [u8]) -> IResult<&
     }
 }
 
-pub fn multipart<'a>(m: mime::mime::Multipart<'a>) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], Multipart<'a>> {
+pub fn multipart<'a>(
+    m: mime::mime::Multipart<'a>,
+) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], Multipart<'a>> {
     let m = m.clone();
 
     move |input| {
@@ -124,16 +141,15 @@ pub fn multipart<'a>(m: mime::mime::Multipart<'a>) -> impl Fn(&'a [u8]) -> IResu
 pub fn to_anypart<'a>(m: AnyMIME<'a>, rpart: &'a [u8]) -> AnyPart<'a> {
     match m {
         AnyMIME::Mult(a) => map(multipart(a), AnyPart::Mult)(rpart)
-                                .map(|v| v.1)
-                                .unwrap_or(AnyPart::Txt(Text(mime::mime::Text::default(), rpart))),
+            .map(|v| v.1)
+            .unwrap_or(AnyPart::Txt(Text(mime::mime::Text::default(), rpart))),
         AnyMIME::Msg(a) => map(message(a), AnyPart::Msg)(rpart)
-                                .map(|v| v.1)
-                                .unwrap_or(AnyPart::Txt(Text(mime::mime::Text::default(), rpart))),
+            .map(|v| v.1)
+            .unwrap_or(AnyPart::Txt(Text(mime::mime::Text::default(), rpart))),
         AnyMIME::Txt(a) => AnyPart::Txt(Text(a, rpart)),
         AnyMIME::Bin(a) => AnyPart::Bin(Binary(a, rpart)),
     }
 }
-
 
 pub fn part_raw<'a>(bound: &[u8]) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], &'a [u8]> + '_ {
     move |input| {
@@ -147,14 +163,15 @@ pub fn part_raw<'a>(bound: &[u8]) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], &'a 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::text::encoding::{Base64Word, EncodedWord, QuotedChunk, QuotedWord};
+    use crate::text::misc_token::{Phrase, UnstrToken, Unstructured, Word};
     use chrono::{FixedOffset, TimeZone};
-    use crate::text::misc_token::{Word, Phrase, Unstructured, UnstrToken};
-    use crate::text::encoding::{EncodedWord, QuotedChunk, Base64Word, QuotedWord};
 
     #[test]
     fn test_preamble() {
         assert_eq!(
-            part_raw(b"hello")(b"blip
+            part_raw(b"hello")(
+                b"blip
 bloup
 
 blip
@@ -164,7 +181,8 @@ bloup--
 
 --hello
 Field: Body
-"),
+"
+            ),
             Ok((
                 &b"\n--hello\nField: Body\n"[..],
                 &b"blip\nbloup\n\nblip\nbloup--\n--bim\n--bim--\n"[..],
@@ -292,7 +310,8 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
 </div>
 
 --b1_e376dc71bafc953c0b0fdeb9983a9956--
-"#.as_bytes();
+"#
+        .as_bytes();
 
         let base_mime = mime::mime::Message::default();
         assert_eq!(
@@ -353,7 +372,7 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                             UnstrToken::Encoded(EncodedWord::Base64(Base64Word{
                                 enc: encoding_rs::WINDOWS_1252,
                                 content: &b"SWYgeW91IGNhbiByZWFkIHRoaXMgeW8"[..],
-                            })), 
+                            })),
                             UnstrToken::Encoded(EncodedWord::Base64(Base64Word{
                                 enc: encoding_rs::ISO_8859_2,
                                 content: &b"dSB1bmRlcnN0YW5kIHRoZSBleGFtcGxlLg"[..],
@@ -387,7 +406,7 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                                     }
                                 ),
                                 &b"GZ\nOoOoO\noOoOoOoOo\noOoOoOoOoOoOoOoOo\noOoOoOoOoOoOoOoOoOoOoOo\noOoOoOoOoOoOoOoOoOoOoOoOoOoOo\nOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO\n"[..],
-                            )), 
+                            )),
                             AnyPart::Txt(Text(
                                 mime::mime::Text(
                                     mime::r#type::Text {
@@ -405,7 +424,7 @@ oOoOoOoOoOoOoOoOoOoOoOoOoOoOo<br />
 OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
 </div>
 "#[..],
-                            )), 
+                            )),
                         ],
                     ))),
                 ),

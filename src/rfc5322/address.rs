@@ -141,21 +141,22 @@ pub fn address_list_cfws(input: &[u8]) -> IResult<&[u8], Vec<AddressRef>> {
 }
 
 pub fn nullable_address_list(input: &[u8]) -> IResult<&[u8], Vec<AddressRef>> {
-    map(
-        opt(alt((address_list, address_list_cfws))), 
-        |v| v.unwrap_or(vec![]),
-    )(input)
+    map(opt(alt((address_list, address_list_cfws))), |v| {
+        v.unwrap_or(vec![])
+    })(input)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::text::misc_token::{Phrase, Word};
     use crate::rfc5322::mailbox::{AddrSpec, Domain, LocalPart, LocalPartToken};
+    use crate::text::misc_token::{Phrase, Word};
 
     #[test]
     fn test_mailbox_list() {
-        match mailbox_list(r#"Pete(A nice \) chap) <pete(his account)@silly.test(his host)>"#.as_bytes()) {
+        match mailbox_list(
+            r#"Pete(A nice \) chap) <pete(his account)@silly.test(his host)>"#.as_bytes(),
+        ) {
             Ok((rest, _)) => assert_eq!(&b""[..], rest),
             _ => panic!(),
         };

@@ -11,7 +11,6 @@ use crate::rfc5322::mailbox::is_dtext;
 use crate::text::whitespace::cfws;
 use crate::text::words::dot_atom_text;
 
-
 #[derive(Debug, PartialEq, Clone)]
 pub struct MessageID<'a> {
     pub left: &'a [u8],

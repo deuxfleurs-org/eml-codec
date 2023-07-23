@@ -1,5 +1,5 @@
-use crate::text::whitespace::cfws;
 use crate::text::ascii;
+use crate::text::whitespace::cfws;
 use nom::{
     bytes::complete::{tag, take_while1},
     character::is_alphanumeric,
@@ -17,24 +17,24 @@ pub fn is_vchar(c: u8) -> bool {
 ///
 /// forbidden: ()<>@,;:\"/[]?=
 fn is_mime_atom_text(c: u8) -> bool {
-    is_alphanumeric(c) 
-    || c == ascii::EXCLAMATION
-    || c == ascii::NUM
-    || c == ascii::DOLLAR
-    || c == ascii::PERCENT
-    || c == ascii::AMPERSAND
-    || c == ascii::SQUOTE
-    || c == ascii::ASTERISK
-    || c == ascii::PLUS
-    || c == ascii::MINUS
-    || c == ascii::PERIOD
-    || c == ascii::CARRET
-    || c == ascii::UNDERSCORE
-    || c == ascii::GRAVE
-    || c == ascii::LEFT_CURLY
-    || c == ascii::PIPE
-    || c == ascii::RIGHT_CURLY
-    || c == ascii::TILDE
+    is_alphanumeric(c)
+        || c == ascii::EXCLAMATION
+        || c == ascii::NUM
+        || c == ascii::DOLLAR
+        || c == ascii::PERCENT
+        || c == ascii::AMPERSAND
+        || c == ascii::SQUOTE
+        || c == ascii::ASTERISK
+        || c == ascii::PLUS
+        || c == ascii::MINUS
+        || c == ascii::PERIOD
+        || c == ascii::CARRET
+        || c == ascii::UNDERSCORE
+        || c == ascii::GRAVE
+        || c == ascii::LEFT_CURLY
+        || c == ascii::PIPE
+        || c == ascii::RIGHT_CURLY
+        || c == ascii::TILDE
 }
 
 /// MIME Token
@@ -49,25 +49,25 @@ pub fn mime_atom(input: &[u8]) -> IResult<&[u8], &[u8]> {
 /// authorized: !#$%&'*+-/=?^_`{|}~
 fn is_atext(c: u8) -> bool {
     is_alphanumeric(c)
-    || c == ascii::EXCLAMATION
-    || c == ascii::NUM
-    || c == ascii::DOLLAR
-    || c == ascii::PERCENT
-    || c == ascii::AMPERSAND
-    || c == ascii::SQUOTE
-    || c == ascii::ASTERISK
-    || c == ascii::PLUS
-    || c == ascii::MINUS
-    || c == ascii::SLASH
-    || c == ascii::EQ
-    || c == ascii::QUESTION
-    || c == ascii::CARRET
-    || c == ascii::UNDERSCORE
-    || c == ascii::GRAVE
-    || c == ascii::LEFT_CURLY
-    || c == ascii::PIPE
-    || c == ascii::RIGHT_CURLY
-    || c == ascii::TILDE
+        || c == ascii::EXCLAMATION
+        || c == ascii::NUM
+        || c == ascii::DOLLAR
+        || c == ascii::PERCENT
+        || c == ascii::AMPERSAND
+        || c == ascii::SQUOTE
+        || c == ascii::ASTERISK
+        || c == ascii::PLUS
+        || c == ascii::MINUS
+        || c == ascii::SLASH
+        || c == ascii::EQ
+        || c == ascii::QUESTION
+        || c == ascii::CARRET
+        || c == ascii::UNDERSCORE
+        || c == ascii::GRAVE
+        || c == ascii::LEFT_CURLY
+        || c == ascii::PIPE
+        || c == ascii::RIGHT_CURLY
+        || c == ascii::TILDE
 }
 
 /// Atom

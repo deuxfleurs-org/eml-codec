@@ -1,21 +1,22 @@
-use nom::{
-    IResult,
-    bytes::complete::tag,
-    sequence::tuple,
-    combinator::opt,
-};
+use nom::{bytes::complete::tag, combinator::opt, sequence::tuple, IResult};
 
 use crate::text::whitespace::obs_crlf;
 
 #[derive(Debug, PartialEq)]
 pub enum Delimiter {
     Next,
-    Last
+    Last,
 }
 
 pub fn boundary<'a>(boundary: &[u8]) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], Delimiter> + '_ {
     move |input: &[u8]| {
-        let (rest, (_, _, _, last, _)) = tuple((opt(obs_crlf), tag(b"--"), tag(boundary), opt(tag(b"--")), opt(obs_crlf)))(input)?;
+        let (rest, (_, _, _, last, _)) = tuple((
+            opt(obs_crlf),
+            tag(b"--"),
+            tag(boundary),
+            opt(tag(b"--")),
+            opt(obs_crlf),
+        ))(input)?;
         match last {
             Some(_) => Ok((rest, Delimiter::Last)),
             None => Ok((rest, Delimiter::Next)),

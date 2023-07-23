@@ -1,8 +1,8 @@
 use nom::{
-    IResult,
-    sequence::tuple,
     bytes::complete::{tag, take},
     combinator::{map, opt, verify},
+    sequence::tuple,
+    IResult,
 };
 
 use crate::text::ascii;
@@ -41,7 +41,10 @@ mod tests {
 
     #[test]
     fn test_version() {
-        assert_eq!(version(b"1.0"), Ok((&b""[..], Version { major: 1, minor: 0 })),);
+        assert_eq!(
+            version(b"1.0"),
+            Ok((&b""[..], Version { major: 1, minor: 0 })),
+        );
 
         assert_eq!(
             version(b" 1.0 (produced by MetaSend Vx.x)"),

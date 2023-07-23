@@ -1,9 +1,9 @@
 mod error;
-mod text;
 mod header;
-mod rfc5322;
 mod mime;
 mod part;
+mod rfc5322;
+mod text;
 
 pub fn email(input: &[u8]) -> Result<part::part::Message, error::EMLError> {
     part::part::message(mime::mime::Message::default())(input)

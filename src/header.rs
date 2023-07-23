@@ -1,14 +1,14 @@
+use crate::text::misc_token::{unstructured, Unstructured};
+use crate::text::whitespace::{foldable_line, obs_crlf};
 use nom::{
-    IResult,
     branch::alt,
-    bytes::complete::{tag_no_case, tag, take_while1},
+    bytes::complete::{tag, tag_no_case, take_while1},
     character::complete::space0,
-    combinator::{map},
+    combinator::map,
     multi::many0,
     sequence::{pair, terminated, tuple},
+    IResult,
 };
-use crate::text::whitespace::{foldable_line, obs_crlf};
-use crate::text::misc_token::{Unstructured, unstructured};
 
 #[derive(Debug, PartialEq)]
 pub enum CompField<'a, T> {
@@ -21,25 +21,37 @@ pub enum CompField<'a, T> {
 pub struct CompFieldList<'a, T>(pub Vec<CompField<'a, T>>);
 impl<'a, T> CompFieldList<'a, T> {
     pub fn known(self) -> Vec<T> {
-        self.0.into_iter().map(|v| match v {
-            CompField::Known(f) => Some(f),
-            _ => None,
-        }).flatten().collect()
+        self.0
+            .into_iter()
+            .map(|v| match v {
+                CompField::Known(f) => Some(f),
+                _ => None,
+            })
+            .flatten()
+            .collect()
     }
 }
 
-pub fn header<'a, T>(fx: impl Fn(&'a [u8]) -> IResult<&'a [u8], T> + Copy) 
-    -> impl Fn(&'a [u8]) -> IResult<&'a [u8], CompFieldList<T>>
-{
-    move |input| map(terminated(many0(alt((
-        map(fx, CompField::Known),
-        map(opt_field, |(k,v)| CompField::Unknown(k,v)),
-        map(foldable_line, CompField::Bad),
-    ))), obs_crlf), CompFieldList)(input)
+pub fn header<'a, T>(
+    fx: impl Fn(&'a [u8]) -> IResult<&'a [u8], T> + Copy,
+) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], CompFieldList<T>> {
+    move |input| {
+        map(
+            terminated(
+                many0(alt((
+                    map(fx, CompField::Known),
+                    map(opt_field, |(k, v)| CompField::Unknown(k, v)),
+                    map(foldable_line, CompField::Bad),
+                ))),
+                obs_crlf,
+            ),
+            CompFieldList,
+        )(input)
+    }
 }
 
 /*
-pub fn header_in_boundaries<'a, T>(bound: &'a [u8], fx: impl Fn(&'a [u8]) -> IResult<&[u8], T> + Copy) 
+pub fn header_in_boundaries<'a, T>(bound: &'a [u8], fx: impl Fn(&'a [u8]) -> IResult<&[u8], T> + Copy)
     -> impl Fn(&'a [u8]) -> IResult<&[u8], CompFieldList<T>>
 {
     move |input| map(terminated(many0(preceded(
@@ -53,12 +65,7 @@ pub fn header_in_boundaries<'a, T>(bound: &'a [u8], fx: impl Fn(&'a [u8]) -> IRe
 */
 
 pub fn field_name<'a>(name: &'static [u8]) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], &'a [u8]> {
-    move |input| {
-        terminated(
-            tag_no_case(name),
-            tuple((space0, tag(b":"), space0)),
-        )(input)
-    }
+    move |input| terminated(tag_no_case(name), tuple((space0, tag(b":"), space0)))(input)
 }
 
 /// Optional field
@@ -78,7 +85,7 @@ pub fn opt_field(input: &[u8]) -> IResult<&[u8], (&[u8], Unstructured)> {
                 tuple((space0, tag(b":"), space0)),
             ),
             unstructured,
-        ), obs_crlf)(input)
+        ),
+        obs_crlf,
+    )(input)
 }
-
-

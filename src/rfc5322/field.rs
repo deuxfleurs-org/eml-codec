@@ -1,21 +1,21 @@
 use chrono::{DateTime, FixedOffset};
 use nom::{
-    IResult,
     branch::alt,
     combinator::map,
     sequence::{preceded, terminated},
+    IResult,
 };
 
-use crate::text::whitespace::{obs_crlf};
-use crate::rfc5322::address::{AddressList, address_list, nullable_address_list, mailbox_list};
-use crate::rfc5322::datetime::section as date;
-use crate::rfc5322::mailbox::{MailboxRef, MailboxList, AddrSpec, mailbox};
-use crate::rfc5322::identification::{MessageID, MessageIDList, msg_id, msg_list};
-use crate::rfc5322::trace::{ReceivedLog, return_path, received_log};
-use crate::rfc5322::mime::{Version, version};
-use crate::rfc5322::message::Message;
 use crate::header::{field_name, header};
-use crate::text::misc_token::{Unstructured, PhraseList, unstructured, phrase_list};
+use crate::rfc5322::address::{address_list, mailbox_list, nullable_address_list, AddressList};
+use crate::rfc5322::datetime::section as date;
+use crate::rfc5322::identification::{msg_id, msg_list, MessageID, MessageIDList};
+use crate::rfc5322::mailbox::{mailbox, AddrSpec, MailboxList, MailboxRef};
+use crate::rfc5322::message::Message;
+use crate::rfc5322::mime::{version, Version};
+use crate::rfc5322::trace::{received_log, return_path, ReceivedLog};
+use crate::text::misc_token::{phrase_list, unstructured, PhraseList, Unstructured};
+use crate::text::whitespace::obs_crlf;
 
 #[derive(Debug, PartialEq)]
 pub enum Field<'a> {
@@ -50,7 +50,6 @@ pub enum Field<'a> {
     MIMEVersion(Version),
 }
 
-
 #[derive(Debug, PartialEq)]
 pub struct FieldList<'a>(pub Vec<Field<'a>>);
 impl<'a> FieldList<'a> {
@@ -60,30 +59,33 @@ impl<'a> FieldList<'a> {
 }
 
 pub fn field(input: &[u8]) -> IResult<&[u8], Field> {
-    terminated(alt((
-        preceded(field_name(b"date"), map(date, Field::Date)),
-
-        preceded(field_name(b"from"), map(mailbox_list, Field::From)),
-        preceded(field_name(b"sender"), map(mailbox, Field::Sender)),
-        preceded(field_name(b"reply-to"), map(address_list, Field::ReplyTo)),
-
-        preceded(field_name(b"to"), map(address_list, Field::To)),
-        preceded(field_name(b"cc"), map(address_list, Field::Cc)),
-        preceded(field_name(b"bcc"), map(nullable_address_list, Field::Bcc)),
-
-        preceded(field_name(b"message-id"), map(msg_id, Field::MessageID)),
-        preceded(field_name(b"in-reply-to"), map(msg_list, Field::InReplyTo)),
-        preceded(field_name(b"references"), map(msg_list, Field::References)),
-
-        preceded(field_name(b"subject"), map(unstructured, Field::Subject)),
-        preceded(field_name(b"comments"), map(unstructured, Field::Comments)),
-        preceded(field_name(b"keywords"), map(phrase_list, Field::Keywords)),
-
-        preceded(field_name(b"return-path"), map(return_path, Field::ReturnPath)), 
-        preceded(field_name(b"received"), map(received_log, Field::Received)), 
-
-        preceded(field_name(b"mime-version"), map(version, Field::MIMEVersion)), 
-    )), obs_crlf)(input)
+    terminated(
+        alt((
+            preceded(field_name(b"date"), map(date, Field::Date)),
+            preceded(field_name(b"from"), map(mailbox_list, Field::From)),
+            preceded(field_name(b"sender"), map(mailbox, Field::Sender)),
+            preceded(field_name(b"reply-to"), map(address_list, Field::ReplyTo)),
+            preceded(field_name(b"to"), map(address_list, Field::To)),
+            preceded(field_name(b"cc"), map(address_list, Field::Cc)),
+            preceded(field_name(b"bcc"), map(nullable_address_list, Field::Bcc)),
+            preceded(field_name(b"message-id"), map(msg_id, Field::MessageID)),
+            preceded(field_name(b"in-reply-to"), map(msg_list, Field::InReplyTo)),
+            preceded(field_name(b"references"), map(msg_list, Field::References)),
+            preceded(field_name(b"subject"), map(unstructured, Field::Subject)),
+            preceded(field_name(b"comments"), map(unstructured, Field::Comments)),
+            preceded(field_name(b"keywords"), map(phrase_list, Field::Keywords)),
+            preceded(
+                field_name(b"return-path"),
+                map(return_path, Field::ReturnPath),
+            ),
+            preceded(field_name(b"received"), map(received_log, Field::Received)),
+            preceded(
+                field_name(b"mime-version"),
+                map(version, Field::MIMEVersion),
+            ),
+        )),
+        obs_crlf,
+    )(input)
 }
 
 pub fn message(input: &[u8]) -> IResult<&[u8], Message> {
@@ -93,10 +95,10 @@ pub fn message(input: &[u8]) -> IResult<&[u8], Message> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::{FixedOffset, TimeZone};
-    use crate::rfc5322::mailbox::*;
     use crate::rfc5322::address::*;
+    use crate::rfc5322::mailbox::*;
     use crate::text::misc_token::*;
+    use chrono::{FixedOffset, TimeZone};
 
     #[test]
     fn test_header() {

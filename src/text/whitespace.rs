@@ -1,3 +1,6 @@
+use crate::text::ascii;
+use crate::text::encoding::encoded_word;
+use crate::text::quoted::quoted_pair;
 use nom::{
     branch::alt,
     bytes::complete::{is_not, tag, take_while1},
@@ -7,11 +10,8 @@ use nom::{
     sequence::{pair, tuple},
     IResult,
 };
-use crate::text::encoding::encoded_word;
-use crate::text::quoted::quoted_pair;
-use crate::text::ascii;
 
-/// Whitespace (space, new line, tab) content and 
+/// Whitespace (space, new line, tab) content and
 /// delimited content (eg. comment, line, sections, etc.)
 
 /// Obsolete/Compatible CRLF
@@ -37,10 +37,7 @@ pub fn line(input: &[u8]) -> IResult<&[u8], (&[u8], &[u8])> {
 pub fn foldable_line(input: &[u8]) -> IResult<&[u8], &[u8]> {
     recognize(tuple((
         is_not(ascii::CRLF),
-        many0(pair(
-            many1(pair(obs_crlf, space1)),
-            is_not(ascii::CRLF),
-        )),
+        many0(pair(many1(pair(obs_crlf, space1)), is_not(ascii::CRLF))),
         obs_crlf,
     )))(input)
 }
@@ -101,7 +98,12 @@ pub fn comment(input: &[u8]) -> IResult<&[u8], ()> {
 }
 
 pub fn ccontent(input: &[u8]) -> IResult<&[u8], &[u8]> {
-    alt((ctext, recognize(quoted_pair), recognize(encoded_word), recognize(comment)))(input)
+    alt((
+        ctext,
+        recognize(quoted_pair),
+        recognize(encoded_word),
+        recognize(comment),
+    ))(input)
 }
 
 pub fn ctext(input: &[u8]) -> IResult<&[u8], &[u8]> {
@@ -137,7 +139,7 @@ pub fn is_restr_ctext(c: u8) -> bool {
 /// ```
 pub fn is_obs_no_ws_ctl(c: u8) -> bool {
     (c >= ascii::SOH && c <= ascii::BS)
-        || c == ascii::VT 
+        || c == ascii::VT
         || c == ascii::FF
         || (c >= ascii::SO && c <= ascii::US)
         || c == ascii::DEL
@@ -183,7 +185,7 @@ mod tests {
 
     #[test]
     fn test_cfws_encoded_word() {
-       assert_eq!(
+        assert_eq!(
             cfws(b"(=?US-ASCII?Q?Keith_Moore?=)"),
             Ok((&b""[..], &b"(=?US-ASCII?Q?Keith_Moore?=)"[..])),
         );

@@ -1,10 +1,10 @@
-use crate::text::misc_token::{PhraseList, Unstructured};
-use crate::rfc5322::mime::Version;
-use crate::rfc5322::mailbox::{AddrSpec, MailboxRef};
-use crate::rfc5322::address::{AddressRef};
-use crate::rfc5322::identification::{MessageID};
+use crate::rfc5322::address::AddressRef;
 use crate::rfc5322::field::Field;
+use crate::rfc5322::identification::MessageID;
+use crate::rfc5322::mailbox::{AddrSpec, MailboxRef};
+use crate::rfc5322::mime::Version;
 use crate::rfc5322::trace::ReceivedLog;
+use crate::text::misc_token::{PhraseList, Unstructured};
 use chrono::{DateTime, FixedOffset};
 
 #[derive(Debug, PartialEq, Default)]
@@ -45,9 +45,8 @@ pub struct Message<'a> {
 // it may result in missing data or silently overriden data.
 impl<'a> FromIterator<Field<'a>> for Message<'a> {
     fn from_iter<I: IntoIterator<Item = Field<'a>>>(iter: I) -> Self {
-        iter.into_iter().fold(
-            Message::default(),
-            |mut section, field| {
+        iter.into_iter()
+            .fold(Message::default(), |mut section, field| {
                 match field {
                     Field::Date(v) => section.date = v,
                     Field::From(v) => section.from.extend(v),
@@ -67,7 +66,6 @@ impl<'a> FromIterator<Field<'a>> for Message<'a> {
                     Field::MIMEVersion(v) => section.mime_version = Some(v),
                 };
                 section
-            }
-        )
+            })
     }
 }

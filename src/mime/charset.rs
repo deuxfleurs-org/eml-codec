@@ -74,7 +74,6 @@ impl<'a> From<&'a [u8]> for EmailCharset {
             b"utf-8" | b"utf8" => EmailCharset::UTF_8,
             _ => EmailCharset::Unknown,
         }
-
     }
 }
 
@@ -112,21 +111,16 @@ impl EmailCharset {
     }
 
     pub fn as_encoding(&self) -> &'static Encoding {
-        Encoding::for_label(self.as_str().as_bytes())
-            .unwrap_or(encoding_rs::WINDOWS_1252)
+        Encoding::for_label(self.as_str().as_bytes()).unwrap_or(encoding_rs::WINDOWS_1252)
     }
 }
-
 
 #[cfg(test)]
 mod tests {
     use super::*;
     #[test]
     fn test_charset() {
-        assert_eq!(
-            EmailCharset::from(&b"Us-Ascii"[..]).as_str(),
-            "US-ASCII",
-        );
+        assert_eq!(EmailCharset::from(&b"Us-Ascii"[..]).as_str(), "US-ASCII",);
 
         assert_eq!(
             EmailCharset::from(&b"Us-Ascii"[..]).as_encoding(),

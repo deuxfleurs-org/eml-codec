@@ -145,7 +145,13 @@ fn strict_year(input: &[u8]) -> IResult<&[u8], i32> {
         fws,
         map(
             terminated(take_while_m_n(4, 9, |c| c >= 0x30 && c <= 0x39), digit0),
-            |d: &[u8]| encoding_rs::UTF_8.decode_without_bom_handling(d).0.parse::<i32>().unwrap_or(0),
+            |d: &[u8]| {
+                encoding_rs::UTF_8
+                    .decode_without_bom_handling(d)
+                    .0
+                    .parse::<i32>()
+                    .unwrap_or(0)
+            },
         ),
         fws,
     )(input)
@@ -225,8 +231,10 @@ fn strict_zone(input: &[u8]) -> IResult<&[u8], Option<FixedOffset>> {
             take_while_m_n(2, 2, |c| c >= 0x30 && c <= 0x39),
         )),
         |(_, op, dig_zone_hour, dig_zone_min)| {
-            let zone_hour: i32 =  ((dig_zone_hour[0] - 0x30) * 10 + (dig_zone_hour[1] - 0x30)) as i32 * HOUR;
-            let zone_min: i32 = ((dig_zone_min[0] - 0x30) * 10 + (dig_zone_min[1] - 0x30)) as i32 * MIN;
+            let zone_hour: i32 =
+                ((dig_zone_hour[0] - 0x30) * 10 + (dig_zone_hour[1] - 0x30)) as i32 * HOUR;
+            let zone_min: i32 =
+                ((dig_zone_min[0] - 0x30) * 10 + (dig_zone_min[1] - 0x30)) as i32 * MIN;
             match op {
                 b"+" => FixedOffset::east_opt(zone_hour + zone_min),
                 b"-" => FixedOffset::west_opt(zone_hour + zone_min),
@@ -298,7 +306,6 @@ fn obs_zone(input: &[u8]) -> IResult<&[u8], Option<FixedOffset>> {
                 value(FixedOffset::east_opt(11 * HOUR), tag_no_case(b"L")),
                 value(FixedOffset::east_opt(12 * HOUR), tag_no_case(b"M")),
             )),
-
             // Military Timezones West
             alt((
                 value(FixedOffset::west_opt(1 * HOUR), tag_no_case(b"N")),
@@ -314,7 +321,6 @@ fn obs_zone(input: &[u8]) -> IResult<&[u8], Option<FixedOffset>> {
                 value(FixedOffset::west_opt(11 * HOUR), tag_no_case(b"X")),
                 value(FixedOffset::west_opt(12 * HOUR), tag_no_case(b"Y")),
             )),
-
             // Unknown timezone
             value(FixedOffset::west_opt(0 * HOUR), alphanumeric1),
         )),
@@ -367,7 +373,8 @@ mod tests {
            Feb
              1969
          23:32
-                  -0330 (Newfoundland Time)"#.as_bytes()
+                  -0330 (Newfoundland Time)"#
+                    .as_bytes()
             ),
             Ok((
                 &b""[..],

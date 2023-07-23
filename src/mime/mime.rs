@@ -1,9 +1,9 @@
-use crate::mime::mechanism::Mechanism;
-use crate::rfc5322::identification::MessageID;
-use crate::text::misc_token::Unstructured;
 use crate::mime::field::Content;
-use crate::mime::r#type::{AnyType, self as ctype}; //Multipart, Message, Text, Binary};
- 
+use crate::mime::mechanism::Mechanism;
+use crate::mime::r#type::{self as ctype, AnyType};
+use crate::rfc5322::identification::MessageID;
+use crate::text::misc_token::Unstructured; //Multipart, Message, Text, Binary};
+
 #[derive(Debug, PartialEq, Clone)]
 pub struct Multipart<'a>(pub ctype::Multipart, pub Generic<'a>);
 
@@ -24,7 +24,6 @@ pub enum AnyMIME<'a> {
     Bin(Binary<'a>),
 }
 
-
 impl<'a> AnyMIME<'a> {
     pub fn from_pair(at: AnyType, gen: Generic<'a>) -> Self {
         match at {
@@ -38,7 +37,7 @@ impl<'a> AnyMIME<'a> {
 
 impl<'a> FromIterator<Content<'a>> for AnyMIME<'a> {
     fn from_iter<I: IntoIterator<Item = Content<'a>>>(it: I) -> Self {
-         let (at, gen) = it.into_iter().fold(
+        let (at, gen) = it.into_iter().fold(
             (AnyType::default(), Generic::default()),
             |(mut at, mut section), field| {
                 match field {
@@ -48,9 +47,9 @@ impl<'a> FromIterator<Content<'a>> for AnyMIME<'a> {
                     Content::Description(v) => section.description = Some(v),
                 };
                 (at, section)
-            }
+            },
         );
-       
+
         Self::from_pair(at, gen)
     }
 }
@@ -61,4 +60,3 @@ pub struct Generic<'a> {
     pub id: Option<MessageID<'a>>,
     pub description: Option<Unstructured<'a>>,
 }
-

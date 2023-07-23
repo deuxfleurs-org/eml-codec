@@ -1,12 +1,12 @@
+use crate::text::whitespace::cfws;
+use crate::text::words::mime_atom as token;
 use nom::{
-    IResult,
     branch::alt,
     bytes::complete::tag_no_case,
     combinator::{map, opt, value},
     sequence::delimited,
+    IResult,
 };
-use crate::text::whitespace::cfws;
-use crate::text::words::mime_atom as token;
 
 #[derive(Debug, Clone, PartialEq, Default)]
 pub enum Mechanism<'a> {
@@ -25,7 +25,7 @@ pub fn mechanism(input: &[u8]) -> IResult<&[u8], Mechanism> {
     alt((
         delimited(
             opt(cfws),
-            alt(( 
+            alt((
                 value(_7Bit, tag_no_case("7bit")),
                 value(_8Bit, tag_no_case("8bit")),
                 value(Binary, tag_no_case("binary")),
@@ -38,31 +38,24 @@ pub fn mechanism(input: &[u8]) -> IResult<&[u8], Mechanism> {
     ))(input)
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
     #[test]
     fn test_mechanism() {
-        assert_eq!(
-            mechanism(b"7bit"),
-            Ok((&b""[..], Mechanism::_7Bit)),
-        );
+        assert_eq!(mechanism(b"7bit"), Ok((&b""[..], Mechanism::_7Bit)),);
 
         assert_eq!(
             mechanism(b"(youhou) 8bit"),
             Ok((&b""[..], Mechanism::_8Bit)),
         );
-        
+
         assert_eq!(
             mechanism(b"(blip) bInArY (blip blip)"),
             Ok((&b""[..], Mechanism::Binary)),
         );
 
-        assert_eq!(
-            mechanism(b" base64 "),
-            Ok((&b""[..], Mechanism::Base64)),
-        );
+        assert_eq!(mechanism(b" base64 "), Ok((&b""[..], Mechanism::Base64)),);
 
         assert_eq!(
             mechanism(b" Quoted-Printable "),
