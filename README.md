@@ -64,23 +64,6 @@ Planned: jpbush, my inbox, etc.
 
 ### Across reference IMAP servers (dovevot, cyrus) (expected)
 
-## Development status
-
-Early development. Not ready.
-Do not use it in production or any software at all.
-
-Todo:
- - [X] test over the enron dataset
- - [X] convert to multipass parser
- - [X] fix warnings, put examples, refactor the code
- - [ ] implement mime part 3 (encoded headers)
- - [ ] implement mime part 1 (new headers)
- - [ ] review part 2 (media types) and part 4 (registration procedure) but might be out of scope
- - [ ] implement some targeted testing as part of mime part 5
- - [ ] implement fuzzing through cargo fuzz
- - [ ] test over other datasets (jpbush, ml, my inbox)
- - [ ] backport to aerogramme
-
 ## Targeted RFC and IANA references
 
 | 🚩 | # | Name |
