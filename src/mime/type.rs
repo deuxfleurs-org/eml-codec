@@ -1,14 +1,15 @@
 use nom::{
-    bytes::complete::tag,
-    combinator::map,
+    bytes::complete::{is_not, tag},
+    combinator::{map, opt},
     multi::many0,
-    sequence::{preceded, tuple},
+    sequence::{preceded, terminated, tuple},
     IResult,
 };
 
 use crate::mime::charset::EmailCharset;
 use crate::text::misc_token::{mime_word, MIMEWord};
 use crate::text::words::mime_atom;
+use crate::text::ascii;
 
 // --------- NAIVE TYPE
 #[derive(Debug, PartialEq)]
@@ -41,7 +42,7 @@ pub fn parameter(input: &[u8]) -> IResult<&[u8], Parameter> {
     )(input)
 }
 pub fn parameter_list(input: &[u8]) -> IResult<&[u8], Vec<Parameter>> {
-    many0(preceded(tag(";"), parameter))(input)
+    terminated(many0(preceded(tag(";"), parameter)), opt(tag(";")))(input)
 }
 
 // MIME TYPES TRANSLATED TO RUST TYPING SYSTEM
@@ -253,4 +254,22 @@ mod tests {
             ))
         );
     }
+
+    #[test]
+    fn test_parameter_terminated_with_semi_colon() {
+        assert_eq!(
+            parameter_list(b";boundary=\"festivus\";"),
+            Ok((
+                &b""[..],
+                vec![
+                    Parameter {
+                        name: &b"boundary"[..],
+                        value: MIMEWord::Quoted(QuotedString(vec![
+                            &b"festivus"[..]
+                        ])),
+                    }
+                ],
+            ))
+        );
+    }   
 }

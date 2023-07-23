@@ -24,6 +24,7 @@ use nom::{
 pub fn obs_crlf(input: &[u8]) -> IResult<&[u8], &[u8]> {
     alt((tag(ascii::CRLF), tag(&[ascii::CR]), tag(&[ascii::LF])))(input)
 }
+
 pub fn line(input: &[u8]) -> IResult<&[u8], (&[u8], &[u8])> {
     // is_not(CRLF) is a hack, it means "is not CR or LF"
     // and not "is not CRLF". In other words, it continues while
