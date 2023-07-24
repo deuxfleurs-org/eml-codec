@@ -3,7 +3,14 @@ name = "eml-codec"
 version = "0.1.0"
 edition = "2021"
 license = "GPL-3.0-or-later"
-
+repository = "https://git.deuxfleurs.fr/Deuxfleurs/eml-codec"
+description = "Email enCOder DECoder in Rust. Support Internet Message Format and MIME (RFC 822, 5322, 2045, 2046, 2047, 2048, 2049)."
+documentation = "https://docs.rs/eml-codec"
+readme = "README.md"
+exclude = [
+    "doc/",
+    "resources/",
+]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [lib]
@@ -23,3 +30,4 @@ encoding_rs = "0.8"
 
 [dev-dependencies]
 walkdir = "2"
+
