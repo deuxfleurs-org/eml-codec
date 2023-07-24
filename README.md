@@ -37,7 +37,7 @@ This library does not aim at implementing a specific RFC, but to be a swiss-army
 - Maintainability - modifying the code does not create regression and is possible for someone exterior to the project.
 - Compatibility - always try to parse something, do not panic or return an error.
 - Exhaustivity - serve as a common project to encode knowledge about emails (existing mime types, existing headers, etc.).
-- Type safe - do not manipulate only strings/bytes but leverage Rust type system instead so you benefit of its safety checks at compile time.
+- Type safe - do not manipulate only strings/bytes but leverage Rust type system instead so you benefit from its safety checks at compile time.
 
 [See more about this library goals in the doc/ folder](./doc/goals.md)
 

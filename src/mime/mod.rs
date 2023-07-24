@@ -10,6 +10,8 @@ pub mod mechanism;
 /// Content-Type representation
 pub mod r#type;
 
+use std::marker::PhantomData;
+
 use crate::imf::identification::MessageID;
 use crate::mime::field::Content;
 use crate::mime::mechanism::Mechanism;
@@ -47,10 +49,43 @@ impl<'a> AnyMIME<'a> {
     }
 }
 
-impl<'a> FromIterator<Content<'a>> for AnyMIME<'a> {
+impl<'a, T: WithDefaultType> From<AnyMIMEWithDefault<'a, T>> for AnyMIME<'a> {
+    fn from(a: AnyMIMEWithDefault<'a, T>) -> Self {
+        a.0
+    }
+}
+
+#[derive(Debug, PartialEq, Default, Clone)]
+pub struct Generic<'a> {
+    pub transfer_encoding: Mechanism<'a>,
+    pub id: Option<MessageID<'a>>,
+    pub description: Option<Unstructured<'a>>,
+}
+
+pub trait WithDefaultType {
+    fn default_type() -> AnyType;
+}
+
+pub struct WithGenericDefault {}
+impl WithDefaultType for WithGenericDefault {
+    fn default_type() -> AnyType {
+        AnyType::Text(r#type::Text::default())
+    }
+}
+pub struct WithDigestDefault {}
+impl WithDefaultType for WithDigestDefault {
+    fn default_type() -> AnyType {
+        AnyType::Message(r#type::Message::default())
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub struct AnyMIMEWithDefault<'a, T: WithDefaultType>(pub AnyMIME<'a>, PhantomData<T>);
+
+impl<'a, T: WithDefaultType> FromIterator<Content<'a>> for AnyMIMEWithDefault<'a, T> {
     fn from_iter<I: IntoIterator<Item = Content<'a>>>(it: I) -> Self {
         let (at, gen) = it.into_iter().fold(
-            (AnyType::default(), Generic::default()),
+            (T::default_type(), Generic::default()),
             |(mut at, mut section), field| {
                 match field {
                     Content::Type(v) => at = v.to_type(),
@@ -62,13 +97,6 @@ impl<'a> FromIterator<Content<'a>> for AnyMIME<'a> {
             },
         );
 
-        Self::from_pair(at, gen)
+        Self(AnyMIME::from_pair(at, gen), PhantomData)
     }
-}
-
-#[derive(Debug, PartialEq, Default, Clone)]
-pub struct Generic<'a> {
-    pub transfer_encoding: Mechanism<'a>,
-    pub id: Option<MessageID<'a>>,
-    pub description: Option<Unstructured<'a>>,
 }

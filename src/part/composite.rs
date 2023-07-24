@@ -47,7 +47,10 @@ pub fn multipart<'a>(
 
             // parse mime headers
             let (input, fields) = header(mime::field::content)(input)?;
-            let mime = fields.to_mime();
+            let mime = match m.0.subtype {
+                mime::r#type::MultipartSubtype::Digest => fields.to_mime::<mime::WithDigestDefault>().into(),
+                _ => fields.to_mime::<mime::WithGenericDefault>().into(),
+            };
 
             // parse raw part
             let (input, rpart) = part::part_raw(bound)(input)?;
@@ -75,7 +78,7 @@ pub fn message<'a>(
     move |input: &[u8]| {
         let (input, fields): (_, CompFieldList<part::field::MixedField>) =
             header(part::field::mixed_field)(input)?;
-        let (in_mime, imf) = fields.sections();
+        let (in_mime, imf) = fields.sections::<mime::WithGenericDefault>();
 
         let part = part::to_anypart(in_mime, input);
 

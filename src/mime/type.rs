@@ -57,17 +57,12 @@ pub enum AnyType {
     Binary(Binary),
 }
 
-impl Default for AnyType {
-    fn default() -> Self {
-        Self::Text(Text::default())
-    }
-}
 impl<'a> From<&'a NaiveType<'a>> for AnyType {
     fn from(nt: &'a NaiveType<'a>) -> Self {
         match nt.main.to_ascii_lowercase().as_slice() {
             b"multipart" => Multipart::try_from(nt)
                 .map(Self::Multipart)
-                .unwrap_or(Self::default()),
+                .unwrap_or(Self::Text(Text::default())),
             b"message" => Self::Message(Message::from(nt)),
             b"text" => Self::Text(Text::from(nt)),
             _ => Self::Binary(Binary::default()),
