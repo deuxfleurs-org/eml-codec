@@ -1,5 +1,10 @@
+/// Parts that contain other parts inside them
 pub mod composite;
+
+/// Parts that have a body and no child parts
 pub mod discrete;
+
+/// IMF + MIME fields parsed at once
 pub mod field;
 
 use nom::{

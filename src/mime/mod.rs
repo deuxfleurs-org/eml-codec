@@ -1,6 +1,13 @@
+/// Parsed and represent an email character set 
 pub mod charset;
+
+/// MIME specific headers
 pub mod field;
+
+/// Transfer-Encoding representation
 pub mod mechanism;
+
+/// Content-Type representation
 pub mod r#type;
 
 use crate::imf::identification::MessageID;

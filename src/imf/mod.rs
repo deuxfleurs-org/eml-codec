@@ -1,3 +1,5 @@
+/// Parse and represent IMF (Internet Message Format) headers (RFC822, RFC5322)
+
 pub mod address;
 pub mod datetime;
 pub mod field;
