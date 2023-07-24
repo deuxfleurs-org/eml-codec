@@ -1,16 +1,16 @@
 use nom::IResult;
 
 use crate::header::{header, CompFieldList};
-use crate::mime;
 use crate::imf::{self as imf};
+use crate::mime;
+use crate::part::{self, AnyPart};
 use crate::text::boundary::{boundary, Delimiter};
-use crate::part::{AnyPart, self};
 
 //--- Multipart
 #[derive(Debug, PartialEq)]
 pub struct Multipart<'a> {
-    pub interpreted: mime::mime::Multipart<'a>, 
-    pub children: Vec<AnyPart<'a>>
+    pub interpreted: mime::mime::Multipart<'a>,
+    pub children: Vec<AnyPart<'a>>,
 }
 
 pub fn multipart<'a>(
@@ -24,8 +24,24 @@ pub fn multipart<'a>(
         let mut mparts: Vec<AnyPart> = vec![];
         loop {
             let input = match boundary(bound)(input_loop) {
-                Err(_) => return Ok((input_loop, Multipart { interpreted: m.clone(), children: mparts })),
-                Ok((inp, Delimiter::Last)) => return Ok((inp, Multipart{ interpreted: m.clone(), children: mparts})),
+                Err(_) => {
+                    return Ok((
+                        input_loop,
+                        Multipart {
+                            interpreted: m.clone(),
+                            children: mparts,
+                        },
+                    ))
+                }
+                Ok((inp, Delimiter::Last)) => {
+                    return Ok((
+                        inp,
+                        Multipart {
+                            interpreted: m.clone(),
+                            children: mparts,
+                        },
+                    ))
+                }
                 Ok((inp, Delimiter::Next)) => inp,
             };
 
@@ -57,24 +73,31 @@ pub fn message<'a>(
     m: mime::mime::Message<'a>,
 ) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], Message<'a>> {
     move |input: &[u8]| {
-        let (input, fields): (_, CompFieldList<part::field::MixedField>) = header(part::field::mixed_field)(input)?;
+        let (input, fields): (_, CompFieldList<part::field::MixedField>) =
+            header(part::field::mixed_field)(input)?;
         let (in_mime, imf) = fields.sections();
 
         let part = part::to_anypart(in_mime, input);
 
-        Ok((&[], Message { interpreted: m.clone(), imf, child: Box::new(part) }))
+        Ok((
+            &[],
+            Message {
+                interpreted: m.clone(),
+                imf,
+                child: Box::new(part),
+            },
+        ))
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::text::encoding::{Base64Word, EncodedWord, QuotedChunk, QuotedWord};
-    use crate::text::misc_token::{Phrase, UnstrToken, Unstructured, Word};
     use crate::part::discrete::Text;
     use crate::part::AnyPart;
+    use crate::text::encoding::{Base64Word, EncodedWord, QuotedChunk, QuotedWord};
+    use crate::text::misc_token::{Phrase, UnstrToken, Unstructured, Word};
     use chrono::{FixedOffset, TimeZone};
-
 
     #[test]
     fn test_multipart() {
@@ -109,7 +132,7 @@ This is the epilogue. It is also to be ignored.
                 Multipart {
                     interpreted: base_mime,
                     children: vec![
-                        AnyPart::Txt(Text { 
+                        AnyPart::Txt(Text {
                             interpreted: mime::mime::Text(
                                 mime::r#type::Text {
                                     subtype: mime::r#type::TextSubtype::Plain,

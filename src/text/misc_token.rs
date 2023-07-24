@@ -1,4 +1,3 @@
-use std::fmt;
 use nom::{
     branch::alt,
     bytes::complete::{tag, take_while1},
@@ -8,6 +7,7 @@ use nom::{
     sequence::preceded,
     IResult,
 };
+use std::fmt;
 
 use crate::text::{
     ascii,
@@ -72,7 +72,9 @@ impl<'a> ToString for Word<'a> {
 }
 impl<'a> fmt::Debug for Word<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt.debug_tuple("Word").field(&format_args!("\"{}\"", self.to_string())).finish()
+        fmt.debug_tuple("Word")
+            .field(&format_args!("\"{}\"", self.to_string()))
+            .finish()
     }
 }
 
@@ -103,7 +105,9 @@ impl<'a> ToString for Phrase<'a> {
 }
 impl<'a> fmt::Debug for Phrase<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt.debug_tuple("Phrase").field(&format_args!("\"{}\"", self.to_string())).finish()
+        fmt.debug_tuple("Phrase")
+            .field(&format_args!("\"{}\"", self.to_string()))
+            .finish()
     }
 }
 
@@ -175,7 +179,9 @@ impl<'a> ToString for Unstructured<'a> {
 }
 impl<'a> fmt::Debug for Unstructured<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt.debug_tuple("Unstructured").field(&format_args!("\"{}\"", self.to_string())).finish()
+        fmt.debug_tuple("Unstructured")
+            .field(&format_args!("\"{}\"", self.to_string()))
+            .finish()
     }
 }
 

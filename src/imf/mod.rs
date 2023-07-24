@@ -53,27 +53,26 @@ pub struct Imf<'a> {
 // it may result in missing data or silently overriden data.
 impl<'a> FromIterator<Field<'a>> for Imf<'a> {
     fn from_iter<I: IntoIterator<Item = Field<'a>>>(iter: I) -> Self {
-        iter.into_iter()
-            .fold(Imf::default(), |mut section, field| {
-                match field {
-                    Field::Date(v) => section.date = v,
-                    Field::From(v) => section.from.extend(v),
-                    Field::Sender(v) => section.sender = Some(v),
-                    Field::ReplyTo(v) => section.reply_to.extend(v),
-                    Field::To(v) => section.to.extend(v),
-                    Field::Cc(v) => section.cc.extend(v),
-                    Field::Bcc(v) => section.bcc.extend(v),
-                    Field::MessageID(v) => section.msg_id = Some(v),
-                    Field::InReplyTo(v) => section.in_reply_to.extend(v),
-                    Field::References(v) => section.references.extend(v),
-                    Field::Subject(v) => section.subject = Some(v),
-                    Field::Comments(v) => section.comments.push(v),
-                    Field::Keywords(v) => section.keywords.push(v),
-                    Field::ReturnPath(v) => v.map(|x| section.return_path.push(x)).unwrap_or(()),
-                    Field::Received(v) => section.received.push(v),
-                    Field::MIMEVersion(v) => section.mime_version = Some(v),
-                };
-                section
-            })
+        iter.into_iter().fold(Imf::default(), |mut section, field| {
+            match field {
+                Field::Date(v) => section.date = v,
+                Field::From(v) => section.from.extend(v),
+                Field::Sender(v) => section.sender = Some(v),
+                Field::ReplyTo(v) => section.reply_to.extend(v),
+                Field::To(v) => section.to.extend(v),
+                Field::Cc(v) => section.cc.extend(v),
+                Field::Bcc(v) => section.bcc.extend(v),
+                Field::MessageID(v) => section.msg_id = Some(v),
+                Field::InReplyTo(v) => section.in_reply_to.extend(v),
+                Field::References(v) => section.references.extend(v),
+                Field::Subject(v) => section.subject = Some(v),
+                Field::Comments(v) => section.comments.push(v),
+                Field::Keywords(v) => section.keywords.push(v),
+                Field::ReturnPath(v) => v.map(|x| section.return_path.push(x)).unwrap_or(()),
+                Field::Received(v) => section.received.push(v),
+                Field::MIMEVersion(v) => section.mime_version = Some(v),
+            };
+            section
+        })
     }
 }

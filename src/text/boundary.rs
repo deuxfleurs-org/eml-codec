@@ -1,4 +1,10 @@
-use nom::{branch::alt, bytes::complete::tag, combinator::{eof, opt}, sequence::tuple, IResult};
+use nom::{
+    branch::alt,
+    bytes::complete::tag,
+    combinator::{eof, opt},
+    sequence::tuple,
+    IResult,
+};
 
 use crate::text::whitespace::obs_crlf;
 

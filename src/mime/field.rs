@@ -6,10 +6,10 @@ use nom::{
 };
 
 use crate::header::{field_name, CompFieldList};
+use crate::imf::identification::{msg_id, MessageID};
 use crate::mime::mechanism::{mechanism, Mechanism};
 use crate::mime::mime::AnyMIME;
 use crate::mime::r#type::{naive_type, NaiveType};
-use crate::imf::identification::{msg_id, MessageID};
 use crate::text::misc_token::{unstructured, Unstructured};
 use crate::text::whitespace::obs_crlf;
 

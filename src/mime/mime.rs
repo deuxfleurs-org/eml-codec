@@ -1,7 +1,7 @@
+use crate::imf::identification::MessageID;
 use crate::mime::field::Content;
 use crate::mime::mechanism::Mechanism;
 use crate::mime::r#type::{self as ctype, AnyType};
-use crate::imf::identification::MessageID;
 use crate::text::misc_token::Unstructured; //Multipart, Message, Text, Binary};
 
 #[derive(Debug, PartialEq, Clone)]

@@ -1,4 +1,3 @@
-use std::fmt;
 use nom::{
     branch::alt,
     bytes::complete::{tag, take_while},
@@ -7,6 +6,7 @@ use nom::{
     sequence::{delimited, pair, tuple},
     IResult,
 };
+use std::fmt;
 
 use crate::imf::mailbox::is_dtext;
 use crate::text::whitespace::cfws;
@@ -19,16 +19,21 @@ pub struct MessageID<'a> {
 }
 impl<'a> ToString for MessageID<'a> {
     fn to_string(&self) -> String {
-        format!("{}@{}", String::from_utf8_lossy(self.left), String::from_utf8_lossy(self.right))
+        format!(
+            "{}@{}",
+            String::from_utf8_lossy(self.left),
+            String::from_utf8_lossy(self.right)
+        )
     }
 }
 impl<'a> fmt::Debug for MessageID<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt.debug_tuple("MessageID").field(&format_args!("\"{}\"", self.to_string())).finish()
+        fmt.debug_tuple("MessageID")
+            .field(&format_args!("\"{}\"", self.to_string()))
+            .finish()
     }
 }
 pub type MessageIDList<'a> = Vec<MessageID<'a>>;
-
 
 /// Message identifier
 ///

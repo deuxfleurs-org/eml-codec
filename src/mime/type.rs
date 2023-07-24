@@ -1,5 +1,5 @@
 use nom::{
-    bytes::complete::{tag},
+    bytes::complete::tag,
     combinator::{map, opt},
     multi::many0,
     sequence::{preceded, terminated, tuple},
@@ -260,15 +260,11 @@ mod tests {
             parameter_list(b";boundary=\"festivus\";"),
             Ok((
                 &b""[..],
-                vec![
-                    Parameter {
-                        name: &b"boundary"[..],
-                        value: MIMEWord::Quoted(QuotedString(vec![
-                            &b"festivus"[..]
-                        ])),
-                    }
-                ],
+                vec![Parameter {
+                    name: &b"boundary"[..],
+                    value: MIMEWord::Quoted(QuotedString(vec![&b"festivus"[..]])),
+                }],
             ))
         );
-    }   
+    }
 }

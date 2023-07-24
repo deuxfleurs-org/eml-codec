@@ -1,4 +1,3 @@
-use std::fmt;
 use nom::{
     branch::alt,
     bytes::complete::{tag, take_while1},
@@ -7,6 +6,7 @@ use nom::{
     sequence::{delimited, pair, preceded, terminated, tuple},
     IResult,
 };
+use std::fmt;
 
 use crate::text::ascii;
 use crate::text::misc_token::{phrase, word, Phrase, Word};
@@ -29,7 +29,9 @@ impl<'a> ToString for AddrSpec<'a> {
 }
 impl<'a> fmt::Debug for AddrSpec<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt.debug_tuple("AddrSpec").field(&format_args!("\"{}\"", self.to_string())).finish()
+        fmt.debug_tuple("AddrSpec")
+            .field(&format_args!("\"{}\"", self.to_string()))
+            .finish()
     }
 }
 
@@ -209,7 +211,9 @@ impl<'a> ToString for Domain<'a> {
 }
 impl<'a> fmt::Debug for Domain<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt.debug_tuple("Domain").field(&format_args!("\"{}\"", self.to_string())).finish()
+        fmt.debug_tuple("Domain")
+            .field(&format_args!("\"{}\"", self.to_string()))
+            .finish()
     }
 }
 

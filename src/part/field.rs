@@ -1,11 +1,7 @@
-use nom::{
-    IResult,
-    branch::alt,
-    combinator::map,
-};
+use nom::{branch::alt, combinator::map, IResult};
 
-use crate::mime;
 use crate::imf;
+use crate::mime;
 use crate::part::CompFieldList;
 
 pub enum MixedField<'a> {
@@ -61,5 +57,3 @@ pub fn mixed_field(input: &[u8]) -> IResult<&[u8], MixedField> {
         map(imf::field::field, MixedField::IMF),
     ))(input)
 }
-
-

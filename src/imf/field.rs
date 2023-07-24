@@ -11,9 +11,9 @@ use crate::imf::address::{address_list, mailbox_list, nullable_address_list, Add
 use crate::imf::datetime::section as date;
 use crate::imf::identification::{msg_id, msg_list, MessageID, MessageIDList};
 use crate::imf::mailbox::{mailbox, AddrSpec, MailboxList, MailboxRef};
-use crate::imf::Imf;
 use crate::imf::mime::{version, Version};
 use crate::imf::trace::{received_log, return_path, ReceivedLog};
+use crate::imf::Imf;
 use crate::text::misc_token::{phrase_list, unstructured, PhraseList, Unstructured};
 use crate::text::whitespace::obs_crlf;
 

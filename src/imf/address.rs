@@ -176,8 +176,8 @@ mod tests {
         );
     }
 
+    use crate::text::encoding::{EncodedWord, QuotedChunk, QuotedWord};
     use crate::text::quoted::QuotedString;
-    use crate::text::encoding::{EncodedWord, QuotedWord, QuotedChunk};
 
     #[test]
     fn test_strange_groups() {
@@ -186,50 +186,61 @@ mod tests {
                 br#""Colleagues": "James Smythe" <james@vandelay.com>;, Friends:
   jane@example.com, =?UTF-8?Q?John_Sm=C3=AEth?= <john@example.com>;"#
             ),
-            Ok((&b""[..], vec![
-                AddressRef::Many(GroupRef {
-                    name: Phrase(vec![Word::Quoted(QuotedString(vec![&b"Colleagues"[..]]))]),
-                    participants: vec![
-                        MailboxRef {
+            Ok((
+                &b""[..],
+                vec![
+                    AddressRef::Many(GroupRef {
+                        name: Phrase(vec![Word::Quoted(QuotedString(vec![&b"Colleagues"[..]]))]),
+                        participants: vec![MailboxRef {
                             name: Some(Phrase(vec![Word::Quoted(QuotedString(vec![
-                                &b"James"[..], &b" "[..], &b"Smythe"[..]
+                                &b"James"[..],
+                                &b" "[..],
+                                &b"Smythe"[..]
                             ]))])),
                             addrspec: AddrSpec {
-                                local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(&b"james"[..]))]),
+                                local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(
+                                    &b"james"[..]
+                                ))]),
                                 domain: Domain::Atoms(vec![&b"vandelay"[..], &b"com"[..]]),
                             }
-                        },
-                    ],
-                }),
-                AddressRef::Many(GroupRef {
-                    name: Phrase(vec![Word::Atom(&b"Friends"[..])]),
-                    participants: vec![
-                        MailboxRef{
-                            name: None,
-                            addrspec: AddrSpec {
-                                local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(&b"jane"[..]))]),
-                                domain: Domain::Atoms(vec![&b"example"[..], &b"com"[..]]),
-                            }
-                        },
-                        MailboxRef{
-                            name: Some(Phrase(vec![Word::Encoded(EncodedWord::Quoted(QuotedWord {
-                                enc: encoding_rs::UTF_8,
-                                chunks: vec![
-                                    QuotedChunk::Safe(&b"John"[..]),
-                                    QuotedChunk::Space,
-                                    QuotedChunk::Safe(&b"Sm"[..]),
-                                    QuotedChunk::Encoded(vec![0xc3, 0xae]),
-                                    QuotedChunk::Safe(&b"th"[..]),
-                                ]
-                            }))])),
-                            addrspec: AddrSpec {
-                                local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(&b"john"[..]))]),
-                                domain: Domain::Atoms(vec![&b"example"[..], &b"com"[..]]),
-                            }
-                        },
-                    ]
-                }),
-            ]))
+                        },],
+                    }),
+                    AddressRef::Many(GroupRef {
+                        name: Phrase(vec![Word::Atom(&b"Friends"[..])]),
+                        participants: vec![
+                            MailboxRef {
+                                name: None,
+                                addrspec: AddrSpec {
+                                    local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(
+                                        &b"jane"[..]
+                                    ))]),
+                                    domain: Domain::Atoms(vec![&b"example"[..], &b"com"[..]]),
+                                }
+                            },
+                            MailboxRef {
+                                name: Some(Phrase(vec![Word::Encoded(EncodedWord::Quoted(
+                                    QuotedWord {
+                                        enc: encoding_rs::UTF_8,
+                                        chunks: vec![
+                                            QuotedChunk::Safe(&b"John"[..]),
+                                            QuotedChunk::Space,
+                                            QuotedChunk::Safe(&b"Sm"[..]),
+                                            QuotedChunk::Encoded(vec![0xc3, 0xae]),
+                                            QuotedChunk::Safe(&b"th"[..]),
+                                        ]
+                                    }
+                                ))])),
+                                addrspec: AddrSpec {
+                                    local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(
+                                        &b"john"[..]
+                                    ))]),
+                                    domain: Domain::Atoms(vec![&b"example"[..], &b"com"[..]]),
+                                }
+                            },
+                        ]
+                    }),
+                ]
+            ))
         );
     }
 }

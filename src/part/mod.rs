@@ -1,6 +1,6 @@
-pub mod field;
 pub mod composite;
 pub mod discrete;
+pub mod field;
 
 use nom::{
     branch::alt,
@@ -14,10 +14,13 @@ use nom::{
 use crate::header::CompFieldList;
 use crate::mime;
 use crate::mime::mime::AnyMIME;
+use crate::part::{
+    composite::{message, multipart, Message, Multipart},
+    discrete::{Binary, Text},
+};
 use crate::text::ascii::CRLF;
 use crate::text::boundary::boundary;
 use crate::text::whitespace::obs_crlf;
-use crate::part::{composite::{Multipart, Message, multipart, message}, discrete::{Text, Binary}};
 
 #[derive(Debug, PartialEq)]
 pub enum AnyPart<'a> {
@@ -31,12 +34,26 @@ pub fn to_anypart<'a>(m: AnyMIME<'a>, rpart: &'a [u8]) -> AnyPart<'a> {
     match m {
         AnyMIME::Mult(a) => map(multipart(a), AnyPart::Mult)(rpart)
             .map(|v| v.1)
-            .unwrap_or(AnyPart::Txt(Text { interpreted: mime::mime::Text::default(), body: rpart })),
-        AnyMIME::Msg(a) => map(message(a), AnyPart::Msg)(rpart)
-            .map(|v| v.1)
-            .unwrap_or(AnyPart::Txt(Text { interpreted: mime::mime::Text::default(), body: rpart })),
-        AnyMIME::Txt(a) => AnyPart::Txt(Text { interpreted: a, body: rpart}),
-        AnyMIME::Bin(a) => AnyPart::Bin(Binary{ interpreted: a, body: rpart }),
+            .unwrap_or(AnyPart::Txt(Text {
+                interpreted: mime::mime::Text::default(),
+                body: rpart,
+            })),
+        AnyMIME::Msg(a) => {
+            map(message(a), AnyPart::Msg)(rpart)
+                .map(|v| v.1)
+                .unwrap_or(AnyPart::Txt(Text {
+                    interpreted: mime::mime::Text::default(),
+                    body: rpart,
+                }))
+        }
+        AnyMIME::Txt(a) => AnyPart::Txt(Text {
+            interpreted: a,
+            body: rpart,
+        }),
+        AnyMIME::Bin(a) => AnyPart::Bin(Binary {
+            interpreted: a,
+            body: rpart,
+        }),
     }
 }
 

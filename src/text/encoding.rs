@@ -13,8 +13,8 @@ use nom::{
 };
 
 use crate::text::ascii;
-use crate::text::words;
 use crate::text::whitespace::cfws;
+use crate::text::words;
 
 pub fn encoded_word(input: &[u8]) -> IResult<&[u8], EncodedWord> {
     alt((encoded_word_quoted, encoded_word_base64))(input)
@@ -147,7 +147,7 @@ fn hex_octet(input: &[u8]) -> IResult<&[u8], u8> {
 
     let (rest, hbytes) = preceded(tag("="), take(2usize))(input)?;
 
-    let hstr = String::from_utf8_lossy(hbytes); 
+    let hstr = String::from_utf8_lossy(hbytes);
     let parsed = u8::from_str_radix(hstr.as_ref(), 16)
         .map_err(|_| nom::Err::Error(Error::new(input, ErrorKind::Verify)))?;
 

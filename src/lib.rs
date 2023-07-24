@@ -1,8 +1,8 @@
 mod error;
 mod header;
+mod imf;
 mod mime;
 mod part;
-mod imf;
 mod text;
 
 pub fn email(input: &[u8]) -> Result<part::composite::Message, error::EMLError> {
