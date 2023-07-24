@@ -29,6 +29,32 @@ pub enum AnyPart<'a> {
     Txt(Text<'a>),
     Bin(Binary<'a>),
 }
+impl<'a> AnyPart<'a> {
+    pub fn as_multipart(&self) -> Option<&Multipart<'a>> {
+        match self {
+            Self::Mult(x) => Some(x),
+            _ => None,
+        }
+    }
+    pub fn as_message(&self) -> Option<&Message<'a>> {
+        match self {
+            Self::Msg(x) => Some(x),
+            _ => None,
+        }
+    }
+    pub fn as_text(&self) -> Option<&Text<'a>> {
+        match self {
+            Self::Txt(x) => Some(x),
+            _ => None,
+        }
+    }
+    pub fn as_binary(&self) -> Option<&Binary<'a>> {
+        match self {
+            Self::Bin(x) => Some(x),
+            _ => None,
+        }
+    }
+}
 
 pub fn to_anypart<'a>(m: AnyMIME<'a>, rpart: &'a [u8]) -> AnyPart<'a> {
     match m {

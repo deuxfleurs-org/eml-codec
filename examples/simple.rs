@@ -9,10 +9,19 @@ Content-Type: text/plain; charset=us-ascii
 This is the plain text body of the message. Note the blank line
 between the header information and the body of the message."#;
 
-    let email = eml_codec::email(input).unwrap();
+    // if you are only interested in email metadata/headers
+    let header = eml_codec::imf(input).unwrap();
     println!(
         "{} just sent you an email with subject \"{}\"",
+        header.from[0].to_string(),
+        header.subject.unwrap().to_string(),
+    );
+
+    // if you like to also parse the body/content
+    let email = eml_codec::email(input).unwrap();
+    println!(
+        "{} raw message is:\n{}",
         email.imf.from[0].to_string(),
-        email.imf.subject.unwrap().to_string(),
+        String::from_utf8_lossy(email.child.as_text().unwrap().body),
     );
 }
