@@ -11,7 +11,7 @@ use crate::imf::address::{address_list, mailbox_list, nullable_address_list, Add
 use crate::imf::datetime::section as date;
 use crate::imf::identification::{msg_id, msg_list, MessageID, MessageIDList};
 use crate::imf::mailbox::{mailbox, AddrSpec, MailboxList, MailboxRef};
-use crate::imf::message::Message;
+use crate::imf::Imf;
 use crate::imf::mime::{version, Version};
 use crate::imf::trace::{received_log, return_path, ReceivedLog};
 use crate::text::misc_token::{phrase_list, unstructured, PhraseList, Unstructured};
@@ -53,8 +53,8 @@ pub enum Field<'a> {
 #[derive(Debug, PartialEq)]
 pub struct FieldList<'a>(pub Vec<Field<'a>>);
 impl<'a> FieldList<'a> {
-    pub fn message(self) -> Message<'a> {
-        Message::from_iter(self.0)
+    pub fn imf(self) -> Imf<'a> {
+        Imf::from_iter(self.0)
     }
 }
 
@@ -88,8 +88,8 @@ pub fn field(input: &[u8]) -> IResult<&[u8], Field> {
     )(input)
 }
 
-pub fn message(input: &[u8]) -> IResult<&[u8], Message> {
-    map(header(field), |v| FieldList(v.known()).message())(input)
+pub fn imf(input: &[u8]) -> IResult<&[u8], Imf> {
+    map(header(field), |v| FieldList(v.known()).imf())(input)
 }
 
 #[cfg(test)]
@@ -111,10 +111,10 @@ This is the plain text body of the message. Note the blank line
 between the header information and the body of the message.";
 
         assert_eq!(
-            message(fullmail),
+            imf(fullmail),
             Ok((
                 &b"This is the plain text body of the message. Note the blank line\nbetween the header information and the body of the message."[..],
-                Message {
+                Imf {
                     date: Some(FixedOffset::east_opt(2 * 3600).unwrap().with_ymd_and_hms(2023, 3, 7, 8, 0, 0).unwrap()),
                     from: vec![MailboxRef {
                         name: None,
@@ -137,7 +137,7 @@ between the header information and the body of the message.";
                         UnstrToken::Plain(&b"formatted"[..]), 
                         UnstrToken::Plain(&b"message"[..]),
                     ])),
-                    ..Message::default()
+                    ..Imf::default()
                 }
             )),
         )

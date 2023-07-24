@@ -22,7 +22,7 @@ pub struct Multipart<'a>(pub mime::mime::Multipart<'a>, pub Vec<AnyPart<'a>>);
 #[derive(Debug, PartialEq)]
 pub struct Message<'a>(
     pub mime::mime::Message<'a>,
-    pub imf::message::Message<'a>,
+    pub imf::Imf<'a>,
     pub Box<AnyPart<'a>>,
 );
 
@@ -90,7 +90,7 @@ impl<'a> MixedField<'a> {
     }
 }
 impl<'a> CompFieldList<'a, MixedField<'a>> {
-    pub fn sections(self) -> (mime::mime::AnyMIME<'a>, imf::message::Message<'a>) {
+    pub fn sections(self) -> (mime::mime::AnyMIME<'a>, imf::Imf<'a>) {
         let k = self.known();
         let (v1, v2): (Vec<MixedField>, Vec<MixedField>) =
             k.into_iter().partition(|v| v.mime().is_some());
@@ -101,7 +101,7 @@ impl<'a> CompFieldList<'a, MixedField<'a>> {
         let imf = v2
             .into_iter()
             .filter_map(|v| v.to_imf())
-            .collect::<imf::message::Message>();
+            .collect::<imf::Imf>();
         (mime, imf)
     }
 }
@@ -338,7 +338,7 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                 &[][..],
                 Message (
                     base_mime,
-                    imf::message::Message {
+                    imf::Imf {
                         date: Some(FixedOffset::east_opt(2 * 3600)
                             .unwrap()
                             .with_ymd_and_hms(2023, 07, 8, 7, 14, 29)
@@ -401,7 +401,7 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                             right: &b"www.grrrndzero.org"[..],
                         }),
                         mime_version: Some(imf::mime::Version { major: 1, minor: 0}),
-                        ..imf::message::Message::default()
+                        ..imf::Imf::default()
                     },
                     Box::new(AnyPart::Mult(Multipart (
                         mime::mime::Multipart(

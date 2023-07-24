@@ -11,8 +11,8 @@ pub fn email(input: &[u8]) -> Result<part::part::Message, error::EMLError> {
         .map_err(error::EMLError::ParseError)
 }
 
-pub fn imf(input: &[u8]) -> Result<imf::message::Message, error::EMLError> {
-    imf::field::message(input)
+pub fn imf(input: &[u8]) -> Result<imf::Imf, error::EMLError> {
+    imf::field::imf(input)
         .map(|(_, v)| v)
         .map_err(error::EMLError::ParseError)
 }
