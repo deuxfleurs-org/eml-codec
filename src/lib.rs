@@ -15,8 +15,7 @@ pub mod header;
 /// Low-level email-specific text-based representation for data
 pub mod text;
 
-/// Error management
-pub mod error;
+use nom::IResult;
 
 /// Parse a whole email including its (MIME) body
 ///
@@ -27,6 +26,12 @@ pub mod error;
 /// # Arguments
 ///
 /// * `input` - A buffer of bytes containing your full email
+///
+/// # Returns
+///
+/// * `rest` - The rest of the buffer, the part that is not parsed as the email ended before the
+/// end of the data
+/// * `msg` - The parsed message
 ///
 /// # Examples
 /// 
@@ -41,17 +46,15 @@ pub mod error;
 /// This is the plain text body of the message. Note the blank line
 /// between the header information and the body of the message."#;
 ///
-/// let email = eml_codec::email(input).unwrap();
+/// let (_, email) = eml_codec::email(input).unwrap();
 /// println!(
 ///     "{} raw message is:\n{}",
 ///     email.imf.from[0].to_string(),
 ///     String::from_utf8_lossy(email.child.as_text().unwrap().body),
 /// );
 /// ```
-pub fn email(input: &[u8]) -> Result<part::composite::Message, error::EMLError> {
+pub fn email(input: &[u8]) -> IResult<&[u8], part::composite::Message> {
     part::composite::message(mime::Message::default())(input)
-        .map(|(_, v)| v)
-        .map_err(error::EMLError::ParseError)
 }
 
 /// Only extract the headers of the email that are part of the Internet Message Format spec
@@ -66,6 +69,11 @@ pub fn email(input: &[u8]) -> Result<part::composite::Message, error::EMLError> 
 /// * `input` - A buffer of bytes containing either only the headers of your email or your full
 /// email (in both cases, the body will be ignored)
 ///
+/// # Returns
+///
+/// * `rest` - The rest of the buffer, ie. the body of your email as raw bytes
+/// * `imf` - The parsed IMF headers of your email
+///
 /// # Examples
 ///
 /// ```
@@ -79,15 +87,13 @@ pub fn email(input: &[u8]) -> Result<part::composite::Message, error::EMLError> 
 /// This is the plain text body of the message. Note the blank line
 /// between the header information and the body of the message."#;
 ///
-/// let header = eml_codec::imf(input).unwrap();
+/// let (_, header) = eml_codec::imf(input).unwrap();
 /// println!(
 ///     "{} just sent you an email with subject \"{}\"",
 ///     header.from[0].to_string(),
 ///     header.subject.unwrap().to_string(),
 /// );
 /// ```
-pub fn imf(input: &[u8]) -> Result<imf::Imf, error::EMLError> {
+pub fn imf(input: &[u8]) -> IResult<&[u8], imf::Imf> {
     imf::field::imf(input)
-        .map(|(_, v)| v)
-        .map_err(error::EMLError::ParseError)
 }
