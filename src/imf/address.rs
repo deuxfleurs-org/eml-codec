@@ -8,7 +8,7 @@ use nom::{
 };
 
 //use crate::error::IMFError;
-use crate::rfc5322::mailbox::{mailbox, MailboxRef};
+use crate::imf::mailbox::{mailbox, MailboxRef};
 use crate::text::misc_token::{phrase, Phrase};
 use crate::text::whitespace::cfws;
 
@@ -109,7 +109,7 @@ pub fn nullable_address_list(input: &[u8]) -> IResult<&[u8], Vec<AddressRef>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::rfc5322::mailbox::{AddrSpec, Domain, LocalPart, LocalPartToken};
+    use crate::imf::mailbox::{AddrSpec, Domain, LocalPart, LocalPartToken};
     use crate::text::misc_token::{Phrase, Word};
 
     #[test]

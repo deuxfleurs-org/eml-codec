@@ -8,7 +8,7 @@ use nom::{
     IResult,
 };
 
-use crate::rfc5322::{datetime, mailbox};
+use crate::imf::{datetime, mailbox};
 use crate::text::{ascii, misc_token, whitespace};
 
 #[derive(Debug, PartialEq)]
@@ -75,7 +75,7 @@ fn received_tokens(input: &[u8]) -> IResult<&[u8], ReceivedLogToken> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::rfc5322::trace::misc_token::Word;
+    use crate::imf::trace::misc_token::Word;
     use chrono::TimeZone;
 
     #[test]

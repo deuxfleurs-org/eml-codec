@@ -1,9 +1,9 @@
-use crate::rfc5322::address::AddressRef;
-use crate::rfc5322::field::Field;
-use crate::rfc5322::identification::MessageID;
-use crate::rfc5322::mailbox::{AddrSpec, MailboxRef};
-use crate::rfc5322::mime::Version;
-use crate::rfc5322::trace::ReceivedLog;
+use crate::imf::address::AddressRef;
+use crate::imf::field::Field;
+use crate::imf::identification::MessageID;
+use crate::imf::mailbox::{AddrSpec, MailboxRef};
+use crate::imf::mime::Version;
+use crate::imf::trace::ReceivedLog;
 use crate::text::misc_token::{PhraseList, Unstructured};
 use chrono::{DateTime, FixedOffset};
 

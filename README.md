@@ -3,6 +3,24 @@
 **⚠️ Work in progress, do not use in production**  
 **⚠️ This is currently only a decoder (parser), encoding is not yet implemented.**
 
+## Example
+
+```rust
+let input = br#"
+Date: 7 Mar 2023 08:00:00 +0200
+From: deuxfleurs@example.com
+To: someone_else@example.com
+Subject: An RFC 822 formatted message
+MIME-Version: 1.0
+Content-Type: text/plain; charset=us-ascii
+
+This is the plain text body of the message. Note the blank line
+between the header information and the body of the message.#;
+
+let email = eml_codec::email(input).unwrap();
+println!("{} just sent you an email with subject \"{}\", email.1.
+```
+
 ## About the name
 
 This library does not aim at implementing a specific RFC, but to be a swiss-army knife to decode and encode ("codec") what is generaly considered an email (generally abbreviated "eml"), hence the name: **eml-codec**.
@@ -18,8 +36,7 @@ This library does not aim at implementing a specific RFC, but to be a swiss-army
 
   - Parsing optimization that would make more complicated to understand the logic.
   - Optimization for a specific use case, to the detriment of other use cases.
-  - Pipelining/streaming/buffering as the parser can arbitrarily backtrack + our result contains reference to the whole buffer, imf-codec must keep the whole buffer in memory. Avoiding the sequential approach would certainly speed-up a little bit the parsing, but it's too much work to implement currently.
-  - Zerocopy. It might be implementable in the future, but to quickly bootstrap this project, I avoided it for now.
+  - Pipelining/streaming/buffering as the parser can arbitrarily backtrack + our result contains reference to the whole buffer, eml-codec must keep the whole buffer in memory. Avoiding the sequential approach would certainly speed-up a little bit the parsing, but it's too much work to implement currently.
 
 ## Missing / known bugs
 
@@ -37,7 +54,7 @@ Speak about parser combinators.
 
 ## Testing strategy
 
-imf-codec aims to be as much tested as possible against reald
+eml-codec aims to be as much tested as possible against real word data.
 
 ### Unit testing: parser combinator independently (done)
 

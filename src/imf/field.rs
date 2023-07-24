@@ -7,13 +7,13 @@ use nom::{
 };
 
 use crate::header::{field_name, header};
-use crate::rfc5322::address::{address_list, mailbox_list, nullable_address_list, AddressList};
-use crate::rfc5322::datetime::section as date;
-use crate::rfc5322::identification::{msg_id, msg_list, MessageID, MessageIDList};
-use crate::rfc5322::mailbox::{mailbox, AddrSpec, MailboxList, MailboxRef};
-use crate::rfc5322::message::Message;
-use crate::rfc5322::mime::{version, Version};
-use crate::rfc5322::trace::{received_log, return_path, ReceivedLog};
+use crate::imf::address::{address_list, mailbox_list, nullable_address_list, AddressList};
+use crate::imf::datetime::section as date;
+use crate::imf::identification::{msg_id, msg_list, MessageID, MessageIDList};
+use crate::imf::mailbox::{mailbox, AddrSpec, MailboxList, MailboxRef};
+use crate::imf::message::Message;
+use crate::imf::mime::{version, Version};
+use crate::imf::trace::{received_log, return_path, ReceivedLog};
 use crate::text::misc_token::{phrase_list, unstructured, PhraseList, Unstructured};
 use crate::text::whitespace::obs_crlf;
 
@@ -95,8 +95,8 @@ pub fn message(input: &[u8]) -> IResult<&[u8], Message> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::rfc5322::address::*;
-    use crate::rfc5322::mailbox::*;
+    use crate::imf::address::*;
+    use crate::imf::mailbox::*;
     use crate::text::misc_token::*;
     use chrono::{FixedOffset, TimeZone};
 

@@ -11,7 +11,7 @@ use nom::{
 use crate::header::{header, CompFieldList};
 use crate::mime;
 use crate::mime::mime::AnyMIME;
-use crate::rfc5322::{self as imf};
+use crate::imf::{self as imf};
 use crate::text::ascii::CRLF;
 use crate::text::boundary::{boundary, Delimiter};
 use crate::text::whitespace::obs_crlf;

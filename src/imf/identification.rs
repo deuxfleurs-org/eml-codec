@@ -8,7 +8,7 @@ use nom::{
     IResult,
 };
 
-use crate::rfc5322::mailbox::is_dtext;
+use crate::imf::mailbox::is_dtext;
 use crate::text::whitespace::cfws;
 use crate::text::words::dot_atom_text;
 
