@@ -9,12 +9,12 @@ use crate::text::boundary::{boundary, Delimiter};
 //--- Multipart
 #[derive(Debug, PartialEq)]
 pub struct Multipart<'a> {
-    pub interpreted: mime::mime::Multipart<'a>,
+    pub interpreted: mime::Multipart<'a>,
     pub children: Vec<AnyPart<'a>>,
 }
 
 pub fn multipart<'a>(
-    m: mime::mime::Multipart<'a>,
+    m: mime::Multipart<'a>,
 ) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], Multipart<'a>> {
     let m = m.clone();
 
@@ -64,13 +64,13 @@ pub fn multipart<'a>(
 
 #[derive(Debug, PartialEq)]
 pub struct Message<'a> {
-    pub interpreted: mime::mime::Message<'a>,
+    pub interpreted: mime::Message<'a>,
     pub imf: imf::Imf<'a>,
     pub child: Box<AnyPart<'a>>,
 }
 
 pub fn message<'a>(
-    m: mime::mime::Message<'a>,
+    m: mime::Message<'a>,
 ) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], Message<'a>> {
     move |input: &[u8]| {
         let (input, fields): (_, CompFieldList<part::field::MixedField>) =
@@ -101,12 +101,12 @@ mod tests {
 
     #[test]
     fn test_multipart() {
-        let base_mime = mime::mime::Multipart(
+        let base_mime = mime::Multipart(
             mime::r#type::Multipart {
                 subtype: mime::r#type::MultipartSubtype::Alternative,
                 boundary: "simple boundary".to_string(),
             },
-            mime::mime::Generic::default(),
+            mime::Generic::default(),
         );
 
         assert_eq!(
@@ -133,22 +133,22 @@ This is the epilogue. It is also to be ignored.
                     interpreted: base_mime,
                     children: vec![
                         AnyPart::Txt(Text {
-                            interpreted: mime::mime::Text(
+                            interpreted: mime::Text(
                                 mime::r#type::Text {
                                     subtype: mime::r#type::TextSubtype::Plain,
                                     charset: mime::charset::EmailCharset::US_ASCII,
                                 },
-                                mime::mime::Generic::default(),
+                                mime::Generic::default(),
                             ),
                             body: &b"This is implicitly typed plain US-ASCII text.\nIt does NOT end with a linebreak."[..],
                         }),
                         AnyPart::Txt(Text {
-                            interpreted: mime::mime::Text(
+                            interpreted: mime::Text(
                                 mime::r#type::Text {
                                     subtype: mime::r#type::TextSubtype::Plain,
                                     charset: mime::charset::EmailCharset::US_ASCII,
                                 },
-                                mime::mime::Generic::default(),
+                                mime::Generic::default(),
                             ),
                             body: &b"This is explicitly typed plain US-ASCII text.\nIt DOES end with a linebreak.\n"[..],
                         }),
@@ -205,7 +205,7 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
 "#
         .as_bytes();
 
-        let base_mime = mime::mime::Message::default();
+        let base_mime = mime::Message::default();
         assert_eq!(
             message(base_mime.clone())(fullmail),
             Ok((
@@ -278,34 +278,34 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                         ..imf::Imf::default()
                     },
                     child: Box::new(AnyPart::Mult(Multipart {
-                        interpreted: mime::mime::Multipart(
+                        interpreted: mime::Multipart(
                             mime::r#type::Multipart {
                                 subtype: mime::r#type::MultipartSubtype::Alternative,
                                 boundary: "b1_e376dc71bafc953c0b0fdeb9983a9956".to_string(),
                             },
-                            mime::mime::Generic::default(),
+                            mime::Generic::default(),
                         ),
                         children: vec![
                             AnyPart::Txt(Text {
-                                interpreted: mime::mime::Text(
+                                interpreted: mime::Text(
                                     mime::r#type::Text {
                                         subtype: mime::r#type::TextSubtype::Plain,
                                         charset: mime::charset::EmailCharset::UTF_8,
                                     },
-                                    mime::mime::Generic {
+                                    mime::Generic {
                                         transfer_encoding: mime::mechanism::Mechanism::QuotedPrintable,
-                                        ..mime::mime::Generic::default()
+                                        ..mime::Generic::default()
                                     }
                                 ),
                                 body: &b"GZ\nOoOoO\noOoOoOoOo\noOoOoOoOoOoOoOoOo\noOoOoOoOoOoOoOoOoOoOoOo\noOoOoOoOoOoOoOoOoOoOoOoOoOoOo\nOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO\n"[..],
                             }),
                             AnyPart::Txt(Text {
-                                interpreted: mime::mime::Text(
+                                interpreted: mime::Text(
                                     mime::r#type::Text {
                                         subtype: mime::r#type::TextSubtype::Html,
                                         charset: mime::charset::EmailCharset::US_ASCII,
                                     },
-                                    mime::mime::Generic::default(),
+                                    mime::Generic::default(),
                                 ),
                                 body: &br#"<div style="text-align: center;"><strong>GZ</strong><br />
 OoOoO<br />

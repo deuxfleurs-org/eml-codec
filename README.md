@@ -101,7 +101,7 @@ IANA
 ## State of the art / alternatives
 
 *The following review is not an objective, neutral, impartial review. Instead, it's a temptative 
-to explain why I wrote this 
+to explain why I wrote this library. If you find something outdated or objectively wrong, feel free to open a PR or an issue to fix it.*
 
 `stalwartlab/mail_parser`
 
@@ -115,7 +115,6 @@ to explain why I wrote this
 
 ## License
 
-```
 eml-codec
 Copyright (C)  The eml-codec Contributors
 
@@ -131,4 +130,3 @@ GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
-```

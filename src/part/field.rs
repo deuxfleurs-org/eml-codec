@@ -36,14 +36,14 @@ impl<'a> MixedField<'a> {
     }
 }
 impl<'a> CompFieldList<'a, MixedField<'a>> {
-    pub fn sections(self) -> (mime::mime::AnyMIME<'a>, imf::Imf<'a>) {
+    pub fn sections(self) -> (mime::AnyMIME<'a>, imf::Imf<'a>) {
         let k = self.known();
         let (v1, v2): (Vec<MixedField>, Vec<MixedField>) =
             k.into_iter().partition(|v| v.mime().is_some());
         let mime = v1
             .into_iter()
             .filter_map(|v| v.to_mime())
-            .collect::<mime::mime::AnyMIME>();
+            .collect::<mime::AnyMIME>();
         let imf = v2
             .into_iter()
             .filter_map(|v| v.to_imf())

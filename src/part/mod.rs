@@ -13,7 +13,7 @@ use nom::{
 
 use crate::header::CompFieldList;
 use crate::mime;
-use crate::mime::mime::AnyMIME;
+use crate::mime::AnyMIME;
 use crate::part::{
     composite::{message, multipart, Message, Multipart},
     discrete::{Binary, Text},
@@ -35,14 +35,14 @@ pub fn to_anypart<'a>(m: AnyMIME<'a>, rpart: &'a [u8]) -> AnyPart<'a> {
         AnyMIME::Mult(a) => map(multipart(a), AnyPart::Mult)(rpart)
             .map(|v| v.1)
             .unwrap_or(AnyPart::Txt(Text {
-                interpreted: mime::mime::Text::default(),
+                interpreted: mime::Text::default(),
                 body: rpart,
             })),
         AnyMIME::Msg(a) => {
             map(message(a), AnyPart::Msg)(rpart)
                 .map(|v| v.1)
                 .unwrap_or(AnyPart::Txt(Text {
-                    interpreted: mime::mime::Text::default(),
+                    interpreted: mime::Text::default(),
                     body: rpart,
                 }))
         }
