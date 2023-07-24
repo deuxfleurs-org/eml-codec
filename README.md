@@ -45,6 +45,8 @@ This library does not aim at implementing a specific RFC, but to be a swiss-army
 
 Current known limitations/bugs:
 
+ - **Part transfer-decoding is not implemented yet**
+ - **Internationalized headers (UTF-8) is not implemented yet**
  - Resent Header Fields are not implemented
  - Return-Path/Received headers might be hard to use as their order is important, and it's currently lost in the final datastructure.
  - Datetime parsing of invalid date might return `None` instead of falling back to the `bad_body` field
