@@ -10,7 +10,7 @@ use nom::{
 use crate::text::ascii;
 use crate::text::whitespace::{cfws, fws, is_obs_no_ws_ctl};
 
-#[derive(Debug, PartialEq, Default)]
+#[derive(Debug, PartialEq, Default, Clone)]
 pub struct QuotedString<'a>(pub Vec<&'a [u8]>);
 
 impl<'a> QuotedString<'a> {

@@ -54,7 +54,7 @@ use nom::IResult;
 /// );
 /// ```
 pub fn email(input: &[u8]) -> IResult<&[u8], part::composite::Message> {
-    part::composite::message(mime::Message::default())(input)
+    part::composite::message(mime::MIME::<mime::r#type::Message>::default())(input)
 }
 
 /// Only extract the headers of the email that are part of the Internet Message Format spec
@@ -87,13 +87,13 @@ pub fn email(input: &[u8]) -> IResult<&[u8], part::composite::Message> {
 /// This is the plain text body of the message. Note the blank line
 /// between the header information and the body of the message."#;
 ///
-/// let (_, header) = eml_codec::imf(input).unwrap();
+/// let (_, imf) = eml_codec::imf(input).unwrap();
 /// println!(
 ///     "{} just sent you an email with subject \"{}\"",
-///     header.imf.from[0].to_string(),
-///     header.imf.subject.unwrap().to_string(),
+///     imf.from[0].to_string(),
+///     imf.subject.unwrap().to_string(),
 /// );
 /// ```
-pub fn imf(input: &[u8]) -> IResult<&[u8], imf::field::Header> {
+pub fn imf(input: &[u8]) -> IResult<&[u8], imf::Imf> {
     imf::field::imf(input)
 }

@@ -8,7 +8,6 @@ use nom::{
 use crate::header::{field_name};
 use crate::imf::identification::{msg_id, MessageID};
 use crate::mime::mechanism::{mechanism, Mechanism};
-use crate::mime::{AnyMIMEWithDefault, WithDefaultType};
 use crate::mime::r#type::{naive_type, NaiveType};
 use crate::text::misc_token::{unstructured, Unstructured};
 use crate::text::whitespace::obs_crlf;
@@ -48,14 +47,10 @@ impl<'a> Content<'a> {
     }
 }
 
-/*impl<'a> CompFieldList<'a, Content<'a>> {
-    pub fn to_mime<T: WithDefaultType> (self) -> AnyMIMEWithDefault<'a, T> {
-        self.known().into_iter().collect::<AnyMIMEWithDefault<T>>()
-    }
-}*/
+/*
 pub fn to_mime<'a, T: WithDefaultType>(list: Vec<Content<'a>>) -> AnyMIMEWithDefault<'a, T> {
     list.into_iter().collect::<AnyMIMEWithDefault<T>>()
-}
+}*/
 
 pub fn content(input: &[u8]) -> IResult<&[u8], Content> {
     terminated(

@@ -65,13 +65,13 @@ pub fn to_anypart<'a>(m: AnyMIME<'a>, rpart: &'a [u8]) -> AnyPart<'a> {
         AnyMIME::Mult(a) => multipart(a)(rpart)
             .map(|(rest, multi)| AnyPart::Mult(multi.with_epilogue(rest)))
             .unwrap_or(AnyPart::Txt(Text {
-                interpreted: mime::Text::default(),
+                interpreted: mime::MIME::<mime::r#type::Text>::default(),
                 body: rpart,
             })),
         AnyMIME::Msg(a) => message(a)(rpart)
             .map(|(rest, msg)| AnyPart::Msg(msg.with_epilogue(rest)))
             .unwrap_or(AnyPart::Txt(Text {
-                interpreted: mime::Text::default(),
+                interpreted: mime::MIME::<mime::r#type::Text>::default(),
                 body: rpart,
             })),
         AnyMIME::Txt(a) => AnyPart::Txt(Text {

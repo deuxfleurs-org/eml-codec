@@ -23,7 +23,7 @@ pub fn phrase_list(input: &[u8]) -> IResult<&[u8], PhraseList> {
     map(separated_list1(tag(","), phrase), PhraseList)(input)
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum MIMEWord<'a> {
     Quoted(QuotedString<'a>),
     Atom(&'a [u8]),

@@ -9,9 +9,10 @@ use nom::{
 use crate::mime::charset::EmailCharset;
 use crate::text::misc_token::{mime_word, MIMEWord};
 use crate::text::words::mime_atom;
+use crate::mime::{AnyMIME, MIME, NaiveMIME};
 
 // --------- NAIVE TYPE
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct NaiveType<'a> {
     pub main: &'a [u8],
     pub sub: &'a [u8],
@@ -29,7 +30,7 @@ pub fn naive_type(input: &[u8]) -> IResult<&[u8], NaiveType> {
     )(input)
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Parameter<'a> {
     pub name: &'a [u8],
     pub value: MIMEWord<'a>,
@@ -67,6 +68,17 @@ impl<'a> From<&'a NaiveType<'a>> for AnyType {
             b"text" => Self::Text(Text::from(nt)),
             _ => Self::Binary(Binary::default()),
         }
+    }
+}
+
+impl<'a> AnyType {
+    pub fn to_mime(self, parsed: NaiveMIME<'a>) -> AnyMIME<'a> {
+         match self {
+            Self::Multipart(interpreted) => AnyMIME::Mult(MIME::<Multipart> { interpreted, parsed }),
+            Self::Message(interpreted) => AnyMIME::Msg(MIME::<Message> { interpreted, parsed }),
+            Self::Text(interpreted) => AnyMIME::Txt(MIME::<Text> { interpreted, parsed }),
+            Self::Binary(interpreted) => AnyMIME::Bin(MIME::<Binary> { interpreted, parsed }),
+        }       
     }
 }
 

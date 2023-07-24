@@ -18,8 +18,8 @@ pub enum CompField<'a, T> {
     Bad(&'a [u8]),
 }
 
-#[derive(Debug, PartialEq)]
-pub struct Kv<'a>(&'a [u8], Unstructured<'a>);
+#[derive(Debug, PartialEq, Clone)]
+pub struct Kv<'a>(pub &'a [u8], pub Unstructured<'a>);
 
 
 pub fn header<'a, T>(

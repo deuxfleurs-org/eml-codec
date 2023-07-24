@@ -15,38 +15,38 @@ use std::marker::PhantomData;
 use crate::imf::identification::MessageID;
 use crate::mime::field::Content;
 use crate::mime::mechanism::Mechanism;
-use crate::mime::r#type::{self as ctype, AnyType};
+use crate::mime::r#type::{AnyType, NaiveType};
+use crate::header;
 use crate::text::misc_token::Unstructured; //Multipart, Message, Text, Binary};
 
 #[derive(Debug, PartialEq, Clone)]
-pub struct Multipart<'a>(pub ctype::Multipart, pub Generic<'a>);
-
-#[derive(Debug, PartialEq, Clone, Default)]
-pub struct Message<'a>(pub ctype::Message, pub Generic<'a>);
-
-#[derive(Debug, PartialEq, Clone, Default)]
-pub struct Text<'a>(pub ctype::Text, pub Generic<'a>);
-
-#[derive(Debug, PartialEq, Clone)]
-pub struct Binary<'a>(pub ctype::Binary, pub Generic<'a>);
+pub struct MIME<'a, T> {
+    pub interpreted: T, 
+    pub parsed: NaiveMIME<'a>
+}
+impl<'a> Default for MIME<'a, r#type::Text> {
+    fn default() -> Self {
+        Self {
+            interpreted: r#type::Text::default(),
+            parsed: NaiveMIME::default(),
+        }
+    }
+}
+impl<'a> Default for MIME<'a, r#type::Message> {
+    fn default() -> Self {
+        Self {
+            interpreted: r#type::Message::default(),
+            parsed: NaiveMIME::default(),
+        }
+    }
+}
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum AnyMIME<'a> {
-    Mult(Multipart<'a>),
-    Msg(Message<'a>),
-    Txt(Text<'a>),
-    Bin(Binary<'a>),
-}
-
-impl<'a> AnyMIME<'a> {
-    pub fn from_pair(at: AnyType, gen: Generic<'a>) -> Self {
-        match at {
-            AnyType::Multipart(m) => AnyMIME::Mult(Multipart(m, gen)),
-            AnyType::Message(m) => AnyMIME::Msg(Message(m, gen)),
-            AnyType::Text(m) => AnyMIME::Txt(Text(m, gen)),
-            AnyType::Binary(m) => AnyMIME::Bin(Binary(m, gen)),
-        }
-    }
+    Mult(MIME<'a, r#type::Multipart>),
+    Msg(MIME<'a, r#type::Message>),
+    Txt(MIME<'a, r#type::Text>),
+    Bin(MIME<'a, r#type::Binary>),
 }
 
 impl<'a, T: WithDefaultType> From<AnyMIMEWithDefault<'a, T>> for AnyMIME<'a> {
@@ -56,11 +56,45 @@ impl<'a, T: WithDefaultType> From<AnyMIMEWithDefault<'a, T>> for AnyMIME<'a> {
 }
 
 #[derive(Debug, PartialEq, Default, Clone)]
-pub struct Generic<'a> {
+pub struct NaiveMIME<'a> {
+    pub ctype: Option<NaiveType<'a>>,
     pub transfer_encoding: Mechanism<'a>,
     pub id: Option<MessageID<'a>>,
     pub description: Option<Unstructured<'a>>,
+    pub header_ext: Vec<header::Kv<'a>>,
+    pub header_bad: Vec<&'a [u8]>,
 }
+
+impl<'a> FromIterator<Content<'a>> for NaiveMIME<'a> {
+    fn from_iter<I: IntoIterator<Item = Content<'a>>>(it: I) -> Self {
+        it.into_iter().fold(
+            NaiveMIME::default(),
+            |mut section, field| {
+                match field {
+                    Content::Type(v) => section.ctype = Some(v),
+                    Content::TransferEncoding(v) => section.transfer_encoding = v,
+                    Content::ID(v) => section.id = Some(v),
+                    Content::Description(v) => section.description = Some(v),
+                };
+                section
+            },
+        )
+    }
+}
+
+impl<'a> NaiveMIME<'a> {
+    pub fn with_opt(mut self, opt: Vec<header::Kv<'a>>) -> Self {
+        self.header_ext = opt; self
+    }
+    pub fn with_bad(mut self, bad: Vec<&'a [u8]>) -> Self {
+        self.header_bad = bad; self
+    }
+    pub fn to_interpreted<T: WithDefaultType>(self) -> AnyMIME<'a> {
+       self.ctype.as_ref().map(|c| c.to_type()).unwrap_or(T::default_type()).to_mime(self).into()
+    }
+}
+
+
 
 pub trait WithDefaultType {
     fn default_type() -> AnyType;
@@ -82,21 +116,8 @@ impl WithDefaultType for WithDigestDefault {
 #[derive(Debug, PartialEq)]
 pub struct AnyMIMEWithDefault<'a, T: WithDefaultType>(pub AnyMIME<'a>, PhantomData<T>);
 
-impl<'a, T: WithDefaultType> FromIterator<Content<'a>> for AnyMIMEWithDefault<'a, T> {
-    fn from_iter<I: IntoIterator<Item = Content<'a>>>(it: I) -> Self {
-        let (at, gen) = it.into_iter().fold(
-            (T::default_type(), Generic::default()),
-            |(mut at, mut section), field| {
-                match field {
-                    Content::Type(v) => at = v.to_type(),
-                    Content::TransferEncoding(v) => section.transfer_encoding = v,
-                    Content::ID(v) => section.id = Some(v),
-                    Content::Description(v) => section.description = Some(v),
-                };
-                (at, section)
-            },
-        );
-
-        Self(AnyMIME::from_pair(at, gen), PhantomData)
+impl<'a, T: WithDefaultType> Default for AnyMIMEWithDefault<'a, T> {
+    fn default() -> Self {
+        Self(T::default_type().to_mime(NaiveMIME::default()), PhantomData)
     }
 }

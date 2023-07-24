@@ -4,7 +4,7 @@ use crate::mime;
 
 #[derive(PartialEq)]
 pub struct Text<'a> {
-    pub interpreted: mime::Text<'a>,
+    pub interpreted: mime::MIME<'a, mime::r#type::Text>,
     pub body: &'a [u8],
 }
 
@@ -22,7 +22,7 @@ impl<'a> fmt::Debug for Text<'a> {
 
 #[derive(PartialEq)]
 pub struct Binary<'a> {
-    pub interpreted: mime::Binary<'a>,
+    pub interpreted: mime::MIME<'a, mime::r#type::Binary>,
     pub body: &'a [u8],
 }
 

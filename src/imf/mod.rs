@@ -14,6 +14,7 @@ use crate::imf::identification::MessageID;
 use crate::imf::mailbox::{AddrSpec, MailboxRef};
 use crate::imf::mime::Version;
 use crate::imf::trace::ReceivedLog;
+use crate::header;
 use crate::text::misc_token::{PhraseList, Unstructured};
 use chrono::{DateTime, FixedOffset};
 
@@ -49,6 +50,19 @@ pub struct Imf<'a> {
 
     // MIME
     pub mime_version: Option<Version>,
+
+    // Junk
+    pub header_ext: Vec<header::Kv<'a>>,
+    pub header_bad: Vec<&'a [u8]>,
+}
+
+impl<'a> Imf<'a> {
+    pub fn with_opt(mut self, opt: Vec<header::Kv<'a>>) -> Self {
+        self.header_ext = opt; self
+    }
+    pub fn with_bad(mut self, bad: Vec<&'a [u8]>) -> Self {
+        self.header_bad = bad; self
+    }
 }
 
 //@FIXME min and max limits are not enforced,
