@@ -26,7 +26,7 @@ println!(
 );
 ```
 
-[See more examples in the example/ folder](./example/)
+[See more examples in the examples/ folder](./examples/)
 
 ## About the name
 
