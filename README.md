@@ -101,13 +101,22 @@ IANA
 
 ## State of the art / alternatives
 
-*The following review is not an objective, neutral, impartial review. Instead, it's a temptative 
-to explain why I wrote this library. If you find something outdated or objectively wrong, feel free to open a PR or an issue to fix it.*
+The following review is not an objective, neutral, impartial review. Instead, it's a temptative 
+to explain why I wrote this library. If you find something outdated or objectively wrong, feel free to open a PR or an issue to fix it.
+In no case, I think `eml-codec` is superior, it's just another approach to the problem, and I see it as another stone to the edifice.
 
-`stalwartlab/mail_parser`
+[mail\_parser](https://github.com/stalwartlabs/mail-parser), [mailparse](https://github.com/staktrace/mailparse) and [rust-email](https://github.com/deltachat/rust-email) 
+are 3 handwritten parsers. Such handwritten parsers do not encourage separation of concerns: `mail_parser` and `mailparse` feature large functions with hundreds of lines
+with a high cylomatic complexity. Due to this complex logic, I have failed to debug/patch such code in the past. 
+`rust-email` code is easier to read but its mime part implementation is marked as unstable. `mail_parser` is used in the IMAP/JMAP/SMTP server project [stalwartlabs/mail-server](https://github.com/stalwartlabs/mail-server) and `rust-email` is used in the email-based chat application [Deltachat](https://github.com/deltachat) (however `rust-email` MIME parsed is not used, a custom MIME parser is reimplemented in Delta Chat instead). It must be noted that `mail_parser` supports a large amount of extensions (UTF-8 headers, UTF-7 encoding, continuation, many custom fields, etc.) and would better cope with malformed emails than other libraries. **A goal of `eml_codec` is to be open to contribution and maintainable over time, which is made possible trough the parser combinator pattern that encourages writing small, reusable, independently testable functions.**
 
-[See more about this library goals in the sota/ folder](./doc/sota.md)
-
+[rustyknife](https://github.com/jothan/rustyknife) is more targeted to SMTP servers (MTA) than IMAP (MDA) and email clients (MUA).
+It thus only supports parsing headers and not emails' body. Also, an acquaintance warned me that this library is a bit slow,
+it might be due to the fact that the library does some processing while parsing the email (like rebuilding and allocating strings).
+If it happens that this part is not used later, the allocation/processing has been wasted.
+**A goal of `eml_codec` is to produce an AST of the email with as few processing as possible, so that the parsing remains efficient,
+and then the allocation/processing is made lazily, on demand, when the corresponding function is called. It is often referred as zero-copy.**
+ 
 ## Support
 
 `eml-codec`, as part of the [Aerogramme project](https://nlnet.nl/project/Aerogramme/), was funded through the NGI Assure Fund, a fund established by NLnet with financial support from the European Commission's Next Generation Internet programme, under the aegis of DG Communications Networks, Content and Technology under grant agreement No 957073.
