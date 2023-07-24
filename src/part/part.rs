@@ -96,13 +96,11 @@ impl<'a> CompFieldList<'a, MixedField<'a>> {
             k.into_iter().partition(|v| v.mime().is_some());
         let mime = v1
             .into_iter()
-            .map(|v| v.to_mime())
-            .flatten()
+            .filter_map(|v| v.to_mime())
             .collect::<mime::mime::AnyMIME>();
         let imf = v2
             .into_iter()
-            .map(|v| v.to_imf())
-            .flatten()
+            .filter_map(|v| v.to_imf())
             .collect::<imf::message::Message>();
         (mime, imf)
     }

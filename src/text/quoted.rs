@@ -52,8 +52,8 @@ pub fn quoted_pair(input: &[u8]) -> IResult<&[u8], &[u8]> {
 /// ```
 fn is_restr_qtext(c: u8) -> bool {
     c == ascii::EXCLAMATION
-        || (c >= ascii::NUM && c <= ascii::LEFT_BRACKET)
-        || (c >= ascii::RIGHT_BRACKET && c <= ascii::TILDE)
+        || (ascii::NUM..=ascii::LEFT_BRACKET).contains(&c)
+        || (ascii::RIGHT_BRACKET..=ascii::TILDE).contains(&c)
 }
 
 fn is_qtext(c: u8) -> bool {
@@ -85,7 +85,7 @@ pub fn quoted_string(input: &[u8]) -> IResult<&[u8], QuotedString> {
     let mut qstring = content
         .iter()
         .fold(QuotedString::default(), |mut acc, (maybe_wsp, c)| {
-            if let Some(_) = maybe_wsp {
+            if maybe_wsp.is_some() {
                 acc.push(&[ascii::SP]);
             }
             acc.push(c);
@@ -93,7 +93,7 @@ pub fn quoted_string(input: &[u8]) -> IResult<&[u8], QuotedString> {
         });
 
     let (input, maybe_wsp) = opt(fws)(input)?;
-    if let Some(_) = maybe_wsp {
+    if maybe_wsp.is_some() {
         qstring.push(&[ascii::SP]);
     }
 

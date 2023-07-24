@@ -46,7 +46,7 @@ pub fn received_log(input: &[u8]) -> IResult<&[u8], ReceivedLog> {
 }
 
 pub fn return_path(input: &[u8]) -> IResult<&[u8], Option<mailbox::AddrSpec>> {
-    alt((map(mailbox::angle_addr, |a| Some(a)), empty_path))(input)
+    alt((map(mailbox::angle_addr, Some), empty_path))(input)
 }
 
 fn empty_path(input: &[u8]) -> IResult<&[u8], Option<mailbox::AddrSpec>> {
@@ -63,12 +63,12 @@ fn empty_path(input: &[u8]) -> IResult<&[u8], Option<mailbox::AddrSpec>> {
 fn received_tokens(input: &[u8]) -> IResult<&[u8], ReceivedLogToken> {
     alt((
         terminated(
-            map(misc_token::word, |x| ReceivedLogToken::Word(x)),
+            map(misc_token::word, ReceivedLogToken::Word),
             not(is_a([ascii::PERIOD, ascii::AT])),
         ),
-        map(mailbox::angle_addr, |x| ReceivedLogToken::Addr(x)),
-        map(mailbox::addr_spec, |x| ReceivedLogToken::Addr(x)),
-        map(mailbox::obs_domain, |x| ReceivedLogToken::Domain(x)),
+        map(mailbox::angle_addr, ReceivedLogToken::Addr),
+        map(mailbox::addr_spec, ReceivedLogToken::Addr),
+        map(mailbox::obs_domain, ReceivedLogToken::Domain),
     ))(input)
 }
 

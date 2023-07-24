@@ -144,7 +144,7 @@ fn strict_year(input: &[u8]) -> IResult<&[u8], i32> {
     delimited(
         fws,
         map(
-            terminated(take_while_m_n(4, 9, |c| c >= 0x30 && c <= 0x39), digit0),
+            terminated(take_while_m_n(4, 9, |c| (0x30..=0x39).contains(&c)), digit0),
             |d: &[u8]| {
                 encoding_rs::UTF_8
                     .decode_without_bom_handling(d)
@@ -162,15 +162,15 @@ fn obs_year(input: &[u8]) -> IResult<&[u8], i32> {
     map(
         delimited(
             opt(cfws),
-            terminated(take_while_m_n(2, 7, |c| c >= 0x30 && c <= 0x39), digit0),
+            terminated(take_while_m_n(2, 7, |c| (0x30..=0x39).contains(&c)), digit0),
             opt(cfws),
         ),
         |cap: &[u8]| {
             let year_txt = encoding_rs::UTF_8.decode_without_bom_handling(cap).0;
             let d = year_txt.parse::<i32>().unwrap_or(0);
-            if d >= 0 && d <= 49 {
+            if (0..=49).contains(&d) {
                 2000 + d
-            } else if d >= 50 && d <= 999 {
+            } else if (50..=999).contains(&d) {
                 1900 + d
             } else {
                 d
@@ -227,8 +227,8 @@ fn strict_zone(input: &[u8]) -> IResult<&[u8], Option<FixedOffset>> {
         tuple((
             opt(fws),
             is_a("+-"),
-            take_while_m_n(2, 2, |c| c >= 0x30 && c <= 0x39),
-            take_while_m_n(2, 2, |c| c >= 0x30 && c <= 0x39),
+            take_while_m_n(2, 2, |c| (0x30..=0x39).contains(&c)),
+            take_while_m_n(2, 2, |c| (0x30..=0x39).contains(&c)),
         )),
         |(_, op, dig_zone_hour, dig_zone_min)| {
             let zone_hour: i32 =
@@ -293,7 +293,7 @@ fn obs_zone(input: &[u8]) -> IResult<&[u8], Option<FixedOffset>> {
             value(FixedOffset::west_opt(0 * HOUR), tag_no_case(b"Z")),
             // Military Timezones East
             alt((
-                value(FixedOffset::east_opt(1 * HOUR), tag_no_case(b"A")),
+                value(FixedOffset::east_opt(HOUR), tag_no_case(b"A")),
                 value(FixedOffset::east_opt(2 * HOUR), tag_no_case(b"B")),
                 value(FixedOffset::east_opt(3 * HOUR), tag_no_case(b"C")),
                 value(FixedOffset::east_opt(4 * HOUR), tag_no_case(b"D")),
@@ -308,7 +308,7 @@ fn obs_zone(input: &[u8]) -> IResult<&[u8], Option<FixedOffset>> {
             )),
             // Military Timezones West
             alt((
-                value(FixedOffset::west_opt(1 * HOUR), tag_no_case(b"N")),
+                value(FixedOffset::west_opt(HOUR), tag_no_case(b"N")),
                 value(FixedOffset::west_opt(2 * HOUR), tag_no_case(b"O")),
                 value(FixedOffset::west_opt(3 * HOUR), tag_no_case(b"P")),
                 value(FixedOffset::west_opt(4 * HOUR), tag_no_case(b"Q")),

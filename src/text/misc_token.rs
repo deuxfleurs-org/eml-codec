@@ -83,9 +83,9 @@ impl<'a> fmt::Debug for Word<'a> {
 /// ```
 pub fn word(input: &[u8]) -> IResult<&[u8], Word> {
     alt((
-        map(quoted_string, |v| Word::Quoted(v)),
-        map(encoded_word, |v| Word::Encoded(v)),
-        map(atom, |v| Word::Atom(v)),
+        map(quoted_string, Word::Quoted),
+        map(encoded_word, Word::Encoded),
+        map(atom, Word::Atom),
     ))(input)
 }
 
@@ -113,7 +113,7 @@ impl<'a> fmt::Debug for Phrase<'a> {
 ///    phrase          =   1*word / obs-phrase
 /// ```
 pub fn phrase(input: &[u8]) -> IResult<&[u8], Phrase> {
-    let (input, phrase) = map(many1(word), |v| Phrase(v))(input)?;
+    let (input, phrase) = map(many1(word), Phrase)(input)?;
     Ok((input, phrase))
 }
 
@@ -188,8 +188,8 @@ pub fn unstructured(input: &[u8]) -> IResult<&[u8], Unstructured> {
     let (input, r) = many0(preceded(
         opt(fws),
         alt((
-            map(encoded_word, |v| UnstrToken::Encoded(v)),
-            map(take_while1(is_unstructured), |v| UnstrToken::Plain(v)),
+            map(encoded_word, UnstrToken::Encoded),
+            map(take_while1(is_unstructured), UnstrToken::Plain),
         )),
     ))(input)?;
 

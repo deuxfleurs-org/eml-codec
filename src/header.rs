@@ -23,11 +23,10 @@ impl<'a, T> CompFieldList<'a, T> {
     pub fn known(self) -> Vec<T> {
         self.0
             .into_iter()
-            .map(|v| match v {
+            .filter_map(|v| match v {
                 CompField::Known(f) => Some(f),
                 _ => None,
             })
-            .flatten()
             .collect()
     }
 }
@@ -81,7 +80,7 @@ pub fn opt_field(input: &[u8]) -> IResult<&[u8], (&[u8], Unstructured)> {
     terminated(
         pair(
             terminated(
-                take_while1(|c| c >= 0x21 && c <= 0x7E && c != 0x3A),
+                take_while1(|c| (0x21..=0x7E).contains(&c) && c != 0x3A),
                 tuple((space0, tag(b":"), space0)),
             ),
             unstructured,

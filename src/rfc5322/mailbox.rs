@@ -166,9 +166,9 @@ fn obs_local_part(input: &[u8]) -> IResult<&[u8], LocalPart> {
     map(
         many0(alt((
             map(tag(&[ascii::PERIOD]), |_| LocalPartToken::Dot),
-            map(word, |v| LocalPartToken::Word(v)),
+            map(word, LocalPartToken::Word),
         ))),
-        |v| LocalPart(v),
+        LocalPart,
     )(input)
 }
 
@@ -223,7 +223,7 @@ impl<'a> fmt::Debug for Domain<'a> {
 /// ```
 pub fn obs_domain(input: &[u8]) -> IResult<&[u8], Domain> {
     alt((
-        map(separated_list1(tag("."), atom), |v| Domain::Atoms(v)),
+        map(separated_list1(tag("."), atom), Domain::Atoms),
         domain_litteral,
     ))(input)
 }
@@ -244,12 +244,12 @@ fn domain_litteral(input: &[u8]) -> IResult<&[u8], Domain> {
 fn inner_domain_litteral(input: &[u8]) -> IResult<&[u8], Domain> {
     map(
         terminated(many0(preceded(opt(fws), take_while1(is_dtext))), opt(fws)),
-        |v| Domain::Litteral(v),
+        Domain::Litteral,
     )(input)
 }
 
 fn is_strict_dtext(c: u8) -> bool {
-    (c >= 0x21 && c <= 0x5A) || (c >= 0x5E && c <= 0x7E)
+    (0x21..=0x5A).contains(&c) || (0x5E..=0x7E).contains(&c)
 }
 
 /// Is domain text

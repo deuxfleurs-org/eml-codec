@@ -127,7 +127,7 @@ pub fn ptext(input: &[u8]) -> IResult<&[u8], Vec<QuotedChunk>> {
 }
 
 fn safe_char2(input: &[u8]) -> IResult<&[u8], QuotedChunk> {
-    map(take_while1(is_safe_char2), |v| QuotedChunk::Safe(v))(input)
+    map(take_while1(is_safe_char2), QuotedChunk::Safe)(input)
 }
 
 /// RFC2047 section 4.2

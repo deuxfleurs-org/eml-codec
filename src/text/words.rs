@@ -10,7 +10,7 @@ use nom::{
 };
 
 pub fn is_vchar(c: u8) -> bool {
-    c >= ascii::EXCLAMATION && c <= ascii::TILDE
+    (ascii::EXCLAMATION..=ascii::TILDE).contains(&c)
 }
 
 /// MIME Token allowed characters
@@ -101,10 +101,10 @@ mod tests {
 
     #[test]
     fn test_atext() {
-        assert!(is_atext('=' as u8));
-        assert!(is_atext('5' as u8));
-        assert!(is_atext('Q' as u8));
-        assert!(!is_atext(' ' as u8));
+        assert!(is_atext(b'='));
+        assert!(is_atext(b'5'));
+        assert!(is_atext(b'Q'));
+        assert!(!is_atext(b' '));
         //assert!(is_atext('É')); // support utf8
     }
 

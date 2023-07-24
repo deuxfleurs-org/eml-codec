@@ -117,9 +117,9 @@ pub fn is_ctext(c: u8) -> bool {
 ///                       obs-ctext
 ///```
 pub fn is_restr_ctext(c: u8) -> bool {
-    (c >= ascii::EXCLAMATION && c <= ascii::SQUOTE)
-        || (c >= ascii::ASTERISK && c <= ascii::LEFT_BRACKET)
-        || (c >= ascii::RIGHT_BRACKET && c <= ascii::TILDE)
+    (ascii::EXCLAMATION..=ascii::SQUOTE).contains(&c)
+        || (ascii::ASTERISK..=ascii::LEFT_BRACKET).contains(&c)
+        || (ascii::RIGHT_BRACKET..=ascii::TILDE).contains(&c)
 }
 
 /// US ASCII control characters without effect
@@ -132,10 +132,10 @@ pub fn is_restr_ctext(c: u8) -> bool {
 ///                       %d127              ;  white space characters
 /// ```
 pub fn is_obs_no_ws_ctl(c: u8) -> bool {
-    (c >= ascii::SOH && c <= ascii::BS)
+    (ascii::SOH..=ascii::BS).contains(&c)
         || c == ascii::VT
         || c == ascii::FF
-        || (c >= ascii::SO && c <= ascii::US)
+        || (ascii::SO..=ascii::US).contains(&c)
         || c == ascii::DEL
 }
 

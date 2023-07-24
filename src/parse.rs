@@ -11,5 +11,5 @@ fn main() {
     let eml = eml_codec::email(&rawmail).unwrap();
     println!("{:#?}", eml);
     assert!(eml.1.date.is_some());
-    assert!(eml.1.from.len() > 0);
+    assert!(!eml.1.from.is_empty());
 }
