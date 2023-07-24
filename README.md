@@ -2,6 +2,9 @@
 
 **⚠️ This is currently only a decoder (ie. a parser), encoding is not yet implemented.**
 
+`eml-codec` is a child project of [Aerogramme](https://aerogramme.deuxfleurs.fr), a distributed and encrypted IMAP server developped by the non-profit organization [Deuxfleurs](https://deuxfleurs.fr).
+Its aim is to be a swiss army knife to handle emails, whether it is to build an IMAP/JMAP server, a mail filter (like an antispam), or a mail client.
+
 ## Example
 
 ```rust
@@ -56,34 +59,17 @@ Speak about parser combinators.
 
 ## Testing strategy
 
-eml-codec aims to be as much tested as possible against real word data.
+Currently this crate has some unit tests on most of its parsing functions.
+It is also tested as part of Aerogramme, its parent project where it handles email parsing.
+In this project,  `eml-codec` parsing capabilities are compared to Dovecot, Cyrus, Maddy and other IMAP servers.
 
-### Unit testing: parser combinator independently (done)
+It is planned to test it on large email datasets (like Enron, jpbush, mailing lists, etc.) but it's not done yet.
+Fuzzing the library would also be interesting, probably to detect crashing due to stack overflow for example
+due to the infinite recursivity of MIME.
 
-### Selected full emails (expected)
+## RFC and IANA references
 
-### Existing datasets
-
-**Enron 500k** - Took 20 minutes to parse ~517k emails and check that 
-RFC5322 headers (From, To, Cc, etc.) are correctly parsed.
-From this list, we had to exclude ~50 emails on which
-the From/To/Cc fields were simply completely wrong, but while
-some fields failed to parse, the parser did not crash and
-parsed the other fields of the email correctly.
-
-Run it on your machine:
-
-```bash
-cargo test -- --ignored --nocapture enron500k
-```
-
-Planned: jpbush, my inbox, etc.
-
-### Fuzzing (expected)
-
-### Across reference IMAP servers (dovevot, cyrus) (expected)
-
-## Targeted RFC and IANA references
+RFC
 
 | 🚩 | # | Name |
 |----|---|------|
@@ -106,9 +92,12 @@ Planned: jpbush, my inbox, etc.
 | 🔴 |3798  | ↳ Message Disposition Notification |
 | 🔴 |6838  | ↳ Media Type Specifications and Registration Procedures |
 
-IANA references :
- - (tbd) MIME subtypes
- - [IANA character sets](https://www.iana.org/assignments/character-sets/character-sets.xhtml)
+IANA
+
+| Name | Description | Note |
+|------|-------------|------|
+| [Media Types](https://www.iana.org/assignments/media-types/media-types.xhtml) | Registered media types for the Content-Type field | Currently only the media types in the MIME RFC have dedicated support in `eml-codec`. |
+| [Character sets](https://www.iana.org/assignments/character-sets/character-sets.xhtml) | Supported character sets for the `charset` parameter | They should all be supported through the `encoding_rs` crate |
 
 ## State of the art / alternatives
 
