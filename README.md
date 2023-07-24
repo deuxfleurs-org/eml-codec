@@ -1,7 +1,6 @@
 # eml-codec
 
-**⚠️ Work in progress, do not use in production**  
-**⚠️ This is currently only a decoder (parser), encoding is not yet implemented.**
+**⚠️ This is currently only a decoder (ie. a parser), encoding is not yet implemented.**
 
 ## Example
 
