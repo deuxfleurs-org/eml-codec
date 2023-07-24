@@ -49,20 +49,6 @@ pub fn header<'a, T>(
     }
 }
 
-/*
-pub fn header_in_boundaries<'a, T>(bound: &'a [u8], fx: impl Fn(&'a [u8]) -> IResult<&[u8], T> + Copy)
-    -> impl Fn(&'a [u8]) -> IResult<&[u8], CompFieldList<T>>
-{
-    move |input| map(terminated(many0(preceded(
-        not(boundary(bound)),
-        alt((
-            map(fx, CompField::Known),
-            map(opt_field, |(k,v)| CompField::Unknown(k,v)),
-            map(foldable_line, CompField::Bad),
-        )))), obs_crlf), CompFieldList)(input)
-}
-*/
-
 pub fn field_name<'a>(name: &'static [u8]) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], &'a [u8]> {
     move |input| terminated(tag_no_case(name), tuple((space0, tag(b":"), space0)))(input)
 }
