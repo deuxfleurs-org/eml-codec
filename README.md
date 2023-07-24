@@ -19,8 +19,8 @@ between the header information and the body of the message."#;
 let email = eml_codec::email(input).unwrap();
 println!(
     "{} just sent you an email with subject \"{}\"",
-    email.1.from[0].to_string(),
-    email.1.subject.unwrap().to_string(),
+    email.imf.from[0].to_string(),
+    email.imf.subject.unwrap().to_string(),
 );
 ```
 

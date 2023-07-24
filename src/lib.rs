@@ -5,8 +5,8 @@ mod part;
 mod imf;
 mod text;
 
-pub fn email(input: &[u8]) -> Result<part::part::Message, error::EMLError> {
-    part::part::message(mime::mime::Message::default())(input)
+pub fn email(input: &[u8]) -> Result<part::composite::Message, error::EMLError> {
+    part::composite::message(mime::mime::Message::default())(input)
         .map(|(_, v)| v)
         .map_err(error::EMLError::ParseError)
 }
