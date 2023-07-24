@@ -11,6 +11,14 @@ use crate::text::boundary::{boundary, Delimiter};
 pub struct Multipart<'a> {
     pub interpreted: mime::Multipart<'a>,
     pub children: Vec<AnyPart<'a>>,
+    pub preamble: &'a [u8],
+    pub epilogue: &'a [u8],
+}
+impl<'a> Multipart<'a> {
+    pub fn with_epilogue(mut self, e: &'a [u8]) -> Self {
+        self.epilogue = e;
+        self
+    }
 }
 
 pub fn multipart<'a>(
@@ -20,7 +28,7 @@ pub fn multipart<'a>(
 
     move |input| {
         let bound = m.0.boundary.as_bytes();
-        let (mut input_loop, _) = part::part_raw(bound)(input)?;
+        let (mut input_loop, preamble) = part::part_raw(bound)(input)?;
         let mut mparts: Vec<AnyPart> = vec![];
         loop {
             let input = match boundary(bound)(input_loop) {
@@ -30,6 +38,8 @@ pub fn multipart<'a>(
                         Multipart {
                             interpreted: m.clone(),
                             children: mparts,
+                            preamble,
+                            epilogue: &[],
                         },
                     ))
                 }
@@ -39,6 +49,8 @@ pub fn multipart<'a>(
                         Multipart {
                             interpreted: m.clone(),
                             children: mparts,
+                            preamble,
+                            epilogue: &[],
                         },
                     ))
                 }
@@ -70,7 +82,14 @@ pub struct Message<'a> {
     pub interpreted: mime::Message<'a>,
     pub imf: imf::Imf<'a>,
     pub child: Box<AnyPart<'a>>,
+    pub epilogue: &'a [u8],
 }
+impl<'a> Message<'a> {
+    pub fn with_epilogue(mut self, e: &'a [u8]) -> Self {
+        self.epilogue = e;
+        self
+    }
+} 
 
 pub fn message<'a>(
     m: mime::Message<'a>,
@@ -88,6 +107,7 @@ pub fn message<'a>(
                 interpreted: m.clone(),
                 imf,
                 child: Box::new(part),
+                epilogue: &[],
             },
         ))
     }
@@ -134,6 +154,8 @@ This is the epilogue. It is also to be ignored.
             Ok((&b"\nThis is the epilogue. It is also to be ignored.\n"[..],
                 Multipart {
                     interpreted: base_mime,
+                    preamble: &b"This is the preamble.  It is to be ignored, though it\nis a handy place for composition agents to include an\nexplanatory note to non-MIME conformant readers.\n"[..],
+                    epilogue: &b""[..],
                     children: vec![
                         AnyPart::Txt(Text {
                             interpreted: mime::Text(
@@ -215,6 +237,7 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                 &[][..],
                 Message {
                     interpreted: base_mime,
+                    epilogue: &b""[..],
                     imf: imf::Imf {
                         date: Some(FixedOffset::east_opt(2 * 3600)
                             .unwrap()
@@ -288,6 +311,8 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                             },
                             mime::Generic::default(),
                         ),
+                        preamble: &b"This is a multi-part message in MIME format.\n"[..],
+                        epilogue: &b""[..],
                         children: vec![
                             AnyPart::Txt(Text {
                                 interpreted: mime::Text(

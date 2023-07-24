@@ -10,7 +10,7 @@ pub mod field;
 use nom::{
     branch::alt,
     bytes::complete::is_not,
-    combinator::{map, not, recognize},
+    combinator::{not, recognize},
     multi::many0,
     sequence::pair,
     IResult,
@@ -63,20 +63,18 @@ impl<'a> AnyPart<'a> {
 
 pub fn to_anypart<'a>(m: AnyMIME<'a>, rpart: &'a [u8]) -> AnyPart<'a> {
     match m {
-        AnyMIME::Mult(a) => map(multipart(a), AnyPart::Mult)(rpart)
-            .map(|v| v.1)
+        AnyMIME::Mult(a) => multipart(a)(rpart)
+            .map(|(rest, multi)| AnyPart::Mult(multi.with_epilogue(rest)))
             .unwrap_or(AnyPart::Txt(Text {
                 interpreted: mime::Text::default(),
                 body: rpart,
             })),
-        AnyMIME::Msg(a) => {
-            map(message(a), AnyPart::Msg)(rpart)
-                .map(|v| v.1)
-                .unwrap_or(AnyPart::Txt(Text {
-                    interpreted: mime::Text::default(),
-                    body: rpart,
-                }))
-        }
+        AnyMIME::Msg(a) => message(a)(rpart)
+            .map(|(rest, msg)| AnyPart::Msg(msg.with_epilogue(rest)))
+            .unwrap_or(AnyPart::Txt(Text {
+                interpreted: mime::Text::default(),
+                body: rpart,
+            })),
         AnyMIME::Txt(a) => AnyPart::Txt(Text {
             interpreted: a,
             body: rpart,
