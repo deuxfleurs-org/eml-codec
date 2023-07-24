@@ -1,9 +1,9 @@
 use nom::IResult;
 
-use crate::header::{header, CompFieldList};
-use crate::imf::{self as imf};
+use crate::header::{header, self};
+use crate::imf;
 use crate::mime;
-use crate::part::{self, AnyPart};
+use crate::part::{self, AnyPart, field::MixedField};
 use crate::text::boundary::{boundary, Delimiter};
 
 //--- Multipart
@@ -58,10 +58,10 @@ pub fn multipart<'a>(
             };
 
             // parse mime headers
-            let (input, fields) = header(mime::field::content)(input)?;
+            let (input, (known, unknown, bad)) = header(mime::field::content)(input)?;
             let mime = match m.0.subtype {
-                mime::r#type::MultipartSubtype::Digest => fields.to_mime::<mime::WithDigestDefault>().into(),
-                _ => fields.to_mime::<mime::WithGenericDefault>().into(),
+                mime::r#type::MultipartSubtype::Digest => mime::field::to_mime::<mime::WithDigestDefault>(known).into(),
+                _ => mime::field::to_mime::<mime::WithGenericDefault>(known).into(),
             };
 
             // parse raw part
@@ -95,9 +95,9 @@ pub fn message<'a>(
     m: mime::Message<'a>,
 ) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], Message<'a>> {
     move |input: &[u8]| {
-        let (input, fields): (_, CompFieldList<part::field::MixedField>) =
+        let (input, (known, unknown, bad)): (_, (Vec::<MixedField>, Vec<header::Kv>, Vec<&[u8]>)) =
             header(part::field::mixed_field)(input)?;
-        let (in_mime, imf) = fields.sections::<mime::WithGenericDefault>();
+        let (in_mime, imf) = part::field::sections::<mime::WithGenericDefault>(known);
 
         let part = part::to_anypart(in_mime, input);
 

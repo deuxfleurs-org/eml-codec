@@ -2,7 +2,6 @@ use nom::{branch::alt, combinator::map, IResult};
 
 use crate::imf;
 use crate::mime;
-use crate::part::CompFieldList;
 
 pub enum MixedField<'a> {
     MIME(mime::field::Content<'a>),
@@ -35,22 +34,14 @@ impl<'a> MixedField<'a> {
         }
     }
 }
-impl<'a> CompFieldList<'a, MixedField<'a>> {
-    pub fn sections<T: mime::WithDefaultType>(self) -> (mime::AnyMIME<'a>, imf::Imf<'a>) {
-        let k = self.known();
-        let (v1, v2): (Vec<MixedField>, Vec<MixedField>) =
-            k.into_iter().partition(|v| v.mime().is_some());
-        let mime = v1
-            .into_iter()
-            .filter_map(|v| v.to_mime())
-            .collect::<mime::AnyMIMEWithDefault<T>>();
-        let imf = v2
-            .into_iter()
-            .filter_map(|v| v.to_imf())
-            .collect::<imf::Imf>();
-        (mime.into(), imf)
-    }
+
+pub fn sections<'a, T: mime::WithDefaultType>(list: Vec<MixedField<'a>>) -> (mime::AnyMIME<'a>, imf::Imf<'a>) {
+    let (v1, v2): (Vec<MixedField>, Vec<_>) = list.into_iter().partition(|v| v.mime().is_some());
+    let mime = v1.into_iter().flat_map(MixedField::to_mime).collect::<mime::AnyMIMEWithDefault<T>>();
+    let imf = v2.into_iter().flat_map(MixedField::to_imf).collect::<imf::Imf>();
+    (mime.into(), imf)
 }
+
 pub fn mixed_field(input: &[u8]) -> IResult<&[u8], MixedField> {
     alt((
         map(mime::field::content, MixedField::MIME),

@@ -5,7 +5,7 @@ use nom::{
     IResult,
 };
 
-use crate::header::{field_name, CompFieldList};
+use crate::header::{field_name};
 use crate::imf::identification::{msg_id, MessageID};
 use crate::mime::mechanism::{mechanism, Mechanism};
 use crate::mime::{AnyMIMEWithDefault, WithDefaultType};
@@ -48,10 +48,13 @@ impl<'a> Content<'a> {
     }
 }
 
-impl<'a> CompFieldList<'a, Content<'a>> {
+/*impl<'a> CompFieldList<'a, Content<'a>> {
     pub fn to_mime<T: WithDefaultType> (self) -> AnyMIMEWithDefault<'a, T> {
         self.known().into_iter().collect::<AnyMIMEWithDefault<T>>()
     }
+}*/
+pub fn to_mime<'a, T: WithDefaultType>(list: Vec<Content<'a>>) -> AnyMIMEWithDefault<'a, T> {
+    list.into_iter().collect::<AnyMIMEWithDefault<T>>()
 }
 
 pub fn content(input: &[u8]) -> IResult<&[u8], Content> {
@@ -75,7 +78,7 @@ pub fn content(input: &[u8]) -> IResult<&[u8], Content> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::header::{header, CompFieldList};
+    use crate::header::{header};
     use crate::mime::charset::EmailCharset;
     use crate::mime::r#type::*;
     use crate::text::misc_token::MIMEWord;
@@ -118,7 +121,7 @@ This is a multipart message.
         .as_bytes();
 
         assert_eq!(
-            map(header(content), CompFieldList::known)(fullmail),
+            map(header(content), |(k, _, _)| k)(fullmail),
             Ok((
                 &b"This is a multipart message.\n\n"[..],
                 vec![

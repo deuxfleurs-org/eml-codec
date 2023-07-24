@@ -90,10 +90,10 @@ pub fn email(input: &[u8]) -> IResult<&[u8], part::composite::Message> {
 /// let (_, header) = eml_codec::imf(input).unwrap();
 /// println!(
 ///     "{} just sent you an email with subject \"{}\"",
-///     header.from[0].to_string(),
-///     header.subject.unwrap().to_string(),
+///     header.imf.from[0].to_string(),
+///     header.imf.subject.unwrap().to_string(),
 /// );
 /// ```
-pub fn imf(input: &[u8]) -> IResult<&[u8], imf::Imf> {
+pub fn imf(input: &[u8]) -> IResult<&[u8], imf::field::Header> {
     imf::field::imf(input)
 }

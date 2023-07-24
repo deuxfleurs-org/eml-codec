@@ -16,7 +16,6 @@ use nom::{
     IResult,
 };
 
-use crate::header::CompFieldList;
 use crate::mime;
 use crate::mime::AnyMIME;
 use crate::part::{

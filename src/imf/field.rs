@@ -6,7 +6,7 @@ use nom::{
     IResult,
 };
 
-use crate::header::{field_name, header};
+use crate::header::{field_name, header, self};
 use crate::imf::address::{address_list, mailbox_list, nullable_address_list, AddressList};
 use crate::imf::datetime::section as date;
 use crate::imf::identification::{msg_id, msg_list, MessageID, MessageIDList};
@@ -50,14 +50,6 @@ pub enum Field<'a> {
     MIMEVersion(Version),
 }
 
-#[derive(Debug, PartialEq)]
-pub struct FieldList<'a>(pub Vec<Field<'a>>);
-impl<'a> FieldList<'a> {
-    pub fn imf(self) -> Imf<'a> {
-        Imf::from_iter(self.0)
-    }
-}
-
 pub fn field(input: &[u8]) -> IResult<&[u8], Field> {
     terminated(
         alt((
@@ -88,8 +80,19 @@ pub fn field(input: &[u8]) -> IResult<&[u8], Field> {
     )(input)
 }
 
-pub fn imf(input: &[u8]) -> IResult<&[u8], Imf> {
-    map(header(field), |v| FieldList(v.known()).imf())(input)
+#[derive(Debug, PartialEq)]
+pub struct Header<'a> {
+    pub imf: Imf<'a>, 
+    pub ext: Vec<header::Kv<'a>>,
+    pub bad: Vec<&'a [u8]>,
+}
+
+pub fn imf(input: &[u8]) -> IResult<&[u8], Header> {
+    map(header(field), |(known, unknown, bad)| Header { 
+        imf: Imf::from_iter(known),
+        ext: unknown,
+        bad
+    })(input)
 }
 
 #[cfg(test)]
@@ -114,7 +117,7 @@ between the header information and the body of the message.";
             imf(fullmail),
             Ok((
                 &b"This is the plain text body of the message. Note the blank line\nbetween the header information and the body of the message."[..],
-                Imf {
+                Header { bad: vec![], ext: vec![], imf: Imf {
                     date: Some(FixedOffset::east_opt(2 * 3600).unwrap().with_ymd_and_hms(2023, 3, 7, 8, 0, 0).unwrap()),
                     from: vec![MailboxRef {
                         name: None,
@@ -138,7 +141,7 @@ between the header information and the body of the message.";
                         UnstrToken::Plain(&b"message"[..]),
                     ])),
                     ..Imf::default()
-                }
+                }}
             )),
         )
     }

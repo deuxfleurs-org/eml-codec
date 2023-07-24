@@ -6,7 +6,7 @@ use nom::{
     bytes::complete::{tag, tag_no_case, take_while1},
     character::complete::space0,
     combinator::map,
-    multi::many0,
+    multi::{fold_many0},
     sequence::{pair, terminated, tuple},
     IResult,
 };
@@ -14,39 +14,37 @@ use nom::{
 #[derive(Debug, PartialEq)]
 pub enum CompField<'a, T> {
     Known(T),
-    Unknown(&'a [u8], Unstructured<'a>),
+    Unknown(Kv<'a>),
     Bad(&'a [u8]),
 }
 
 #[derive(Debug, PartialEq)]
-pub struct CompFieldList<'a, T>(pub Vec<CompField<'a, T>>);
-impl<'a, T> CompFieldList<'a, T> {
-    pub fn known(self) -> Vec<T> {
-        self.0
-            .into_iter()
-            .filter_map(|v| match v {
-                CompField::Known(f) => Some(f),
-                _ => None,
-            })
-            .collect()
-    }
-}
+pub struct Kv<'a>(&'a [u8], Unstructured<'a>);
+
 
 pub fn header<'a, T>(
     fx: impl Fn(&'a [u8]) -> IResult<&'a [u8], T> + Copy,
-) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], CompFieldList<T>> {
+) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], (Vec::<T>, Vec::<Kv>, Vec<&'a [u8]>)> {
     move |input| {
-        map(
             terminated(
-                many0(alt((
-                    map(fx, CompField::Known),
-                    map(opt_field, |(k, v)| CompField::Unknown(k, v)),
-                    map(foldable_line, CompField::Bad),
-                ))),
+                fold_many0(
+                    alt((
+                        map(fx, CompField::Known),
+                        map(opt_field, |(k, v)| CompField::Unknown(Kv(k, v))),
+                        map(foldable_line, CompField::Bad),
+                    )),
+                    || (Vec::<T>::new(), Vec::<Kv>::new(), Vec::<&'a [u8]>::new()),
+                    |(mut known, mut unknown, mut bad), item| {
+                        match item {
+                            CompField::Known(v) => known.push(v),
+                            CompField::Unknown(v) => unknown.push(v),
+                            CompField::Bad(v) => bad.push(v),
+                        };
+                        (known, unknown, bad)
+                    }
+                ),
                 obs_crlf,
-            ),
-            CompFieldList,
-        )(input)
+            )(input)
     }
 }
 
