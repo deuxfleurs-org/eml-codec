@@ -26,22 +26,19 @@ println!(
 );
 ```
 
+[See more examples in the example/ folder](./example/)
+
 ## About the name
 
 This library does not aim at implementing a specific RFC, but to be a swiss-army knife to decode and encode ("codec") what is generaly considered an email (generally abbreviated "eml"), hence the name: **eml-codec**.
 
 ## Goals
 
-- Maintainability - modifying the code does not create regression and is possible for someone exterior to the project. Keep cyclomatic complexity low.
-- Composability - build your own parser by picking the relevant passes, avoid work that is not needed.
+- Maintainability - modifying the code does not create regression and is possible for someone exterior to the project.
 - Compatibility - always try to parse something, do not panic or return an error.
 - Exhaustivity - serve as a common project to encode knowledge about emails (existing mime types, existing headers, etc.).
 
-## Non goals
-
-  - Parsing optimization that would make more complicated to understand the logic.
-  - Optimization for a specific use case, to the detriment of other use cases.
-  - Pipelining/streaming/buffering as the parser can arbitrarily backtrack + our result contains reference to the whole buffer, eml-codec must keep the whole buffer in memory. Avoiding the sequential approach would certainly speed-up a little bit the parsing, but it's too much work to implement currently.
+[See more about this library goals in the doc/ folder](./doc/goals.md)
 
 ## Missing / known bugs
 
@@ -55,7 +52,9 @@ Current known limitations/bugs:
 
 ## Design
 
-Speak about parser combinators.
+High-level overview of the datastructures (inspired by the UML class diagram conventions):
+
+![Diagram of class made on Draw.io](./doc/class-uml.png)
 
 ## Testing strategy
 
@@ -101,7 +100,12 @@ IANA
 
 ## State of the art / alternatives
 
+*The following review is not an objective, neutral, impartial review. Instead, it's a temptative 
+to explain why I wrote this 
+
 `stalwartlab/mail_parser`
+
+[See more about this library goals in the sota/ folder](./doc/sota.md)
 
 ## Support
 
