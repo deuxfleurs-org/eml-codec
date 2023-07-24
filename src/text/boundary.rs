@@ -1,4 +1,4 @@
-use nom::{bytes::complete::tag, combinator::opt, sequence::tuple, IResult};
+use nom::{branch::alt, bytes::complete::tag, combinator::{eof, opt}, sequence::tuple, IResult};
 
 use crate::text::whitespace::obs_crlf;
 
@@ -15,7 +15,7 @@ pub fn boundary<'a>(boundary: &[u8]) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], D
             tag(b"--"),
             tag(boundary),
             opt(tag(b"--")),
-            opt(obs_crlf),
+            alt((obs_crlf, eof)),
         ))(input)?;
         match last {
             Some(_) => Ok((rest, Delimiter::Last)),
