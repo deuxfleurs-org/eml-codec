@@ -5,19 +5,28 @@ use crate::imf;
 use crate::mime;
 use crate::part::{self, AnyPart, field::MixedField};
 use crate::text::boundary::{boundary, Delimiter};
+use crate::pointers;
 
 //--- Multipart
 #[derive(Debug, PartialEq)]
 pub struct Multipart<'a> {
     pub mime: mime::MIME<'a, mime::r#type::Multipart>,
     pub children: Vec<AnyPart<'a>>,
-    pub preamble: &'a [u8],
-    pub epilogue: &'a [u8],
+    pub raw_part_inner: &'a [u8],
+    pub raw_part_outer: &'a [u8],
 }
 impl<'a> Multipart<'a> {
-    pub fn with_epilogue(mut self, e: &'a [u8]) -> Self {
-        self.epilogue = e;
-        self
+    pub fn preamble(&self) -> &'a [u8] {
+        pointers::parsed(self.raw_part_outer, self.raw_part_inner)
+    }
+    pub fn epilogue(&self) -> &'a [u8] {
+        pointers::rest(self.raw_part_outer, self.raw_part_inner)
+    }
+    pub fn preamble_and_body(&self) -> &'a [u8] {
+        pointers::with_preamble(self.raw_part_outer, self.raw_part_inner)
+    }
+    pub fn body_and_epilogue(&self) -> &'a [u8] {
+        pointers::with_epilogue(self.raw_part_outer, self.raw_part_inner)
     }
 }
 
@@ -27,9 +36,15 @@ pub fn multipart<'a>(
     let m = m.clone();
 
     move |input| {
+        // init
+        let outer_orig = input;
         let bound = m.interpreted_type.boundary.as_bytes();
-        let (mut input_loop, preamble) = part::part_raw(bound)(input)?;
         let mut mparts: Vec<AnyPart> = vec![];
+
+        // skip preamble
+        let (mut input_loop, _) = part::part_raw(bound)(input)?;
+        let inner_orig = input_loop;
+
         loop {
             let input = match boundary(bound)(input_loop) {
                 Err(_) => {
@@ -38,8 +53,8 @@ pub fn multipart<'a>(
                         Multipart {
                             mime: m.clone(),
                             children: mparts,
-                            preamble,
-                            epilogue: &[],
+                            raw_part_inner: pointers::parsed(inner_orig, input_loop),
+                            raw_part_outer: pointers::parsed(outer_orig, input_loop),
                         },
                     ))
                 }
@@ -49,8 +64,8 @@ pub fn multipart<'a>(
                         Multipart {
                             mime: m.clone(),
                             children: mparts,
-                            preamble,
-                            epilogue: &[],
+                            raw_part_inner: pointers::parsed(inner_orig, inp),
+                            raw_part_outer: pointers::parsed(outer_orig, &outer_orig[outer_orig.len()..]),
                         },
                     ))
                 }
@@ -73,8 +88,10 @@ pub fn multipart<'a>(
             let (input, rpart) = part::part_raw(bound)(input)?;
 
             // parse mime body
-            mparts.push(part::to_anypart(mime, rpart));
-
+            // -- we do not keep the input as we are using the
+            // part_raw function as our cursor here.
+            let (_, part) = part::anypart(mime)(rpart)?;
+            mparts.push(part);
 
             input_loop = input;
         }
@@ -88,22 +105,25 @@ pub struct Message<'a> {
     pub mime: mime::MIME<'a, mime::r#type::DeductibleMessage>,
     pub imf: imf::Imf<'a>,
     pub child: Box<AnyPart<'a>>,
-    pub epilogue: &'a [u8],
+
+    pub raw_part: &'a [u8],
+    pub raw_headers: &'a [u8],
+    pub raw_body: &'a [u8],
 }
-impl<'a> Message<'a> {
-    pub fn with_epilogue(mut self, e: &'a [u8]) -> Self {
-        self.epilogue = e;
-        self
-    }
-} 
 
 pub fn message<'a>(
     m: mime::MIME<'a, mime::r#type::DeductibleMessage>,
 ) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], Message<'a>> {
     move |input: &[u8]| {
+        let orig = input;
+
         // parse header fields
         let (input, (known, unknown, bad)): (_, (Vec::<MixedField>, Vec<header::Kv>, Vec<&[u8]>)) =
             header(part::field::mixed_field)(input)?;
+
+        // extract raw parts 1/2
+        let raw_headers = pointers::parsed(orig, input);
+        let body_orig = input;
 
         // aggregate header fields
         let (naive_mime, imf) = part::field::sections(known);
@@ -115,15 +135,19 @@ pub fn message<'a>(
         let in_mime = naive_mime.to_interpreted::<mime::WithGenericDefault>().into();
 
         // parse this mimetype
-        let part = part::to_anypart(in_mime, input);
+        let (input, part) = part::anypart(in_mime)(input)?;
+
+        // extract raw parts 2/2
+        let raw_body = pointers::parsed(body_orig, input);
+        let raw_part = pointers::parsed(orig, input);
 
         Ok((
-            &[],
+            input,
             Message {
                 mime: m.clone(),
                 imf,
+                raw_part, raw_headers, raw_body,
                 child: Box::new(part),
-                epilogue: &[],
             },
         ))
     }
@@ -149,8 +173,7 @@ mod tests {
             fields: mime::NaiveMIME::default(),
         };
 
-        assert_eq!(
-            multipart(base_mime.clone())(b"This is the preamble.  It is to be ignored, though it
+        let input = b"This is the preamble.  It is to be ignored, though it
 is a handy place for composition agents to include an
 explanatory note to non-MIME conformant readers.
 
@@ -167,12 +190,29 @@ It DOES end with a linebreak.
 --simple boundary--
 
 This is the epilogue. It is also to be ignored.
-"),
+";
+
+        let inner = b"
+--simple boundary
+
+This is implicitly typed plain US-ASCII text.
+It does NOT end with a linebreak.
+--simple boundary
+Content-type: text/plain; charset=us-ascii
+
+This is explicitly typed plain US-ASCII text.
+It DOES end with a linebreak.
+
+--simple boundary--
+";
+
+        assert_eq!(
+            multipart(base_mime.clone())(input),
             Ok((&b"\nThis is the epilogue. It is also to be ignored.\n"[..],
                 Multipart {
                     mime: base_mime,
-                    preamble: &b"This is the preamble.  It is to be ignored, though it\nis a handy place for composition agents to include an\nexplanatory note to non-MIME conformant readers.\n"[..],
-                    epilogue: &b""[..],
+                    raw_part_outer: input,
+                    raw_part_inner: inner,
                     children: vec![
                         AnyPart::Txt(Text {
                             mime: mime::MIME {
@@ -259,6 +299,80 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
 "#
         .as_bytes();
 
+        let hdrs = br#"Date: Sat, 8 Jul 2023 07:14:29 +0200
+From: Grrrnd Zero <grrrndzero@example.org>
+To: John Doe <jdoe@machine.example>
+CC: =?ISO-8859-1?Q?Andr=E9?= Pirard <PIRARD@vm1.ulg.ac.be>
+Subject: =?ISO-8859-1?B?SWYgeW91IGNhbiByZWFkIHRoaXMgeW8=?=
+    =?ISO-8859-2?B?dSB1bmRlcnN0YW5kIHRoZSBleGFtcGxlLg==?=
+X-Unknown: something something
+Bad entry
+  on multiple lines
+Message-ID: <NTAxNzA2AC47634Y366BAMTY4ODc5MzQyODY0ODY5@www.grrrndzero.org>
+MIME-Version: 1.0
+Content-Type: multipart/alternative;
+ boundary="b1_e376dc71bafc953c0b0fdeb9983a9956"
+Content-Transfer-Encoding: 7bit
+
+"#;
+
+        let body = br#"This is a multi-part message in MIME format.
+
+--b1_e376dc71bafc953c0b0fdeb9983a9956
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: quoted-printable
+
+GZ
+OoOoO
+oOoOoOoOo
+oOoOoOoOoOoOoOoOo
+oOoOoOoOoOoOoOoOoOoOoOo
+oOoOoOoOoOoOoOoOoOoOoOoOoOoOo
+OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO
+
+--b1_e376dc71bafc953c0b0fdeb9983a9956
+Content-Type: text/html; charset=us-ascii
+
+<div style="text-align: center;"><strong>GZ</strong><br />
+OoOoO<br />
+oOoOoOoOo<br />
+oOoOoOoOoOoOoOoOo<br />
+oOoOoOoOoOoOoOoOoOoOoOo<br />
+oOoOoOoOoOoOoOoOoOoOoOoOoOoOo<br />
+OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
+</div>
+
+--b1_e376dc71bafc953c0b0fdeb9983a9956--
+"#;
+
+        let inner = br#"
+--b1_e376dc71bafc953c0b0fdeb9983a9956
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: quoted-printable
+
+GZ
+OoOoO
+oOoOoOoOo
+oOoOoOoOoOoOoOoOo
+oOoOoOoOoOoOoOoOoOoOoOo
+oOoOoOoOoOoOoOoOoOoOoOoOoOoOo
+OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO
+
+--b1_e376dc71bafc953c0b0fdeb9983a9956
+Content-Type: text/html; charset=us-ascii
+
+<div style="text-align: center;"><strong>GZ</strong><br />
+OoOoO<br />
+oOoOoOoOo<br />
+oOoOoOoOoOoOoOoOo<br />
+oOoOoOoOoOoOoOoOoOoOoOo<br />
+oOoOoOoOoOoOoOoOoOoOoOoOoOoOo<br />
+OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
+</div>
+
+--b1_e376dc71bafc953c0b0fdeb9983a9956--
+"#;
+
         let base_mime = mime::MIME::<mime::r#type::DeductibleMessage>::default();
         assert_eq!(
             message(base_mime.clone())(fullmail),
@@ -266,7 +380,9 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                 &[][..],
                 Message {
                     mime: base_mime,
-                    epilogue: &b""[..],
+                    raw_part: fullmail,
+                    raw_headers: hdrs,
+                    raw_body: body,
                     imf: imf::Imf {
                         date: Some(FixedOffset::east_opt(2 * 3600)
                             .unwrap()
@@ -361,8 +477,8 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                                 ..mime::NaiveMIME::default()
                             },
                         },
-                        preamble: &b"This is a multi-part message in MIME format.\n"[..],
-                        epilogue: &b""[..],
+                        raw_part_inner: inner,
+                        raw_part_outer: body,
                         children: vec![
                             AnyPart::Txt(Text {
                                 mime: mime::MIME {

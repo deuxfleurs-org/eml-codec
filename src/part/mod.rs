@@ -59,29 +59,51 @@ impl<'a> AnyPart<'a> {
         }
     }
 }
+impl<'a> From<Multipart<'a>> for AnyPart<'a> {
+    fn from(m: Multipart<'a>) -> Self {
+        Self::Mult(m)
+    }
+}
+impl<'a> From<Message<'a>> for AnyPart<'a> {
+    fn from(m: Message<'a>) -> Self {
+        Self::Msg(m)
+    }
+}
 
-pub fn to_anypart<'a>(m: AnyMIME<'a>, rpart: &'a [u8]) -> AnyPart<'a> {
-    match m {
-        AnyMIME::Mult(a) => multipart(a)(rpart)
-            .map(|(rest, multi)| AnyPart::Mult(multi.with_epilogue(rest)))
-            .unwrap_or(AnyPart::Txt(Text {
-                mime: mime::MIME::<mime::r#type::DeductibleText>::default(),
-                body: rpart,
-            })),
-        AnyMIME::Msg(a) => message(a)(rpart)
-            .map(|(rest, msg)| AnyPart::Msg(msg.with_epilogue(rest)))
-            .unwrap_or(AnyPart::Txt(Text {
-                mime: mime::MIME::<mime::r#type::DeductibleText>::default(),
-                body: rpart,
-            })),
-        AnyMIME::Txt(a) => AnyPart::Txt(Text {
-            mime: a,
-            body: rpart,
-        }),
-        AnyMIME::Bin(a) => AnyPart::Bin(Binary {
-            mime: a,
-            body: rpart,
-        }),
+/// Parse any type of part
+///
+/// ## Note
+///
+/// Multiparts are a bit special as they have a clearly delimited beginning
+/// and end contrary to all the other parts that are going up to the end of the buffer
+pub fn anypart<'a>(m: AnyMIME<'a>) -> impl FnOnce(&'a [u8]) -> IResult<&'a [u8], AnyPart<'a>> {
+    move |input| {
+        let part = match m {
+            AnyMIME::Mult(a) => multipart(a)(input)
+                .map(|(_, multi)| 
+                     multi.into())
+                .unwrap_or(AnyPart::Txt(Text {
+                    mime: mime::MIME::<mime::r#type::DeductibleText>::default(),
+                    body: input,
+                })),
+            AnyMIME::Msg(a) => message(a)(input)
+                .map(|(_, msg)| msg.into())
+                .unwrap_or(AnyPart::Txt(Text {
+                    mime: mime::MIME::<mime::r#type::DeductibleText>::default(),
+                    body: input,
+                })),
+            AnyMIME::Txt(a) => AnyPart::Txt(Text {
+                mime: a,
+                body: input,
+            }),
+            AnyMIME::Bin(a) => AnyPart::Bin(Binary {
+                mime: a,
+                body: input,
+            }),
+        };
+        
+        // This function always consumes the whole input
+        Ok((&input[input.len()..], part))
     }
 }
 

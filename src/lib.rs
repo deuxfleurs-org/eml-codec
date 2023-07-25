@@ -15,6 +15,9 @@ pub mod header;
 /// Low-level email-specific text-based representation for data
 pub mod text;
 
+/// Manipulate buffer of bytes
+mod pointers;
+
 use nom::{IResult, combinator::into};
 
 /// Parse a whole email including its (MIME) body
