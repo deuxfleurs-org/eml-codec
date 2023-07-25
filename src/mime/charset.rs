@@ -77,6 +77,12 @@ impl<'a> From<&'a [u8]> for EmailCharset {
     }
 }
 
+impl ToString for EmailCharset {
+    fn to_string(&self) -> String {
+        self.as_str().into()
+    }
+}
+
 impl EmailCharset {
     pub fn as_str(&self) -> &'static str {
         use EmailCharset::*;

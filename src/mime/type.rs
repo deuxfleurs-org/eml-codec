@@ -101,6 +101,11 @@ pub struct Multipart {
     pub subtype: MultipartSubtype,
     pub boundary: String,
 }
+impl Multipart {
+    pub fn main_type(&self) -> String {
+        "multipart".into()
+    }
+}
 impl<'a> TryFrom<&'a NaiveType<'a>> for Multipart {
     type Error = ();
 
@@ -125,6 +130,18 @@ pub enum MultipartSubtype {
     Report,
     Unknown,
 }
+impl ToString for MultipartSubtype {
+    fn to_string(&self) -> String {
+        match self {
+            Self::Alternative => "alternative",
+            Self::Mixed => "mixed",
+            Self::Digest => "digest",
+            Self::Parallel => "parallel",
+            Self::Report => "report",
+            Self::Unknown => "mixed",
+        }.into()
+    }
+}
 impl<'a> From<&NaiveType<'a>> for MultipartSubtype {
     fn from(nt: &NaiveType<'a>) -> Self {
         match nt.sub.to_ascii_lowercase().as_slice() {
@@ -147,6 +164,16 @@ pub enum MessageSubtype {
     Partial,
     External,
     Unknown,
+}
+impl ToString for MessageSubtype {
+    fn to_string(&self) -> String {
+        match self {
+            Self::RFC822 => "rfc822",
+            Self::Partial => "partial",
+            Self::External => "external",
+            Self::Unknown => "rfc822",
+        }.into()
+    }
 }
 
 pub type DeductibleMessage = Deductible<Message>;
@@ -205,6 +232,14 @@ pub enum TextSubtype {
     Plain,
     Html,
     Unknown,
+}
+impl ToString for TextSubtype {
+    fn to_string(&self) -> String {
+        match self {
+            Self::Plain | Self::Unknown => "plain",
+            Self::Html => "html",
+        }.into()
+    }
 }
 impl<'a> From<&NaiveType<'a>> for TextSubtype {
     fn from(nt: &NaiveType<'a>) -> Self {
