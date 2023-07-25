@@ -51,10 +51,10 @@ pub fn parameter_list(input: &[u8]) -> IResult<&[u8], Vec<Parameter>> {
 pub enum AnyType {
     // Composite types
     Multipart(Multipart),
-    Message(Message),
+    Message(Deductible<Message>),
 
     // Discrete types
-    Text(Text),
+    Text(Deductible<Text>),
     Binary(Binary),
 }
 
@@ -63,24 +63,38 @@ impl<'a> From<&'a NaiveType<'a>> for AnyType {
         match nt.main.to_ascii_lowercase().as_slice() {
             b"multipart" => Multipart::try_from(nt)
                 .map(Self::Multipart)
-                .unwrap_or(Self::Text(Text::default())),
-            b"message" => Self::Message(Message::from(nt)),
-            b"text" => Self::Text(Text::from(nt)),
+                .unwrap_or(Self::Text(DeductibleText::default())),
+            b"message" => Self::Message(DeductibleMessage::Explicit(Message::from(nt))),
+            b"text" => Self::Text(DeductibleText::Explicit(Text::from(nt))),
             _ => Self::Binary(Binary::default()),
         }
     }
 }
 
 impl<'a> AnyType {
-    pub fn to_mime(self, parsed: NaiveMIME<'a>) -> AnyMIME<'a> {
+    pub fn to_mime(self, fields: NaiveMIME<'a>) -> AnyMIME<'a> {
          match self {
-            Self::Multipart(interpreted) => AnyMIME::Mult(MIME::<Multipart> { interpreted, parsed }),
-            Self::Message(interpreted) => AnyMIME::Msg(MIME::<Message> { interpreted, parsed }),
-            Self::Text(interpreted) => AnyMIME::Txt(MIME::<Text> { interpreted, parsed }),
-            Self::Binary(interpreted) => AnyMIME::Bin(MIME::<Binary> { interpreted, parsed }),
+            Self::Multipart(interpreted_type) => AnyMIME::Mult(MIME::<Multipart> { interpreted_type, fields }),
+            Self::Message(interpreted_type) => AnyMIME::Msg(MIME::<DeductibleMessage> { interpreted_type, fields }),
+            Self::Text(interpreted_type) => AnyMIME::Txt(MIME::<DeductibleText> { interpreted_type, fields }),
+            Self::Binary(interpreted_type) => AnyMIME::Bin(MIME::<Binary> { interpreted_type, fields }),
         }       
     }
 }
+
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum Deductible<T: Default> {
+    Inferred(T),
+    Explicit(T),
+}
+impl<T: Default> Default for Deductible<T> {
+    fn default() -> Self {
+        Self::Inferred(T::default())
+    }
+}
+
+// REAL PARTS
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Multipart {
@@ -124,29 +138,45 @@ impl<'a> From<&NaiveType<'a>> for MultipartSubtype {
     }
 }
 
+
+
 #[derive(Debug, PartialEq, Default, Clone)]
-pub enum Message {
+pub enum MessageSubtype {
     #[default]
     RFC822,
     Partial,
     External,
     Unknown,
 }
+
+pub type DeductibleMessage = Deductible<Message>;
+#[derive(Debug, PartialEq, Default, Clone)]
+pub struct Message {
+    pub subtype: MessageSubtype,
+}
 impl<'a> From<&NaiveType<'a>> for Message {
     fn from(nt: &NaiveType<'a>) -> Self {
         match nt.sub.to_ascii_lowercase().as_slice() {
-            b"rfc822" => Self::RFC822,
-            b"partial" => Self::Partial,
-            b"external" => Self::External,
-            _ => Self::Unknown,
+            b"rfc822" => Self { subtype: MessageSubtype::RFC822 },
+            b"partial" =>  Self { subtype: MessageSubtype::Partial },
+            b"external" => Self { subtype: MessageSubtype::External },
+            _ =>  Self { subtype: MessageSubtype::Unknown },
+        }
+    }
+}
+impl From<Deductible<Message>> for Message {
+    fn from(d: Deductible<Message>) -> Self {
+        match d {
+            Deductible::Inferred(t) | Deductible::Explicit(t) => t
         }
     }
 }
 
+pub type DeductibleText = Deductible<Text>;
 #[derive(Debug, PartialEq, Default, Clone)]
 pub struct Text {
     pub subtype: TextSubtype,
-    pub charset: EmailCharset,
+    pub charset: Deductible<EmailCharset>,
 }
 impl<'a> From<&NaiveType<'a>> for Text {
     fn from(nt: &NaiveType<'a>) -> Self {
@@ -156,8 +186,15 @@ impl<'a> From<&NaiveType<'a>> for Text {
                 .params
                 .iter()
                 .find(|x| x.name.to_ascii_lowercase().as_slice() == b"charset")
-                .map(|x| EmailCharset::from(x.value.to_string().as_bytes()))
-                .unwrap_or(EmailCharset::US_ASCII),
+                .map(|x| Deductible::Explicit(EmailCharset::from(x.value.to_string().as_bytes())))
+                .unwrap_or(Deductible::Inferred(EmailCharset::US_ASCII)),
+        }
+    }
+}
+impl From<Deductible<Text>> for Text {
+    fn from(d: Deductible<Text>) -> Self {
+        match d {
+            Deductible::Inferred(t) | Deductible::Explicit(t) => t
         }
     }
 }
@@ -187,6 +224,7 @@ mod tests {
     use super::*;
     use crate::mime::charset::EmailCharset;
     use crate::text::quoted::QuotedString;
+    use crate::mime::r#type::Deductible;
 
     #[test]
     fn test_parameter() {
@@ -219,10 +257,10 @@ mod tests {
 
         assert_eq!(
             nt.to_type(),
-            AnyType::Text(Text {
-                charset: EmailCharset::UTF_8,
+            AnyType::Text(Deductible::Explicit(Text {
+                charset: Deductible::Explicit(EmailCharset::UTF_8),
                 subtype: TextSubtype::Plain,
-            })
+            }))
         );
     }
 
@@ -244,7 +282,7 @@ mod tests {
         let (rest, nt) = naive_type(b"message/rfc822").unwrap();
         assert_eq!(rest, &[]);
 
-        assert_eq!(nt.to_type(), AnyType::Message(Message::RFC822),);
+        assert_eq!(nt.to_type(), AnyType::Message(Deductible::Explicit(Message { subtype: MessageSubtype::RFC822 })));
     }
 
     #[test]

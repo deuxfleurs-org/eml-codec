@@ -88,10 +88,10 @@ mod tests {
         if let Content::Type(nt) = content {
             assert_eq!(
                 nt.to_type(),
-                AnyType::Text(Text {
-                    charset: EmailCharset::UTF_8,
+                AnyType::Text(Deductible::Explicit(Text {
+                    charset: Deductible::Explicit(EmailCharset::UTF_8),
                     subtype: TextSubtype::Plain,
-                }),
+                })),
             );
         } else {
             panic!("Expected Content::Type, got {:?}", content);

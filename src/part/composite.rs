@@ -9,7 +9,7 @@ use crate::text::boundary::{boundary, Delimiter};
 //--- Multipart
 #[derive(Debug, PartialEq)]
 pub struct Multipart<'a> {
-    pub interpreted: mime::MIME<'a, mime::r#type::Multipart>,
+    pub mime: mime::MIME<'a, mime::r#type::Multipart>,
     pub children: Vec<AnyPart<'a>>,
     pub preamble: &'a [u8],
     pub epilogue: &'a [u8],
@@ -27,7 +27,7 @@ pub fn multipart<'a>(
     let m = m.clone();
 
     move |input| {
-        let bound = m.interpreted.boundary.as_bytes();
+        let bound = m.interpreted_type.boundary.as_bytes();
         let (mut input_loop, preamble) = part::part_raw(bound)(input)?;
         let mut mparts: Vec<AnyPart> = vec![];
         loop {
@@ -36,7 +36,7 @@ pub fn multipart<'a>(
                     return Ok((
                         input_loop,
                         Multipart {
-                            interpreted: m.clone(),
+                            mime: m.clone(),
                             children: mparts,
                             preamble,
                             epilogue: &[],
@@ -47,7 +47,7 @@ pub fn multipart<'a>(
                     return Ok((
                         inp,
                         Multipart {
-                            interpreted: m.clone(),
+                            mime: m.clone(),
                             children: mparts,
                             preamble,
                             epilogue: &[],
@@ -64,7 +64,7 @@ pub fn multipart<'a>(
             };
 
             // interpret mime according to context
-            let mime = match m.interpreted.subtype {
+            let mime = match m.interpreted_type.subtype {
                 mime::r#type::MultipartSubtype::Digest => naive_mime.to_interpreted::<mime::WithDigestDefault>().into(),
                 _ => naive_mime.to_interpreted::<mime::WithGenericDefault>().into(),
             };
@@ -85,7 +85,7 @@ pub fn multipart<'a>(
 
 #[derive(Debug, PartialEq)]
 pub struct Message<'a> {
-    pub interpreted: mime::MIME<'a, mime::r#type::Message>,
+    pub mime: mime::MIME<'a, mime::r#type::DeductibleMessage>,
     pub imf: imf::Imf<'a>,
     pub child: Box<AnyPart<'a>>,
     pub epilogue: &'a [u8],
@@ -98,7 +98,7 @@ impl<'a> Message<'a> {
 } 
 
 pub fn message<'a>(
-    m: mime::MIME<'a, mime::r#type::Message>,
+    m: mime::MIME<'a, mime::r#type::DeductibleMessage>,
 ) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], Message<'a>> {
     move |input: &[u8]| {
         // parse header fields
@@ -120,7 +120,7 @@ pub fn message<'a>(
         Ok((
             &[],
             Message {
-                interpreted: m.clone(),
+                mime: m.clone(),
                 imf,
                 child: Box::new(part),
                 epilogue: &[],
@@ -142,11 +142,11 @@ mod tests {
     #[test]
     fn test_multipart() {
         let base_mime = mime::MIME {
-            interpreted: mime::r#type::Multipart {
+            interpreted_type: mime::r#type::Multipart {
                 subtype: mime::r#type::MultipartSubtype::Alternative,
                 boundary: "simple boundary".to_string(),
             },
-            parsed: mime::NaiveMIME::default(),
+            fields: mime::NaiveMIME::default(),
         };
 
         assert_eq!(
@@ -170,27 +170,27 @@ This is the epilogue. It is also to be ignored.
 "),
             Ok((&b"\nThis is the epilogue. It is also to be ignored.\n"[..],
                 Multipart {
-                    interpreted: base_mime,
+                    mime: base_mime,
                     preamble: &b"This is the preamble.  It is to be ignored, though it\nis a handy place for composition agents to include an\nexplanatory note to non-MIME conformant readers.\n"[..],
                     epilogue: &b""[..],
                     children: vec![
                         AnyPart::Txt(Text {
-                            interpreted: mime::MIME {
-                                interpreted: mime::r#type::Text {
+                            mime: mime::MIME {
+                                interpreted_type: mime::r#type::Deductible::Inferred(mime::r#type::Text {
                                     subtype: mime::r#type::TextSubtype::Plain,
-                                    charset: mime::charset::EmailCharset::US_ASCII,
-                                },
-                                parsed: mime::NaiveMIME::default(),
+                                    charset: mime::r#type::Deductible::Inferred(mime::charset::EmailCharset::US_ASCII),
+                                }),
+                                fields: mime::NaiveMIME::default(),
                             },
                             body: &b"This is implicitly typed plain US-ASCII text.\nIt does NOT end with a linebreak."[..],
                         }),
                         AnyPart::Txt(Text {
-                            interpreted: mime::MIME { 
-                                interpreted: mime::r#type::Text {
+                            mime: mime::MIME { 
+                                interpreted_type: mime::r#type::Deductible::Explicit(mime::r#type::Text {
                                     subtype: mime::r#type::TextSubtype::Plain,
-                                    charset: mime::charset::EmailCharset::US_ASCII,
-                                },
-                                parsed: mime::NaiveMIME {
+                                    charset: mime::r#type::Deductible::Explicit(mime::charset::EmailCharset::US_ASCII),
+                                }),
+                                fields: mime::NaiveMIME {
                                     ctype: Some(mime::r#type::NaiveType {
                                         main: &b"text"[..],
                                         sub: &b"plain"[..],
@@ -259,13 +259,13 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
 "#
         .as_bytes();
 
-        let base_mime = mime::MIME::<mime::r#type::Message>::default();
+        let base_mime = mime::MIME::<mime::r#type::DeductibleMessage>::default();
         assert_eq!(
             message(base_mime.clone())(fullmail),
             Ok((
                 &[][..],
                 Message {
-                    interpreted: base_mime,
+                    mime: base_mime,
                     epilogue: &b""[..],
                     imf: imf::Imf {
                         date: Some(FixedOffset::east_opt(2 * 3600)
@@ -342,12 +342,12 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                         ..imf::Imf::default()
                     },
                     child: Box::new(AnyPart::Mult(Multipart {
-                        interpreted: mime::MIME {
-                            interpreted: mime::r#type::Multipart {
+                        mime: mime::MIME {
+                            interpreted_type: mime::r#type::Multipart {
                                 subtype: mime::r#type::MultipartSubtype::Alternative,
                                 boundary: "b1_e376dc71bafc953c0b0fdeb9983a9956".to_string(),
                             },
-                            parsed: mime::NaiveMIME {
+                            fields: mime::NaiveMIME {
                                 ctype: Some(mime::r#type::NaiveType {
                                     main: &b"multipart"[..],
                                     sub: &b"alternative"[..],
@@ -365,12 +365,12 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                         epilogue: &b""[..],
                         children: vec![
                             AnyPart::Txt(Text {
-                                interpreted: mime::MIME {
-                                    interpreted: mime::r#type::Text {
+                                mime: mime::MIME {
+                                    interpreted_type: mime::r#type::Deductible::Explicit(mime::r#type::Text {
                                         subtype: mime::r#type::TextSubtype::Plain,
-                                        charset: mime::charset::EmailCharset::UTF_8,
-                                    },
-                                    parsed: mime::NaiveMIME {
+                                        charset: mime::r#type::Deductible::Explicit(mime::charset::EmailCharset::UTF_8),
+                                    }),
+                                    fields: mime::NaiveMIME {
                                         ctype: Some(mime::r#type::NaiveType {
                                             main: &b"text"[..],
                                             sub: &b"plain"[..],
@@ -388,13 +388,13 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                                 body: &b"GZ\nOoOoO\noOoOoOoOo\noOoOoOoOoOoOoOoOo\noOoOoOoOoOoOoOoOoOoOoOo\noOoOoOoOoOoOoOoOoOoOoOoOoOoOo\nOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO\n"[..],
                             }),
                             AnyPart::Txt(Text {
-                                interpreted: mime::MIME {
-                                    interpreted: mime::r#type::Text {
+                                mime: mime::MIME {
+                                    interpreted_type: mime::r#type::Deductible::Explicit(mime::r#type::Text {
                                         subtype: mime::r#type::TextSubtype::Html,
-                                        charset: mime::charset::EmailCharset::US_ASCII,
-                                    },
+                                        charset: mime::r#type::Deductible::Explicit(mime::charset::EmailCharset::US_ASCII),
+                                    }),
 
-                                    parsed: mime::NaiveMIME {
+                                    fields: mime::NaiveMIME {
                                         ctype: Some(mime::r#type::NaiveType {
                                             main: &b"text"[..],
                                             sub: &b"html"[..],

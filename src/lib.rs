@@ -15,7 +15,7 @@ pub mod header;
 /// Low-level email-specific text-based representation for data
 pub mod text;
 
-use nom::IResult;
+use nom::{IResult, combinator::into};
 
 /// Parse a whole email including its (MIME) body
 ///
@@ -46,15 +46,15 @@ use nom::IResult;
 /// This is the plain text body of the message. Note the blank line
 /// between the header information and the body of the message."#;
 ///
-/// let (_, email) = eml_codec::email(input).unwrap();
+/// let (_, email) = eml_codec::parse_message(input).unwrap();
 /// println!(
 ///     "{} raw message is:\n{}",
 ///     email.imf.from[0].to_string(),
 ///     String::from_utf8_lossy(email.child.as_text().unwrap().body),
 /// );
 /// ```
-pub fn email(input: &[u8]) -> IResult<&[u8], part::composite::Message> {
-    part::composite::message(mime::MIME::<mime::r#type::Message>::default())(input)
+pub fn parse_message(input: &[u8]) -> IResult<&[u8], part::composite::Message> {
+    into(part::composite::message(mime::MIME::<mime::r#type::DeductibleMessage>::default()))(input)
 }
 
 /// Only extract the headers of the email that are part of the Internet Message Format spec
@@ -87,13 +87,13 @@ pub fn email(input: &[u8]) -> IResult<&[u8], part::composite::Message> {
 /// This is the plain text body of the message. Note the blank line
 /// between the header information and the body of the message."#;
 ///
-/// let (_, imf) = eml_codec::imf(input).unwrap();
+/// let (_, imf) = eml_codec::parse_imf(input).unwrap();
 /// println!(
 ///     "{} just sent you an email with subject \"{}\"",
 ///     imf.from[0].to_string(),
 ///     imf.subject.unwrap().to_string(),
 /// );
 /// ```
-pub fn imf(input: &[u8]) -> IResult<&[u8], imf::Imf> {
+pub fn parse_imf(input: &[u8]) -> IResult<&[u8], imf::Imf> {
     imf::field::imf(input)
 }

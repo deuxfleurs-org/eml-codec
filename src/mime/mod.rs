@@ -21,22 +21,22 @@ use crate::text::misc_token::Unstructured; //Multipart, Message, Text, Binary};
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct MIME<'a, T> {
-    pub interpreted: T, 
-    pub parsed: NaiveMIME<'a>
+    pub interpreted_type: T, 
+    pub fields: NaiveMIME<'a>
 }
-impl<'a> Default for MIME<'a, r#type::Text> {
+impl<'a> Default for MIME<'a, r#type::DeductibleText> {
     fn default() -> Self {
         Self {
-            interpreted: r#type::Text::default(),
-            parsed: NaiveMIME::default(),
+            interpreted_type: r#type::DeductibleText::default(),
+            fields: NaiveMIME::default(),
         }
     }
 }
-impl<'a> Default for MIME<'a, r#type::Message> {
+impl<'a> Default for MIME<'a, r#type::DeductibleMessage> {
     fn default() -> Self {
         Self {
-            interpreted: r#type::Message::default(),
-            parsed: NaiveMIME::default(),
+            interpreted_type: r#type::DeductibleMessage::default(),
+            fields: NaiveMIME::default(),
         }
     }
 }
@@ -44,8 +44,8 @@ impl<'a> Default for MIME<'a, r#type::Message> {
 #[derive(Debug, PartialEq, Clone)]
 pub enum AnyMIME<'a> {
     Mult(MIME<'a, r#type::Multipart>),
-    Msg(MIME<'a, r#type::Message>),
-    Txt(MIME<'a, r#type::Text>),
+    Msg(MIME<'a, r#type::DeductibleMessage>),
+    Txt(MIME<'a, r#type::DeductibleText>),
     Bin(MIME<'a, r#type::Binary>),
 }
 
@@ -103,13 +103,13 @@ pub trait WithDefaultType {
 pub struct WithGenericDefault {}
 impl WithDefaultType for WithGenericDefault {
     fn default_type() -> AnyType {
-        AnyType::Text(r#type::Text::default())
+        AnyType::Text(r#type::DeductibleText::default())
     }
 }
 pub struct WithDigestDefault {}
 impl WithDefaultType for WithDigestDefault {
     fn default_type() -> AnyType {
-        AnyType::Message(r#type::Message::default())
+        AnyType::Message(r#type::DeductibleMessage::default())
     }
 }
 

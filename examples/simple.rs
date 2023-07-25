@@ -10,7 +10,7 @@ This is the plain text body of the message. Note the blank line
 between the header information and the body of the message."#;
 
     // if you are only interested in email metadata/headers
-    let (_, imf) = eml_codec::imf(input).unwrap();
+    let (_, imf) = eml_codec::parse_imf(input).unwrap();
     println!(
         "{} just sent you an email with subject \"{}\"",
         imf.from[0].to_string(),
@@ -18,7 +18,7 @@ between the header information and the body of the message."#;
     );
 
     // if you like to also parse the body/content
-    let (_, email) = eml_codec::email(input).unwrap();
+    let (_, email) = eml_codec::parse_message(input).unwrap();
     println!(
         "{} raw message is:\n{}",
         email.imf.from[0].to_string(),
