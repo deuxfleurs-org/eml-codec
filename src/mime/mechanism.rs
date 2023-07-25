@@ -18,6 +18,20 @@ pub enum Mechanism<'a> {
     Base64,
     Other(&'a [u8]),
 }
+impl<'a> ToString for Mechanism<'a> {
+    fn to_string(&self) -> String {
+        use Mechanism::*;
+        let buf: &[u8] = match self {
+            _7Bit => b"7bit",
+            _8Bit => b"8bit",
+            Binary => b"binary",
+            QuotedPrintable => b"quoted-printable",
+            Base64 => b"base64",
+            Other(x) => x,
+        };
+        String::from_utf8_lossy(buf).to_string()
+    }
+}
 
 pub fn mechanism(input: &[u8]) -> IResult<&[u8], Mechanism> {
     use Mechanism::*;
