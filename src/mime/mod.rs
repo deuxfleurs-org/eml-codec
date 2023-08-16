@@ -63,6 +63,7 @@ pub struct NaiveMIME<'a> {
     pub description: Option<Unstructured<'a>>,
     pub header_ext: Vec<header::Kv<'a>>,
     pub header_bad: Vec<&'a [u8]>,
+    pub raw: &'a [u8],
 }
 
 impl<'a> FromIterator<Content<'a>> for NaiveMIME<'a> {
@@ -88,6 +89,9 @@ impl<'a> NaiveMIME<'a> {
     }
     pub fn with_bad(mut self, bad: Vec<&'a [u8]>) -> Self {
         self.header_bad = bad; self
+    }
+    pub fn with_raw(mut self, raw: &'a [u8]) -> Self {
+        self.raw = raw; self
     }
     pub fn to_interpreted<T: WithDefaultType>(self) -> AnyMIME<'a> {
        self.ctype.as_ref().map(|c| c.to_type()).unwrap_or(T::default_type()).to_mime(self).into()

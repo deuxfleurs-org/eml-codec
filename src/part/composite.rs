@@ -74,7 +74,16 @@ pub fn multipart<'a>(
 
             // parse mime headers, otherwise pick default mime
             let (input, naive_mime) = match header(mime::field::content)(input) {
-                Ok((input, (known, unknown, bad))) => (input, known.into_iter().collect::<mime::NaiveMIME>().with_opt(unknown).with_bad(bad)),
+                Ok((input_eom, (known, unknown, bad))) => {
+                    let raw_hdrs = pointers::parsed(input, input_eom);
+                    let mime = known
+                        .into_iter()
+                        .collect::<mime::NaiveMIME>()
+                        .with_opt(unknown)
+                        .with_bad(bad)
+                        .with_raw(raw_hdrs);
+                    (input_eom, mime)
+                },
                 Err(_) => (input, mime::NaiveMIME::default()),
             };
 
@@ -132,7 +141,7 @@ pub fn message<'a>(
         let imf = imf.with_opt(unknown).with_bad(bad);
 
         // interpret headers to choose a mime type
-        let in_mime = naive_mime.to_interpreted::<mime::WithGenericDefault>().into();
+        let in_mime = naive_mime.with_raw(raw_headers).to_interpreted::<mime::WithGenericDefault>().into();
 
         // parse this mimetype
         let (input, part) = part::anypart(in_mime)(input)?;
