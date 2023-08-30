@@ -98,5 +98,5 @@ pub fn parse_message(input: &[u8]) -> IResult<&[u8], part::composite::Message> {
 /// );
 /// ```
 pub fn parse_imf(input: &[u8]) -> IResult<&[u8], imf::Imf> {
-    imf::field::imf(input)
+    imf::imf(input)
 }
