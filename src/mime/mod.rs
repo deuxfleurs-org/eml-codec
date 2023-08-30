@@ -61,8 +61,7 @@ pub struct NaiveMIME<'a> {
     pub transfer_encoding: Mechanism<'a>,
     pub id: Option<MessageID<'a>>,
     pub description: Option<Unstructured<'a>>,
-    pub header_ext: Vec<header::Kv<'a>>,
-    pub header_bad: Vec<&'a [u8]>,
+    pub fields: Vec<header::Field<'a>>,
     pub raw: &'a [u8],
 }
 
@@ -84,11 +83,8 @@ impl<'a> FromIterator<Content<'a>> for NaiveMIME<'a> {
 }
 
 impl<'a> NaiveMIME<'a> {
-    pub fn with_opt(mut self, opt: Vec<header::Kv<'a>>) -> Self {
-        self.header_ext = opt; self
-    }
-    pub fn with_bad(mut self, bad: Vec<&'a [u8]>) -> Self {
-        self.header_bad = bad; self
+    pub fn with_fields(mut self, fields: Vec<header::Field<'a>>) -> Self {
+        self.fields = fields; self
     }
     pub fn with_raw(mut self, raw: &'a [u8]) -> Self {
         self.raw = raw; self

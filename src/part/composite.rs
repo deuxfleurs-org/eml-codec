@@ -1,9 +1,9 @@
 use nom::IResult;
 
-use crate::header::{header, self};
+use crate::header;
 use crate::imf;
 use crate::mime;
-use crate::part::{self, AnyPart, field::MixedField};
+use crate::part::{self, AnyPart};
 use crate::text::boundary::{boundary, Delimiter};
 use crate::pointers;
 
@@ -73,15 +73,19 @@ pub fn multipart<'a>(
             };
 
             // parse mime headers, otherwise pick default mime
-            let (input, naive_mime) = match header(mime::field::content)(input) {
-                Ok((input_eom, (known, unknown, bad))) => {
+            let (input, naive_mime) = match header::header_kv(input) {
+                Ok((input_eom, fields)) => {
                     let raw_hdrs = pointers::parsed(input, input_eom);
-                    let mime = known
+                    let mime = fields
+                        .iter()
+                        .flat_map(mime::field::Content::try_from)
                         .into_iter()
-                        .collect::<mime::NaiveMIME>()
-                        .with_opt(unknown)
-                        .with_bad(bad)
+                        .collect::<mime::NaiveMIME>();
+
+                    let mime = mime
+                        .with_fields(fields)
                         .with_raw(raw_hdrs);
+
                     (input_eom, mime)
                 },
                 Err(_) => (input, mime::NaiveMIME::default()),
@@ -127,23 +131,21 @@ pub fn message<'a>(
         let orig = input;
 
         // parse header fields
-        let (input, (known, unknown, bad)): (_, (Vec::<MixedField>, Vec<header::Kv>, Vec<&[u8]>)) =
-            header(part::field::mixed_field)(input)?;
+        let (input, headers) = header::header_kv(input)?;
 
         // extract raw parts 1/2
         let raw_headers = pointers::parsed(orig, input);
         let body_orig = input;
 
+        //---------------
         // aggregate header fields
-        let (naive_mime, imf) = part::field::sections(known);
-
-        // attach bad headers to imf
-        let imf = imf.with_opt(unknown).with_bad(bad);
+        let (naive_mime, imf) = part::field::split_and_build(&headers);
 
         // interpret headers to choose a mime type
-        let in_mime = naive_mime.with_raw(raw_headers).to_interpreted::<mime::WithGenericDefault>().into();
+        let in_mime = naive_mime.with_fields(headers).with_raw(raw_headers).to_interpreted::<mime::WithGenericDefault>().into();
+        //---------------
 
-        // parse this mimetype
+        // parse a part following this mime specification
         let (input, part) = part::anypart(in_mime)(input)?;
 
         // extract raw parts 2/2
@@ -459,15 +461,6 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                             right: &b"www.grrrndzero.org"[..],
                         }),
                         mime_version: Some(imf::mime::Version { major: 1, minor: 0}),
-                        header_ext: vec![
-                            header::Kv(&b"X-Unknown"[..], Unstructured(vec![
-                                UnstrToken::Plain(&b"something"[..]),
-                                UnstrToken::Plain(&b"something"[..]),
-                            ]))
-                        ],
-                        header_bad: vec![
-                            &b"Bad entry\n  on multiple lines\n"[..],
-                        ],
                         ..imf::Imf::default()
                     },
                     child: Box::new(AnyPart::Mult(Multipart {

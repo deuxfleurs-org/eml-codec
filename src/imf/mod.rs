@@ -13,14 +13,13 @@ use nom::{
     IResult,
 };
 
-use crate::header::header;
+use crate::header;
 use crate::imf::address::AddressRef;
-use crate::imf::field::{field, Field};
+use crate::imf::field::Field;
 use crate::imf::identification::MessageID;
 use crate::imf::mailbox::{AddrSpec, MailboxRef};
 use crate::imf::mime::Version;
 use crate::imf::trace::ReceivedLog;
-use crate::header;
 use crate::text::misc_token::{PhraseList, Unstructured};
 use chrono::{DateTime, FixedOffset};
 
@@ -56,19 +55,6 @@ pub struct Imf<'a> {
 
     // MIME
     pub mime_version: Option<Version>,
-
-    // Junk
-    pub header_ext: Vec<header::Kv<'a>>,
-    pub header_bad: Vec<&'a [u8]>,
-}
-
-impl<'a> Imf<'a> {
-    pub fn with_opt(mut self, opt: Vec<header::Kv<'a>>) -> Self {
-        self.header_ext = opt; self
-    }
-    pub fn with_bad(mut self, bad: Vec<&'a [u8]>) -> Self {
-        self.header_bad = bad; self
-    }
 }
 
 //@FIXME min and max limits are not enforced,
@@ -100,11 +86,8 @@ impl<'a> FromIterator<Field<'a>> for Imf<'a> {
 }
 
 pub fn imf(input: &[u8]) -> IResult<&[u8], Imf> {
-    map(header(field), |(known, unknown, bad)| { 
-        let mut imf = Imf::from_iter(known);
-        imf.header_ext = unknown;
-        imf.header_bad = bad;
-        imf
+    map(header::header_kv, |fields| { 
+        fields.iter().flat_map(Field::try_from).into_iter().collect::<Imf>()
     })(input)
 }
 

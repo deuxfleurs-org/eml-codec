@@ -1,12 +1,7 @@
 use chrono::{DateTime, FixedOffset};
-use nom::{
-    branch::alt,
-    combinator::map,
-    sequence::{preceded, terminated},
-    IResult,
-};
+use nom::combinator::map;
 
-use crate::header::{field_name};
+use crate::header;
 use crate::imf::address::{address_list, mailbox_list, nullable_address_list, AddressList};
 use crate::imf::datetime::section as date;
 use crate::imf::identification::{msg_id, msg_list, MessageID, MessageIDList};
@@ -14,7 +9,6 @@ use crate::imf::mailbox::{mailbox, AddrSpec, MailboxList, MailboxRef};
 use crate::imf::mime::{version, Version};
 use crate::imf::trace::{received_log, return_path, ReceivedLog};
 use crate::text::misc_token::{phrase_list, unstructured, PhraseList, Unstructured};
-use crate::text::whitespace::obs_crlf;
 
 #[derive(Debug, PartialEq)]
 pub enum Field<'a> {
@@ -48,36 +42,32 @@ pub enum Field<'a> {
 
     MIMEVersion(Version),
 }
-/*impl<'a> From<header::Field<'a>> for Field<'a> {
-    fn from(raw: header::Field
-}*/
+impl<'a> TryFrom<&header::Field<'a>> for Field<'a> {
+    type Error = ();
+    fn try_from(f: &header::Field<'a>) -> Result<Self, Self::Error> {
+        let content = match f {
+            header::Field::Good(header::Kv2(key, value)) => match key.to_ascii_lowercase().as_slice() {
+                b"date" => map(date, Field::Date)(value),
+                b"from" => map(mailbox_list, Field::From)(value),
+                b"sender" => map(mailbox, Field::Sender)(value),
+                b"reply-to" => map(address_list, Field::ReplyTo)(value),
+                b"to" => map(address_list, Field::To)(value),
+                b"cc" => map(address_list, Field::Cc)(value),
+                b"bcc" => map(nullable_address_list, Field::Bcc)(value),
+                b"message-id" => map(msg_id, Field::MessageID)(value),
+                b"in-reply-to" => map(msg_list, Field::InReplyTo)(value),
+                b"references" => map(msg_list, Field::References)(value),
+                b"subject" => map(unstructured, Field::Subject)(value),
+                b"comments" => map(unstructured, Field::Comments)(value),
+                b"keywords" => map(phrase_list, Field::Keywords)(value),
+                b"return-path" => map(return_path, Field::ReturnPath)(value),
+                b"received" => map(received_log, Field::Received)(value),
+                b"mime-version" => map(version, Field::MIMEVersion)(value),
+                _ => return Err(()),
+            },
+            _ => return Err(()),
+        };
 
-pub fn field(input: &[u8]) -> IResult<&[u8], Field> {
-    terminated(
-        alt((
-            preceded(field_name(b"date"), map(date, Field::Date)),
-            preceded(field_name(b"from"), map(mailbox_list, Field::From)),
-            preceded(field_name(b"sender"), map(mailbox, Field::Sender)),
-            preceded(field_name(b"reply-to"), map(address_list, Field::ReplyTo)),
-            preceded(field_name(b"to"), map(address_list, Field::To)),
-            preceded(field_name(b"cc"), map(address_list, Field::Cc)),
-            preceded(field_name(b"bcc"), map(nullable_address_list, Field::Bcc)),
-            preceded(field_name(b"message-id"), map(msg_id, Field::MessageID)),
-            preceded(field_name(b"in-reply-to"), map(msg_list, Field::InReplyTo)),
-            preceded(field_name(b"references"), map(msg_list, Field::References)),
-            preceded(field_name(b"subject"), map(unstructured, Field::Subject)),
-            preceded(field_name(b"comments"), map(unstructured, Field::Comments)),
-            preceded(field_name(b"keywords"), map(phrase_list, Field::Keywords)),
-            preceded(
-                field_name(b"return-path"),
-                map(return_path, Field::ReturnPath),
-            ),
-            preceded(field_name(b"received"), map(received_log, Field::Received)),
-            preceded(
-                field_name(b"mime-version"),
-                map(version, Field::MIMEVersion),
-            ),
-        )),
-        obs_crlf,
-    )(input)
+        content.map(|(_, content)| content).or(Err(()))
+    }
 }
