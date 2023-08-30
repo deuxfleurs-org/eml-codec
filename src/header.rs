@@ -5,8 +5,8 @@ use nom::{
     branch::alt,
     bytes::complete::{tag, tag_no_case, take_while1},
     character::complete::space0,
-    combinator::map,
-    multi::{fold_many0},
+    combinator::{into, map},
+    multi::{fold_many0, many0},
     sequence::{pair, terminated, tuple},
     IResult,
 };
@@ -20,6 +20,40 @@ pub enum CompField<'a, T> {
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Kv<'a>(pub &'a [u8], pub Unstructured<'a>);
+impl<'a> From<(&'a [u8], Unstructured<'a>)> for Kv<'a> {
+    fn from(pair: (&'a [u8], Unstructured<'a>)) -> Self {
+        Self(pair.0, pair.1)
+    }
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum Field<'a> {
+    Good(Kv<'a>),
+    Bad(&'a [u8]),
+}
+impl<'a> From<Kv<'a>> for Field<'a> {
+    fn from(kv: Kv<'a>) -> Self {
+        Self::Good(kv)
+    }
+}
+impl<'a> From<&'a [u8]> for Field<'a> {
+    fn from(bad: &'a [u8]) -> Self {
+        Self::Bad(bad)
+    }
+}
+
+/// Parse headers as key/values
+pub fn header_kv(input: &[u8]) -> IResult<&[u8], Vec<Field>> {
+    terminated(
+        many0(
+            alt((
+                into(opt_field),
+                into(foldable_line),
+            ))
+        ),
+        obs_crlf
+    )(input)
+}
 
 
 pub fn header<'a, T>(
@@ -30,7 +64,7 @@ pub fn header<'a, T>(
                 fold_many0(
                     alt((
                         map(fx, CompField::Known),
-                        map(opt_field, |(k, v)| CompField::Unknown(Kv(k, v))),
+                        map(opt_field, CompField::Unknown),
                         map(foldable_line, CompField::Bad),
                     )),
                     || (Vec::<T>::new(), Vec::<Kv>::new(), Vec::<&'a [u8]>::new()),
@@ -52,6 +86,13 @@ pub fn field_name<'a>(name: &'static [u8]) -> impl Fn(&'a [u8]) -> IResult<&'a [
     move |input| terminated(tag_no_case(name), tuple((space0, tag(b":"), space0)))(input)
 }
 
+pub fn field_any(input: &[u8]) -> IResult<&[u8], &[u8]> {
+    terminated(
+        take_while1(|c| (0x21..=0x7E).contains(&c) && c != 0x3A),
+        tuple((space0, tag(b":"), space0)),
+    )(input)
+}
+
 /// Optional field
 ///
 /// ```abnf
@@ -61,15 +102,12 @@ pub fn field_name<'a>(name: &'static [u8]) -> impl Fn(&'a [u8]) -> IResult<&'a [
 ///                %d59-126           ;  characters not including
 ///                                   ;  ":".
 /// ```
-pub fn opt_field(input: &[u8]) -> IResult<&[u8], (&[u8], Unstructured)> {
+pub fn opt_field(input: &[u8]) -> IResult<&[u8], Kv> {
     terminated(
-        pair(
-            terminated(
-                take_while1(|c| (0x21..=0x7E).contains(&c) && c != 0x3A),
-                tuple((space0, tag(b":"), space0)),
-            ),
+        into(pair(
+            field_any,
             unstructured,
-        ),
+        )),
         obs_crlf,
     )(input)
 }
