@@ -487,6 +487,7 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                                         }
                                     ]
                                 }),
+                                raw: hdrs,
                                 ..mime::NaiveMIME::default()
                             },
                         },
@@ -511,6 +512,7 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                                             ]
                                         }),
                                         transfer_encoding: mime::mechanism::Mechanism::QuotedPrintable,
+                                        raw: &b"Content-Type: text/plain; charset=utf-8\nContent-Transfer-Encoding: quoted-printable\n\n"[..],
                                         ..mime::NaiveMIME::default()
                                     }
                                 },
@@ -534,6 +536,7 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                                                 }
                                             ]
                                         }),                             
+                                        raw: &b"Content-Type: text/html; charset=us-ascii\n\n"[..],
                                         ..mime::NaiveMIME::default()
                                     },
                                 },
