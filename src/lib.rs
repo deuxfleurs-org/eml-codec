@@ -18,7 +18,7 @@ pub mod text;
 /// Manipulate buffer of bytes
 mod pointers;
 
-use nom::{IResult, combinator::into};
+use nom::{combinator::into, IResult};
 
 /// Parse a whole email including its (MIME) body
 ///
@@ -37,7 +37,7 @@ use nom::{IResult, combinator::into};
 /// * `msg` - The parsed message
 ///
 /// # Examples
-/// 
+///
 /// ```
 /// let input = br#"Date: 7 Mar 2023 08:00:00 +0200
 /// From: deuxfleurs@example.com
@@ -57,7 +57,9 @@ use nom::{IResult, combinator::into};
 /// );
 /// ```
 pub fn parse_message(input: &[u8]) -> IResult<&[u8], part::composite::Message> {
-    into(part::composite::message(mime::MIME::<mime::r#type::DeductibleMessage>::default()))(input)
+    into(part::composite::message(mime::MIME::<
+        mime::r#type::DeductibleMessage,
+    >::default()))(input)
 }
 
 /// Only extract the headers of the email that are part of the Internet Message Format spec

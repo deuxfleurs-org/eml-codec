@@ -46,25 +46,27 @@ impl<'a> TryFrom<&header::Field<'a>> for Field<'a> {
     type Error = ();
     fn try_from(f: &header::Field<'a>) -> Result<Self, Self::Error> {
         let content = match f {
-            header::Field::Good(header::Kv2(key, value)) => match key.to_ascii_lowercase().as_slice() {
-                b"date" => map(date, Field::Date)(value),
-                b"from" => map(mailbox_list, Field::From)(value),
-                b"sender" => map(mailbox, Field::Sender)(value),
-                b"reply-to" => map(address_list, Field::ReplyTo)(value),
-                b"to" => map(address_list, Field::To)(value),
-                b"cc" => map(address_list, Field::Cc)(value),
-                b"bcc" => map(nullable_address_list, Field::Bcc)(value),
-                b"message-id" => map(msg_id, Field::MessageID)(value),
-                b"in-reply-to" => map(msg_list, Field::InReplyTo)(value),
-                b"references" => map(msg_list, Field::References)(value),
-                b"subject" => map(unstructured, Field::Subject)(value),
-                b"comments" => map(unstructured, Field::Comments)(value),
-                b"keywords" => map(phrase_list, Field::Keywords)(value),
-                b"return-path" => map(return_path, Field::ReturnPath)(value),
-                b"received" => map(received_log, Field::Received)(value),
-                b"mime-version" => map(version, Field::MIMEVersion)(value),
-                _ => return Err(()),
-            },
+            header::Field::Good(header::Kv2(key, value)) => {
+                match key.to_ascii_lowercase().as_slice() {
+                    b"date" => map(date, Field::Date)(value),
+                    b"from" => map(mailbox_list, Field::From)(value),
+                    b"sender" => map(mailbox, Field::Sender)(value),
+                    b"reply-to" => map(address_list, Field::ReplyTo)(value),
+                    b"to" => map(address_list, Field::To)(value),
+                    b"cc" => map(address_list, Field::Cc)(value),
+                    b"bcc" => map(nullable_address_list, Field::Bcc)(value),
+                    b"message-id" => map(msg_id, Field::MessageID)(value),
+                    b"in-reply-to" => map(msg_list, Field::InReplyTo)(value),
+                    b"references" => map(msg_list, Field::References)(value),
+                    b"subject" => map(unstructured, Field::Subject)(value),
+                    b"comments" => map(unstructured, Field::Comments)(value),
+                    b"keywords" => map(phrase_list, Field::Keywords)(value),
+                    b"return-path" => map(return_path, Field::ReturnPath)(value),
+                    b"received" => map(received_log, Field::Received)(value),
+                    b"mime-version" => map(version, Field::MIMEVersion)(value),
+                    _ => return Err(()),
+                }
+            }
             _ => return Err(()),
         };
 

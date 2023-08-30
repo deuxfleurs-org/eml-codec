@@ -1,4 +1,3 @@
-use std::fmt;
 use nom::{
     branch::alt,
     bytes::complete::{tag, take_while1},
@@ -8,9 +7,10 @@ use nom::{
     sequence::{pair, terminated, tuple},
     IResult,
 };
+use std::fmt;
 
-use crate::text::whitespace::{foldable_line, obs_crlf};
 use crate::text::misc_token::unstructured;
+use crate::text::whitespace::{foldable_line, obs_crlf};
 
 #[derive(PartialEq, Clone)]
 pub struct Kv2<'a>(pub &'a [u8], pub &'a [u8]);
@@ -47,13 +47,8 @@ impl<'a> From<&'a [u8]> for Field<'a> {
 /// Parse headers as key/values
 pub fn header_kv(input: &[u8]) -> IResult<&[u8], Vec<Field>> {
     terminated(
-        many0(
-            alt((
-                into(correct_field),
-                into(foldable_line),
-            ))
-        ),
-        obs_crlf
+        many0(alt((into(correct_field), into(foldable_line)))),
+        obs_crlf,
     )(input)
 }
 
@@ -74,11 +69,5 @@ pub fn field_any(input: &[u8]) -> IResult<&[u8], &[u8]> {
 ///                                   ;  ":".
 /// ```
 pub fn correct_field(input: &[u8]) -> IResult<&[u8], Kv2> {
-    terminated(
-        into(pair(
-            field_any,
-            recognize(unstructured),
-        )),
-        obs_crlf,
-    )(input)
+    terminated(into(pair(field_any, recognize(unstructured))), obs_crlf)(input)
 }

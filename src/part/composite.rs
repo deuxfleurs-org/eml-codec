@@ -1,12 +1,12 @@
-use std::fmt;
 use nom::IResult;
+use std::fmt;
 
 use crate::header;
 use crate::imf;
 use crate::mime;
 use crate::part::{self, AnyPart};
-use crate::text::boundary::{boundary, Delimiter};
 use crate::pointers;
+use crate::text::boundary::{boundary, Delimiter};
 
 //--- Multipart
 #[derive(PartialEq)]
@@ -21,8 +21,14 @@ impl<'a> fmt::Debug for Multipart<'a> {
         fmt.debug_struct("part::Multipart")
             .field("mime", &self.mime)
             .field("children", &self.children)
-            .field("raw_part_inner", &String::from_utf8_lossy(self.raw_part_inner))
-            .field("raw_part_outer", &String::from_utf8_lossy(self.raw_part_outer))
+            .field(
+                "raw_part_inner",
+                &String::from_utf8_lossy(self.raw_part_inner),
+            )
+            .field(
+                "raw_part_outer",
+                &String::from_utf8_lossy(self.raw_part_outer),
+            )
             .finish()
     }
 }
@@ -76,7 +82,10 @@ pub fn multipart<'a>(
                             mime: m.clone(),
                             children: mparts,
                             raw_part_inner: pointers::parsed(inner_orig, inp),
-                            raw_part_outer: pointers::parsed(outer_orig, &outer_orig[outer_orig.len()..]),
+                            raw_part_outer: pointers::parsed(
+                                outer_orig,
+                                &outer_orig[outer_orig.len()..],
+                            ),
                         },
                     ))
                 }
@@ -93,19 +102,21 @@ pub fn multipart<'a>(
                         .into_iter()
                         .collect::<mime::NaiveMIME>();
 
-                    let mime = mime
-                        .with_kv(fields)
-                        .with_raw(raw_hdrs);
+                    let mime = mime.with_kv(fields).with_raw(raw_hdrs);
 
                     (input_eom, mime)
-                },
+                }
                 Err(_) => (input, mime::NaiveMIME::default()),
             };
 
             // interpret mime according to context
             let mime = match m.interpreted_type.subtype {
-                mime::r#type::MultipartSubtype::Digest => naive_mime.to_interpreted::<mime::WithDigestDefault>().into(),
-                _ => naive_mime.to_interpreted::<mime::WithGenericDefault>().into(),
+                mime::r#type::MultipartSubtype::Digest => naive_mime
+                    .to_interpreted::<mime::WithDigestDefault>()
+                    .into(),
+                _ => naive_mime
+                    .to_interpreted::<mime::WithGenericDefault>()
+                    .into(),
             };
 
             // parse raw part
@@ -168,7 +179,10 @@ pub fn message<'a>(
         let imf = imf.with_kv(headers);
 
         // interpret headers to choose a mime type
-        let in_mime = naive_mime.with_raw(raw_headers).to_interpreted::<mime::WithGenericDefault>().into();
+        let in_mime = naive_mime
+            .with_raw(raw_headers)
+            .to_interpreted::<mime::WithGenericDefault>()
+            .into();
         //---------------
 
         // parse a part following this mime specification
@@ -183,7 +197,9 @@ pub fn message<'a>(
             Message {
                 mime: m.clone(),
                 imf,
-                raw_part, raw_headers, raw_body,
+                raw_part,
+                raw_headers,
+                raw_body,
                 child: Box::new(part),
             },
         ))
@@ -196,7 +212,7 @@ mod tests {
     use crate::part::discrete::Text;
     use crate::part::AnyPart;
     use crate::text::encoding::{Base64Word, EncodedWord, QuotedChunk, QuotedWord};
-    use crate::text::misc_token::{Phrase, UnstrToken, Unstructured, Word, MIMEWord};
+    use crate::text::misc_token::{MIMEWord, Phrase, UnstrToken, Unstructured, Word};
     use crate::text::quoted::QuotedString;
     use chrono::{FixedOffset, TimeZone};
 
@@ -265,7 +281,7 @@ It DOES end with a linebreak.
                             body: &b"This is implicitly typed plain US-ASCII text.\nIt does NOT end with a linebreak."[..],
                         }),
                         AnyPart::Txt(Text {
-                            mime: mime::MIME { 
+                            mime: mime::MIME {
                                 interpreted_type: mime::r#type::Deductible::Explicit(mime::r#type::Text {
                                     subtype: mime::r#type::TextSubtype::Plain,
                                     charset: mime::r#type::Deductible::Explicit(mime::charset::EmailCharset::US_ASCII),

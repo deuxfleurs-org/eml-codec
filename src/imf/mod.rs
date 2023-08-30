@@ -1,5 +1,4 @@
 /// Parse and represent IMF (Internet Message Format) headers (RFC822, RFC5322)
-
 pub mod address;
 pub mod datetime;
 pub mod field;
@@ -8,10 +7,7 @@ pub mod mailbox;
 pub mod mime;
 pub mod trace;
 
-use nom::{
-    combinator::map,
-    IResult,
-};
+use nom::{combinator::map, IResult};
 
 use crate::header;
 use crate::imf::address::AddressRef;
@@ -61,7 +57,8 @@ pub struct Imf<'a> {
 }
 impl<'a> Imf<'a> {
     pub fn with_kv(mut self, v: Vec<header::Field<'a>>) -> Self {
-        self.kv = v; self
+        self.kv = v;
+        self
     }
 }
 
@@ -94,11 +91,14 @@ impl<'a> FromIterator<Field<'a>> for Imf<'a> {
 }
 
 pub fn imf(input: &[u8]) -> IResult<&[u8], Imf> {
-    map(header::header_kv, |fields| { 
-        fields.iter().flat_map(Field::try_from).into_iter().collect::<Imf>()
+    map(header::header_kv, |fields| {
+        fields
+            .iter()
+            .flat_map(Field::try_from)
+            .into_iter()
+            .collect::<Imf>()
     })(input)
 }
-
 
 #[cfg(test)]
 mod tests {
