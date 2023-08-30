@@ -5,18 +5,28 @@ use nom::{
     sequence::{preceded, terminated, tuple},
     IResult,
 };
+use std::fmt;
 
 use crate::mime::charset::EmailCharset;
+use crate::mime::{AnyMIME, NaiveMIME, MIME};
 use crate::text::misc_token::{mime_word, MIMEWord};
 use crate::text::words::mime_atom;
-use crate::mime::{AnyMIME, MIME, NaiveMIME};
 
 // --------- NAIVE TYPE
-#[derive(Debug, PartialEq, Clone)]
+#[derive(PartialEq, Clone)]
 pub struct NaiveType<'a> {
     pub main: &'a [u8],
     pub sub: &'a [u8],
     pub params: Vec<Parameter<'a>>,
+}
+impl<'a> fmt::Debug for NaiveType<'a> {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt.debug_struct("mime::NaiveType")
+            .field("main", &String::from_utf8_lossy(self.main))
+            .field("sub", &String::from_utf8_lossy(self.sub))
+            .field("params", &self.params)
+            .finish()
+    }
 }
 impl<'a> NaiveType<'a> {
     pub fn to_type(&self) -> AnyType {
@@ -30,11 +40,20 @@ pub fn naive_type(input: &[u8]) -> IResult<&[u8], NaiveType> {
     )(input)
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(PartialEq, Clone)]
 pub struct Parameter<'a> {
     pub name: &'a [u8],
     pub value: MIMEWord<'a>,
 }
+impl<'a> fmt::Debug for Parameter<'a> {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt.debug_struct("mime::Parameter")
+            .field("name", &String::from_utf8_lossy(self.name))
+            .field("value", &self.value)
+            .finish()
+    }
+}
+
 pub fn parameter(input: &[u8]) -> IResult<&[u8], Parameter> {
     map(
         tuple((mime_atom, tag(b"="), mime_word)),
@@ -73,15 +92,26 @@ impl<'a> From<&'a NaiveType<'a>> for AnyType {
 
 impl<'a> AnyType {
     pub fn to_mime(self, fields: NaiveMIME<'a>) -> AnyMIME<'a> {
-         match self {
-            Self::Multipart(interpreted_type) => AnyMIME::Mult(MIME::<Multipart> { interpreted_type, fields }),
-            Self::Message(interpreted_type) => AnyMIME::Msg(MIME::<DeductibleMessage> { interpreted_type, fields }),
-            Self::Text(interpreted_type) => AnyMIME::Txt(MIME::<DeductibleText> { interpreted_type, fields }),
-            Self::Binary(interpreted_type) => AnyMIME::Bin(MIME::<Binary> { interpreted_type, fields }),
-        }       
+        match self {
+            Self::Multipart(interpreted_type) => AnyMIME::Mult(MIME::<Multipart> {
+                interpreted_type,
+                fields,
+            }),
+            Self::Message(interpreted_type) => AnyMIME::Msg(MIME::<DeductibleMessage> {
+                interpreted_type,
+                fields,
+            }),
+            Self::Text(interpreted_type) => AnyMIME::Txt(MIME::<DeductibleText> {
+                interpreted_type,
+                fields,
+            }),
+            Self::Binary(interpreted_type) => AnyMIME::Bin(MIME::<Binary> {
+                interpreted_type,
+                fields,
+            }),
+        }
     }
 }
-
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Deductible<T: Default> {
@@ -139,7 +169,8 @@ impl ToString for MultipartSubtype {
             Self::Parallel => "parallel",
             Self::Report => "report",
             Self::Unknown => "mixed",
-        }.into()
+        }
+        .into()
     }
 }
 impl<'a> From<&NaiveType<'a>> for MultipartSubtype {
@@ -154,8 +185,6 @@ impl<'a> From<&NaiveType<'a>> for MultipartSubtype {
         }
     }
 }
-
-
 
 #[derive(Debug, PartialEq, Default, Clone)]
 pub enum MessageSubtype {
@@ -172,7 +201,8 @@ impl ToString for MessageSubtype {
             Self::Partial => "partial",
             Self::External => "external",
             Self::Unknown => "rfc822",
-        }.into()
+        }
+        .into()
     }
 }
 
@@ -184,17 +214,25 @@ pub struct Message {
 impl<'a> From<&NaiveType<'a>> for Message {
     fn from(nt: &NaiveType<'a>) -> Self {
         match nt.sub.to_ascii_lowercase().as_slice() {
-            b"rfc822" => Self { subtype: MessageSubtype::RFC822 },
-            b"partial" =>  Self { subtype: MessageSubtype::Partial },
-            b"external" => Self { subtype: MessageSubtype::External },
-            _ =>  Self { subtype: MessageSubtype::Unknown },
+            b"rfc822" => Self {
+                subtype: MessageSubtype::RFC822,
+            },
+            b"partial" => Self {
+                subtype: MessageSubtype::Partial,
+            },
+            b"external" => Self {
+                subtype: MessageSubtype::External,
+            },
+            _ => Self {
+                subtype: MessageSubtype::Unknown,
+            },
         }
     }
 }
 impl From<Deductible<Message>> for Message {
     fn from(d: Deductible<Message>) -> Self {
         match d {
-            Deductible::Inferred(t) | Deductible::Explicit(t) => t
+            Deductible::Inferred(t) | Deductible::Explicit(t) => t,
         }
     }
 }
@@ -221,7 +259,7 @@ impl<'a> From<&NaiveType<'a>> for Text {
 impl From<Deductible<Text>> for Text {
     fn from(d: Deductible<Text>) -> Self {
         match d {
-            Deductible::Inferred(t) | Deductible::Explicit(t) => t
+            Deductible::Inferred(t) | Deductible::Explicit(t) => t,
         }
     }
 }
@@ -238,7 +276,8 @@ impl ToString for TextSubtype {
         match self {
             Self::Plain | Self::Unknown => "plain",
             Self::Html => "html",
-        }.into()
+        }
+        .into()
     }
 }
 impl<'a> From<&NaiveType<'a>> for TextSubtype {
@@ -258,8 +297,8 @@ pub struct Binary {}
 mod tests {
     use super::*;
     use crate::mime::charset::EmailCharset;
-    use crate::text::quoted::QuotedString;
     use crate::mime::r#type::Deductible;
+    use crate::text::quoted::QuotedString;
 
     #[test]
     fn test_parameter() {
@@ -317,7 +356,12 @@ mod tests {
         let (rest, nt) = naive_type(b"message/rfc822").unwrap();
         assert_eq!(rest, &[]);
 
-        assert_eq!(nt.to_type(), AnyType::Message(Deductible::Explicit(Message { subtype: MessageSubtype::RFC822 })));
+        assert_eq!(
+            nt.to_type(),
+            AnyType::Message(Deductible::Explicit(Message {
+                subtype: MessageSubtype::RFC822
+            }))
+        );
     }
 
     #[test]

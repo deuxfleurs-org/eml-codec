@@ -80,18 +80,19 @@ pub fn anypart<'a>(m: AnyMIME<'a>) -> impl FnOnce(&'a [u8]) -> IResult<&'a [u8],
     move |input| {
         let part = match m {
             AnyMIME::Mult(a) => multipart(a)(input)
-                .map(|(_, multi)| 
-                     multi.into())
+                .map(|(_, multi)| multi.into())
                 .unwrap_or(AnyPart::Txt(Text {
                     mime: mime::MIME::<mime::r#type::DeductibleText>::default(),
                     body: input,
                 })),
-            AnyMIME::Msg(a) => message(a)(input)
-                .map(|(_, msg)| msg.into())
-                .unwrap_or(AnyPart::Txt(Text {
-                    mime: mime::MIME::<mime::r#type::DeductibleText>::default(),
-                    body: input,
-                })),
+            AnyMIME::Msg(a) => {
+                message(a)(input)
+                    .map(|(_, msg)| msg.into())
+                    .unwrap_or(AnyPart::Txt(Text {
+                        mime: mime::MIME::<mime::r#type::DeductibleText>::default(),
+                        body: input,
+                    }))
+            }
             AnyMIME::Txt(a) => AnyPart::Txt(Text {
                 mime: a,
                 body: input,
@@ -101,7 +102,7 @@ pub fn anypart<'a>(m: AnyMIME<'a>) -> impl FnOnce(&'a [u8]) -> IResult<&'a [u8],
                 body: input,
             }),
         };
-        
+
         // This function always consumes the whole input
         Ok((&input[input.len()..], part))
     }

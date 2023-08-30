@@ -1,4 +1,4 @@
-/// Parsed and represent an email character set 
+/// Parsed and represent an email character set
 pub mod charset;
 
 /// MIME specific headers
@@ -10,19 +10,20 @@ pub mod mechanism;
 /// Content-Type representation
 pub mod r#type;
 
+use std::fmt;
 use std::marker::PhantomData;
 
+use crate::header;
 use crate::imf::identification::MessageID;
 use crate::mime::field::Content;
 use crate::mime::mechanism::Mechanism;
 use crate::mime::r#type::{AnyType, NaiveType};
-use crate::header;
 use crate::text::misc_token::Unstructured; //Multipart, Message, Text, Binary};
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct MIME<'a, T> {
-    pub interpreted_type: T, 
-    pub fields: NaiveMIME<'a>
+    pub interpreted_type: T,
+    pub fields: NaiveMIME<'a>,
 }
 impl<'a> Default for MIME<'a, r#type::DeductibleText> {
     fn default() -> Self {
@@ -55,22 +56,32 @@ impl<'a, T: WithDefaultType> From<AnyMIMEWithDefault<'a, T>> for AnyMIME<'a> {
     }
 }
 
-#[derive(Debug, PartialEq, Default, Clone)]
+#[derive(PartialEq, Default, Clone)]
 pub struct NaiveMIME<'a> {
     pub ctype: Option<NaiveType<'a>>,
     pub transfer_encoding: Mechanism<'a>,
     pub id: Option<MessageID<'a>>,
     pub description: Option<Unstructured<'a>>,
-    pub header_ext: Vec<header::Kv<'a>>,
-    pub header_bad: Vec<&'a [u8]>,
+    pub kv: Vec<header::Field<'a>>,
     pub raw: &'a [u8],
+}
+impl<'a> fmt::Debug for NaiveMIME<'a> {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt.debug_struct("NaiveMime")
+            .field("ctype", &self.ctype)
+            .field("transfer_encoding", &self.transfer_encoding)
+            .field("id", &self.id)
+            .field("description", &self.description)
+            .field("kv", &self.kv)
+            .field("raw", &String::from_utf8_lossy(self.raw))
+            .finish()
+    }
 }
 
 impl<'a> FromIterator<Content<'a>> for NaiveMIME<'a> {
     fn from_iter<I: IntoIterator<Item = Content<'a>>>(it: I) -> Self {
-        it.into_iter().fold(
-            NaiveMIME::default(),
-            |mut section, field| {
+        it.into_iter()
+            .fold(NaiveMIME::default(), |mut section, field| {
                 match field {
                     Content::Type(v) => section.ctype = Some(v),
                     Content::TransferEncoding(v) => section.transfer_encoding = v,
@@ -78,27 +89,28 @@ impl<'a> FromIterator<Content<'a>> for NaiveMIME<'a> {
                     Content::Description(v) => section.description = Some(v),
                 };
                 section
-            },
-        )
+            })
     }
 }
 
 impl<'a> NaiveMIME<'a> {
-    pub fn with_opt(mut self, opt: Vec<header::Kv<'a>>) -> Self {
-        self.header_ext = opt; self
-    }
-    pub fn with_bad(mut self, bad: Vec<&'a [u8]>) -> Self {
-        self.header_bad = bad; self
+    pub fn with_kv(mut self, fields: Vec<header::Field<'a>>) -> Self {
+        self.kv = fields;
+        self
     }
     pub fn with_raw(mut self, raw: &'a [u8]) -> Self {
-        self.raw = raw; self
+        self.raw = raw;
+        self
     }
     pub fn to_interpreted<T: WithDefaultType>(self) -> AnyMIME<'a> {
-       self.ctype.as_ref().map(|c| c.to_type()).unwrap_or(T::default_type()).to_mime(self).into()
+        self.ctype
+            .as_ref()
+            .map(|c| c.to_type())
+            .unwrap_or(T::default_type())
+            .to_mime(self)
+            .into()
     }
 }
-
-
 
 pub trait WithDefaultType {
     fn default_type() -> AnyType;

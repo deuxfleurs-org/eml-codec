@@ -1,19 +1,36 @@
 use nom::IResult;
+use std::fmt;
 
-use crate::header::{header, self};
+use crate::header;
 use crate::imf;
 use crate::mime;
-use crate::part::{self, AnyPart, field::MixedField};
-use crate::text::boundary::{boundary, Delimiter};
+use crate::part::{self, AnyPart};
 use crate::pointers;
+use crate::text::boundary::{boundary, Delimiter};
 
 //--- Multipart
-#[derive(Debug, PartialEq)]
+#[derive(PartialEq)]
 pub struct Multipart<'a> {
     pub mime: mime::MIME<'a, mime::r#type::Multipart>,
     pub children: Vec<AnyPart<'a>>,
     pub raw_part_inner: &'a [u8],
     pub raw_part_outer: &'a [u8],
+}
+impl<'a> fmt::Debug for Multipart<'a> {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt.debug_struct("part::Multipart")
+            .field("mime", &self.mime)
+            .field("children", &self.children)
+            .field(
+                "raw_part_inner",
+                &String::from_utf8_lossy(self.raw_part_inner),
+            )
+            .field(
+                "raw_part_outer",
+                &String::from_utf8_lossy(self.raw_part_outer),
+            )
+            .finish()
+    }
 }
 impl<'a> Multipart<'a> {
     pub fn preamble(&self) -> &'a [u8] {
@@ -65,7 +82,10 @@ pub fn multipart<'a>(
                             mime: m.clone(),
                             children: mparts,
                             raw_part_inner: pointers::parsed(inner_orig, inp),
-                            raw_part_outer: pointers::parsed(outer_orig, &outer_orig[outer_orig.len()..]),
+                            raw_part_outer: pointers::parsed(
+                                outer_orig,
+                                &outer_orig[outer_orig.len()..],
+                            ),
                         },
                     ))
                 }
@@ -73,24 +93,30 @@ pub fn multipart<'a>(
             };
 
             // parse mime headers, otherwise pick default mime
-            let (input, naive_mime) = match header(mime::field::content)(input) {
-                Ok((input_eom, (known, unknown, bad))) => {
+            let (input, naive_mime) = match header::header_kv(input) {
+                Ok((input_eom, fields)) => {
                     let raw_hdrs = pointers::parsed(input, input_eom);
-                    let mime = known
+                    let mime = fields
+                        .iter()
+                        .flat_map(mime::field::Content::try_from)
                         .into_iter()
-                        .collect::<mime::NaiveMIME>()
-                        .with_opt(unknown)
-                        .with_bad(bad)
-                        .with_raw(raw_hdrs);
+                        .collect::<mime::NaiveMIME>();
+
+                    let mime = mime.with_kv(fields).with_raw(raw_hdrs);
+
                     (input_eom, mime)
-                },
+                }
                 Err(_) => (input, mime::NaiveMIME::default()),
             };
 
             // interpret mime according to context
             let mime = match m.interpreted_type.subtype {
-                mime::r#type::MultipartSubtype::Digest => naive_mime.to_interpreted::<mime::WithDigestDefault>().into(),
-                _ => naive_mime.to_interpreted::<mime::WithGenericDefault>().into(),
+                mime::r#type::MultipartSubtype::Digest => naive_mime
+                    .to_interpreted::<mime::WithDigestDefault>()
+                    .into(),
+                _ => naive_mime
+                    .to_interpreted::<mime::WithGenericDefault>()
+                    .into(),
             };
 
             // parse raw part
@@ -109,7 +135,7 @@ pub fn multipart<'a>(
 
 //--- Message
 
-#[derive(Debug, PartialEq)]
+#[derive(PartialEq)]
 pub struct Message<'a> {
     pub mime: mime::MIME<'a, mime::r#type::DeductibleMessage>,
     pub imf: imf::Imf<'a>,
@@ -119,6 +145,18 @@ pub struct Message<'a> {
     pub raw_headers: &'a [u8],
     pub raw_body: &'a [u8],
 }
+impl<'a> fmt::Debug for Message<'a> {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt.debug_struct("part::Message")
+            .field("mime", &self.mime)
+            .field("imf", &self.imf)
+            .field("child", &self.child)
+            .field("raw_part", &String::from_utf8_lossy(self.raw_part))
+            .field("raw_headers", &String::from_utf8_lossy(self.raw_headers))
+            .field("raw_body", &String::from_utf8_lossy(self.raw_body))
+            .finish()
+    }
+}
 
 pub fn message<'a>(
     m: mime::MIME<'a, mime::r#type::DeductibleMessage>,
@@ -127,23 +165,27 @@ pub fn message<'a>(
         let orig = input;
 
         // parse header fields
-        let (input, (known, unknown, bad)): (_, (Vec::<MixedField>, Vec<header::Kv>, Vec<&[u8]>)) =
-            header(part::field::mixed_field)(input)?;
+        let (input, headers) = header::header_kv(input)?;
 
         // extract raw parts 1/2
         let raw_headers = pointers::parsed(orig, input);
         let body_orig = input;
 
+        //---------------
         // aggregate header fields
-        let (naive_mime, imf) = part::field::sections(known);
+        let (naive_mime, imf) = part::field::split_and_build(&headers);
 
-        // attach bad headers to imf
-        let imf = imf.with_opt(unknown).with_bad(bad);
+        // Bind headers to the IMF object
+        let imf = imf.with_kv(headers);
 
         // interpret headers to choose a mime type
-        let in_mime = naive_mime.with_raw(raw_headers).to_interpreted::<mime::WithGenericDefault>().into();
+        let in_mime = naive_mime
+            .with_raw(raw_headers)
+            .to_interpreted::<mime::WithGenericDefault>()
+            .into();
+        //---------------
 
-        // parse this mimetype
+        // parse a part following this mime specification
         let (input, part) = part::anypart(in_mime)(input)?;
 
         // extract raw parts 2/2
@@ -155,7 +197,9 @@ pub fn message<'a>(
             Message {
                 mime: m.clone(),
                 imf,
-                raw_part, raw_headers, raw_body,
+                raw_part,
+                raw_headers,
+                raw_body,
                 child: Box::new(part),
             },
         ))
@@ -168,7 +212,7 @@ mod tests {
     use crate::part::discrete::Text;
     use crate::part::AnyPart;
     use crate::text::encoding::{Base64Word, EncodedWord, QuotedChunk, QuotedWord};
-    use crate::text::misc_token::{Phrase, UnstrToken, Unstructured, Word, MIMEWord};
+    use crate::text::misc_token::{MIMEWord, Phrase, UnstrToken, Unstructured, Word};
     use crate::text::quoted::QuotedString;
     use chrono::{FixedOffset, TimeZone};
 
@@ -229,12 +273,15 @@ It DOES end with a linebreak.
                                     subtype: mime::r#type::TextSubtype::Plain,
                                     charset: mime::r#type::Deductible::Inferred(mime::charset::EmailCharset::US_ASCII),
                                 }),
-                                fields: mime::NaiveMIME::default(),
+                                fields: mime::NaiveMIME {
+                                    raw: &b"\n"[..],
+                                    ..mime::NaiveMIME::default()
+                                },
                             },
                             body: &b"This is implicitly typed plain US-ASCII text.\nIt does NOT end with a linebreak."[..],
                         }),
                         AnyPart::Txt(Text {
-                            mime: mime::MIME { 
+                            mime: mime::MIME {
                                 interpreted_type: mime::r#type::Deductible::Explicit(mime::r#type::Text {
                                     subtype: mime::r#type::TextSubtype::Plain,
                                     charset: mime::r#type::Deductible::Explicit(mime::charset::EmailCharset::US_ASCII),
@@ -250,6 +297,10 @@ It DOES end with a linebreak.
                                             }
                                         ]
                                     }),
+                                    raw: &b"Content-type: text/plain; charset=us-ascii\n\n"[..],
+                                    kv: vec![
+                                        header::Field::Good(header::Kv2(&b"Content-type"[..], &b"text/plain; charset=us-ascii"[..]))
+                                    ],
                                     ..mime::NaiveMIME::default()
                                 },
                             },
@@ -455,14 +506,18 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                             right: &b"www.grrrndzero.org"[..],
                         }),
                         mime_version: Some(imf::mime::Version { major: 1, minor: 0}),
-                        header_ext: vec![
-                            header::Kv(&b"X-Unknown"[..], Unstructured(vec![
-                                UnstrToken::Plain(&b"something"[..]),
-                                UnstrToken::Plain(&b"something"[..]),
-                            ]))
-                        ],
-                        header_bad: vec![
-                            &b"Bad entry\n  on multiple lines\n"[..],
+                        kv: vec![
+                            header::Field::Good(header::Kv2(&b"Date"[..], &b"Sat, 8 Jul 2023 07:14:29 +0200"[..])),
+                            header::Field::Good(header::Kv2(&b"From"[..], &b"Grrrnd Zero <grrrndzero@example.org>"[..])),
+                            header::Field::Good(header::Kv2(&b"To"[..], &b"John Doe <jdoe@machine.example>"[..])),
+                            header::Field::Good(header::Kv2(&b"CC"[..], &b"=?ISO-8859-1?Q?Andr=E9?= Pirard <PIRARD@vm1.ulg.ac.be>"[..])),
+                            header::Field::Good(header::Kv2(&b"Subject"[..], &b"=?ISO-8859-1?B?SWYgeW91IGNhbiByZWFkIHRoaXMgeW8=?=\n    =?ISO-8859-2?B?dSB1bmRlcnN0YW5kIHRoZSBleGFtcGxlLg==?="[..])),
+                            header::Field::Good(header::Kv2(&b"X-Unknown"[..], &b"something something"[..])),
+                            header::Field::Bad(&b"Bad entry\n  on multiple lines\n"[..]),
+                            header::Field::Good(header::Kv2(&b"Message-ID"[..], &b"<NTAxNzA2AC47634Y366BAMTY4ODc5MzQyODY0ODY5@www.grrrndzero.org>"[..])),
+                            header::Field::Good(header::Kv2(&b"MIME-Version"[..], &b"1.0"[..])),
+                            header::Field::Good(header::Kv2(&b"Content-Type"[..], &b"multipart/alternative;\n boundary=\"b1_e376dc71bafc953c0b0fdeb9983a9956\""[..])),
+                            header::Field::Good(header::Kv2(&b"Content-Transfer-Encoding"[..], &b"7bit"[..])),
                         ],
                         ..imf::Imf::default()
                     },
@@ -483,6 +538,7 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                                         }
                                     ]
                                 }),
+                                raw: hdrs,
                                 ..mime::NaiveMIME::default()
                             },
                         },
@@ -507,6 +563,11 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                                             ]
                                         }),
                                         transfer_encoding: mime::mechanism::Mechanism::QuotedPrintable,
+                                        kv: vec![
+                                            header::Field::Good(header::Kv2(&b"Content-Type"[..], &b"text/plain; charset=utf-8"[..])),
+                                            header::Field::Good(header::Kv2(&b"Content-Transfer-Encoding"[..], &b"quoted-printable"[..])),
+                                        ],
+                                        raw: &b"Content-Type: text/plain; charset=utf-8\nContent-Transfer-Encoding: quoted-printable\n\n"[..],
                                         ..mime::NaiveMIME::default()
                                     }
                                 },
@@ -529,7 +590,11 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                                                     value: MIMEWord::Atom(&b"us-ascii"[..]),
                                                 }
                                             ]
-                                        }),                             
+                                        }),
+                                        kv: vec![
+                                            header::Field::Good(header::Kv2(&b"Content-Type"[..], &b"text/html; charset=us-ascii"[..])),
+                                        ],
+                                        raw: &b"Content-Type: text/html; charset=us-ascii\n\n"[..],
                                         ..mime::NaiveMIME::default()
                                     },
                                 },

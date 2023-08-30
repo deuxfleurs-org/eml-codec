@@ -22,7 +22,12 @@ use nom::{
 /// \r or \n is allowed nowhere else, so we also add this support.
 
 pub fn obs_crlf(input: &[u8]) -> IResult<&[u8], &[u8]> {
-    alt((tag(ascii::CRLF), tag(ascii::CRCRLF), tag(&[ascii::CR]), tag(&[ascii::LF])))(input)
+    alt((
+        tag(ascii::CRLF),
+        tag(ascii::CRCRLF),
+        tag(&[ascii::CR]),
+        tag(&[ascii::LF]),
+    ))(input)
 }
 
 /// ```abnf

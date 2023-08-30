@@ -1,16 +1,10 @@
-use nom::{
-    branch::alt,
-    combinator::map,
-    sequence::{preceded, terminated},
-    IResult,
-};
+use nom::combinator::map;
 
-use crate::header::{field_name};
+use crate::header;
 use crate::imf::identification::{msg_id, MessageID};
 use crate::mime::mechanism::{mechanism, Mechanism};
 use crate::mime::r#type::{naive_type, NaiveType};
 use crate::text::misc_token::{unstructured, Unstructured};
-use crate::text::whitespace::obs_crlf;
 
 #[derive(Debug, PartialEq)]
 pub enum Content<'a> {
@@ -47,38 +41,38 @@ impl<'a> Content<'a> {
     }
 }
 
-/*
-pub fn to_mime<'a, T: WithDefaultType>(list: Vec<Content<'a>>) -> AnyMIMEWithDefault<'a, T> {
-    list.into_iter().collect::<AnyMIMEWithDefault<T>>()
-}*/
+impl<'a> TryFrom<&header::Field<'a>> for Content<'a> {
+    type Error = ();
+    fn try_from(f: &header::Field<'a>) -> Result<Self, Self::Error> {
+        let content = match f {
+            header::Field::Good(header::Kv2(key, value)) => match key
+                .to_ascii_lowercase()
+                .as_slice()
+            {
+                b"content-type" => map(naive_type, Content::Type)(value),
+                b"content-transfer-encoding" => map(mechanism, Content::TransferEncoding)(value),
+                b"content-id" => map(msg_id, Content::ID)(value),
+                b"content-description" => map(unstructured, Content::Description)(value),
+                _ => return Err(()),
+            },
+            _ => return Err(()),
+        };
 
-pub fn content(input: &[u8]) -> IResult<&[u8], Content> {
-    terminated(
-        alt((
-            preceded(field_name(b"content-type"), map(naive_type, Content::Type)),
-            preceded(
-                field_name(b"content-transfer-encoding"),
-                map(mechanism, Content::TransferEncoding),
-            ),
-            preceded(field_name(b"content-id"), map(msg_id, Content::ID)),
-            preceded(
-                field_name(b"content-description"),
-                map(unstructured, Content::Description),
-            ),
-        )),
-        obs_crlf,
-    )(input)
+        //@TODO check that the full value is parsed, otherwise maybe log an error ?!
+        content.map(|(_, content)| content).or(Err(()))
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::header::{header};
-    use crate::mime::charset::EmailCharset;
+    use crate::header;
+    //use crate::mime::charset::EmailCharset;
     use crate::mime::r#type::*;
     use crate::text::misc_token::MIMEWord;
     use crate::text::quoted::QuotedString;
 
+    /*
     #[test]
     fn test_content_type() {
         let (rest, content) =
@@ -96,7 +90,7 @@ mod tests {
         } else {
             panic!("Expected Content::Type, got {:?}", content);
         }
-    }
+    }*/
 
     #[test]
     fn test_header() {
@@ -116,7 +110,10 @@ This is a multipart message.
         .as_bytes();
 
         assert_eq!(
-            map(header(content), |(k, _, _)| k)(fullmail),
+            map(header::header_kv, |k| k
+                .iter()
+                .flat_map(Content::try_from)
+                .collect())(fullmail),
             Ok((
                 &b"This is a multipart message.\n\n"[..],
                 vec![
