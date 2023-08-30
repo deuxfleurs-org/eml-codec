@@ -1,3 +1,4 @@
+use std::fmt;
 use nom::{
     branch::alt,
     bytes::complete::{tag, take_while1},
@@ -11,11 +12,19 @@ use nom::{
 use crate::text::whitespace::{foldable_line, obs_crlf};
 use crate::text::misc_token::unstructured;
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(PartialEq, Clone)]
 pub struct Kv2<'a>(pub &'a [u8], pub &'a [u8]);
 impl<'a> From<(&'a [u8], &'a [u8])> for Kv2<'a> {
     fn from(pair: (&'a [u8], &'a [u8])) -> Self {
         Self(pair.0, pair.1)
+    }
+}
+impl<'a> fmt::Debug for Kv2<'a> {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt.debug_tuple("header::Kv2")
+            .field(&String::from_utf8_lossy(self.0))
+            .field(&String::from_utf8_lossy(self.1))
+            .finish()
     }
 }
 

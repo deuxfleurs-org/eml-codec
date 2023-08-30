@@ -1,3 +1,4 @@
+use std::fmt;
 use nom::IResult;
 
 use crate::header;
@@ -8,12 +9,22 @@ use crate::text::boundary::{boundary, Delimiter};
 use crate::pointers;
 
 //--- Multipart
-#[derive(Debug, PartialEq)]
+#[derive(PartialEq)]
 pub struct Multipart<'a> {
     pub mime: mime::MIME<'a, mime::r#type::Multipart>,
     pub children: Vec<AnyPart<'a>>,
     pub raw_part_inner: &'a [u8],
     pub raw_part_outer: &'a [u8],
+}
+impl<'a> fmt::Debug for Multipart<'a> {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt.debug_struct("part::Multipart")
+            .field("mime", &self.mime)
+            .field("children", &self.children)
+            .field("raw_part_inner", &String::from_utf8_lossy(self.raw_part_inner))
+            .field("raw_part_outer", &String::from_utf8_lossy(self.raw_part_outer))
+            .finish()
+    }
 }
 impl<'a> Multipart<'a> {
     pub fn preamble(&self) -> &'a [u8] {
@@ -83,7 +94,7 @@ pub fn multipart<'a>(
                         .collect::<mime::NaiveMIME>();
 
                     let mime = mime
-                        .with_fields(fields)
+                        .with_kv(fields)
                         .with_raw(raw_hdrs);
 
                     (input_eom, mime)
@@ -113,7 +124,7 @@ pub fn multipart<'a>(
 
 //--- Message
 
-#[derive(Debug, PartialEq)]
+#[derive(PartialEq)]
 pub struct Message<'a> {
     pub mime: mime::MIME<'a, mime::r#type::DeductibleMessage>,
     pub imf: imf::Imf<'a>,
@@ -122,6 +133,18 @@ pub struct Message<'a> {
     pub raw_part: &'a [u8],
     pub raw_headers: &'a [u8],
     pub raw_body: &'a [u8],
+}
+impl<'a> fmt::Debug for Message<'a> {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt.debug_struct("part::Message")
+            .field("mime", &self.mime)
+            .field("imf", &self.imf)
+            .field("child", &self.child)
+            .field("raw_part", &String::from_utf8_lossy(self.raw_part))
+            .field("raw_headers", &String::from_utf8_lossy(self.raw_headers))
+            .field("raw_body", &String::from_utf8_lossy(self.raw_body))
+            .finish()
+    }
 }
 
 pub fn message<'a>(
@@ -142,7 +165,7 @@ pub fn message<'a>(
         let (naive_mime, imf) = part::field::split_and_build(&headers);
 
         // interpret headers to choose a mime type
-        let in_mime = naive_mime.with_fields(headers).with_raw(raw_headers).to_interpreted::<mime::WithGenericDefault>().into();
+        let in_mime = naive_mime.with_kv(headers).with_raw(raw_headers).to_interpreted::<mime::WithGenericDefault>().into();
         //---------------
 
         // parse a part following this mime specification
@@ -256,6 +279,9 @@ It DOES end with a linebreak.
                                         ]
                                     }),
                                     raw: &b"Content-type: text/plain; charset=us-ascii\n\n"[..],
+                                    kv: vec![
+                                        header::Field::Good(header::Kv2(&b"Content-type"[..], &b"text/plain; charset=us-ascii"[..]))
+                                    ],
                                     ..mime::NaiveMIME::default()
                                 },
                             },

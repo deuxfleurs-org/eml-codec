@@ -1,3 +1,4 @@
+use std::fmt;
 use nom::{
     bytes::complete::tag,
     combinator::{map, opt},
@@ -12,11 +13,20 @@ use crate::text::words::mime_atom;
 use crate::mime::{AnyMIME, MIME, NaiveMIME};
 
 // --------- NAIVE TYPE
-#[derive(Debug, PartialEq, Clone)]
+#[derive(PartialEq, Clone)]
 pub struct NaiveType<'a> {
     pub main: &'a [u8],
     pub sub: &'a [u8],
     pub params: Vec<Parameter<'a>>,
+}
+impl<'a> fmt::Debug for NaiveType<'a> {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt.debug_struct("mime::NaiveType")
+            .field("main", &String::from_utf8_lossy(self.main))
+            .field("sub", &String::from_utf8_lossy(self.sub))
+            .field("params", &self.params)
+            .finish()
+    }
 }
 impl<'a> NaiveType<'a> {
     pub fn to_type(&self) -> AnyType {
@@ -30,11 +40,20 @@ pub fn naive_type(input: &[u8]) -> IResult<&[u8], NaiveType> {
     )(input)
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(PartialEq, Clone)]
 pub struct Parameter<'a> {
     pub name: &'a [u8],
     pub value: MIMEWord<'a>,
 }
+impl<'a> fmt::Debug for Parameter<'a> {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt.debug_struct("mime::Parameter")
+            .field("name", &String::from_utf8_lossy(self.name))
+            .field("value", &self.value)
+            .finish()
+    }
+}
+
 pub fn parameter(input: &[u8]) -> IResult<&[u8], Parameter> {
     map(
         tuple((mime_atom, tag(b"="), mime_word)),

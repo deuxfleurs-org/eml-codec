@@ -14,7 +14,7 @@ impl<'a> fmt::Debug for Text<'a> {
             .field("mime", &self.mime)
             .field(
                 "body",
-                &format_args!("\"{}\"", String::from_utf8_lossy(self.body)),
+                &String::from_utf8_lossy(self.body),
             )
             .finish()
     }
@@ -32,7 +32,7 @@ impl<'a> fmt::Debug for Binary<'a> {
             .field("mime", &self.mime)
             .field(
                 "body",
-                &format_args!("\"{}\"", String::from_utf8_lossy(self.body)),
+                &String::from_utf8_lossy(self.body),
             )
             .finish()
     }
