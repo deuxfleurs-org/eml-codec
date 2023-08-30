@@ -229,7 +229,10 @@ It DOES end with a linebreak.
                                     subtype: mime::r#type::TextSubtype::Plain,
                                     charset: mime::r#type::Deductible::Inferred(mime::charset::EmailCharset::US_ASCII),
                                 }),
-                                fields: mime::NaiveMIME::default(),
+                                fields: mime::NaiveMIME {
+                                    raw: &b"\n"[..],
+                                    ..mime::NaiveMIME::default()
+                                },
                             },
                             body: &b"This is implicitly typed plain US-ASCII text.\nIt does NOT end with a linebreak."[..],
                         }),
@@ -250,6 +253,7 @@ It DOES end with a linebreak.
                                             }
                                         ]
                                     }),
+                                    raw: &b"Content-type: text/plain; charset=us-ascii\n\n"[..],
                                     ..mime::NaiveMIME::default()
                                 },
                             },
