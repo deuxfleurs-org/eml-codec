@@ -162,7 +162,6 @@ pub fn message<'a>(
     m: mime::MIME<'a, mime::r#type::DeductibleMessage>,
 ) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], Message<'a>> {
     move |input: &[u8]| {
-        let mut parent_mime = m.clone();
         let orig = input;
 
         // parse header fields
@@ -176,8 +175,8 @@ pub fn message<'a>(
         // aggregate header fields
         let (naive_mime, imf) = part::field::split_and_build(&headers);
 
-        // Bind headers to parent mime object
-        parent_mime.fields = parent_mime.fields.with_kv(headers);
+        // Bind headers to mime
+        let naive_mime = naive_mime.with_kv(headers);
 
         // interpret headers to choose the child mime type
         let in_mime = naive_mime
@@ -196,7 +195,7 @@ pub fn message<'a>(
         Ok((
             input,
             Message {
-                mime: parent_mime,
+                mime: m.clone(),
                 imf,
                 raw_part,
                 raw_headers,
@@ -440,25 +439,7 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
             Ok((
                 &[][..],
                 Message {
-                    mime: mime::MIME {
-                        interpreted_type: base_mime.interpreted_type,
-                        fields: mime::NaiveMIME {
-                            kv: vec![
-                                header::Field::Good(header::Kv2(&b"Date"[..], &b"Sat, 8 Jul 2023 07:14:29 +0200"[..])),
-                                header::Field::Good(header::Kv2(&b"From"[..], &b"Grrrnd Zero <grrrndzero@example.org>"[..])),
-                                header::Field::Good(header::Kv2(&b"To"[..], &b"John Doe <jdoe@machine.example>"[..])),
-                                header::Field::Good(header::Kv2(&b"CC"[..], &b"=?ISO-8859-1?Q?Andr=E9?= Pirard <PIRARD@vm1.ulg.ac.be>"[..])),
-                                header::Field::Good(header::Kv2(&b"Subject"[..], &b"=?ISO-8859-1?B?SWYgeW91IGNhbiByZWFkIHRoaXMgeW8=?=\n    =?ISO-8859-2?B?dSB1bmRlcnN0YW5kIHRoZSBleGFtcGxlLg==?="[..])),
-                                header::Field::Good(header::Kv2(&b"X-Unknown"[..], &b"something something"[..])),
-                                header::Field::Bad(&b"Bad entry\n  on multiple lines\n"[..]),
-                                header::Field::Good(header::Kv2(&b"Message-ID"[..], &b"<NTAxNzA2AC47634Y366BAMTY4ODc5MzQyODY0ODY5@www.grrrndzero.org>"[..])),
-                                header::Field::Good(header::Kv2(&b"MIME-Version"[..], &b"1.0"[..])),
-                                header::Field::Good(header::Kv2(&b"Content-Type"[..], &b"multipart/alternative;\n boundary=\"b1_e376dc71bafc953c0b0fdeb9983a9956\""[..])),
-                                header::Field::Good(header::Kv2(&b"Content-Transfer-Encoding"[..], &b"7bit"[..])),
-                            ],
-                            ..base_mime.fields
-                        },
-                    },
+                    mime: base_mime,
                     raw_part: fullmail,
                     raw_headers: hdrs,
                     raw_body: body,
@@ -545,6 +526,19 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                                     ]
                                 }),
                                 raw: hdrs,
+                                kv: vec![
+                                    header::Field::Good(header::Kv2(&b"Date"[..], &b"Sat, 8 Jul 2023 07:14:29 +0200"[..])),
+                                    header::Field::Good(header::Kv2(&b"From"[..], &b"Grrrnd Zero <grrrndzero@example.org>"[..])),
+                                    header::Field::Good(header::Kv2(&b"To"[..], &b"John Doe <jdoe@machine.example>"[..])),
+                                    header::Field::Good(header::Kv2(&b"CC"[..], &b"=?ISO-8859-1?Q?Andr=E9?= Pirard <PIRARD@vm1.ulg.ac.be>"[..])),
+                                    header::Field::Good(header::Kv2(&b"Subject"[..], &b"=?ISO-8859-1?B?SWYgeW91IGNhbiByZWFkIHRoaXMgeW8=?=\n    =?ISO-8859-2?B?dSB1bmRlcnN0YW5kIHRoZSBleGFtcGxlLg==?="[..])),
+                                    header::Field::Good(header::Kv2(&b"X-Unknown"[..], &b"something something"[..])),
+                                    header::Field::Bad(&b"Bad entry\n  on multiple lines\n"[..]),
+                                    header::Field::Good(header::Kv2(&b"Message-ID"[..], &b"<NTAxNzA2AC47634Y366BAMTY4ODc5MzQyODY0ODY5@www.grrrndzero.org>"[..])),
+                                    header::Field::Good(header::Kv2(&b"MIME-Version"[..], &b"1.0"[..])),
+                                    header::Field::Good(header::Kv2(&b"Content-Type"[..], &b"multipart/alternative;\n boundary=\"b1_e376dc71bafc953c0b0fdeb9983a9956\""[..])),
+                                    header::Field::Good(header::Kv2(&b"Content-Transfer-Encoding"[..], &b"7bit"[..])),
+                                ],
                                 ..mime::NaiveMIME::default()
                             },
                         },
