@@ -58,6 +58,14 @@ impl<'a> AnyPart<'a> {
             _ => None,
         }
     }
+    pub fn mime(self) -> &NaiveMIME<'a> {
+        match self {
+            Self::Mult(v) => &v.mime.fields,
+            Self::Msg(v) => &v.mime.fields,
+            Self::Txt(v) => &v.mime.fields,
+            Self::Bin(v) => &v.mime.fields,
+        }
+    }
 }
 impl<'a> From<Multipart<'a>> for AnyPart<'a> {
     fn from(m: Multipart<'a>) -> Self {

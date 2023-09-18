@@ -49,6 +49,16 @@ pub enum AnyMIME<'a> {
     Txt(MIME<'a, r#type::DeductibleText>),
     Bin(MIME<'a, r#type::Binary>),
 }
+impl<'a> AnyMIME<'a> {
+    pub fn fields(&self) -> &NaiveMIME<'a> {
+        match self {
+            Self::Mult(v) => &v.fields,
+            Self::Msg(v) => &v.fields,
+            Self::Txt(v) => &v.fields,
+            Self::Bin(v) => &v.fields,
+        }
+    }
+}
 
 impl<'a, T: WithDefaultType> From<AnyMIMEWithDefault<'a, T>> for AnyMIME<'a> {
     fn from(a: AnyMIMEWithDefault<'a, T>) -> Self {
