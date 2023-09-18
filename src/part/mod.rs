@@ -17,7 +17,7 @@ use nom::{
 };
 
 use crate::mime;
-use crate::mime::AnyMIME;
+use crate::mime::{AnyMIME, NaiveMIME};
 use crate::part::{
     composite::{message, multipart, Message, Multipart},
     discrete::{Binary, Text},
@@ -58,7 +58,7 @@ impl<'a> AnyPart<'a> {
             _ => None,
         }
     }
-    pub fn mime(self) -> &NaiveMIME<'a> {
+    pub fn mime(&self) -> &NaiveMIME<'a> {
         match self {
             Self::Mult(v) => &v.mime.fields,
             Self::Msg(v) => &v.mime.fields,
