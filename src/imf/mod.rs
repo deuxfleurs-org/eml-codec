@@ -51,15 +51,6 @@ pub struct Imf<'a> {
 
     // MIME
     pub mime_version: Option<Version>,
-
-    // Raw fields
-    pub kv: Vec<header::Field<'a>>,
-}
-impl<'a> Imf<'a> {
-    pub fn with_kv(mut self, v: Vec<header::Field<'a>>) -> Self {
-        self.kv = v;
-        self
-    }
 }
 
 //@FIXME min and max limits are not enforced,
