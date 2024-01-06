@@ -28,7 +28,7 @@ pub enum MIMEWord<'a> {
     Quoted(QuotedString<'a>),
     Atom(&'a [u8]),
 }
-impl Default for MIMEWord<'static> {
+impl<'a> Default for MIMEWord<'a> {
     fn default() -> Self {
         Self::Atom(&[])
     }

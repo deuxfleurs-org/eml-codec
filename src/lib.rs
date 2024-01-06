@@ -56,7 +56,7 @@ use nom::{combinator::into, IResult};
 ///     String::from_utf8_lossy(email.child.as_text().unwrap().body),
 /// );
 /// ```
-pub fn parse_message(input: &[u8]) -> IResult<&[u8], part::composite::Message> {
+pub fn parse_message<'a>(input: &'a [u8]) -> IResult<&'a[u8], part::composite::Message<'a>> {
     into(part::composite::message(mime::MIME::<
         mime::r#type::DeductibleMessage,
     >::default()))(input)
@@ -99,6 +99,6 @@ pub fn parse_message(input: &[u8]) -> IResult<&[u8], part::composite::Message> {
 ///     imf.subject.unwrap().to_string(),
 /// );
 /// ```
-pub fn parse_imf(input: &[u8]) -> IResult<&[u8], imf::Imf> {
+pub fn parse_imf<'a>(input: &'a [u8]) -> IResult<&'a [u8], imf::Imf<'a>> {
     imf::imf(input)
 }
