@@ -5,7 +5,7 @@ use encoding_rs::Encoding;
 /// imf_codec has its own charset list to follow IANA's one.
 /// encoding_rs implements a different standard that does not know US_ASCII.
 /// using encoding_rs datastructures directly would lead to a loss of information.
-/// https://www.iana.org/assignments/character-sets/character-sets.xhtml
+/// <https://www.iana.org/assignments/character-sets/character-sets.xhtml>
 #[allow(non_camel_case_types)]
 #[derive(Debug, PartialEq, Default, Clone)]
 pub enum EmailCharset {
