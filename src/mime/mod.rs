@@ -11,7 +11,6 @@ pub mod mechanism;
 pub mod r#type;
 
 use std::fmt;
-use std::marker::PhantomData;
 
 use crate::header;
 use crate::imf::identification::MessageID;
@@ -57,12 +56,6 @@ impl<'a> AnyMIME<'a> {
             Self::Txt(v) => &v.fields,
             Self::Bin(v) => &v.fields,
         }
-    }
-}
-
-impl<'a, T: WithDefaultType> From<AnyMIMEWithDefault<'a, T>> for AnyMIME<'a> {
-    fn from(a: AnyMIMEWithDefault<'a, T>) -> Self {
-        a.0
     }
 }
 
@@ -118,7 +111,6 @@ impl<'a> NaiveMIME<'a> {
             .map(|c| c.to_type())
             .unwrap_or(T::default_type())
             .to_mime(self)
-            .into()
     }
 }
 
@@ -136,14 +128,5 @@ pub struct WithDigestDefault {}
 impl WithDefaultType for WithDigestDefault {
     fn default_type() -> AnyType {
         AnyType::Message(r#type::DeductibleMessage::default())
-    }
-}
-
-#[derive(Debug, PartialEq)]
-pub struct AnyMIMEWithDefault<'a, T: WithDefaultType>(pub AnyMIME<'a>, PhantomData<T>);
-
-impl<'a, T: WithDefaultType> Default for AnyMIMEWithDefault<'a, T> {
-    fn default() -> Self {
-        Self(T::default_type().to_mime(NaiveMIME::default()), PhantomData)
     }
 }
