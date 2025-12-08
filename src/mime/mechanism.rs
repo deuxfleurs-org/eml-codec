@@ -33,7 +33,7 @@ impl<'a> ToString for Mechanism<'a> {
     }
 }
 
-pub fn mechanism(input: &[u8]) -> IResult<&[u8], Mechanism> {
+pub fn mechanism(input: &[u8]) -> IResult<&[u8], Mechanism<'_>> {
     use Mechanism::*;
 
     alt((

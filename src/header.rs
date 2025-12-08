@@ -45,7 +45,7 @@ impl<'a> From<&'a [u8]> for Field<'a> {
 }
 
 /// Parse headers as key/values
-pub fn header_kv(input: &[u8]) -> IResult<&[u8], Vec<Field>> {
+pub fn header_kv(input: &[u8]) -> IResult<&[u8], Vec<Field<'_>>> {
     terminated(
         many0(alt((into(correct_field), into(foldable_line)))),
         obs_crlf,
@@ -68,6 +68,6 @@ pub fn field_any(input: &[u8]) -> IResult<&[u8], &[u8]> {
 ///                %d59-126           ;  characters not including
 ///                                   ;  ":".
 /// ```
-pub fn correct_field(input: &[u8]) -> IResult<&[u8], Kv2> {
+pub fn correct_field(input: &[u8]) -> IResult<&[u8], Kv2<'_>> {
     terminated(into(pair(field_any, recognize(unstructured))), obs_crlf)(input)
 }

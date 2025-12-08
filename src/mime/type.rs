@@ -33,7 +33,7 @@ impl<'a> NaiveType<'a> {
         self.into()
     }
 }
-pub fn naive_type(input: &[u8]) -> IResult<&[u8], NaiveType> {
+pub fn naive_type(input: &[u8]) -> IResult<&[u8], NaiveType<'_>> {
     map(
         tuple((mime_atom, tag("/"), mime_atom, parameter_list)),
         |(main, _, sub, params)| NaiveType { main, sub, params },
@@ -54,13 +54,13 @@ impl<'a> fmt::Debug for Parameter<'a> {
     }
 }
 
-pub fn parameter(input: &[u8]) -> IResult<&[u8], Parameter> {
+pub fn parameter(input: &[u8]) -> IResult<&[u8], Parameter<'_>> {
     map(
         tuple((mime_atom, tag(b"="), mime_word)),
         |(name, _, value)| Parameter { name, value },
     )(input)
 }
-pub fn parameter_list(input: &[u8]) -> IResult<&[u8], Vec<Parameter>> {
+pub fn parameter_list(input: &[u8]) -> IResult<&[u8], Vec<Parameter<'_>>> {
     terminated(many0(preceded(tag(";"), parameter)), opt(tag(";")))(input)
 }
 

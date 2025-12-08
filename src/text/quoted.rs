@@ -76,7 +76,7 @@ fn qcontent(input: &[u8]) -> IResult<&[u8], &[u8]> {
 ///                     DQUOTE *([FWS] qcontent) [FWS] DQUOTE
 ///                     [CFWS]
 /// ```
-pub fn quoted_string(input: &[u8]) -> IResult<&[u8], QuotedString> {
+pub fn quoted_string(input: &[u8]) -> IResult<&[u8], QuotedString<'_>> {
     let (input, _) = opt(cfws)(input)?;
     let (input, _) = tag("\"")(input)?;
     let (input, content) = many0(pair(opt(fws), qcontent))(input)?;

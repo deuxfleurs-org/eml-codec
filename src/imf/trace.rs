@@ -35,7 +35,7 @@ impl<'a> TryFrom<&'a lazy::ReceivedLog<'a>> for ReceivedLog<'a> {
     }
 }*/
 
-pub fn received_log(input: &[u8]) -> IResult<&[u8], ReceivedLog> {
+pub fn received_log(input: &[u8]) -> IResult<&[u8], ReceivedLog<'_>> {
     map(
         tuple((many0(received_tokens), tag(";"), datetime::section)),
         |(tokens, _, dt)| ReceivedLog {
@@ -45,11 +45,11 @@ pub fn received_log(input: &[u8]) -> IResult<&[u8], ReceivedLog> {
     )(input)
 }
 
-pub fn return_path(input: &[u8]) -> IResult<&[u8], Option<mailbox::AddrSpec>> {
+pub fn return_path(input: &[u8]) -> IResult<&[u8], Option<mailbox::AddrSpec<'_>>> {
     alt((map(mailbox::angle_addr, Some), empty_path))(input)
 }
 
-fn empty_path(input: &[u8]) -> IResult<&[u8], Option<mailbox::AddrSpec>> {
+fn empty_path(input: &[u8]) -> IResult<&[u8], Option<mailbox::AddrSpec<'_>>> {
     let (input, _) = tuple((
         opt(whitespace::cfws),
         tag(&[ascii::LT]),
@@ -60,7 +60,7 @@ fn empty_path(input: &[u8]) -> IResult<&[u8], Option<mailbox::AddrSpec>> {
     Ok((input, None))
 }
 
-fn received_tokens(input: &[u8]) -> IResult<&[u8], ReceivedLogToken> {
+fn received_tokens(input: &[u8]) -> IResult<&[u8], ReceivedLogToken<'_>> {
     alt((
         terminated(
             map(misc_token::word, ReceivedLogToken::Word),

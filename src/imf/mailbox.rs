@@ -64,7 +64,7 @@ pub type MailboxList<'a> = Vec<MailboxRef<'a>>;
 /// ```abnf
 ///    mailbox         =   name-addr / addr-spec
 /// ```
-pub fn mailbox(input: &[u8]) -> IResult<&[u8], MailboxRef> {
+pub fn mailbox(input: &[u8]) -> IResult<&[u8], MailboxRef<'_>> {
     alt((name_addr, into(addr_spec)))(input)
 }
 
@@ -73,7 +73,7 @@ pub fn mailbox(input: &[u8]) -> IResult<&[u8], MailboxRef> {
 /// ```abnf
 ///    name-addr       =   [display-name] angle-addr
 /// ```
-fn name_addr(input: &[u8]) -> IResult<&[u8], MailboxRef> {
+fn name_addr(input: &[u8]) -> IResult<&[u8], MailboxRef<'_>> {
     let (input, name) = opt(phrase)(input)?;
     let (input, addrspec) = angle_addr(input)?;
     Ok((input, MailboxRef { name, addrspec }))
@@ -85,7 +85,7 @@ fn name_addr(input: &[u8]) -> IResult<&[u8], MailboxRef> {
 /// angle-addr      =   [CFWS] "<" addr-spec ">" [CFWS] /
 ///                     obs-angle-addr
 /// ```
-pub fn angle_addr(input: &[u8]) -> IResult<&[u8], AddrSpec> {
+pub fn angle_addr(input: &[u8]) -> IResult<&[u8], AddrSpec<'_>> {
     delimited(
         tuple((opt(cfws), tag(&[ascii::LT]), opt(obs_route))),
         addr_spec,
@@ -94,7 +94,7 @@ pub fn angle_addr(input: &[u8]) -> IResult<&[u8], AddrSpec> {
 }
 
 ///    obs-route       =   obs-domain-list ":"
-fn obs_route(input: &[u8]) -> IResult<&[u8], Vec<Option<Domain>>> {
+fn obs_route(input: &[u8]) -> IResult<&[u8], Vec<Option<Domain<'_>>>> {
     terminated(obs_domain_list, tag(&[ascii::COL]))(input)
 }
 
@@ -102,7 +102,7 @@ fn obs_route(input: &[u8]) -> IResult<&[u8], Vec<Option<Domain>>> {
 ///    obs-domain-list =   *(CFWS / ",") "@" domain
 ///                        *("," [CFWS] ["@" domain])
 /// ```
-fn obs_domain_list(input: &[u8]) -> IResult<&[u8], Vec<Option<Domain>>> {
+fn obs_domain_list(input: &[u8]) -> IResult<&[u8], Vec<Option<Domain<'_>>>> {
     preceded(
         many0(cfws),
         separated_list1(
@@ -119,7 +119,7 @@ fn obs_domain_list(input: &[u8]) -> IResult<&[u8], Vec<Option<Domain>>> {
 /// ```
 /// @FIXME: this system does not work to alternate between strict and obsolete
 /// so I force obsolete for now...
-pub fn addr_spec(input: &[u8]) -> IResult<&[u8], AddrSpec> {
+pub fn addr_spec(input: &[u8]) -> IResult<&[u8], AddrSpec<'_>> {
     map(
         tuple((
             obs_local_part,
@@ -164,7 +164,7 @@ impl<'a> LocalPart<'a> {
 /// ```abnf
 /// obs-local-part  =  *("." / word)
 /// ```
-fn obs_local_part(input: &[u8]) -> IResult<&[u8], LocalPart> {
+fn obs_local_part(input: &[u8]) -> IResult<&[u8], LocalPart<'_>> {
     map(
         many0(alt((
             map(tag(&[ascii::PERIOD]), |_| LocalPartToken::Dot),
@@ -225,7 +225,7 @@ impl<'a> fmt::Debug for Domain<'a> {
 /// ```abnf
 ///  obs-domain      =   atom *("." atom) / domain-literal
 /// ```
-pub fn obs_domain(input: &[u8]) -> IResult<&[u8], Domain> {
+pub fn obs_domain(input: &[u8]) -> IResult<&[u8], Domain<'_>> {
     alt((
         map(separated_list1(tag("."), atom), Domain::Atoms),
         domain_litteral,
@@ -237,7 +237,7 @@ pub fn obs_domain(input: &[u8]) -> IResult<&[u8], Domain> {
 /// ```abnf
 ///    domain-literal  =   [CFWS] "[" *([FWS] dtext) [FWS] "]" [CFWS]
 /// ```
-fn domain_litteral(input: &[u8]) -> IResult<&[u8], Domain> {
+fn domain_litteral(input: &[u8]) -> IResult<&[u8], Domain<'_>> {
     delimited(
         pair(opt(cfws), tag(&[ascii::LEFT_BRACKET])),
         inner_domain_litteral,
@@ -245,7 +245,7 @@ fn domain_litteral(input: &[u8]) -> IResult<&[u8], Domain> {
     )(input)
 }
 
-fn inner_domain_litteral(input: &[u8]) -> IResult<&[u8], Domain> {
+fn inner_domain_litteral(input: &[u8]) -> IResult<&[u8], Domain<'_>> {
     map(
         terminated(many0(preceded(opt(fws), take_while1(is_dtext))), opt(fws)),
         Domain::Litteral,
