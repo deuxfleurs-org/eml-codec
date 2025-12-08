@@ -105,28 +105,27 @@ impl<'a> NaiveMIME<'a> {
         self.raw = raw;
         self
     }
-    pub fn to_interpreted<T: WithDefaultType>(self) -> AnyMIME<'a> {
+    pub fn to_interpreted(self, default_type: DefaultType) -> AnyMIME<'a> {
         self.ctype
             .as_ref()
             .map(|c| c.to_type())
-            .unwrap_or(T::default_type())
+            .unwrap_or(default_type.to_type())
             .to_mime(self)
     }
 }
 
-pub trait WithDefaultType {
-    fn default_type() -> AnyType;
+#[derive(Default)]
+pub enum DefaultType {
+    #[default]
+    Generic,
+    Digest,
 }
 
-pub struct WithGenericDefault {}
-impl WithDefaultType for WithGenericDefault {
-    fn default_type() -> AnyType {
-        AnyType::Text(r#type::DeductibleText::default())
-    }
-}
-pub struct WithDigestDefault {}
-impl WithDefaultType for WithDigestDefault {
-    fn default_type() -> AnyType {
-        AnyType::Message(r#type::DeductibleMessage::default())
+impl DefaultType {
+    fn to_type(self) -> AnyType {
+        match self {
+            Self::Generic => AnyType::Text(Default::default()),
+            Self::Digest => AnyType::Message(Default::default()),
+        }
     }
 }

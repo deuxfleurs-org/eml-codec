@@ -112,10 +112,10 @@ pub fn multipart<'a>(
             // interpret mime according to context
             let mime = match m.interpreted_type.subtype {
                 mime::r#type::MultipartSubtype::Digest => naive_mime
-                    .to_interpreted::<mime::WithDigestDefault>()
+                    .to_interpreted(mime::DefaultType::Digest)
                     .into(),
                 _ => naive_mime
-                    .to_interpreted::<mime::WithGenericDefault>()
+                    .to_interpreted(mime::DefaultType::Generic)
                     .into(),
             };
 
@@ -181,7 +181,7 @@ pub fn message<'a>(
         // interpret headers to choose the child mime type
         let in_mime = naive_mime
             .with_raw(raw_headers)
-            .to_interpreted::<mime::WithGenericDefault>()
+            .to_interpreted(mime::DefaultType::Generic)
             .into();
         //---------------
 
