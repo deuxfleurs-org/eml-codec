@@ -8,7 +8,6 @@ use nom::{
 use std::fmt;
 
 use crate::mime::charset::EmailCharset;
-use crate::mime::{AnyMIME, NaiveMIME, MIME};
 use crate::text::misc_token::{mime_word, MIMEWord};
 use crate::text::words::mime_atom;
 
@@ -86,29 +85,6 @@ impl<'a> From<&'a NaiveType<'a>> for AnyType {
             b"message" => Self::Message(DeductibleMessage::Explicit(Message::from(nt))),
             b"text" => Self::Text(DeductibleText::Explicit(Text::from(nt))),
             _ => Self::Binary(Binary::default()),
-        }
-    }
-}
-
-impl<'a> AnyType {
-    pub fn to_mime(self, fields: NaiveMIME<'a>) -> AnyMIME<'a> {
-        match self {
-            Self::Multipart(interpreted_type) => AnyMIME::Mult(MIME::<Multipart> {
-                interpreted_type,
-                fields,
-            }),
-            Self::Message(interpreted_type) => AnyMIME::Msg(MIME::<DeductibleMessage> {
-                interpreted_type,
-                fields,
-            }),
-            Self::Text(interpreted_type) => AnyMIME::Txt(MIME::<DeductibleText> {
-                interpreted_type,
-                fields,
-            }),
-            Self::Binary(interpreted_type) => AnyMIME::Bin(MIME::<Binary> {
-                interpreted_type,
-                fields,
-            }),
         }
     }
 }
