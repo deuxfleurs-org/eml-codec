@@ -1,5 +1,5 @@
 use crate::text::ascii;
-use crate::text::encoding::encoded_word;
+use crate::text::encoding::encoded_word_plain;
 use crate::text::quoted::quoted_pair;
 use nom::{
     branch::alt,
@@ -9,6 +9,7 @@ use nom::{
     multi::{many0, many1},
     sequence::{pair, terminated, tuple},
     IResult,
+    Parser,
 };
 
 /// Whitespace (space, new line, tab) content and
@@ -80,6 +81,16 @@ fn fold_marker(input: &[u8]) -> IResult<&[u8], &[u8]> {
 ///
 ///   CFWS            =   (1*([FWS] comment) [FWS]) / FWS
 /// ```
+///
+/// Note: a naive implementation of the grammar above using the alt()
+/// combinator can lead to exponential backtracking on some inputs
+/// (e.g. "((((((((").
+/// Exponential backtracking can be tackled using the cut() combinator,
+/// however any recursive definition can still run into stack overflow
+/// errors on deeply nested inputs.
+///
+/// This is why we resort to the the low-level iterative implementation
+/// of `comment` and `comment_body` below.
 pub fn cfws(input: &[u8]) -> IResult<&[u8], &[u8]> {
     alt((recognize(comments), recognize(fws)))(input)
 }
@@ -92,19 +103,37 @@ pub fn comments(input: &[u8]) -> IResult<&[u8], ()> {
 
 pub fn comment(input: &[u8]) -> IResult<&[u8], ()> {
     let (input, _) = tag("(")(input)?;
-    let (input, _) = many0(tuple((opt(fws), ccontent)))(input)?;
-    let (input, _) = opt(fws)(input)?;
-    let (input, _) = tag(")")(input)?;
+    let (input, ()) = comment_body(input)?;
     Ok((input, ()))
 }
 
-pub fn ccontent(input: &[u8]) -> IResult<&[u8], &[u8]> {
-    alt((
-        ctext,
-        recognize(quoted_pair),
-        recognize(encoded_word),
-        recognize(comment),
-    ))(input)
+pub fn comment_body(input: &[u8]) -> IResult<&[u8], ()> {
+    let mut nesting = 1;
+    let mut cursor: &[u8] = input;
+    loop {
+        if let Ok((input, _)) = pair(opt(fws), tag(")"))(cursor) {
+            nesting -= 1;
+            if nesting == 0 {
+                return Ok((input, ()))
+            }
+            cursor = input;
+        }
+        let (input, _) = opt(fws)(cursor)?;
+        let (input, enter_subcomment) = alt((
+            tag("(").map(|_| true),
+            alt((
+                quoted_pair,
+                recognize(encoded_word_plain),
+                ctext,
+            )).map(|_| false)
+        ))(input)?;
+
+        if enter_subcomment {
+            nesting += 1;
+        }
+
+        cursor = input
+    }
 }
 
 pub fn ctext(input: &[u8]) -> IResult<&[u8], &[u8]> {
@@ -182,6 +211,10 @@ mod tests {
             cfws(b"(double (comment) is fun) wouch"),
             Ok((&b"wouch"[..], &b"(double (comment) is fun) "[..]))
         );
+        // assert_eq!(
+        //     cfws(b"(unbalanced ( parens) wouch"),
+        //     Ok((&b"wouch"[..], &b"(double (comment) is fun) "[..]))
+        // );
     }
 
     #[test]

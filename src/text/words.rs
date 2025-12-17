@@ -41,7 +41,12 @@ fn is_mime_atom_text(c: u8) -> bool {
 ///
 /// `[CFWS] 1*token_text [CFWS]`
 pub fn mime_atom(input: &[u8]) -> IResult<&[u8], &[u8]> {
-    delimited(opt(cfws), take_while1(is_mime_atom_text), opt(cfws))(input)
+    delimited(opt(cfws), mime_atom_plain, opt(cfws))(input)
+}
+
+/// `1*token_text`
+pub fn mime_atom_plain(input: &[u8]) -> IResult<&[u8], &[u8]> {
+    take_while1(is_mime_atom_text)(input)
 }
 
 /// Atom allowed characters

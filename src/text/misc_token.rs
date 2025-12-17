@@ -13,7 +13,7 @@ use std::fmt;
 
 use crate::text::{
     ascii,
-    encoding::{self, encoded_word},
+    encoding::{self, encoded_word, encoded_word_plain},
     quoted::{quoted_string, QuotedString},
     whitespace::{fws, is_obs_no_ws_ctl},
     words::{atom, is_vchar, mime_atom},
@@ -198,7 +198,7 @@ pub fn unstructured(input: &[u8]) -> IResult<&[u8], Unstructured<'_>> {
     let (input, r) = many0(preceded(
         opt(fws),
         alt((
-            map(encoded_word, UnstrToken::Encoded),
+            map(encoded_word_plain, UnstrToken::Encoded),
             map(take_while1(is_unstructured), |p| {
                 UnstrToken::Plain(Cow::Borrowed(p))
             }),
