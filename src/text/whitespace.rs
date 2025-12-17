@@ -7,7 +7,7 @@ use nom::{
     character::complete::{space0, space1},
     combinator::{opt, recognize},
     multi::{many0, many1},
-    sequence::{pair, tuple},
+    sequence::{pair, terminated, tuple},
     IResult,
 };
 
@@ -34,11 +34,13 @@ pub fn obs_crlf(input: &[u8]) -> IResult<&[u8], &[u8]> {
 /// fold_line = any *(1*(crlf WS) any) crlf
 /// ```
 pub fn foldable_line(input: &[u8]) -> IResult<&[u8], &[u8]> {
-    recognize(tuple((
-        is_not(ascii::CRLF),
-        many0(pair(many1(pair(obs_crlf, space1)), is_not(ascii::CRLF))),
+    terminated(
+        recognize(tuple((
+            is_not(ascii::CRLF),
+            many0(pair(many1(pair(obs_crlf, space1)), is_not(ascii::CRLF))),
+        ))),
         obs_crlf,
-    )))(input)
+    )(input)
 }
 
 // --- whitespaces and comments

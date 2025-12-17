@@ -26,7 +26,7 @@ pub struct CommonMIME<'a> {
     pub description: Option<Unstructured<'a>>,
     // XXX: could `uninterp_headers` be moved to the parent e.g. Message?
     // (to be alongside imf and mime)
-    pub uninterp_headers: Vec<header::Field<'a>>,
+    pub uninterp_headers: Vec<header::Unstructured<'a>>,
 }
 impl<'a> fmt::Debug for CommonMIME<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {

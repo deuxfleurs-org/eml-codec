@@ -41,13 +41,11 @@ impl<'a> Content<'a> {
     }
 }
 
-impl<'a> TryFrom<&header::Field<'a>> for Content<'a> {
+impl<'a> TryFrom<&header::FieldRaw<'a>> for Content<'a> {
     type Error = ();
-    fn try_from(f: &header::Field<'a>) -> Result<Self, Self::Error> {
+    fn try_from(f: &header::FieldRaw<'a>) -> Result<Self, Self::Error> {
         let content = match f {
-            header::Field::Good(header::Kv2(key, value)) => match key
-                .to_ascii_lowercase()
-                .as_slice()
+            header::FieldRaw::Good(key, value) => match key.bytes().to_ascii_lowercase().as_slice()
             {
                 b"content-type" => map(naive_type, Content::Type)(value),
                 b"content-transfer-encoding" => map(mechanism, Content::TransferEncoding)(value),

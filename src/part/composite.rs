@@ -77,6 +77,10 @@ pub fn multipart<'a>(
                         .map(|hdr| mime::field::Content::try_from(hdr).map_err(|_| hdr.clone()))
                         .partition_result();
                     let mut mime: mime::NaiveMIME = mime_headers.into_iter().collect();
+                    let uninterp_headers: Vec<_> = uninterp_headers
+                        .into_iter()
+                        .filter_map(header::Unstructured::from_raw)
+                        .collect();
                     mime.fields.uninterp_headers = uninterp_headers;
 
                     (input_eom, mime)
@@ -366,8 +370,13 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                             },
                             fields: mime::CommonMIME {
                                 uninterp_headers: vec![
-                                    header::Field::Good(header::Kv2(&b"X-Unknown"[..], &b"something something"[..])),
-                                    header::Field::Bad(&b"Bad entry\n  on multiple lines\n"[..]),
+                                    header::Unstructured(
+                                        header::FieldName(b"X-Unknown"[..].into()),
+                                        Unstructured(vec![
+                                            UnstrToken::Plain(b"something"),
+                                            UnstrToken::Plain(b"something"),
+                                        ]),
+                                    ),
                                 ],
                                 ..mime::CommonMIME::default()
                             },

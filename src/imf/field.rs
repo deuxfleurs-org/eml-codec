@@ -42,12 +42,12 @@ pub enum Field<'a> {
 
     MIMEVersion(Version),
 }
-impl<'a> TryFrom<&header::Field<'a>> for Field<'a> {
+impl<'a> TryFrom<&header::FieldRaw<'a>> for Field<'a> {
     type Error = ();
-    fn try_from(f: &header::Field<'a>) -> Result<Self, Self::Error> {
+    fn try_from(f: &header::FieldRaw<'a>) -> Result<Self, Self::Error> {
         let content = match f {
-            header::Field::Good(header::Kv2(key, value)) => {
-                match key.to_ascii_lowercase().as_slice() {
+            header::FieldRaw::Good(key, value) => {
+                match key.bytes().to_ascii_lowercase().as_slice() {
                     b"date" => map(date, Field::Date)(value),
                     b"from" => map(mailbox_list, Field::From)(value),
                     b"sender" => map(mailbox, Field::Sender)(value),
