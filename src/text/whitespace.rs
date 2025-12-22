@@ -21,6 +21,10 @@ use nom::{
 /// but some mail servers like Dovecot support malformated emails,
 /// for example with only \n eol. It works because
 /// \r or \n is allowed nowhere else, so we also add this support.
+/// XXX this comment is incorrect: \r and \n are allowed in
+/// obs-unstruct (obsolete unstructured fields).
+/// This means that using obs_crlf instead of CRLF (as done currently)
+/// may parse unstructured inputs in a way that contradicts the spec.
 
 pub fn obs_crlf(input: &[u8]) -> IResult<&[u8], &[u8]> {
     alt((
