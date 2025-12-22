@@ -127,7 +127,7 @@ impl<'a> Unstructured<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use misc_token::UnstrToken;
+    use misc_token::{UnstrToken, UnstrTxtKind};
 
     #[test]
     fn test_field_raw_good() {
@@ -150,8 +150,10 @@ mod tests {
             Unstructured(
                 FieldName(b"X-Unknown".into()),
                 misc_token::Unstructured(vec![
-                    UnstrToken::Plain(b"something".into()),
-                    UnstrToken::Plain(b"something".into()),
+                    UnstrToken::from_plain(b" ", UnstrTxtKind::Fws),
+                    UnstrToken::from_plain(b"something", UnstrTxtKind::Txt),
+                    UnstrToken::from_plain(b" ", UnstrTxtKind::Fws),
+                    UnstrToken::from_plain(b"something", UnstrTxtKind::Txt),
                 ])
             )
         )

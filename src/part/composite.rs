@@ -167,7 +167,7 @@ mod tests {
     use crate::part::discrete::Text;
     use crate::part::AnyPart;
     use crate::text::encoding::{Base64Word, EncodedWord, QuotedChunk, QuotedWord};
-    use crate::text::misc_token::{Phrase, UnstrToken, Unstructured, Word};
+    use crate::text::misc_token::{Phrase, UnstrToken, UnstrTxtKind, Unstructured, Word};
     use chrono::{FixedOffset, TimeZone};
 
     #[test]
@@ -348,10 +348,12 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                         })],
 
                         subject: Some(Unstructured(vec![
+                            UnstrToken::from_plain(b" ", UnstrTxtKind::Fws),
                             UnstrToken::Encoded(EncodedWord::Base64(Base64Word{
                                 enc: encoding_rs::WINDOWS_1252,
                                 content: b"SWYgeW91IGNhbiByZWFkIHRoaXMgeW8"[..].into(),
                             })),
+                            UnstrToken::from_plain(b"    ", UnstrTxtKind::Fws),
                             UnstrToken::Encoded(EncodedWord::Base64(Base64Word{
                                 enc: encoding_rs::ISO_8859_2,
                                 content: b"dSB1bmRlcnN0YW5kIHRoZSBleGFtcGxlLg"[..].into(),
@@ -375,8 +377,10 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                                     header::Unstructured(
                                         header::FieldName(b"X-Unknown"[..].into()),
                                         Unstructured(vec![
-                                            UnstrToken::Plain(b"something".into()),
-                                            UnstrToken::Plain(b"something".into()),
+                                            UnstrToken::from_plain(b" ", UnstrTxtKind::Fws),
+                                            UnstrToken::from_plain(b"something"[..].into(), UnstrTxtKind::Txt),
+                                            UnstrToken::from_plain(b" ", UnstrTxtKind::Fws),
+                                            UnstrToken::from_plain(b"something"[..].into(), UnstrTxtKind::Txt),
                                         ]),
                                     ),
                                 ],

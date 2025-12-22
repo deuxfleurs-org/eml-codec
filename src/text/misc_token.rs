@@ -5,8 +5,9 @@ use nom::{
     character::complete::space0,
     combinator::{map, opt},
     multi::{many0, many1, separated_list1},
-    sequence::preceded,
+    sequence::pair,
     IResult,
+    Parser,
 };
 use std::borrow::Cow;
 use std::fmt;
@@ -123,27 +124,66 @@ pub fn phrase(input: &[u8]) -> IResult<&[u8], Phrase<'_>> {
     Ok((input, phrase))
 }
 
+#[derive(Debug, PartialEq, Clone, ToStatic)]
+pub struct UtextToken<'a> {
+    txt: Cow<'a, [u8]>,
+    obs: bool,
+}
+
 /// Compatible unstructured input
 ///
 /// ```abnf
 /// obs-utext       =   %d0 / obs-NO-WS-CTL / VCHAR
 /// ```
-fn is_unstructured(c: u8) -> bool {
-    is_vchar(c) || is_obs_no_ws_ctl(c) || c == ascii::NULL
+///
+/// The parser result records which parts of the input
+/// were using the obsolete syntax (i.e. not VCHAR).
+///
+/// Parses a single run of either obsolete or non-obsolete
+/// characters.
+fn obs_utext_token<'a>(input: &'a [u8]) -> IResult<&'a [u8], UtextToken<'a>> {
+    alt((
+        take_while1(is_vchar)
+            .map(|s| UtextToken { txt: Cow::Borrowed(s), obs: false }),
+        take_while1(|c| is_obs_no_ws_ctl(c) || c == ascii::NULL)
+            .map(|s| UtextToken { txt: Cow::Borrowed(s), obs: true }),
+    ))(input)
+}
+
+#[derive(Debug, PartialEq, Clone, ToStatic)]
+pub enum UnstrTxtKind {
+    Txt,
+    Obs,
+    Fws,
 }
 
 #[derive(PartialEq, Clone, ToStatic)]
 pub enum UnstrToken<'a> {
     Encoded(encoding::EncodedWord<'a>),
-    Plain(Cow<'a, [u8]>),
+    Plain(Cow<'a, [u8]>, UnstrTxtKind),
+}
+
+impl<'a> UnstrToken<'a> {
+    pub(crate) fn from_plain(s: &'a [u8], kind: UnstrTxtKind) -> Self {
+        Self::Plain(Cow::Borrowed(s), kind)
+    }
+
+    fn from_utext(tok: UtextToken<'a>) -> Self {
+        if tok.obs {
+            Self::Plain(tok.txt, UnstrTxtKind::Obs)
+        } else {
+            Self::Plain(tok.txt, UnstrTxtKind::Txt)
+        }
+    }
 }
 impl<'a> fmt::Debug for UnstrToken<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             UnstrToken::Encoded(e) => fmt.debug_tuple("Encoded").field(&e.to_string()).finish(),
-            UnstrToken::Plain(s) => fmt
+            UnstrToken::Plain(s, k) => fmt
                 .debug_tuple("Plain")
                 .field(&String::from_utf8_lossy(&s))
+                .field(k)
                 .finish(),
         }
     }
@@ -153,8 +193,9 @@ impl<'a> ToString for UnstrToken<'a> {
     fn to_string(&self) -> String {
         match self {
             UnstrToken::Encoded(e) => e.to_string(),
-            UnstrToken::Plain(e) => encoding_rs::UTF_8
-                .decode_without_bom_handling(e)
+            // XXX discard obsolete tokens?
+            UnstrToken::Plain(e, _) => encoding_rs::UTF_8
+                .decode_without_bom_handling(&e)
                 .0
                 .into_owned(),
         }
@@ -177,7 +218,6 @@ impl<'a> ToString for Unstructured<'a> {
                             result.push_str(v.to_string().as_ref())
                         }
                         (_, v) => {
-                            result.push(' ');
                             result.push_str(v.to_string().as_ref())
                         }
                     };
@@ -193,20 +233,38 @@ impl<'a> ToString for Unstructured<'a> {
 ///
 /// ```abnf
 /// unstructured    =   (*([FWS] VCHAR_SEQ) *WSP) / obs-unstruct
+/// obs_unstruct    =   *((*CR 1*(obs_utext / FWS)) / 1*LF) *CR   (cf errata)
 /// ```
+/// + RFC 2047 (MIME pt3) encoded words
+///
+/// We parse obs_unstruct, explicitly marking which part belong to the
+/// obsolete syntax in the output AST.
+// XXX the implementation below does not look spec compliant; idea below
+// - perform pre-framing of headers first, cutting on CRLF (skipping CRLF WSP)
+// - parse obs_unstruct (needs framing first, otherwise the greedy *CR at the
+//   end would eat the final CRLF, erroring out when parsing a full header line
 pub fn unstructured(input: &[u8]) -> IResult<&[u8], Unstructured<'_>> {
-    let (input, r) = many0(preceded(
+    let (input, r) = many0(pair(
         opt(fws),
         alt((
-            map(encoded_word_plain, UnstrToken::Encoded),
-            map(take_while1(is_unstructured), |p| {
-                UnstrToken::Plain(Cow::Borrowed(p))
-            }),
+            map(encoded_word_plain, |w| vec![UnstrToken::Encoded(w)]),
+            many1(map(obs_utext_token, UnstrToken::from_utext)),
         )),
     ))(input)?;
+    let (input, wsp0) = space0(input)?;
 
-    let (input, _) = space0(input)?;
-    Ok((input, Unstructured(r)))
+    let mut tokens = vec![];
+    for (fws_opt, toks) in r {
+        if let Some(fws) = fws_opt {
+            tokens.extend(fws.into_iter().map(|s| UnstrToken::from_plain(s, UnstrTxtKind::Fws)));
+        }
+        tokens.extend(toks);
+    }
+    if !wsp0.is_empty() {
+        tokens.push(UnstrToken::from_plain(wsp0, UnstrTxtKind::Txt))
+    }
+
+    Ok((input, Unstructured(tokens)))
 }
 
 #[cfg(test)]

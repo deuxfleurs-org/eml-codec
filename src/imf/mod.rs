@@ -105,7 +105,7 @@ mod tests {
         let fullmail = b"Date: 7 Mar 2023 08:00:00 +0200
 From: someone@example.com
 To: someone_else@example.com
-Subject: An RFC 822 formatted message
+Subject: An  RFC 822  formatted message
 
 This is the plain text body of the message. Note the blank line
 between the header information and the body of the message.";
@@ -131,11 +131,16 @@ between the header information and the body of the message.";
                         }
                     })],
                     subject: Some(Unstructured(vec![
-                        UnstrToken::Plain(b"An"[..].into()),
-                        UnstrToken::Plain(b"RFC"[..].into()),
-                        UnstrToken::Plain(b"822"[..].into()),
-                        UnstrToken::Plain(b"formatted"[..].into()),
-                        UnstrToken::Plain(b"message"[..].into()),
+                        UnstrToken::from_plain(b" ", UnstrTxtKind::Fws),
+                        UnstrToken::from_plain(b"An", UnstrTxtKind::Txt),
+                        UnstrToken::from_plain(b"  ", UnstrTxtKind::Fws),
+                        UnstrToken::from_plain(b"RFC", UnstrTxtKind::Txt),
+                        UnstrToken::from_plain(b" ", UnstrTxtKind::Fws),
+                        UnstrToken::from_plain(b"822", UnstrTxtKind::Txt),
+                        UnstrToken::from_plain(b"  ", UnstrTxtKind::Fws),
+                        UnstrToken::from_plain(b"formatted", UnstrTxtKind::Txt),
+                        UnstrToken::from_plain(b" ", UnstrTxtKind::Fws),
+                        UnstrToken::from_plain(b"message", UnstrTxtKind::Txt),
                     ])),
                     ..Imf::default()
                 }
