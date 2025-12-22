@@ -1,3 +1,4 @@
+use bounded_static::ToStatic;
 use crate::text::whitespace::cfws;
 use crate::text::words::mime_atom as token;
 use nom::{
@@ -7,8 +8,9 @@ use nom::{
     sequence::delimited,
     IResult,
 };
+use std::borrow::Cow;
 
-#[derive(Debug, Clone, PartialEq, Default)]
+#[derive(Debug, Clone, PartialEq, Default, ToStatic)]
 pub enum Mechanism<'a> {
     #[default]
     _7Bit,
@@ -16,7 +18,7 @@ pub enum Mechanism<'a> {
     Binary,
     QuotedPrintable,
     Base64,
-    Other(&'a [u8]),
+    Other(Cow<'a, [u8]>),
 }
 impl<'a> ToString for Mechanism<'a> {
     fn to_string(&self) -> String {
@@ -27,7 +29,7 @@ impl<'a> ToString for Mechanism<'a> {
             Binary => b"binary",
             QuotedPrintable => b"quoted-printable",
             Base64 => b"base64",
-            Other(x) => x,
+            Other(x) => &x,
         };
         String::from_utf8_lossy(buf).to_string()
     }
@@ -48,7 +50,7 @@ pub fn mechanism(input: &[u8]) -> IResult<&[u8], Mechanism<'_>> {
             )),
             opt(cfws),
         ),
-        map(token, Other),
+        map(token, |b| Other(Cow::Borrowed(b))),
     ))(input)
 }
 

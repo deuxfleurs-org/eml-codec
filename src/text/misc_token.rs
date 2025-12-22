@@ -1,3 +1,4 @@
+use bounded_static::ToStatic;
 use nom::{
     branch::alt,
     bytes::complete::{tag, take_while1},
@@ -7,6 +8,7 @@ use nom::{
     sequence::preceded,
     IResult,
 };
+use std::borrow::Cow;
 use std::fmt;
 
 use crate::text::{
@@ -17,20 +19,20 @@ use crate::text::{
     words::{atom, is_vchar, mime_atom},
 };
 
-#[derive(Debug, PartialEq, Default)]
+#[derive(Debug, PartialEq, Default, ToStatic)]
 pub struct PhraseList<'a>(pub Vec<Phrase<'a>>);
 pub fn phrase_list(input: &[u8]) -> IResult<&[u8], PhraseList<'_>> {
     map(separated_list1(tag(","), phrase), PhraseList)(input)
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, ToStatic)]
 pub enum MIMEWord<'a> {
     Quoted(QuotedString<'a>),
-    Atom(&'a [u8]),
+    Atom(Cow<'a, [u8]>),
 }
 impl Default for MIMEWord<'static> {
     fn default() -> Self {
-        Self::Atom(&[])
+        Self::Atom(Cow::Owned(vec![]))
     }
 }
 impl<'a> MIMEWord<'a> {
@@ -47,15 +49,15 @@ impl<'a> MIMEWord<'a> {
 pub fn mime_word(input: &[u8]) -> IResult<&[u8], MIMEWord<'_>> {
     alt((
         map(quoted_string, MIMEWord::Quoted),
-        map(mime_atom, MIMEWord::Atom),
+        map(mime_atom, |a| MIMEWord::Atom(Cow::Borrowed(a))),
     ))(input)
 }
 
-#[derive(PartialEq)]
+#[derive(PartialEq, ToStatic)]
 pub enum Word<'a> {
     Quoted(QuotedString<'a>),
     Encoded(encoding::EncodedWord<'a>),
-    Atom(&'a [u8]),
+    Atom(Cow<'a, [u8]>),
 }
 
 impl<'a> ToString for Word<'a> {
@@ -87,11 +89,11 @@ pub fn word(input: &[u8]) -> IResult<&[u8], Word<'_>> {
     alt((
         map(quoted_string, Word::Quoted),
         map(encoded_word, Word::Encoded),
-        map(atom, Word::Atom),
+        map(atom, |a| Word::Atom(Cow::Borrowed(a))),
     ))(input)
 }
 
-#[derive(PartialEq)]
+#[derive(PartialEq, ToStatic)]
 pub struct Phrase<'a>(pub Vec<Word<'a>>);
 
 impl<'a> ToString for Phrase<'a> {
@@ -130,11 +132,11 @@ fn is_unstructured(c: u8) -> bool {
     is_vchar(c) || is_obs_no_ws_ctl(c) || c == ascii::NULL
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, ToStatic)]
 pub enum UnstrToken<'a> {
     Init,
     Encoded(encoding::EncodedWord<'a>),
-    Plain(&'a [u8]),
+    Plain(Cow<'a, [u8]>),
 }
 
 impl<'a> ToString for UnstrToken<'a> {
@@ -150,7 +152,7 @@ impl<'a> ToString for UnstrToken<'a> {
     }
 }
 
-#[derive(PartialEq, Clone)]
+#[derive(PartialEq, Clone, ToStatic)]
 pub struct Unstructured<'a>(pub Vec<UnstrToken<'a>>);
 
 impl<'a> ToString for Unstructured<'a> {
@@ -195,7 +197,9 @@ pub fn unstructured(input: &[u8]) -> IResult<&[u8], Unstructured<'_>> {
         opt(fws),
         alt((
             map(encoded_word, UnstrToken::Encoded),
-            map(take_while1(is_unstructured), UnstrToken::Plain),
+            map(take_while1(is_unstructured), |p| {
+                UnstrToken::Plain(Cow::Borrowed(p))
+            }),
         )),
     ))(input)?;
 

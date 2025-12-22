@@ -1,3 +1,4 @@
+use bounded_static::ToStatic;
 use nom::{
     bytes::complete::tag,
     combinator::{map, opt},
@@ -5,6 +6,7 @@ use nom::{
     sequence::{preceded, terminated, tuple},
     IResult,
 };
+use std::borrow::Cow;
 use std::fmt;
 
 use crate::mime::charset::EmailCharset;
@@ -12,17 +14,17 @@ use crate::text::misc_token::{mime_word, MIMEWord};
 use crate::text::words::mime_atom;
 
 // --------- NAIVE TYPE
-#[derive(PartialEq, Clone)]
+#[derive(PartialEq, Clone, ToStatic)]
 pub struct NaiveType<'a> {
-    pub main: &'a [u8],
-    pub sub: &'a [u8],
+    pub main: Cow<'a, [u8]>,
+    pub sub: Cow<'a, [u8]>,
     pub params: Vec<Parameter<'a>>,
 }
 impl<'a> fmt::Debug for NaiveType<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt.debug_struct("mime::NaiveType")
-            .field("main", &String::from_utf8_lossy(self.main))
-            .field("sub", &String::from_utf8_lossy(self.sub))
+            .field("main", &String::from_utf8_lossy(&self.main))
+            .field("sub", &String::from_utf8_lossy(&self.sub))
             .field("params", &self.params)
             .finish()
     }
@@ -35,19 +37,23 @@ impl<'a> NaiveType<'a> {
 pub fn naive_type(input: &[u8]) -> IResult<&[u8], NaiveType<'_>> {
     map(
         tuple((mime_atom, tag("/"), mime_atom, parameter_list)),
-        |(main, _, sub, params)| NaiveType { main, sub, params },
+        |(main, _, sub, params)| NaiveType {
+            main: Cow::Borrowed(main),
+            sub: Cow::Borrowed(sub),
+            params,
+        },
     )(input)
 }
 
-#[derive(PartialEq, Clone)]
+#[derive(PartialEq, Clone, ToStatic)]
 pub struct Parameter<'a> {
-    pub name: &'a [u8],
+    pub name: Cow<'a, [u8]>,
     pub value: MIMEWord<'a>,
 }
 impl<'a> fmt::Debug for Parameter<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt.debug_struct("mime::Parameter")
-            .field("name", &String::from_utf8_lossy(self.name))
+            .field("name", &String::from_utf8_lossy(&self.name))
             .field("value", &self.value)
             .finish()
     }
@@ -56,7 +62,10 @@ impl<'a> fmt::Debug for Parameter<'a> {
 pub fn parameter(input: &[u8]) -> IResult<&[u8], Parameter<'_>> {
     map(
         tuple((mime_atom, tag(b"="), mime_word)),
-        |(name, _, value)| Parameter { name, value },
+        |(name, _, value)| Parameter {
+            name: Cow::Borrowed(name),
+            value,
+        },
     )(input)
 }
 pub fn parameter_list(input: &[u8]) -> IResult<&[u8], Vec<Parameter<'_>>> {
@@ -65,7 +74,7 @@ pub fn parameter_list(input: &[u8]) -> IResult<&[u8], Vec<Parameter<'_>>> {
 
 // MIME TYPES TRANSLATED TO RUST TYPING SYSTEM
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, ToStatic)]
 pub enum AnyType {
     // Composite types
     Multipart(Multipart),
@@ -89,7 +98,7 @@ impl<'a> From<&'a NaiveType<'a>> for AnyType {
     }
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, ToStatic)]
 pub enum Deductible<T: Default> {
     Inferred(T),
     Explicit(T),
@@ -102,7 +111,7 @@ impl<T: Default> Default for Deductible<T> {
 
 // REAL PARTS
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, ToStatic)]
 pub struct Multipart {
     pub subtype: MultipartSubtype,
     pub boundary: String,
@@ -127,7 +136,7 @@ impl<'a> TryFrom<&'a NaiveType<'a>> for Multipart {
     }
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, ToStatic)]
 pub enum MultipartSubtype {
     Alternative,
     Mixed,
@@ -162,7 +171,7 @@ impl<'a> From<&NaiveType<'a>> for MultipartSubtype {
     }
 }
 
-#[derive(Debug, PartialEq, Default, Clone)]
+#[derive(Debug, PartialEq, Default, Clone, ToStatic)]
 pub enum MessageSubtype {
     #[default]
     RFC822,
@@ -183,7 +192,7 @@ impl ToString for MessageSubtype {
 }
 
 pub type DeductibleMessage = Deductible<Message>;
-#[derive(Debug, PartialEq, Default, Clone)]
+#[derive(Debug, PartialEq, Default, Clone, ToStatic)]
 pub struct Message {
     pub subtype: MessageSubtype,
 }
@@ -214,7 +223,7 @@ impl From<Deductible<Message>> for Message {
 }
 
 pub type DeductibleText = Deductible<Text>;
-#[derive(Debug, PartialEq, Default, Clone)]
+#[derive(Debug, PartialEq, Default, Clone, ToStatic)]
 pub struct Text {
     pub subtype: TextSubtype,
     pub charset: Deductible<EmailCharset>,
@@ -240,7 +249,7 @@ impl From<Deductible<Text>> for Text {
     }
 }
 
-#[derive(Debug, PartialEq, Default, Clone)]
+#[derive(Debug, PartialEq, Default, Clone, ToStatic)]
 pub enum TextSubtype {
     #[default]
     Plain,
@@ -266,7 +275,7 @@ impl<'a> From<&NaiveType<'a>> for TextSubtype {
     }
 }
 
-#[derive(Debug, PartialEq, Default, Clone)]
+#[derive(Debug, PartialEq, Default, Clone, ToStatic)]
 pub struct Binary {}
 
 #[cfg(test)]
@@ -283,8 +292,8 @@ mod tests {
             Ok((
                 &b""[..],
                 Parameter {
-                    name: &b"charset"[..],
-                    value: MIMEWord::Atom(&b"utf-8"[..]),
+                    name: b"charset"[..].into(),
+                    value: MIMEWord::Atom(b"utf-8"[..].into()),
                 }
             )),
         );
@@ -293,8 +302,8 @@ mod tests {
             Ok((
                 &b""[..],
                 Parameter {
-                    name: &b"charset"[..],
-                    value: MIMEWord::Quoted(QuotedString(vec![&b"utf-8"[..]])),
+                    name: b"charset"[..].into(),
+                    value: MIMEWord::Quoted(QuotedString(vec![b"utf-8"[..].into()])),
                 }
             )),
         );
@@ -347,8 +356,8 @@ mod tests {
             Ok((
                 &b""[..],
                 Parameter {
-                    name: &b"charset"[..],
-                    value: MIMEWord::Atom(&b"us-ascii"[..]),
+                    name: b"charset"[..].into(),
+                    value: MIMEWord::Atom(b"us-ascii"[..].into()),
                 }
             ))
         );
@@ -361,8 +370,8 @@ mod tests {
             Ok((
                 &b""[..],
                 vec![Parameter {
-                    name: &b"boundary"[..],
-                    value: MIMEWord::Quoted(QuotedString(vec![&b"festivus"[..]])),
+                    name: b"boundary"[..].into(),
+                    value: MIMEWord::Quoted(QuotedString(vec![b"festivus"[..].into()])),
                 }],
             ))
         );

@@ -10,6 +10,7 @@ pub mod mechanism;
 /// Content-Type representation
 pub mod r#type;
 
+use bounded_static::ToStatic;
 use std::fmt;
 
 use crate::header;
@@ -19,7 +20,7 @@ use crate::mime::mechanism::Mechanism;
 use crate::mime::r#type::{AnyType, NaiveType};
 use crate::text::misc_token::Unstructured; //Multipart, Message, Text, Binary};
 
-#[derive(Default, PartialEq, Clone)]
+#[derive(Default, PartialEq, Clone, ToStatic)]
 pub struct CommonMIME<'a> {
     pub transfer_encoding: Mechanism<'a>,
     pub id: Option<MessageID<'a>>,
@@ -39,7 +40,7 @@ impl<'a> fmt::Debug for CommonMIME<'a> {
     }
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, ToStatic)]
 pub struct MIME<'a, T> {
     pub ctype: T,
     pub fields: CommonMIME<'a>,
@@ -62,7 +63,7 @@ impl<'a> Default for MIME<'a, r#type::DeductibleMessage> {
     }
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, ToStatic)]
 pub enum AnyMIME<'a> {
     Mult(MIME<'a, r#type::Multipart>),
     Msg(MIME<'a, r#type::DeductibleMessage>),

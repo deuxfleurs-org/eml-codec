@@ -7,22 +7,23 @@ pub mod mailbox;
 pub mod mime;
 pub mod trace;
 
+use bounded_static::ToStatic;
 use nom::{combinator::map, IResult};
 
 use crate::header;
 use crate::imf::address::AddressRef;
+use crate::imf::datetime::DateTime;
 use crate::imf::field::Field;
 use crate::imf::identification::MessageID;
 use crate::imf::mailbox::{AddrSpec, MailboxRef};
 use crate::imf::mime::Version;
 use crate::imf::trace::ReceivedLog;
 use crate::text::misc_token::{PhraseList, Unstructured};
-use chrono::{DateTime, FixedOffset};
 
-#[derive(Debug, PartialEq, Default)]
+#[derive(Debug, PartialEq, Default, ToStatic)]
 pub struct Imf<'a> {
     // 3.6.1.  The Origination Date Field
-    pub date: Option<DateTime<FixedOffset>>,
+    pub date: Option<DateTime>,
 
     // 3.6.2.  Originator Fields
     pub from: Vec<MailboxRef<'a>>,
@@ -114,27 +115,27 @@ between the header information and the body of the message.";
             Ok((
                 &b"This is the plain text body of the message. Note the blank line\nbetween the header information and the body of the message."[..],
                 Imf {
-                    date: Some(FixedOffset::east_opt(2 * 3600).unwrap().with_ymd_and_hms(2023, 3, 7, 8, 0, 0).unwrap()),
+                    date: Some(DateTime(FixedOffset::east_opt(2 * 3600).unwrap().with_ymd_and_hms(2023, 3, 7, 8, 0, 0).unwrap())),
                     from: vec![MailboxRef {
                         name: None,
                         addrspec: AddrSpec {
-                            local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(&b"someone"[..]))]),
-                            domain: Domain::Atoms(vec![&b"example"[..], &b"com"[..]]),
+                            local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(b"someone"[..].into()))]),
+                            domain: Domain::Atoms(vec![b"example"[..].into(), b"com"[..].into()]),
                         }
                     }],
                     to: vec![AddressRef::Single(MailboxRef {
                         name: None,
                         addrspec: AddrSpec {
-                            local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(&b"someone_else"[..]))]),
-                            domain: Domain::Atoms(vec![&b"example"[..], &b"com"[..]]),
+                            local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(b"someone_else"[..].into()))]),
+                            domain: Domain::Atoms(vec![b"example"[..].into(), b"com"[..].into()]),
                         }
                     })],
                     subject: Some(Unstructured(vec![
-                        UnstrToken::Plain(&b"An"[..]),
-                        UnstrToken::Plain(&b"RFC"[..]),
-                        UnstrToken::Plain(&b"822"[..]), 
-                        UnstrToken::Plain(&b"formatted"[..]), 
-                        UnstrToken::Plain(&b"message"[..]),
+                        UnstrToken::Plain(b"An"[..].into()),
+                        UnstrToken::Plain(b"RFC"[..].into()),
+                        UnstrToken::Plain(b"822"[..].into()),
+                        UnstrToken::Plain(b"formatted"[..].into()),
+                        UnstrToken::Plain(b"message"[..].into()),
                     ])),
                     ..Imf::default()
                 }

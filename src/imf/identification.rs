@@ -1,3 +1,4 @@
+use bounded_static::ToStatic;
 use nom::{
     branch::alt,
     bytes::complete::{tag, take_while},
@@ -6,23 +7,24 @@ use nom::{
     sequence::{delimited, pair, tuple},
     IResult,
 };
+use std::borrow::Cow;
 use std::fmt;
 
 use crate::imf::mailbox::is_dtext;
 use crate::text::whitespace::cfws;
 use crate::text::words::dot_atom_text;
 
-#[derive(PartialEq, Clone)]
+#[derive(PartialEq, Clone, ToStatic)]
 pub struct MessageID<'a> {
-    pub left: &'a [u8],
-    pub right: &'a [u8],
+    pub left: Cow<'a, [u8]>,
+    pub right: Cow<'a, [u8]>,
 }
 impl<'a> ToString for MessageID<'a> {
     fn to_string(&self) -> String {
         format!(
             "{}@{}",
-            String::from_utf8_lossy(self.left),
-            String::from_utf8_lossy(self.right)
+            String::from_utf8_lossy(&self.left),
+            String::from_utf8_lossy(&self.right)
         )
     }
 }
@@ -46,6 +48,8 @@ pub fn msg_id(input: &[u8]) -> IResult<&[u8], MessageID<'_>> {
         tuple((id_left, tag("@"), id_right)),
         pair(tag(">"), opt(cfws)),
     )(input)?;
+    let left = Cow::Borrowed(left);
+    let right = Cow::Borrowed(right);
     Ok((input, MessageID { left, right }))
 }
 
@@ -78,8 +82,8 @@ mod tests {
             Ok((
                 &b""[..],
                 MessageID {
-                    left: &b"5678.21-Nov-1997"[..],
-                    right: &b"example.com"[..],
+                    left: Cow::Borrowed(&b"5678.21-Nov-1997"[..]),
+                    right: Cow::Borrowed(&b"example.com"[..]),
                 }
             )),
         );

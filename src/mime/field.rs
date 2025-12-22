@@ -1,3 +1,4 @@
+use bounded_static::ToStatic;
 use nom::combinator::map;
 
 use crate::header;
@@ -6,7 +7,7 @@ use crate::mime::mechanism::{mechanism, Mechanism};
 use crate::mime::r#type::{naive_type, NaiveType};
 use crate::text::misc_token::{unstructured, Unstructured};
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, ToStatic)]
 pub enum Content<'a> {
     Type(NaiveType<'a>),
     TransferEncoding(Mechanism<'a>),
@@ -116,12 +117,12 @@ This is a multipart message.
                 &b"This is a multipart message.\n\n"[..],
                 vec![
                     Content::Type(NaiveType {
-                        main: &b"multipart"[..],
-                        sub: &b"alternative"[..],
+                        main: b"multipart"[..].into(),
+                        sub: b"alternative"[..].into(),
                         params: vec![Parameter {
-                            name: &b"boundary"[..],
+                            name: b"boundary"[..].into(),
                             value: MIMEWord::Quoted(QuotedString(vec![
-                                &b"b1_e376dc71bafc953c0b0fdeb9983a9956"[..]
+                                b"b1_e376dc71bafc953c0b0fdeb9983a9956"[..].into()
                             ])),
                         }]
                     }),

@@ -1,3 +1,4 @@
+use bounded_static::ToStatic;
 use nom::{
     branch::alt,
     bytes::complete::{tag, take_while1},
@@ -14,7 +15,7 @@ use crate::text::misc_token;
 use crate::text::whitespace::{foldable_line, obs_crlf};
 
 // A valid header field name.
-#[derive(PartialEq, Clone)]
+#[derive(PartialEq, Clone, ToStatic)]
 pub struct FieldName<'a>(pub Cow<'a, [u8]>);
 impl<'a> FieldName<'a> {
     pub fn bytes(&'a self) -> &'a [u8] {
@@ -105,7 +106,7 @@ pub fn field_name(input: &[u8]) -> IResult<&[u8], FieldName<'_>> {
 
 // Parse a raw header field as an unstructured header
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, ToStatic)]
 pub struct Unstructured<'a>(pub FieldName<'a>, pub misc_token::Unstructured<'a>);
 
 impl<'a> Unstructured<'a> {
@@ -147,8 +148,8 @@ mod tests {
             Unstructured(
                 FieldName(b"X-Unknown".into()),
                 misc_token::Unstructured(vec![
-                    UnstrToken::Plain(b"something"),
-                    UnstrToken::Plain(b"something"),
+                    UnstrToken::Plain(b"something".into()),
+                    UnstrToken::Plain(b"something".into()),
                 ])
             )
         )

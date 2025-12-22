@@ -1,3 +1,4 @@
+use bounded_static::ToStatic;
 use encoding_rs::Encoding;
 
 /// Specific implementation of charset
@@ -7,7 +8,7 @@ use encoding_rs::Encoding;
 /// using encoding_rs datastructures directly would lead to a loss of information.
 /// <https://www.iana.org/assignments/character-sets/character-sets.xhtml>
 #[allow(non_camel_case_types)]
-#[derive(Debug, PartialEq, Default, Clone)]
+#[derive(Debug, PartialEq, Default, Clone, ToStatic)]
 pub enum EmailCharset {
     #[default]
     US_ASCII,

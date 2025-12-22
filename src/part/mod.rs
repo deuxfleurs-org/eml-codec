@@ -7,6 +7,7 @@ pub mod discrete;
 /// IMF + MIME fields parsed at once
 pub mod field;
 
+use bounded_static::ToStatic;
 use nom::{
     branch::alt,
     bytes::complete::is_not,
@@ -15,6 +16,7 @@ use nom::{
     sequence::pair,
     IResult,
 };
+use std::borrow::Cow;
 
 use crate::mime;
 use crate::mime::AnyMIME;
@@ -26,7 +28,7 @@ use crate::text::ascii::CRLF;
 use crate::text::boundary::boundary;
 use crate::text::whitespace::obs_crlf;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, ToStatic)]
 pub enum AnyPart<'a> {
     Mult(Multipart<'a>),
     Msg(Message<'a>),
@@ -91,23 +93,23 @@ pub fn anypart<'a>(m: AnyMIME<'a>) -> impl FnOnce(&'a [u8]) -> IResult<&'a [u8],
                 .map(|(_, multi)| multi.into())
                 .unwrap_or(AnyPart::Txt(Text {
                     mime: mime::MIME::<mime::r#type::DeductibleText>::default(),
-                    body: input,
+                    body: Cow::Borrowed(input),
                 })),
             AnyMIME::Msg(a) => {
                 message(a)(input)
                     .map(|(_, msg)| msg.into())
                     .unwrap_or(AnyPart::Txt(Text {
                         mime: mime::MIME::<mime::r#type::DeductibleText>::default(),
-                        body: input,
+                        body: Cow::Borrowed(input),
                     }))
             }
             AnyMIME::Txt(a) => AnyPart::Txt(Text {
                 mime: a,
-                body: input,
+                body: Cow::Borrowed(input),
             }),
             AnyMIME::Bin(a) => AnyPart::Bin(Binary {
                 mime: a,
-                body: input,
+                body: Cow::Borrowed(input),
             }),
         };
 

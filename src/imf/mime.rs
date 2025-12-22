@@ -1,3 +1,4 @@
+use bounded_static::ToStatic;
 use nom::{
     bytes::complete::{tag, take},
     combinator::{map, opt, verify},
@@ -8,7 +9,7 @@ use nom::{
 use crate::text::ascii;
 use crate::text::whitespace::cfws;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, ToStatic)]
 pub struct Version {
     pub major: u8,
     pub minor: u8,

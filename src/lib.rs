@@ -50,7 +50,7 @@ use nom::{combinator::into, IResult};
 /// println!(
 ///     "{} raw message is:\n{}",
 ///     email.imf.from[0].to_string(),
-///     String::from_utf8_lossy(email.child.as_text().unwrap().body),
+///     String::from_utf8_lossy(&email.child.as_text().unwrap().body),
 /// );
 /// ```
 pub fn parse_message(input: &[u8]) -> IResult<&[u8], part::composite::Message<'_>> {

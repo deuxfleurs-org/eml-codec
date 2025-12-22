@@ -1,19 +1,19 @@
-use chrono::{DateTime, FixedOffset};
+use bounded_static::ToStatic;
 use nom::combinator::map;
 
 use crate::header;
 use crate::imf::address::{address_list, mailbox_list, nullable_address_list, AddressList};
-use crate::imf::datetime::section as date;
+use crate::imf::{datetime::section as date, datetime::DateTime};
 use crate::imf::identification::{msg_id, msg_list, MessageID, MessageIDList};
 use crate::imf::mailbox::{mailbox, AddrSpec, MailboxList, MailboxRef};
 use crate::imf::mime::{version, Version};
 use crate::imf::trace::{received_log, return_path, ReceivedLog};
 use crate::text::misc_token::{phrase_list, unstructured, PhraseList, Unstructured};
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, ToStatic)]
 pub enum Field<'a> {
     // 3.6.1.  The Origination Date Field
-    Date(Option<DateTime<FixedOffset>>),
+    Date(Option<DateTime>),
 
     // 3.6.2.  Originator Fields
     From(MailboxList<'a>),

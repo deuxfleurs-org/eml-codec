@@ -1,5 +1,7 @@
+use bounded_static::ToStatic;
 use itertools::Itertools;
 use nom::IResult;
+use std::borrow::Cow;
 use std::fmt;
 
 use crate::header;
@@ -9,20 +11,20 @@ use crate::part::{self, AnyPart};
 use crate::text::boundary::{boundary, Delimiter};
 
 //--- Multipart
-#[derive(PartialEq)]
+#[derive(PartialEq, ToStatic)]
 pub struct Multipart<'a> {
     pub mime: mime::MIME<'a, mime::r#type::Multipart>,
     pub children: Vec<AnyPart<'a>>,
-    pub preamble: &'a [u8],
-    pub epilogue: &'a [u8],
+    pub preamble: Cow<'a, [u8]>,
+    pub epilogue: Cow<'a, [u8]>,
 }
 impl<'a> fmt::Debug for Multipart<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt.debug_struct("part::Multipart")
             .field("mime", &self.mime)
             .field("children", &self.children)
-            .field("preamble", &String::from_utf8_lossy(self.preamble))
-            .field("epilogue", &String::from_utf8_lossy(self.epilogue))
+            .field("preamble", &String::from_utf8_lossy(&self.preamble))
+            .field("epilogue", &String::from_utf8_lossy(&self.epilogue))
             .finish()
     }
 }
@@ -112,7 +114,7 @@ pub fn multipart<'a>(
 
 //--- Message
 
-#[derive(PartialEq)]
+#[derive(PartialEq, ToStatic)]
 pub struct Message<'a> {
     pub mime: mime::MIME<'a, mime::r#type::DeductibleMessage>,
     pub imf: imf::Imf<'a>,
@@ -211,8 +213,8 @@ This is the epilogue. It is also to be ignored.
             Ok((&b"\nThis is the epilogue. It is also to be ignored.\n"[..],
                 Multipart {
                     mime: base_mime,
-                    preamble,
-                    epilogue,
+                    preamble: preamble.into(),
+                    epilogue: epilogue.into(),
                     children: vec![
                         AnyPart::Txt(Text {
                             mime: mime::MIME {
@@ -222,7 +224,7 @@ This is the epilogue. It is also to be ignored.
                                 }),
                                 fields: mime::CommonMIME::default(),
                             },
-                            body: &b"This is implicitly typed plain US-ASCII text.\nIt does NOT end with a linebreak."[..],
+                            body: b"This is implicitly typed plain US-ASCII text.\nIt does NOT end with a linebreak."[..].into(),
                         }),
                         AnyPart::Txt(Text {
                             mime: mime::MIME {
@@ -232,7 +234,7 @@ This is the epilogue. It is also to be ignored.
                                 }),
                                 fields: mime::CommonMIME::default(),
                             },
-                            body: &b"This is explicitly typed plain US-ASCII text.\nIt DOES end with a linebreak.\n"[..],
+                            body: b"This is explicitly typed plain US-ASCII text.\nIt DOES end with a linebreak.\n"[..].into(),
                         }),
                     ],
                 },
@@ -298,29 +300,29 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                 Message {
                     mime: base_mime,
                     imf: imf::Imf {
-                        date: Some(FixedOffset::east_opt(2 * 3600)
+                        date: Some(imf::datetime::DateTime(FixedOffset::east_opt(2 * 3600)
                             .unwrap()
                             .with_ymd_and_hms(2023, 07, 8, 7, 14, 29)
-                            .unwrap()),
+                            .unwrap())),
                         from: vec![
                             imf::mailbox::MailboxRef {
-                                name: Some(Phrase(vec![Word::Atom(&b"Grrrnd"[..]), Word::Atom(&b"Zero"[..])])),
+                                name: Some(Phrase(vec![Word::Atom(b"Grrrnd"[..].into()), Word::Atom(b"Zero"[..].into())])),
                                 addrspec: imf::mailbox::AddrSpec {
                                     local_part: imf::mailbox::LocalPart(vec![
-                                        imf::mailbox::LocalPartToken::Word(Word::Atom(&b"grrrndzero"[..]))
+                                        imf::mailbox::LocalPartToken::Word(Word::Atom(b"grrrndzero"[..].into()))
                                     ]),
-                                    domain: imf::mailbox::Domain::Atoms(vec![&b"example"[..], &b"org"[..]]),
+                                    domain: imf::mailbox::Domain::Atoms(vec![b"example"[..].into(), b"org"[..].into()]),
                                 }
                             },
                         ],
 
                         to: vec![imf::address::AddressRef::Single(imf::mailbox::MailboxRef {
-                                name: Some(Phrase(vec![Word::Atom(&b"John"[..]), Word::Atom(&b"Doe"[..])])),
+                                name: Some(Phrase(vec![Word::Atom(b"John"[..].into()), Word::Atom(b"Doe"[..].into())])),
                                 addrspec: imf::mailbox::AddrSpec {
                                     local_part: imf::mailbox::LocalPart(vec![
-                                        imf::mailbox::LocalPartToken::Word(Word::Atom(&b"jdoe"[..]))
+                                        imf::mailbox::LocalPartToken::Word(Word::Atom(b"jdoe"[..].into()))
                                     ]),
-                                    domain: imf::mailbox::Domain::Atoms(vec![&b"machine"[..], &b"example"[..]]),
+                                    domain: imf::mailbox::Domain::Atoms(vec![b"machine"[..].into(), b"example"[..].into()]),
                                 }
                          })],
 
@@ -329,18 +331,18 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                                 Word::Encoded(EncodedWord::Quoted(QuotedWord {
                                     enc: encoding_rs::WINDOWS_1252,
                                     chunks: vec![
-                                        QuotedChunk::Safe(&b"Andr"[..]),
+                                        QuotedChunk::Safe(b"Andr"[..].into()),
                                         QuotedChunk::Encoded(vec![0xE9]),
                                     ],
                                 })),
-                                Word::Atom(&b"Pirard"[..])
+                                Word::Atom(b"Pirard"[..].into())
                             ])),
                             addrspec: imf::mailbox::AddrSpec {
                                 local_part: imf::mailbox::LocalPart(vec![
-                                    imf::mailbox::LocalPartToken::Word(Word::Atom(&b"PIRARD"[..]))
+                                    imf::mailbox::LocalPartToken::Word(Word::Atom(b"PIRARD"[..].into()))
                                 ]),
                                 domain: imf::mailbox::Domain::Atoms(vec![
-                                    &b"vm1"[..], &b"ulg"[..], &b"ac"[..], &b"be"[..],
+                                    b"vm1"[..].into(), b"ulg"[..].into(), b"ac"[..].into(), b"be"[..].into(),
                                 ]),
                             }
                         })],
@@ -348,16 +350,16 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                         subject: Some(Unstructured(vec![
                             UnstrToken::Encoded(EncodedWord::Base64(Base64Word{
                                 enc: encoding_rs::WINDOWS_1252,
-                                content: &b"SWYgeW91IGNhbiByZWFkIHRoaXMgeW8"[..],
+                                content: b"SWYgeW91IGNhbiByZWFkIHRoaXMgeW8"[..].into(),
                             })),
                             UnstrToken::Encoded(EncodedWord::Base64(Base64Word{
                                 enc: encoding_rs::ISO_8859_2,
-                                content: &b"dSB1bmRlcnN0YW5kIHRoZSBleGFtcGxlLg"[..],
+                                content: b"dSB1bmRlcnN0YW5kIHRoZSBleGFtcGxlLg"[..].into(),
                             })),
                         ])),
                         msg_id: Some(imf::identification::MessageID {
-                            left: &b"NTAxNzA2AC47634Y366BAMTY4ODc5MzQyODY0ODY5"[..],
-                            right: &b"www.grrrndzero.org"[..],
+                            left: b"NTAxNzA2AC47634Y366BAMTY4ODc5MzQyODY0ODY5"[..].into(),
+                            right: b"www.grrrndzero.org"[..].into(),
                         }),
                         mime_version: Some(imf::mime::Version { major: 1, minor: 0}),
                         ..imf::Imf::default()
@@ -373,16 +375,16 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                                     header::Unstructured(
                                         header::FieldName(b"X-Unknown"[..].into()),
                                         Unstructured(vec![
-                                            UnstrToken::Plain(b"something"),
-                                            UnstrToken::Plain(b"something"),
+                                            UnstrToken::Plain(b"something".into()),
+                                            UnstrToken::Plain(b"something".into()),
                                         ]),
                                     ),
                                 ],
                                 ..mime::CommonMIME::default()
                             },
                         },
-                        preamble,
-                        epilogue: &[],
+                        preamble: preamble.into(),
+                        epilogue: vec![].into(),
                         children: vec![
                             AnyPart::Txt(Text {
                                 mime: mime::MIME {
@@ -395,7 +397,7 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                                         ..mime::CommonMIME::default()
                                     }
                                 },
-                                body: &b"GZ\nOoOoO\noOoOoOoOo\noOoOoOoOoOoOoOoOo\noOoOoOoOoOoOoOoOoOoOoOo\noOoOoOoOoOoOoOoOoOoOoOoOoOoOo\nOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO\n"[..],
+                                body: b"GZ\nOoOoO\noOoOoOoOo\noOoOoOoOoOoOoOoOo\noOoOoOoOoOoOoOoOoOoOoOo\noOoOoOoOoOoOoOoOoOoOoOoOoOoOo\nOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO\n"[..].into(),
                             }),
                             AnyPart::Txt(Text {
                                 mime: mime::MIME {
@@ -406,7 +408,7 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
 
                                     fields: mime::CommonMIME::default(),
                                 },
-                                body: &br#"<div style="text-align: center;"><strong>GZ</strong><br />
+                                body: br#"<div style="text-align: center;"><strong>GZ</strong><br />
 OoOoO<br />
 oOoOoOoOo<br />
 oOoOoOoOoOoOoOoOo<br />
@@ -414,7 +416,7 @@ oOoOoOoOoOoOoOoOoOoOoOo<br />
 oOoOoOoOoOoOoOoOoOoOoOoOoOoOo<br />
 OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
 </div>
-"#[..],
+"#[..].into(),
                             }),
                         ],
                     })),
