@@ -48,6 +48,23 @@ pub fn foldable_line(input: &[u8]) -> IResult<&[u8], &[u8]> {
     )(input)
 }
 
+// XXX if we want to do spec-compliant line framing later
+// ```abnf
+// fold_line = any *(crlf WS any) crlf
+// ```
+// used for pre-parsing / framing
+// pub fn foldable_line(input: &[u8]) -> IResult<&[u8], &[u8]> {
+//    terminated(
+//        recognize(
+//            pair(
+//                is_not(ascii::CRLF),
+//                many0(tuple((tag(ascii::CRLF), space1, is_not(ascii::CRLF))))
+//            )
+//        ),
+//        tag(ascii::CRLF),
+//    )(input)
+// }
+
 // --- whitespaces and comments
 
 // Note: WSP = SP / HTAB = %x20 / %x09
