@@ -281,7 +281,7 @@ pub fn with_line_folder<F: Fn(&mut LineFolder<&mut Vec<u8>>)>(f: F) -> Vec<u8> {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
 
     #[test]
