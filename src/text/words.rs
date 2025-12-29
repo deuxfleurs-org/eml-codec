@@ -9,6 +9,7 @@ use nom::{
     IResult,
 };
 
+/// ASCII printable characters
 pub fn is_vchar(c: u8) -> bool {
     (ascii::EXCLAMATION..=ascii::TILDE).contains(&c)
 }
