@@ -18,6 +18,23 @@ use crate::text::ascii;
 use crate::text::whitespace::cfws;
 use crate::text::words;
 
+// XXX: the parser below does not implement the spec stricty.
+// Specifically, it is more lenient than the spec in what it accepts
+// inside of an encoded word. In particular:
+// - it allows characters that are always explicitly forbidden (e.g. space);
+// - it is not aware of the context in which the encoded word
+//   appears, which can cause more characters to be forbidden (e.g.
+//   "(" and ")" are forbidden inside of a comment).
+//
+// At this point it is not clear whether strictly implementing the spec
+// in the parser is a good or bad thing (since we also want to be resilient
+// to incorrect input, on a best-effort basis).
+//
+// The printer is, in any case, strictly spec compliant.
+
+// FIXME: consecutive encoded words separated by linear-whitespace must
+// be merged together
+
 pub fn encoded_word(input: &[u8]) -> IResult<&[u8], EncodedWord<'_>> {
     delimited(opt(cfws), encoded_word_plain, opt(cfws))(input)
 }
