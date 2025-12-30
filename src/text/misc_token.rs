@@ -57,7 +57,6 @@ pub fn mime_word(input: &[u8]) -> IResult<&[u8], MIMEWord<'_>> {
 #[derive(PartialEq, ToStatic)]
 pub enum Word<'a> {
     Quoted(QuotedString<'a>),
-    Encoded(encoding::EncodedWord<'a>),
     Atom(Cow<'a, [u8]>),
 }
 
@@ -65,7 +64,6 @@ impl<'a> ToString for Word<'a> {
     fn to_string(&self) -> String {
         match self {
             Word::Quoted(v) => v.to_string(),
-            Word::Encoded(v) => v.to_string(),
             Word::Atom(v) => encoding_rs::UTF_8
                 .decode_without_bom_handling(v)
                 .0
@@ -89,13 +87,43 @@ impl<'a> fmt::Debug for Word<'a> {
 pub fn word(input: &[u8]) -> IResult<&[u8], Word<'_>> {
     alt((
         map(quoted_string, Word::Quoted),
-        map(encoded_word, Word::Encoded),
         map(atom, |a| Word::Atom(Cow::Borrowed(a))),
     ))(input)
 }
 
 #[derive(PartialEq, ToStatic)]
-pub struct Phrase<'a>(pub Vec<Word<'a>>);
+pub enum PhraseToken<'a> {
+    Word(Word<'a>),
+    Encoded(encoding::EncodedWord<'a>),
+}
+impl<'a> ToString for PhraseToken<'a> {
+    fn to_string(&self) -> String {
+        match self {
+            PhraseToken::Word(w) => w.to_string(),
+            PhraseToken::Encoded(e) => e.to_string(),
+        }
+    }
+}
+impl<'a> fmt::Debug for PhraseToken<'a> {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt.debug_tuple("PhraseToken")
+            .field(&format_args!("\"{}\"", self.to_string()))
+            .finish()
+    }
+}
+
+pub fn phrase_token(input: &[u8]) -> IResult<&[u8], PhraseToken<'_>> {
+    alt((
+        // NOTE: we must try `encoded_word` first because encoded words
+        // are also valid atoms
+        map(encoded_word, PhraseToken::Encoded),
+        map(word, PhraseToken::Word),
+    ))(input)
+}
+
+// Must be a non-empty list
+#[derive(PartialEq, ToStatic)]
+pub struct Phrase<'a>(pub Vec<PhraseToken<'a>>);
 
 impl<'a> ToString for Phrase<'a> {
     fn to_string(&self) -> String {
@@ -117,10 +145,14 @@ impl<'a> fmt::Debug for Phrase<'a> {
 /// Phrase
 ///
 /// ```abnf
-///    phrase          =   1*word / obs-phrase
+///    phrase          =   1*(encoded-word / word) / obs-phrase
 /// ```
+///
+/// (encoded-word comes from RFC2047)
+///
+/// TODO: obs-phrase
 pub fn phrase(input: &[u8]) -> IResult<&[u8], Phrase<'_>> {
-    let (input, phrase) = map(many1(word), Phrase)(input)?;
+    let (input, phrase) = map(many1(phrase_token), Phrase)(input)?;
     Ok((input, phrase))
 }
 

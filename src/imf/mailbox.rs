@@ -275,6 +275,7 @@ pub fn is_dtext(c: u8) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::text::misc_token::PhraseToken;
     use crate::text::quoted::QuotedString;
 
     #[test]
@@ -377,13 +378,14 @@ mod tests {
             Ok((
                 &b""[..],
                 MailboxRef {
-                    name: Some(Phrase(vec![Word::Quoted(QuotedString(vec![
-                        b"Joe"[..].into(),
-                        vec![ascii::SP].into(),
-                        b"Q."[..].into(),
-                        vec![ascii::SP].into(),
-                        b"Public"[..].into(),
-                    ]))])),
+                    name: Some(Phrase(vec![
+                        PhraseToken::Word(Word::Quoted(QuotedString(vec![
+                            b"Joe"[..].into(),
+                            vec![ascii::SP].into(),
+                            b"Q."[..].into(),
+                            vec![ascii::SP].into(),
+                            b"Public"[..].into(),
+                        ])))])),
                     addrspec: AddrSpec {
                         local_part: LocalPart(vec![
                             LocalPartToken::Word(Word::Atom(b"john"[..].into())),
@@ -404,8 +406,8 @@ mod tests {
                 &b""[..],
                 MailboxRef {
                     name: Some(Phrase(vec![
-                        Word::Atom(b"Mary"[..].into()),
-                        Word::Atom(b"Smith"[..].into())
+                        PhraseToken::Word(Word::Atom(b"Mary"[..].into())),
+                        PhraseToken::Word(Word::Atom(b"Smith"[..].into()))
                     ])),
                     addrspec: AddrSpec {
                         local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(b"mary"[..].into()))]),
@@ -434,7 +436,7 @@ mod tests {
             Ok((
                 &b""[..],
                 MailboxRef {
-                    name: Some(Phrase(vec![Word::Atom(b"Who?"[..].into())])),
+                    name: Some(Phrase(vec![PhraseToken::Word(Word::Atom(b"Who?"[..].into()))])),
                     addrspec: AddrSpec {
                         local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(b"one"[..].into()))]),
                         domain: Domain::Atoms(vec![b"y"[..].into(), b"test"[..].into()]),
@@ -462,15 +464,16 @@ mod tests {
             Ok((
                 &b""[..],
                 MailboxRef {
-                    name: Some(Phrase(vec![Word::Quoted(QuotedString(vec![
-                        b"Giant;"[..].into(),
-                        vec![ascii::SP].into(),
-                        vec![ascii::DQUOTE].into(),
-                        b"Big"[..].into(),
-                        vec![ascii::DQUOTE].into(),
-                        vec![ascii::SP].into(),
-                        b"Box"[..].into()
-                    ]))])),
+                    name: Some(Phrase(vec![
+                        PhraseToken::Word(Word::Quoted(QuotedString(vec![
+                            b"Giant;"[..].into(),
+                            vec![ascii::SP].into(),
+                            vec![ascii::DQUOTE].into(),
+                            b"Big"[..].into(),
+                            vec![ascii::DQUOTE].into(),
+                            vec![ascii::SP].into(),
+                            b"Box"[..].into()
+                        ])))])),
                     addrspec: AddrSpec {
                         local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(
                             b"sysservices"[..].into()

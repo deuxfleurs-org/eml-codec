@@ -167,7 +167,7 @@ mod tests {
     use crate::part::discrete::Text;
     use crate::part::AnyPart;
     use crate::text::encoding::{Base64Word, EncodedWord, QuotedChunk, QuotedWord};
-    use crate::text::misc_token::{Phrase, UnstrToken, UnstrTxtKind, Unstructured, Word};
+    use crate::text::misc_token::{Phrase, PhraseToken, UnstrToken, UnstrTxtKind, Unstructured, Word};
     use chrono::{FixedOffset, TimeZone};
 
     #[test]
@@ -306,7 +306,10 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                             .unwrap())),
                         from: vec![
                             imf::mailbox::MailboxRef {
-                                name: Some(Phrase(vec![Word::Atom(b"Grrrnd"[..].into()), Word::Atom(b"Zero"[..].into())])),
+                                name: Some(Phrase(vec![
+                                    PhraseToken::Word(Word::Atom(b"Grrrnd"[..].into())),
+                                    PhraseToken::Word(Word::Atom(b"Zero"[..].into())),
+                                ])),
                                 addrspec: imf::mailbox::AddrSpec {
                                     local_part: imf::mailbox::LocalPart(vec![
                                         imf::mailbox::LocalPartToken::Word(Word::Atom(b"grrrndzero"[..].into()))
@@ -317,7 +320,10 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                         ],
 
                         to: vec![imf::address::AddressRef::Single(imf::mailbox::MailboxRef {
-                                name: Some(Phrase(vec![Word::Atom(b"John"[..].into()), Word::Atom(b"Doe"[..].into())])),
+                                name: Some(Phrase(vec![
+                                    PhraseToken::Word(Word::Atom(b"John"[..].into())),
+                                    PhraseToken::Word(Word::Atom(b"Doe"[..].into())),
+                                ])),
                                 addrspec: imf::mailbox::AddrSpec {
                                     local_part: imf::mailbox::LocalPart(vec![
                                         imf::mailbox::LocalPartToken::Word(Word::Atom(b"jdoe"[..].into()))
@@ -328,14 +334,14 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
 
                         cc: vec![imf::address::AddressRef::Single(imf::mailbox::MailboxRef {
                             name: Some(Phrase(vec![
-                                Word::Encoded(EncodedWord::Quoted(QuotedWord {
+                                PhraseToken::Encoded(EncodedWord::Quoted(QuotedWord {
                                     enc: encoding_rs::WINDOWS_1252,
                                     chunks: vec![
                                         QuotedChunk::Safe(b"Andr"[..].into()),
                                         QuotedChunk::Encoded(vec![0xE9]),
                                     ],
                                 })),
-                                Word::Atom(b"Pirard"[..].into())
+                                PhraseToken::Word(Word::Atom(b"Pirard"[..].into())),
                             ])),
                             addrspec: imf::mailbox::AddrSpec {
                                 local_part: imf::mailbox::LocalPart(vec![
