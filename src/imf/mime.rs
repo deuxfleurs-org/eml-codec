@@ -1,39 +1,35 @@
 use bounded_static::ToStatic;
 use nom::{
-    bytes::complete::{tag, take},
-    combinator::{map, opt, verify},
+    character::complete::digit1,
+    bytes::complete::tag,
+    combinator::{map, opt},
     sequence::tuple,
     IResult,
 };
 
-use crate::text::ascii;
 use crate::text::whitespace::cfws;
 
 #[derive(Debug, PartialEq, ToStatic)]
 pub struct Version {
-    pub major: u8,
-    pub minor: u8,
+    pub major: u64,
+    pub minor: u64,
 }
 
 pub fn version(input: &[u8]) -> IResult<&[u8], Version> {
     let (rest, (_, major, _, _, _, minor, _)) = tuple((
         opt(cfws),
-        map(verify(take(1usize), is_digit), ascii_to_u8),
+        map(digit1, ascii_to_u64),
         opt(cfws),
         tag(b"."),
         opt(cfws),
-        map(verify(take(1usize), is_digit), ascii_to_u8),
+        map(digit1, ascii_to_u64),
         opt(cfws),
     ))(input)?;
     Ok((rest, Version { major, minor }))
 }
 
-fn is_digit(c: &[u8]) -> bool {
-    c[0] >= ascii::N0 && c[0] <= ascii::N9
-}
-
-fn ascii_to_u8(c: &[u8]) -> u8 {
-    c[0] - ascii::N0
+fn ascii_to_u64(c: &[u8]) -> u64 {
+    str::from_utf8(c).unwrap().parse().unwrap()
 }
 
 #[cfg(test)]
