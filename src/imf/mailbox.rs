@@ -247,7 +247,7 @@ fn obs_local_part(input: &[u8]) -> IResult<&[u8], LocalPart<'_>> {
 #[derive(Clone, PartialEq, ToStatic)]
 pub enum Domain<'a> {
     Atoms(Vec<Cow<'a, [u8]>>),
-    Literal(Vec<Cow<'a, [u8]>>),
+    Literal(Vec<Dtext<'a>>),
 }
 
 impl<'a> ToString for Domain<'a> {
@@ -266,12 +266,7 @@ impl<'a> ToString for Domain<'a> {
             Domain::Literal(v) => {
                 let inner = v
                     .iter()
-                    .map(|v| {
-                        encoding_rs::UTF_8
-                            .decode_without_bom_handling(v)
-                            .0
-                            .to_string()
-                    })
+                    .map(|dt| dt.to_string())
                     .collect::<Vec<String>>()
                     .join(" ");
                 format!("[{}]", inner)
@@ -307,8 +302,15 @@ impl<'a> Print for Domain<'a> {
 /// Rewritten so that obs_domain is a superset
 /// of strict_domain.
 ///
+/// RFC5322:
 /// ```abnf
-///  obs-domain      =   atom *("." atom) / domain-literal
+///  domain          =   dot-atom / domain-literal / obs-domain
+///  obs-domain      =   atom *("." atom)
+/// ```
+///
+/// we implement the equivalent form:
+/// ```abnf
+///  obs-domain      = atom *("." atom) / domain-literal
 /// ```
 pub fn obs_domain(input: &[u8]) -> IResult<&[u8], Domain<'_>> {
     alt((
@@ -332,13 +334,44 @@ fn domain_litteral(input: &[u8]) -> IResult<&[u8], Domain<'_>> {
 
 fn inner_domain_litteral(input: &[u8]) -> IResult<&[u8], Domain<'_>> {
     map(
-        terminated(many0(preceded(opt(fws), take_while1(is_dtext).map(Cow::Borrowed))), opt(fws)),
-        Domain::Literal,
+        terminated(many0(preceded(opt(fws), dtext)), opt(fws)),
+        Domain::Literal
     )(input)
 }
 
-fn is_strict_dtext(c: u8) -> bool {
-    (0x21..=0x5A).contains(&c) || (0x5E..=0x7E).contains(&c)
+#[derive(Clone, PartialEq, ToStatic)]
+pub struct Dtext<'a>(Cow<'a, [u8]>);
+
+impl<'a> ToString for Dtext<'a> {
+    fn to_string(&self) -> String {
+        encoding_rs::UTF_8
+            .decode_without_bom_handling(&self.0)
+            .0
+            .to_string()
+    }
+}
+impl<'a> fmt::Debug for Dtext<'a> {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt.debug_tuple("Dtext")
+            .field(&format_args!("\"{}\"", self.to_string()))
+            .finish()
+    }
+}
+
+impl<'a> Print for Dtext<'a> {
+    fn print(&self, fmt: &mut impl Formatter) -> std::io::Result<()> {
+        for &b in self.0.iter() {
+            // NOTE: we drop characters which are not part of the strict syntax.
+            // Unfortunately this can drop printable characters, if they were part
+            // of a quote (\X), which is accepted by the obsolete syntax. However,
+            // we have no better option than to drop those since there is no way
+            // to represent them in the strict syntax.
+            if is_strict_dtext(b) {
+                fmt.write_bytes(&[b])?;
+            }
+        }
+        Ok(())
+    }
 }
 
 /// Is domain text
@@ -349,9 +382,19 @@ fn is_strict_dtext(c: u8) -> bool {
 ///                       obs-dtext          ;  "[", "]", or "\"
 ///   obs-dtext       =   obs-NO-WS-CTL / quoted-pair
 /// ```
-pub fn is_dtext(c: u8) -> bool {
-    is_strict_dtext(c) || is_obs_no_ws_ctl(c)
+fn is_dtext(c: u8) -> bool {
+    is_strict_dtext(c) || is_obs_dtext(c)
+}
+fn is_strict_dtext(c: u8) -> bool {
+    (0x21..=0x5A).contains(&c) || (0x5E..=0x7E).contains(&c)
+}
+fn is_obs_dtext(c: u8) -> bool {
+    is_obs_no_ws_ctl(c)
     //@FIXME does not support quoted pair yet while RFC requires it
+}
+
+pub fn dtext<'a>(input: &'a [u8]) -> IResult<&'a [u8], Dtext<'a>> {
+    map(take_while1(is_dtext), |b| Dtext(Cow::Borrowed(b)))(input)
 }
 
 #[cfg(test)]
