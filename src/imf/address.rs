@@ -69,6 +69,7 @@ pub fn group(input: &[u8]) -> IResult<&[u8], GroupRef<'_>> {
 /// ```abnf
 ///    group-list      =   mailbox-list / CFWS / obs-group-list
 /// ```
+// TODO: obs-group-list
 pub fn group_list(input: &[u8]) -> IResult<&[u8], Vec<MailboxRef<'_>>> {
     alt((mailbox_list, mailbox_cfws))(input)
 }
@@ -83,6 +84,8 @@ fn mailbox_cfws(input: &[u8]) -> IResult<&[u8], Vec<MailboxRef<'_>>> {
 /// ```abnf
 ///    mailbox-list    =   (mailbox *("," mailbox)) / obs-mbox-list
 /// ```
+// TODO: obs-mbox-list
+// TODO: move to mailbox.rs?
 pub fn mailbox_list(input: &[u8]) -> IResult<&[u8], Vec<MailboxRef<'_>>> {
     separated_list1(tag(","), mailbox)(input)
 }
@@ -92,6 +95,7 @@ pub fn mailbox_list(input: &[u8]) -> IResult<&[u8], Vec<MailboxRef<'_>>> {
 /// ```abnf
 ///   address-list    =   (address *("," address)) / obs-addr-list
 /// ```
+// TODO: obs-addr-list
 pub fn address_list(input: &[u8]) -> IResult<&[u8], Vec<AddressRef<'_>>> {
     separated_list1(tag(","), address)(input)
 }
