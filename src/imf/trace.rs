@@ -21,7 +21,7 @@ pub enum ReceivedLogToken<'a> {
 #[derive(Debug, PartialEq, ToStatic)]
 pub struct ReceivedLog<'a> {
     pub log: Vec<ReceivedLogToken<'a>>,
-    pub date: Option<datetime::DateTime>,
+    pub date: datetime::DateTime,
 }
 
 /*
@@ -92,13 +92,12 @@ mod tests {
             Ok((
                 &b""[..],
                 ReceivedLog {
-                    date: Some(
-                        datetime::DateTime(
-                            FixedOffset::east_opt(0)
-                                .unwrap()
-                                .with_ymd_and_hms(2023, 06, 13, 19, 1, 8)
-                                .unwrap()
-                        )
+                    date:
+                    datetime::DateTime(
+                        FixedOffset::east_opt(0)
+                            .unwrap()
+                            .with_ymd_and_hms(2023, 06, 13, 19, 1, 8)
+                            .unwrap()
                     ),
                     log: vec![
                         ReceivedLogToken::Word(Word::Atom(b"from"[..].into())),

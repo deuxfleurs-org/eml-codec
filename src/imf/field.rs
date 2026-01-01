@@ -13,7 +13,7 @@ use crate::text::misc_token::{phrase_list, unstructured, PhraseList, Unstructure
 #[derive(Debug, PartialEq, ToStatic)]
 pub enum Field<'a> {
     // 3.6.1.  The Origination Date Field
-    Date(Option<DateTime>),
+    Date(DateTime),
 
     // 3.6.2.  Originator Fields
     From(MailboxList<'a>),

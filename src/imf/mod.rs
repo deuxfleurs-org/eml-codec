@@ -60,7 +60,7 @@ impl<'a> FromIterator<Field<'a>> for Imf<'a> {
     fn from_iter<I: IntoIterator<Item = Field<'a>>>(iter: I) -> Self {
         iter.into_iter().fold(Imf::default(), |mut section, field| {
             match field {
-                Field::Date(v) => section.date = v,
+                Field::Date(v) => section.date = Some(v),
                 Field::From(v) => section.from.extend(v),
                 Field::Sender(v) => section.sender = Some(v),
                 Field::ReplyTo(v) => section.reply_to.extend(v),
