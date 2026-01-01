@@ -8,6 +8,7 @@ use nom::{
     IResult,
 };
 
+use crate::display_bytes::{print_seq, Print, Formatter};
 use crate::imf::{datetime, mailbox};
 use crate::text::{ascii, misc_token, whitespace};
 
@@ -18,10 +19,29 @@ pub enum ReceivedLogToken<'a> {
     Word(misc_token::Word<'a>),
 }
 
+impl<'a> Print for ReceivedLogToken<'a> {
+    fn print(&self, fmt: &mut impl Formatter) -> std::io::Result<()> {
+        match self {
+            ReceivedLogToken::Addr(a) => a.print(fmt),
+            ReceivedLogToken::Domain(d) => d.print(fmt),
+            ReceivedLogToken::Word(w) => w.print(fmt),
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, ToStatic)]
 pub struct ReceivedLog<'a> {
     pub log: Vec<ReceivedLogToken<'a>>,
     pub date: datetime::DateTime,
+}
+
+impl<'a> Print for ReceivedLog<'a> {
+    fn print(&self, fmt: &mut impl Formatter) -> std::io::Result<()> {
+        print_seq(fmt, &self.log, Formatter::write_fws)?;
+        fmt.write_bytes(b";")?;
+        fmt.write_fws()?;
+        self.date.print(fmt)
+    }
 }
 
 /*
