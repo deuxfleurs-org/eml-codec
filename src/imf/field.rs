@@ -3,7 +3,7 @@ use nom::combinator::map;
 
 use crate::header;
 use crate::imf::address::{address_list, mailbox_list, nullable_address_list, AddressList};
-use crate::imf::{datetime::section as date, datetime::DateTime};
+use crate::imf::datetime::{date_time, DateTime};
 use crate::imf::identification::{msg_id, msg_list, MessageID, MessageIDList};
 use crate::imf::mailbox::{mailbox, AddrSpec, MailboxList, MailboxRef};
 use crate::imf::mime::{version, Version};
@@ -48,7 +48,7 @@ impl<'a> TryFrom<&header::FieldRaw<'a>> for Field<'a> {
         let content = match f {
             header::FieldRaw::Good(key, value) => {
                 match key.bytes().to_ascii_lowercase().as_slice() {
-                    b"date" => map(date, Field::Date)(value),
+                    b"date" => map(date_time, Field::Date)(value),
                     b"from" => map(mailbox_list, Field::From)(value),
                     b"sender" => map(mailbox, Field::Sender)(value),
                     b"reply-to" => map(address_list, Field::ReplyTo)(value),

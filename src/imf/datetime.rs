@@ -1,5 +1,5 @@
 use bounded_static::{IntoBoundedStatic, ToBoundedStatic};
-use chrono::{FixedOffset, NaiveDate, NaiveTime};
+use chrono::{Datelike, FixedOffset, NaiveDate, NaiveTime, Timelike};
 use nom::{
     branch::alt,
     bytes::complete::{is_a, tag, tag_no_case, take_while_m_n},
@@ -11,11 +11,27 @@ use nom::{
 };
 use std::fmt::{Debug, Formatter};
 
+use crate::display_bytes::{Print, Formatter as PFmt};
 use crate::text::whitespace::{cfws, fws};
 //use crate::error::IMFError;
 
 const MIN: i32 = 60;
 const HOUR: i32 = 60 * MIN;
+
+const MONTHS: &[&[u8]] = &[
+    b"Jan",
+    b"Feb",
+    b"Mar",
+    b"Apr",
+    b"May",
+    b"Jun",
+    b"Jul",
+    b"Aug",
+    b"Sep",
+    b"Oct",
+    b"Nov",
+    b"Dec",
+];
 
 /*
 impl<'a> TryFrom<&'a lazy::DateTime<'a>> for DateTime<FixedOffset> {
@@ -30,6 +46,9 @@ impl<'a> TryFrom<&'a lazy::DateTime<'a>> for DateTime<FixedOffset> {
     }
 }*/
 
+// NOTE: must satisfy the following properties:
+// - timezone offset: must be a round hours+minutes (no seconds)
+// - year must be after 1900 or later
 #[derive(Clone, PartialEq)]
 pub struct DateTime(pub chrono::DateTime<FixedOffset>);
 
@@ -59,6 +78,35 @@ impl ToBoundedStatic for DateTime {
     }
 }
 
+impl Print for DateTime {
+    fn print(&self, fmt: &mut impl PFmt) -> std::io::Result<()> {
+        // date
+        fmt.write_bytes(format!("{:02}", self.0.day()).as_bytes())?;
+        fmt.write_fws()?;
+        fmt.write_bytes(MONTHS[self.0.month0() as usize])?;
+        fmt.write_fws()?;
+        fmt.write_bytes(format!("{}", self.0.year()).as_bytes())?;
+        fmt.write_fws()?;
+        // time-of-day
+        fmt.write_bytes(format!("{:02}", self.0.hour()).as_bytes())?;
+        fmt.write_bytes(b":")?;
+        fmt.write_bytes(format!("{:02}", self.0.minute()).as_bytes())?;
+        fmt.write_bytes(b":")?;
+        fmt.write_bytes(format!("{:02}", self.0.second()).as_bytes())?;
+        fmt.write_fws()?;
+        // zone
+        let offset_secs = self.0.offset().local_minus_utc();
+        let sign = if offset_secs >= 0 { b"+" } else { b"-" };
+        let offset_mins = offset_secs.abs().rem_euclid(HOUR).div_euclid(MIN);
+        let offset_hours = offset_secs.abs().div_euclid(HOUR);
+        fmt.write_bytes(sign)?;
+        fmt.write_bytes(
+            format!("{:02}{:02}", offset_hours, offset_mins).as_bytes()
+        )?;
+        Ok(())
+    }
+}
+
 /// Read datetime
 ///
 /// ```abnf
@@ -74,7 +122,7 @@ impl ToBoundedStatic for DateTime {
 ///   - Obsolete military zones should be considered as NaiveTime
 /// due to an error in RFC0822 but are interpreted as their respective
 /// timezone according to the RFC5322 definition
-pub fn section(input: &[u8]) -> IResult<&[u8], Option<DateTime>> {
+pub fn date_time(input: &[u8]) -> IResult<&[u8], Option<DateTime>> {
     map(
         terminated(
             alt((
@@ -189,6 +237,9 @@ fn strict_year(input: &[u8]) -> IResult<&[u8], i32> {
 }
 
 ///   obs-year        =   [CFWS] 2*DIGIT [CFWS]
+// NOTE: RFC5322 defines obs-year as above, but also defines the interpretation
+// of three digit years (which are not covered by this grammar).
+// The implementation below thus also supports three digit years.
 fn obs_year(input: &[u8]) -> IResult<&[u8], i32> {
     map(
         delimited(
@@ -363,148 +414,126 @@ mod tests {
     use super::*;
     use chrono::TimeZone;
 
+    fn date_parsed_printed(date: &[u8], printed: &[u8], parsed: DateTime) {
+        assert_eq!(date_time(date).unwrap(), (&b""[..], Some(parsed.clone())));
+        let mut v = Vec::new();
+        parsed.print(&mut v).unwrap();
+        assert_eq!(String::from_utf8_lossy(&v), String::from_utf8_lossy(printed));
+    }
+
+
     #[test]
-    fn test_section_rfc_strict() {
-        assert_eq!(
-            section(b"Fri, 21 Nov 1997 09:55:06 -0600"),
-            Ok((
-                &b""[..],
-                Some(
-                    DateTime(
-                        FixedOffset::west_opt(6 * HOUR)
-                            .unwrap()
-                            .with_ymd_and_hms(1997, 11, 21, 9, 55, 6)
-                            .unwrap()
-                    )
-                )
-            )),
+    fn test_date_time_rfc_strict() {
+        date_parsed_printed(
+            b"Fri, 21 Nov 1997 09:55:06 -0600",
+            b"21 Nov 1997 09:55:06 -0600",
+            DateTime(
+                FixedOffset::west_opt(6 * HOUR)
+                    .unwrap()
+                    .with_ymd_and_hms(1997, 11, 21, 9, 55, 6)
+                    .unwrap()
+            )
         );
     }
 
     #[test]
-    fn test_section_received() {
-        assert_eq!(
-            section(b"Sun, 18 Jun 2023 15:39:08 +0200 (CEST)"),
-            Ok((
-                &b""[..],
-                Some(
-                    DateTime(
-                        FixedOffset::east_opt(2 * HOUR)
-                            .unwrap()
-                            .with_ymd_and_hms(2023, 6, 18, 15, 39, 8)
-                            .unwrap()
-                    )
-                )
-            )),
+    fn test_date_time_received() {
+        date_parsed_printed(
+            b"Sun, 18 Jun 2023 15:39:08 +0200 (CEST)",
+            b"18 Jun 2023 15:39:08 +0200",
+            DateTime(
+                FixedOffset::east_opt(2 * HOUR)
+                    .unwrap()
+                    .with_ymd_and_hms(2023, 6, 18, 15, 39, 8)
+                    .unwrap()
+            ),
         );
     }
 
     #[test]
-    fn test_section_rfc_ws() {
-        assert_eq!(
-            section(
+    fn test_date_time_rfc_ws() {
+        date_parsed_printed(
                 r#"Thu,
          13
            Feb
              1969
          23:32
                   -0330 (Newfoundland Time)"#
-                    .as_bytes()
-            ),
-            Ok((
-                &b""[..],
-                Some(
-                    DateTime(
-                        FixedOffset::west_opt(3 * HOUR + 30 * MIN)
-                            .unwrap()
-                            .with_ymd_and_hms(1969, 2, 13, 23, 32, 00)
-                            .unwrap()
-                    )
-                )
-            )),
+                    .as_bytes(),
+            b"13 Feb 1969 23:32:00 -0330",
+            DateTime(
+                FixedOffset::west_opt(3 * HOUR + 30 * MIN)
+                    .unwrap()
+                    .with_ymd_and_hms(1969, 2, 13, 23, 32, 00)
+                    .unwrap()
+            )
         );
     }
 
     #[test]
-    fn test_section_rfc_obs() {
-        assert_eq!(
-            section(b"21 Nov 97 09:55:06 GMT"),
-            Ok((
-                &b""[..],
-                Some(
-                    DateTime(
-                        FixedOffset::east_opt(0)
-                            .unwrap()
-                            .with_ymd_and_hms(1997, 11, 21, 9, 55, 6)
-                            .unwrap()
-                    )
-                )
-            )),
+    fn test_date_time_rfc_obs() {
+        date_parsed_printed(
+            b"21 Nov 97 09:55:06 GMT",
+            b"21 Nov 1997 09:55:06 +0000",
+            DateTime(
+                FixedOffset::east_opt(0)
+                    .unwrap()
+                    .with_ymd_and_hms(1997, 11, 21, 9, 55, 6)
+                    .unwrap()
+            )
         );
     }
 
     #[test]
-    fn test_section_3digit_year() {
-        assert_eq!(
-            section(b"21 Nov 103 09:55:06 UT"),
-            Ok((
-                &b""[..],
-                Some(
-                    DateTime(
-                        FixedOffset::east_opt(0)
-                            .unwrap()
-                            .with_ymd_and_hms(2003, 11, 21, 9, 55, 6)
-                            .unwrap()
-                    )
-                )
-            )),
+    fn test_date_time_3digit_year() {
+        date_parsed_printed(
+            b"21 Nov 103 09:55:06 UT",
+            b"21 Nov 2003 09:55:06 +0000",
+            DateTime(
+                FixedOffset::east_opt(0)
+                    .unwrap()
+                    .with_ymd_and_hms(2003, 11, 21, 9, 55, 6)
+                    .unwrap()
+            )
         );
     }
 
     #[test]
-    fn test_section_rfc_obs_ws() {
-        assert_eq!(
-            section(b"Fri, 21 Nov 1997 09(comment):   55  :  06 -0600"),
-            Ok((
-                &b""[..],
-                Some(
-                    DateTime(
-                        FixedOffset::west_opt(6 * HOUR)
-                            .unwrap()
-                            .with_ymd_and_hms(1997, 11, 21, 9, 55, 6)
-                            .unwrap()
-                    )
-                )
-            )),
+    fn test_date_time_rfc_obs_ws() {
+        date_parsed_printed(
+            b"Fri, 21 Nov 1997 09(comment):   55  :  06 -0600",
+            b"21 Nov 1997 09:55:06 -0600",
+            DateTime(
+                FixedOffset::west_opt(6 * HOUR)
+                    .unwrap()
+                    .with_ymd_and_hms(1997, 11, 21, 9, 55, 6)
+                    .unwrap()
+            )
         );
     }
 
     #[test]
-    fn test_section_2digit_year() {
-        assert_eq!(
-            section(b"21 Nov 23 09:55:06Z"),
-            Ok((
-                &b""[..],
-                Some(
-                    DateTime(
-                        FixedOffset::east_opt(0)
-                            .unwrap()
-                            .with_ymd_and_hms(2023, 11, 21, 9, 55, 6)
-                            .unwrap()
-                    )
-                )
-            )),
+    fn test_date_time_2digit_year() {
+        date_parsed_printed(
+            b"21 Nov 23 09:55:06Z",
+            b"21 Nov 2023 09:55:06 +0000",
+            DateTime(
+                FixedOffset::east_opt(0)
+                    .unwrap()
+                    .with_ymd_and_hms(2023, 11, 21, 9, 55, 6)
+                    .unwrap()
+            )
         );
     }
 
     #[test]
-    fn test_section_military_zone_east() {
+    fn test_date_time_military_zone_east() {
         ["a", "B", "c", "D", "e", "F", "g", "H", "i", "K", "l", "M"]
             .iter()
             .enumerate()
             .for_each(|(i, x)| {
                 assert_eq!(
-                    section(format!("1 Jan 22 08:00:00 {}", x).as_bytes()),
+                    date_time(format!("1 Jan 22 08:00:00 {}", x).as_bytes()),
                     Ok((
                         &b""[..],
                         Some(
@@ -521,13 +550,13 @@ mod tests {
     }
 
     #[test]
-    fn test_section_military_zone_west() {
+    fn test_date_time_military_zone_west() {
         ["N", "O", "P", "q", "r", "s", "T", "U", "V", "w", "x", "y"]
             .iter()
             .enumerate()
             .for_each(|(i, x)| {
                 assert_eq!(
-                    section(format!("1 Jan 22 08:00:00 {}", x).as_bytes()),
+                    date_time(format!("1 Jan 22 08:00:00 {}", x).as_bytes()),
                     Ok((
                         &b""[..],
                         Some(
@@ -544,108 +573,80 @@ mod tests {
     }
 
     #[test]
-    fn test_section_gmt() {
-        assert_eq!(
-            section(b"21 Nov 2023 07:07:07 +0000"),
-            Ok((
-                &b""[..],
-                Some(
-                    DateTime(
-                        FixedOffset::east_opt(0)
-                            .unwrap()
-                            .with_ymd_and_hms(2023, 11, 21, 7, 7, 7)
-                            .unwrap()
-                    )
-                )
-            )),
+    fn test_date_time_gmt() {
+        date_parsed_printed(
+            b"21 Nov 2023 07:07:07 +0000",
+            b"21 Nov 2023 07:07:07 +0000",
+            DateTime(
+                FixedOffset::east_opt(0)
+                    .unwrap()
+                    .with_ymd_and_hms(2023, 11, 21, 7, 7, 7)
+                    .unwrap()
+            )
         );
-        assert_eq!(
-            section(b"21 Nov 2023 07:07:07 -0000"),
-            Ok((
-                &b""[..],
-                Some(
-                    DateTime(
-                        FixedOffset::east_opt(0)
-                            .unwrap()
-                            .with_ymd_and_hms(2023, 11, 21, 7, 7, 7)
-                            .unwrap()
-                    )
-                )
-            )),
+        date_parsed_printed(
+            b"21 Nov 2023 07:07:07 -0000",
+            b"21 Nov 2023 07:07:07 +0000",
+            DateTime(
+                FixedOffset::east_opt(0)
+                    .unwrap()
+                    .with_ymd_and_hms(2023, 11, 21, 7, 7, 7)
+                    .unwrap()
+            )
         );
-        assert_eq!(
-            section(b"21 Nov 2023 07:07:07 Z"),
-            Ok((
-                &b""[..],
-                Some(
-                    DateTime(
-                        FixedOffset::east_opt(0)
-                            .unwrap()
-                            .with_ymd_and_hms(2023, 11, 21, 7, 7, 7)
-                            .unwrap()
-                    )
-                )
-            )),
+        date_parsed_printed(
+            b"21 Nov 2023 07:07:07 Z",
+            b"21 Nov 2023 07:07:07 +0000",
+            DateTime(
+                FixedOffset::east_opt(0)
+                    .unwrap()
+                    .with_ymd_and_hms(2023, 11, 21, 7, 7, 7)
+                    .unwrap()
+            )
         );
-        assert_eq!(
-            section(b"21 Nov 2023 07:07:07 GMT"),
-            Ok((
-                &b""[..],
-                Some(
-                    DateTime(
-                        FixedOffset::east_opt(0)
-                            .unwrap()
-                            .with_ymd_and_hms(2023, 11, 21, 7, 7, 7)
-                            .unwrap()
-                    )
-                )
-            )),
+        date_parsed_printed(
+            b"21 Nov 2023 07:07:07 GMT",
+            b"21 Nov 2023 07:07:07 +0000",
+            DateTime(
+                FixedOffset::east_opt(0)
+                    .unwrap()
+                    .with_ymd_and_hms(2023, 11, 21, 7, 7, 7)
+                    .unwrap()
+            )
         );
-        assert_eq!(
-            section(b"21 Nov 2023 07:07:07 UT"),
-            Ok((
-                &b""[..],
-                Some(
-                    DateTime(
-                        FixedOffset::east_opt(0)
-                            .unwrap()
-                            .with_ymd_and_hms(2023, 11, 21, 7, 7, 7)
-                            .unwrap()
-                    )
-                )
-            )),
+        date_parsed_printed(
+            b"21 Nov 2023 07:07:07 UT",
+            b"21 Nov 2023 07:07:07 +0000",
+            DateTime(
+                FixedOffset::east_opt(0)
+                    .unwrap()
+                    .with_ymd_and_hms(2023, 11, 21, 7, 7, 7)
+                    .unwrap()
+            )
         );
-        assert_eq!(
-            section(b"21 Nov 2023 07:07:07 UTC"),
-            Ok((
-                &b""[..],
-                Some(
-                    DateTime(
-                        FixedOffset::east_opt(0)
-                            .unwrap()
-                            .with_ymd_and_hms(2023, 11, 21, 7, 7, 7)
-                            .unwrap()
-                    )
-                )
-            )),
+        date_parsed_printed(
+            b"21 Nov 2023 07:07:07 UTC",
+            b"21 Nov 2023 07:07:07 +0000",
+            DateTime(
+                FixedOffset::east_opt(0)
+                    .unwrap()
+                    .with_ymd_and_hms(2023, 11, 21, 7, 7, 7)
+                    .unwrap()
+            )
         );
     }
 
     #[test]
-    fn test_section_usa() {
-        assert_eq!(
-            section(b"21 Nov 2023 4:4:4 CST"),
-            Ok((
-                &b""[..],
-                Some(
-                    DateTime(
-                        FixedOffset::west_opt(6 * HOUR)
-                            .unwrap()
-                            .with_ymd_and_hms(2023, 11, 21, 4, 4, 4)
-                            .unwrap()
-                    )
-                )
-            )),
+    fn test_date_time_usa() {
+        date_parsed_printed(
+            b"21 Nov 2023 4:4:4 CST",
+            b"21 Nov 2023 04:04:04 -0600",
+            DateTime(
+                FixedOffset::west_opt(6 * HOUR)
+                    .unwrap()
+                    .with_ymd_and_hms(2023, 11, 21, 4, 4, 4)
+                    .unwrap()
+            )
         );
     }
 }

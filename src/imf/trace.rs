@@ -37,7 +37,7 @@ impl<'a> TryFrom<&'a lazy::ReceivedLog<'a>> for ReceivedLog<'a> {
 
 pub fn received_log(input: &[u8]) -> IResult<&[u8], ReceivedLog<'_>> {
     map(
-        tuple((many0(received_tokens), tag(";"), datetime::section)),
+        tuple((many0(received_tokens), tag(";"), datetime::date_time)),
         |(tokens, _, dt)| ReceivedLog {
             log: tokens,
             date: dt,
