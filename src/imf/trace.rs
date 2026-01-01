@@ -44,6 +44,18 @@ impl<'a> Print for ReceivedLog<'a> {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, ToStatic)]
+pub struct ReturnPath<'a>(pub Option<mailbox::AddrSpec<'a>>);
+
+impl<'a> Print for ReturnPath<'a> {
+    fn print(&self, fmt: &mut impl Formatter) -> std::io::Result<()> {
+        match &self.0 {
+            Some(a) => a.print(fmt),
+            None => fmt.write_bytes(b"<>"),
+        }
+    }
+}
+
 /*
 impl<'a> TryFrom<&'a lazy::ReceivedLog<'a>> for ReceivedLog<'a> {
     type Error = IMFError<'a>;
@@ -65,11 +77,14 @@ pub fn received_log(input: &[u8]) -> IResult<&[u8], ReceivedLog<'_>> {
     )(input)
 }
 
-pub fn return_path(input: &[u8]) -> IResult<&[u8], Option<mailbox::AddrSpec<'_>>> {
-    alt((map(mailbox::angle_addr, Some), empty_path))(input)
+pub fn return_path(input: &[u8]) -> IResult<&[u8], ReturnPath<'_>> {
+    alt((
+        map(mailbox::angle_addr, |a| ReturnPath(Some(a))),
+        empty_path
+    ))(input)
 }
 
-fn empty_path(input: &[u8]) -> IResult<&[u8], Option<mailbox::AddrSpec<'_>>> {
+fn empty_path(input: &[u8]) -> IResult<&[u8], ReturnPath<'_>> {
     let (input, _) = tuple((
         opt(whitespace::cfws),
         tag(&[ascii::LT]),
@@ -77,7 +92,7 @@ fn empty_path(input: &[u8]) -> IResult<&[u8], Option<mailbox::AddrSpec<'_>>> {
         tag(&[ascii::GT]),
         opt(whitespace::cfws),
     ))(input)?;
-    Ok((input, None))
+    Ok((input, ReturnPath(None)))
 }
 
 fn received_tokens(input: &[u8]) -> IResult<&[u8], ReceivedLogToken<'_>> {

@@ -73,7 +73,7 @@ impl<'a> FromIterator<Field<'a>> for Imf<'a> {
                 Field::Subject(v) => section.subject = Some(v),
                 Field::Comments(v) => section.comments.push(v),
                 Field::Keywords(v) => section.keywords.push(v),
-                Field::ReturnPath(v) => v.map(|x| section.return_path.push(x)).unwrap_or(()),
+                Field::ReturnPath(v) => v.0.map(|x| section.return_path.push(x)).unwrap_or(()),
                 Field::Received(v) => section.received.push(v),
                 Field::MIMEVersion(v) => section.mime_version = Some(v),
             };
