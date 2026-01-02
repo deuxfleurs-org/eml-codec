@@ -2,7 +2,7 @@ use bounded_static::ToStatic;
 use nom::{
     branch::alt,
     bytes::complete::{tag, take_while1},
-    combinator::{all_consuming, into, map, opt},
+    combinator::{all_consuming, into, map, map_opt, opt},
     multi::{many0, separated_list1},
     sequence::{delimited, pair, preceded, terminated, tuple},
     IResult,
@@ -109,10 +109,24 @@ pub fn mailbox(input: &[u8]) -> IResult<&[u8], MailboxRef<'_>> {
 ///
 /// ```abnf
 ///    mailbox-list    =   (mailbox *("," mailbox)) / obs-mbox-list
+///    obs-mbox-list   =   *([CFWS] ",") mailbox *("," [mailbox / CFWS])
 /// ```
-// TODO: obs-mbox-list
 pub fn mailbox_list(input: &[u8]) -> IResult<&[u8], Vec<MailboxRef<'_>>> {
-    separated_list1(tag(","), mailbox)(input)
+    map_opt(mailbox_list_nullable, |v| (!v.is_empty()).then_some(v))(input)
+}
+
+// mailbox-list but allows the list to only contain "null" elements
+pub(crate) fn mailbox_list_nullable(input: &[u8]) -> IResult<&[u8], Vec<MailboxRef<'_>>> {
+    map(
+        separated_list1(
+            tag(","),
+            alt((
+                map(mailbox, Some),
+                map(opt(cfws), |_| None),
+            ))
+        ),
+        |v: Vec<Option<_>>| v.into_iter().flatten().collect()
+    )(input)
 }
 
 /// Name of the email address
@@ -405,6 +419,16 @@ fn is_obs_dtext(c: u8) -> bool {
 
 pub fn dtext<'a>(input: &'a [u8]) -> IResult<&'a [u8], Dtext<'a>> {
     map(take_while1(is_dtext), |b| Dtext(Cow::Borrowed(b)))(input)
+}
+
+// TODO: move to a utils file?
+pub(crate) fn vec_filter_none_nonempty<T>(v: Vec<Option<T>>) -> Option<Vec<T>> {
+    let v: Vec<T> = v.into_iter().flatten().collect();
+    if v.is_empty() {
+        None
+    } else {
+        Some(v)
+    }
 }
 
 #[cfg(test)]
@@ -758,6 +782,14 @@ mod tests {
         mailbox_list_reprint(
             r#"Mary Smith <mary@x.test>, jdoe@example.org, Who? <one@y.test>, <boss@nil.test>, "Giant; \"Big\" Box" <sysservices@example.net>"#.as_bytes(),
             r#"Mary Smith <mary@x.test>, jdoe@example.org, Who? <one@y.test>, boss@nil.test, "Giant; \"Big\" Box" <sysservices@example.net>"#.as_bytes(),
+        );
+    }
+
+    #[test]
+    fn test_mailbox_list_obs() {
+        mailbox_list_reprint(
+            b",foo@bar.com,,boss@nil.test,jdoe@example.org, \r\n ,,",
+            br#"foo@bar.com, boss@nil.test, jdoe@example.org"#,
         );
     }
 }

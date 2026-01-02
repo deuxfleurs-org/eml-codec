@@ -2,7 +2,7 @@ use bounded_static::ToStatic;
 use nom::{
     branch::alt,
     bytes::complete::tag,
-    combinator::{into, map, opt},
+    combinator::{into, map, map_opt, opt},
     multi::separated_list1,
     sequence::tuple,
     IResult,
@@ -10,7 +10,7 @@ use nom::{
 
 //use crate::error::IMFError;
 use crate::display_bytes::{print_seq, Print, Formatter};
-use crate::imf::mailbox::{mailbox, mailbox_list, MailboxRef};
+use crate::imf::mailbox::{mailbox, mailbox_list_nullable, MailboxRef, vec_filter_none_nonempty};
 use crate::text::misc_token::{phrase, Phrase};
 use crate::text::whitespace::cfws;
 
@@ -95,25 +95,29 @@ pub fn group(input: &[u8]) -> IResult<&[u8], GroupRef<'_>> {
 ///
 /// ```abnf
 ///    group-list      =   mailbox-list / CFWS / obs-group-list
+///    obs-group-list  =   1*([CFWS] ",") [CFWS]
 /// ```
-// TODO: obs-group-list
 pub fn group_list(input: &[u8]) -> IResult<&[u8], Vec<MailboxRef<'_>>> {
-    alt((mailbox_list, mailbox_cfws))(input)
-}
-
-fn mailbox_cfws(input: &[u8]) -> IResult<&[u8], Vec<MailboxRef<'_>>> {
-    let (input, _) = cfws(input)?;
-    Ok((input, vec![]))
+    mailbox_list_nullable(input)
 }
 
 /// Address list
 ///
 /// ```abnf
 ///   address-list    =   (address *("," address)) / obs-addr-list
+///   obs-addr-list   =   *([CFWS] ",") address *("," [address / CFWS])
 /// ```
-// TODO: obs-addr-list
 pub fn address_list(input: &[u8]) -> IResult<&[u8], Vec<AddressRef<'_>>> {
-    separated_list1(tag(","), address)(input)
+    map_opt(
+        separated_list1(
+            tag(","),
+            alt((
+                map(address, Some),
+                map(opt(cfws), |_| None),
+            ))
+        ),
+        vec_filter_none_nonempty
+    )(input)
 }
 
 pub fn address_list_cfws(input: &[u8]) -> IResult<&[u8], Vec<AddressRef<'_>>> {
@@ -135,6 +139,14 @@ mod tests {
 
     fn address_list_parsed_printed(addrlist: &[u8], printed: &[u8], parsed: AddressList<'_>) {
         assert_eq!(address_list(addrlist).unwrap(), (&b""[..], parsed.clone()));
+        let mut v = Vec::new();
+        parsed.print(&mut v).unwrap();
+        assert_eq!(String::from_utf8_lossy(&v), String::from_utf8_lossy(printed));
+    }
+
+    fn address_list_reprinted(addrlist: &[u8], printed: &[u8]) {
+        let (input, parsed) = address_list(addrlist).unwrap();
+        assert!(input.is_empty());
         let mut v = Vec::new();
         parsed.print(&mut v).unwrap();
         assert_eq!(String::from_utf8_lossy(&v), String::from_utf8_lossy(printed));
@@ -192,6 +204,14 @@ mod tests {
                 }),
             ],
         );
+    }
+
+    #[test]
+    fn test_address_list_obs() {
+        address_list_reprinted(
+            br#"  ,,A Group:Ed Jones <c@a.test>,,,,joe@where.test,John <jdoe@one.test>;, Mary Smith <mary@x.test>,,"#,
+            br#"A Group:Ed Jones <c@a.test>, joe@where.test, John <jdoe@one.test>;, Mary Smith <mary@x.test>"#,
+        )
     }
 
     use crate::text::encoding::{EncodedWord, QuotedChunk, QuotedWord};
@@ -259,5 +279,44 @@ mod tests {
                 }),
             ],
         );
+
+        address_list_parsed_printed(
+            b"group:;",
+            b"group:;",
+            vec![AddressRef::Many(GroupRef {
+                name: Phrase(vec![PhraseToken::Word(Word::Atom(b"group".into()))]),
+                participants: vec![],
+            })],
+        );
+
+        address_list_parsed_printed(
+            b"group: \r\n ;",
+            b"group:;",
+            vec![AddressRef::Many(GroupRef {
+                name: Phrase(vec![PhraseToken::Word(Word::Atom(b"group".into()))]),
+                participants: vec![],
+            })],
+        );
+    }
+
+    #[test]
+    fn test_obs_groups() {
+        address_list_parsed_printed(
+            b"group: ,,  \r\n  ,,,, ;",
+            b"group:;",
+            vec![AddressRef::Many(GroupRef {
+                name: Phrase(vec![PhraseToken::Word(Word::Atom(b"group".into()))]),
+                participants: vec![],
+            })],
+        );
+
+        address_list_parsed_printed(
+            b"group:,;",
+            b"group:;",
+            vec![AddressRef::Many(GroupRef {
+                name: Phrase(vec![PhraseToken::Word(Word::Atom(b"group".into()))]),
+                participants: vec![],
+            })],
+        )
     }
 }
