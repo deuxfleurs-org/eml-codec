@@ -3,10 +3,10 @@ use nom::combinator::map;
 
 use crate::display_bytes::{Print, Formatter};
 use crate::header;
-use crate::imf::address::{address_list, mailbox_list, nullable_address_list, AddressList};
+use crate::imf::address::{address_list, nullable_address_list, AddressList};
 use crate::imf::datetime::{date_time, DateTime};
 use crate::imf::identification::{msg_id, msg_list, MessageID, MessageIDList};
-use crate::imf::mailbox::{mailbox, MailboxList, MailboxRef};
+use crate::imf::mailbox::{mailbox, mailbox_list, MailboxList, MailboxRef};
 use crate::imf::mime::{version, Version};
 use crate::imf::trace::{received_log, return_path, ReceivedLog, ReturnPath};
 use crate::text::misc_token::{phrase_list, unstructured, PhraseList, Unstructured};

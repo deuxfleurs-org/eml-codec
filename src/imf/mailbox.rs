@@ -105,6 +105,16 @@ pub fn mailbox(input: &[u8]) -> IResult<&[u8], MailboxRef<'_>> {
     alt((name_addr, into(addr_spec)))(input)
 }
 
+/// Mailbox list
+///
+/// ```abnf
+///    mailbox-list    =   (mailbox *("," mailbox)) / obs-mbox-list
+/// ```
+// TODO: obs-mbox-list
+pub fn mailbox_list(input: &[u8]) -> IResult<&[u8], Vec<MailboxRef<'_>>> {
+    separated_list1(tag(","), mailbox)(input)
+}
+
 /// Name of the email address
 ///
 /// ```abnf
@@ -442,6 +452,14 @@ mod tests {
         assert_eq!(String::from_utf8_lossy(printed), String::from_utf8_lossy(&v));
     }
 
+    fn mailbox_list_reprint(mboxlist: &[u8], printed: &[u8]) {
+        let (input, parsed) = mailbox_list(mboxlist).unwrap();
+        assert!(input.is_empty());
+        let mut v = Vec::new();
+        parsed.print(&mut v).unwrap();
+        assert_eq!(String::from_utf8_lossy(&v), String::from_utf8_lossy(printed));
+    }
+
     #[test]
     fn test_addr_spec() {
         addr_roundtrip_as(
@@ -727,6 +745,19 @@ mod tests {
                 }
             },
             b"mark_kopinski/intl/acim/americancentury@americancentury.com",
+        );
+    }
+
+    #[test]
+    fn test_mailbox_list() {
+        mailbox_list_reprint(
+            r#"Pete(A nice \) chap) <pete(his account)@silly.test(his host)>"#.as_bytes(),
+            b"Pete <pete@silly.test>",
+        );
+
+        mailbox_list_reprint(
+            r#"Mary Smith <mary@x.test>, jdoe@example.org, Who? <one@y.test>, <boss@nil.test>, "Giant; \"Big\" Box" <sysservices@example.net>"#.as_bytes(),
+            r#"Mary Smith <mary@x.test>, jdoe@example.org, Who? <one@y.test>, boss@nil.test, "Giant; \"Big\" Box" <sysservices@example.net>"#.as_bytes(),
         );
     }
 }

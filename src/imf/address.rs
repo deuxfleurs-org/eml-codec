@@ -10,7 +10,7 @@ use nom::{
 
 //use crate::error::IMFError;
 use crate::display_bytes::{print_seq, Print, Formatter};
-use crate::imf::mailbox::{mailbox, MailboxRef};
+use crate::imf::mailbox::{mailbox, mailbox_list, MailboxRef};
 use crate::text::misc_token::{phrase, Phrase};
 use crate::text::whitespace::cfws;
 
@@ -106,17 +106,6 @@ fn mailbox_cfws(input: &[u8]) -> IResult<&[u8], Vec<MailboxRef<'_>>> {
     Ok((input, vec![]))
 }
 
-/// Mailbox list
-///
-/// ```abnf
-///    mailbox-list    =   (mailbox *("," mailbox)) / obs-mbox-list
-/// ```
-// TODO: obs-mbox-list
-// TODO: move to mailbox.rs?
-pub fn mailbox_list(input: &[u8]) -> IResult<&[u8], Vec<MailboxRef<'_>>> {
-    separated_list1(tag(","), mailbox)(input)
-}
-
 /// Address list
 ///
 /// ```abnf
@@ -144,32 +133,11 @@ mod tests {
     use crate::imf::mailbox::{AddrSpec, Domain, LocalPart, LocalPartToken};
     use crate::text::misc_token::{Phrase, PhraseToken, Word};
 
-    fn mailbox_list_reprint(mboxlist: &[u8], printed: &[u8]) {
-        let (input, parsed) = mailbox_list(mboxlist).unwrap();
-        assert!(input.is_empty());
-        let mut v = Vec::new();
-        parsed.print(&mut v).unwrap();
-        assert_eq!(String::from_utf8_lossy(&v), String::from_utf8_lossy(printed));
-    }
-
     fn address_list_parsed_printed(addrlist: &[u8], printed: &[u8], parsed: AddressList<'_>) {
         assert_eq!(address_list(addrlist).unwrap(), (&b""[..], parsed.clone()));
         let mut v = Vec::new();
         parsed.print(&mut v).unwrap();
         assert_eq!(String::from_utf8_lossy(&v), String::from_utf8_lossy(printed));
-    }
-
-    #[test]
-    fn test_mailbox_list() {
-        mailbox_list_reprint(
-            r#"Pete(A nice \) chap) <pete(his account)@silly.test(his host)>"#.as_bytes(),
-            b"Pete <pete@silly.test>",
-        );
-
-        mailbox_list_reprint(
-            r#"Mary Smith <mary@x.test>, jdoe@example.org, Who? <one@y.test>, <boss@nil.test>, "Giant; \"Big\" Box" <sysservices@example.net>"#.as_bytes(),
-            r#"Mary Smith <mary@x.test>, jdoe@example.org, Who? <one@y.test>, boss@nil.test, "Giant; \"Big\" Box" <sysservices@example.net>"#.as_bytes(),
-        );
     }
 
     #[test]
