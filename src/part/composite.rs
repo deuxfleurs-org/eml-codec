@@ -170,6 +170,7 @@ mod tests {
     use crate::text::encoding::{Base64Word, EncodedWord, QuotedChunk, QuotedWord};
     use crate::text::misc_token::{Phrase, PhraseToken, UnstrToken, UnstrTxtKind, Unstructured, Word};
     use chrono::{FixedOffset, TimeZone};
+    use pretty_assertions::assert_eq;
 
     #[test]
     fn test_multipart() {
@@ -236,6 +237,78 @@ This is the epilogue. It is also to be ignored.
                                 fields: mime::CommonMIME::default(),
                             },
                             body: b"This is explicitly typed plain US-ASCII text.\nIt DOES end with a linebreak.\n"[..].into(),
+                        }),
+                    ],
+                },
+            ))
+        );
+    }
+
+    // The terminator of a multipart entity can be missing.
+    // This should be properly handled even for nested multiparts
+    // (RFC2046 specifies that this in sec 5.1.2).
+    #[test]
+    fn test_nested_multipart_inner_broken() {
+        let base_mime = mime::MIME {
+            ctype: mime::r#type::Multipart {
+                subtype: mime::r#type::MultipartSubtype::Mixed,
+                boundary: b"outer boundary".to_vec(),
+            },
+            fields: mime::CommonMIME::default(),
+        };
+
+        let input = b"
+--outer boundary
+Content-Type: multipart/mixed; boundary=\"inner boundary\"
+
+--inner boundary
+
+This is the inner part; it misses its terminator
+--outer boundary
+
+This is implicitly typed plain US-ASCII text.
+--outer boundary--";
+
+        assert_eq!(
+            multipart(base_mime.clone())(input),
+            Ok((&b""[..],
+                Multipart {
+                    mime: base_mime,
+                    preamble: b"".into(),
+                    epilogue: b"".into(),
+                    children: vec![
+                        AnyPart::Mult(Multipart {
+                            mime: mime::MIME {
+                                ctype: mime::r#type::Multipart {
+                                    subtype: mime::r#type::MultipartSubtype::Mixed,
+                                    boundary: b"inner boundary".to_vec(),
+                                },
+                                fields: mime::CommonMIME::default(),
+                            },
+                            preamble: b"".into(),
+                            epilogue: b"".into(),
+                            children: vec![
+                                AnyPart::Txt(Text {
+                                    mime: mime::MIME {
+                                        ctype: mime::r#type::Deductible::Inferred(mime::r#type::Text {
+                                            subtype: mime::r#type::TextSubtype::Plain,
+                                            charset: mime::r#type::Deductible::Inferred(mime::charset::EmailCharset::US_ASCII),
+                                        }),
+                                        fields: mime::CommonMIME::default(),
+                                    },
+                                    body: b"This is the inner part; it misses its terminator"[..].into(),
+                                })
+                            ],
+                        }),
+                        AnyPart::Txt(Text {
+                            mime: mime::MIME {
+                                ctype: mime::r#type::Deductible::Inferred(mime::r#type::Text {
+                                    subtype: mime::r#type::TextSubtype::Plain,
+                                    charset: mime::r#type::Deductible::Inferred(mime::charset::EmailCharset::US_ASCII),
+                                }),
+                                fields: mime::CommonMIME::default(),
+                            },
+                            body: b"This is implicitly typed plain US-ASCII text."[..].into(),
                         }),
                     ],
                 },

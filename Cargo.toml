@@ -32,4 +32,4 @@ bounded-static = { version = "0.8.0", features = ["derive"] }
 
 [dev-dependencies]
 walkdir = "2"
-
+pretty_assertions = "1.4.1"
