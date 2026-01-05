@@ -36,7 +36,7 @@ pub fn multipart<'a>(
 
     move |input| {
         // init
-        let bound = m.ctype.boundary.as_bytes();
+        let bound = &m.ctype.boundary;
         let mut mparts: Vec<AnyPart> = vec![];
 
         // preamble
@@ -176,7 +176,7 @@ mod tests {
         let base_mime = mime::MIME {
             ctype: mime::r#type::Multipart {
                 subtype: mime::r#type::MultipartSubtype::Alternative,
-                boundary: "simple boundary".to_string(),
+                boundary: b"simple boundary".to_vec(),
             },
             fields: mime::CommonMIME::default(),
         };
@@ -377,7 +377,7 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                         mime: mime::MIME {
                             ctype: mime::r#type::Multipart {
                                 subtype: mime::r#type::MultipartSubtype::Alternative,
-                                boundary: "b1_e376dc71bafc953c0b0fdeb9983a9956".to_string(),
+                                boundary: b"b1_e376dc71bafc953c0b0fdeb9983a9956".to_vec(),
                             },
                             fields: mime::CommonMIME {
                                 uninterp_headers: vec![

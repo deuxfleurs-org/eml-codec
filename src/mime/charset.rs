@@ -113,7 +113,7 @@ impl EmailCharset {
             Big5 => "Big5",
             KOI8_R => "KOI8-R",
             UTF_8 => "UTF-8",
-            Unknown => "UTF-8",
+            Unknown => "UTF-8", // XXX is this what we want? (what about X- charsets)
         }
     }
 

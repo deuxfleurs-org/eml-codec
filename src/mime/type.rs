@@ -9,6 +9,7 @@ use nom::{
 use std::borrow::Cow;
 use std::fmt;
 
+use crate::display_bytes::{Print, Formatter};
 use crate::mime::charset::EmailCharset;
 use crate::text::misc_token::{mime_word, MIMEWord};
 use crate::text::words::mime_atom;
@@ -68,6 +69,7 @@ pub fn parameter(input: &[u8]) -> IResult<&[u8], Parameter<'_>> {
         },
     )(input)
 }
+// XXX the final optional ; is not specified in RFC2045
 pub fn parameter_list(input: &[u8]) -> IResult<&[u8], Vec<Parameter<'_>>> {
     terminated(many0(preceded(tag(";"), parameter)), opt(tag(";")))(input)
 }
@@ -98,6 +100,38 @@ impl<'a> From<&'a NaiveType<'a>> for AnyType {
     }
 }
 
+impl Print for AnyType {
+    fn print(&self, fmt: &mut impl Formatter) -> std::io::Result<()> {
+        match self {
+            AnyType::Multipart(mp) => {
+                fmt.write_bytes(b"multipart/")?;
+                fmt.write_bytes(mp.subtype.to_string().as_bytes())?;
+                fmt.write_bytes(b";")?;
+                fmt.write_fws()?;
+                // always quote the boundary ("never hurts" says RFC2046)
+                fmt.write_bytes(b"boundary=\"")?;
+                fmt.write_bytes(&mp.boundary)?;
+                fmt.write_bytes(b"\"")
+            },
+            AnyType::Message(msg) => {
+                fmt.write_bytes(b"message/")?;
+                fmt.write_bytes(msg.value().subtype.to_string().as_bytes())
+            },
+            AnyType::Text(txt) => {
+                fmt.write_bytes(b"text/")?;
+                fmt.write_bytes(txt.value().subtype.to_string().as_bytes())?;
+                fmt.write_bytes(b";")?;
+                fmt.write_fws()?;
+                fmt.write_bytes(b"charset=")?;
+                fmt.write_bytes(txt.value().charset.value().as_str().as_bytes())
+            },
+            AnyType::Binary(_bin) => {
+                fmt.write_bytes(b"application/octet-stream")
+            }
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Clone, ToStatic)]
 pub enum Deductible<T: Default> {
     Inferred(T),
@@ -108,13 +142,21 @@ impl<T: Default> Default for Deductible<T> {
         Self::Inferred(T::default())
     }
 }
+impl<T: Default> Deductible<T> {
+    fn value(&self) -> &T {
+        match self {
+            Deductible::Inferred(x) => x,
+            Deductible::Explicit(x) => x,
+        }
+    }
+}
 
 // REAL PARTS
 
 #[derive(Debug, PartialEq, Clone, ToStatic)]
 pub struct Multipart {
     pub subtype: MultipartSubtype,
-    pub boundary: String,
+    pub boundary: Vec<u8>,
 }
 impl Multipart {
     pub fn main_type(&self) -> String {
@@ -130,7 +172,7 @@ impl<'a> TryFrom<&'a NaiveType<'a>> for Multipart {
             .find(|x| x.name.to_ascii_lowercase().as_slice() == b"boundary")
             .map(|boundary| Multipart {
                 subtype: MultipartSubtype::from(nt),
-                boundary: boundary.value.to_string(),
+                boundary: boundary.value.bytes().collect(),
             })
             .ok_or(())
     }
@@ -194,6 +236,7 @@ impl ToString for MessageSubtype {
 pub type DeductibleMessage = Deductible<Message>;
 #[derive(Debug, PartialEq, Default, Clone, ToStatic)]
 pub struct Message {
+    // XXX no parameters? required for 'partial' and 'external'
     pub subtype: MessageSubtype,
 }
 impl<'a> From<&NaiveType<'a>> for Message {
@@ -276,7 +319,9 @@ impl<'a> From<&NaiveType<'a>> for TextSubtype {
 }
 
 #[derive(Debug, PartialEq, Default, Clone, ToStatic)]
-pub struct Binary {}
+pub struct Binary {
+    // XXX forward content types even if not interpreted?
+}
 
 #[cfg(test)]
 mod tests {
@@ -345,6 +390,20 @@ mod tests {
             nt.to_type(),
             AnyType::Message(Deductible::Explicit(Message {
                 subtype: MessageSubtype::RFC822
+            }))
+        );
+    }
+
+    #[test]
+    fn test_content_type_comment() {
+        let (rest, nt) = naive_type(b"text/plain; charset=\"us-ascii\" (Plain text)").unwrap();
+        assert_eq!(rest, &[]);
+
+        assert_eq!(
+            nt.to_type(),
+            AnyType::Text(Deductible::Explicit(Text {
+                subtype: TextSubtype::Plain,
+                charset: Deductible::Explicit(EmailCharset::US_ASCII),
             }))
         );
     }

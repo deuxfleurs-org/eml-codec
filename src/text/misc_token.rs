@@ -45,6 +45,9 @@ impl<'a> Print for PhraseList<'a> {
     }
 }
 
+// NOTE: this is not equivalent to `Word` because `MIMEWord::Atom`
+// does not allow the same characters as `Word::Atom` (see the definitions
+// of `mime_atom` and `atom`).
 #[derive(Debug, PartialEq, Clone, ToStatic)]
 pub enum MIMEWord<'a> {
     Quoted(QuotedString<'a>),
@@ -71,6 +74,15 @@ pub fn mime_word(input: &[u8]) -> IResult<&[u8], MIMEWord<'_>> {
         map(quoted_string, MIMEWord::Quoted),
         map(mime_atom, |a| MIMEWord::Atom(Cow::Borrowed(a))),
     ))(input)
+}
+
+impl<'a> MIMEWord<'a> {
+    pub fn bytes<'b>(&'b self) -> WordBytes<'a, 'b> {
+        match self {
+            MIMEWord::Quoted(q) => WordBytes::Quoted(q.bytes()),
+            MIMEWord::Atom(a) => WordBytes::Atom(a.iter()),
+        }
+    }
 }
 
 #[derive(Clone, PartialEq, ToStatic)]
