@@ -1,4 +1,5 @@
 use bounded_static::ToStatic;
+use crate::display_bytes::{Print, Formatter};
 use crate::text::whitespace::cfws;
 use crate::text::words::mime_atom as token;
 use nom::{
@@ -32,6 +33,11 @@ impl<'a> ToString for Mechanism<'a> {
             Other(x) => &x,
         };
         String::from_utf8_lossy(buf).to_string()
+    }
+}
+impl<'a> Print for Mechanism<'a> {
+    fn print(&self, fmt: &mut impl Formatter) -> std::io::Result<()> {
+        fmt.write_bytes(self.to_string().as_bytes())
     }
 }
 
