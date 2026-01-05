@@ -40,6 +40,20 @@ impl<'a> Print for Mechanism<'a> {
         fmt.write_bytes(self.to_string().as_bytes())
     }
 }
+impl<'a> Mechanism<'a> {
+    // RFC2046: for entities of type "multipart", no encoding
+    // other than 7bit, 8bit and binary is permitted.
+    // This converts a `Mechanism` to ensure it belongs to
+    // one of these three encodings, defaulting to 7bit in case
+    // of an invalid value.
+    pub fn to_multipart_encoding(&self) -> Mechanism<'static> {
+        match self {
+            Mechanism::_8Bit => Mechanism::_8Bit,
+            Mechanism::Binary => Mechanism::Binary,
+            _ => Mechanism::_7Bit,
+        }
+    }
+}
 
 pub fn mechanism(input: &[u8]) -> IResult<&[u8], Mechanism<'_>> {
     use Mechanism::*;

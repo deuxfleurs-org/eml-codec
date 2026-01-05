@@ -142,7 +142,14 @@ impl<'a> NaiveMIME<'a> {
         match typ {
             AnyType::Multipart(ctype) => AnyMIME::Mult(MIME {
                 ctype,
-                fields: self.fields,
+                fields: CommonMIME {
+                    // Ensure we are using an encoding allowed for multipart
+                    transfer_encoding: self
+                        .fields
+                        .transfer_encoding
+                        .to_multipart_encoding(),
+                    ..self.fields
+                },
             }),
             AnyType::Message(ctype) => AnyMIME::Msg(MIME {
                 ctype,
