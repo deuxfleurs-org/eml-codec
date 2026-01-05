@@ -104,6 +104,8 @@ pub fn multipart<'a>(
             // parse mime body
             // -- we do not keep the input as we are using the
             // part_raw function as our cursor here.
+            // XXX this can be an (indirect) recursive call;
+            // -> risk of stack overflow
             let (_, part) = part::anypart(mime)(rpart)?;
             mparts.push(part);
 

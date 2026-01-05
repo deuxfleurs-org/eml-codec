@@ -120,6 +120,7 @@ pub fn anypart<'a>(m: AnyMIME<'a>) -> impl FnOnce(&'a [u8]) -> IResult<&'a [u8],
 
 pub fn part_raw<'a>(bound: &[u8]) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], &'a [u8]> + '_ {
     move |input| {
+        // XXX could this parser be defined in a way that matches the spec more naturally?
         recognize(many0(pair(
             not(boundary(bound)),
             alt((is_not(CRLF), obs_crlf)),

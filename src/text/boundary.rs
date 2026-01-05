@@ -17,11 +17,11 @@ pub enum Delimiter {
 pub fn boundary<'a>(boundary: &[u8]) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], Delimiter> + '_ {
     move |input: &[u8]| {
         let (rest, (_, _, _, last, _)) = tuple((
-            opt(obs_crlf),
+            opt(obs_crlf), // XXX is this opt spec compliant??
             tag(b"--"),
             tag(boundary),
             opt(tag(b"--")),
-            alt((obs_crlf, eof)),
+            alt((obs_crlf, eof)), // XXX obs_crlf is not exactly spec compliant
         ))(input)?;
         match last {
             Some(_) => Ok((rest, Delimiter::Last)),
