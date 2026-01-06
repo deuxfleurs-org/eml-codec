@@ -2,7 +2,7 @@ use bounded_static::ToStatic;
 use nom::{
     branch::alt,
     bytes::complete::{tag, take_while},
-    combinator::opt,
+    combinator::{map, opt},
     multi::many1,
     sequence::{delimited, pair, tuple},
     IResult,
@@ -10,6 +10,7 @@ use nom::{
 use std::borrow::Cow;
 use std::fmt;
 
+use crate::display_bytes::{print_seq, Print, Formatter};
 use crate::imf::mailbox::is_dtext;
 use crate::text::whitespace::cfws;
 use crate::text::words::dot_atom_text;
@@ -35,7 +36,26 @@ impl<'a> fmt::Debug for MessageID<'a> {
             .finish()
     }
 }
-pub type MessageIDList<'a> = Vec<MessageID<'a>>;
+// TODO: drop obs parts (when implemented?)
+impl<'a> Print for MessageID<'a> {
+    fn print(&self, fmt: &mut impl Formatter) -> std::io::Result<()> {
+        fmt.write_bytes(b"<")?;
+        fmt.write_bytes(&self.left)?;
+        fmt.write_bytes(b"@")?;
+        self.right.print(fmt)?;
+        fmt.write_bytes(b">")
+    }
+}
+
+// Must be non-empty
+#[derive(PartialEq, Clone, Debug, ToStatic)]
+pub struct MessageIDList<'a>(pub Vec<MessageID<'a>>);
+
+impl<'a> Print for MessageIDList<'a> {
+    fn print(&self, fmt: &mut impl Formatter) -> std::io::Result<()> {
+        print_seq(fmt, &self.0, Formatter::write_fws)
+    }
+}
 
 /// Message identifier
 ///
@@ -54,7 +74,7 @@ pub fn msg_id(input: &[u8]) -> IResult<&[u8], MessageID<'_>> {
 }
 
 pub fn msg_list(input: &[u8]) -> IResult<&[u8], MessageIDList<'_>> {
-    many1(msg_id)(input)
+    map(many1(msg_id), MessageIDList)(input)
 }
 
 // @FIXME Missing obsolete
