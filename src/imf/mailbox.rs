@@ -105,6 +105,8 @@ fn obs_route(input: &[u8]) -> IResult<&[u8], Vec<Option<Domain<'_>>>> {
 ///    obs-domain-list =   *(CFWS / ",") "@" domain
 ///                        *("," [CFWS] ["@" domain])
 /// ```
+// XXX this doesn't seem to allow commas at the front as specified by the
+// grammar above
 fn obs_domain_list(input: &[u8]) -> IResult<&[u8], Vec<Option<Domain<'_>>>> {
     preceded(
         many0(cfws),
@@ -120,8 +122,6 @@ fn obs_domain_list(input: &[u8]) -> IResult<&[u8], Vec<Option<Domain<'_>>>> {
 /// ```abnf
 ///    addr-spec       =   local-part "@" domain
 /// ```
-/// @FIXME: this system does not work to alternate between strict and obsolete
-/// so I force obsolete for now...
 pub fn addr_spec(input: &[u8]) -> IResult<&[u8], AddrSpec<'_>> {
     map(
         tuple((
