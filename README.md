@@ -89,6 +89,7 @@ RFC
 | 🔴 |9228  | ↳ Delivered-To Email Header Field |
 |    |      | **MIME extensions** |
 | 🔴 |1847  | ↳ Security Multiparts for MIME: Multipart/Signed and Multipart/Encrypted |
+| 🔴 |2231  | ↳ MIME Parameter Value and Encoded Word Extensions: Character Sets, Languages, and Continuations |
 | 🔴 |2387  | ↳ The MIME Multipart/Related Content-type |
 | 🔴 |3462  | ↳ The Multipart/Report Content Type for the Reporting of Mail System Administrative Messages |
 | 🔴 |3798  | ↳ Message Disposition Notification |

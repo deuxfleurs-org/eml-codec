@@ -16,11 +16,11 @@ use crate::text::ascii;
 use crate::text::whitespace::cfws;
 use crate::text::words;
 
-pub fn encoded_word(input: &[u8]) -> IResult<&[u8], EncodedWord> {
+pub fn encoded_word(input: &[u8]) -> IResult<&[u8], EncodedWord<'_>> {
     alt((encoded_word_quoted, encoded_word_base64))(input)
 }
 
-pub fn encoded_word_quoted(input: &[u8]) -> IResult<&[u8], EncodedWord> {
+pub fn encoded_word_quoted(input: &[u8]) -> IResult<&[u8], EncodedWord<'_>> {
     let (rest, (_, _, charset, _, _, _, txt, _, _)) = tuple((
         opt(cfws),
         tag("=?"),
@@ -41,7 +41,7 @@ pub fn encoded_word_quoted(input: &[u8]) -> IResult<&[u8], EncodedWord> {
     Ok((rest, parsed))
 }
 
-pub fn encoded_word_base64(input: &[u8]) -> IResult<&[u8], EncodedWord> {
+pub fn encoded_word_base64(input: &[u8]) -> IResult<&[u8], EncodedWord<'_>> {
     let (rest, (_, charset, _, _, _, txt, _)) = tuple((
         tag("=?"),
         words::mime_atom,
@@ -122,11 +122,11 @@ pub enum QuotedChunk<'a> {
 }
 
 //quoted_printable
-pub fn ptext(input: &[u8]) -> IResult<&[u8], Vec<QuotedChunk>> {
+pub fn ptext(input: &[u8]) -> IResult<&[u8], Vec<QuotedChunk<'_>>> {
     many0(alt((safe_char2, encoded_space, many_hex_octet)))(input)
 }
 
-fn safe_char2(input: &[u8]) -> IResult<&[u8], QuotedChunk> {
+fn safe_char2(input: &[u8]) -> IResult<&[u8], QuotedChunk<'_>> {
     map(take_while1(is_safe_char2), QuotedChunk::Safe)(input)
 }
 
@@ -138,7 +138,7 @@ fn is_safe_char2(c: u8) -> bool {
     c >= ascii::SP && c != ascii::UNDERSCORE && c != ascii::QUESTION && c != ascii::EQ
 }
 
-fn encoded_space(input: &[u8]) -> IResult<&[u8], QuotedChunk> {
+fn encoded_space(input: &[u8]) -> IResult<&[u8], QuotedChunk<'_>> {
     map(tag("_"), |_| QuotedChunk::Space)(input)
 }
 
@@ -154,7 +154,7 @@ fn hex_octet(input: &[u8]) -> IResult<&[u8], u8> {
     Ok((rest, parsed))
 }
 
-fn many_hex_octet(input: &[u8]) -> IResult<&[u8], QuotedChunk> {
+fn many_hex_octet(input: &[u8]) -> IResult<&[u8], QuotedChunk<'_>> {
     map(many1(hex_octet), QuotedChunk::Encoded)(input)
 }
 

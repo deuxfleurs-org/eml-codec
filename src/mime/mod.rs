@@ -11,7 +11,6 @@ pub mod mechanism;
 pub mod r#type;
 
 use std::fmt;
-use std::marker::PhantomData;
 
 use crate::header;
 use crate::imf::identification::MessageID;
@@ -20,24 +19,45 @@ use crate::mime::mechanism::Mechanism;
 use crate::mime::r#type::{AnyType, NaiveType};
 use crate::text::misc_token::Unstructured; //Multipart, Message, Text, Binary};
 
+#[derive(Default, PartialEq, Clone)]
+pub struct CommonMIME<'a> {
+    pub transfer_encoding: Mechanism<'a>,
+    pub id: Option<MessageID<'a>>,
+    pub description: Option<Unstructured<'a>>,
+    // XXX: could `uninterp_headers` be moved to the parent e.g. Message?
+    // (to be alongside imf and mime)
+    pub uninterp_headers: Vec<header::Field<'a>>,
+}
+impl<'a> fmt::Debug for CommonMIME<'a> {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt.debug_struct("CommonMIME")
+            .field("transfer_encoding", &self.transfer_encoding)
+            .field("id", &self.id)
+            .field("description", &self.description)
+            .field("uninterp_headers", &self.uninterp_headers)
+            .finish()
+    }
+}
+
 #[derive(Debug, PartialEq, Clone)]
 pub struct MIME<'a, T> {
-    pub interpreted_type: T,
-    pub fields: NaiveMIME<'a>,
+    pub ctype: T,
+    pub fields: CommonMIME<'a>,
 }
+
 impl<'a> Default for MIME<'a, r#type::DeductibleText> {
     fn default() -> Self {
         Self {
-            interpreted_type: r#type::DeductibleText::default(),
-            fields: NaiveMIME::default(),
+            ctype: r#type::DeductibleText::default(),
+            fields: CommonMIME::default(),
         }
     }
 }
 impl<'a> Default for MIME<'a, r#type::DeductibleMessage> {
     fn default() -> Self {
         Self {
-            interpreted_type: r#type::DeductibleMessage::default(),
-            fields: NaiveMIME::default(),
+            ctype: r#type::DeductibleMessage::default(),
+            fields: CommonMIME::default(),
         }
     }
 }
@@ -50,7 +70,7 @@ pub enum AnyMIME<'a> {
     Bin(MIME<'a, r#type::Binary>),
 }
 impl<'a> AnyMIME<'a> {
-    pub fn fields(&self) -> &NaiveMIME<'a> {
+    pub fn fields(&self) -> &CommonMIME<'a> {
         match self {
             Self::Mult(v) => &v.fields,
             Self::Msg(v) => &v.fields,
@@ -60,31 +80,38 @@ impl<'a> AnyMIME<'a> {
     }
 }
 
-impl<'a, T: WithDefaultType> From<AnyMIMEWithDefault<'a, T>> for AnyMIME<'a> {
-    fn from(a: AnyMIMEWithDefault<'a, T>) -> Self {
-        a.0
+impl<'a> Into<AnyMIME<'a>> for MIME<'a, r#type::Multipart> {
+    fn into(self) -> AnyMIME<'a> {
+        AnyMIME::Mult(self)
     }
 }
 
-#[derive(PartialEq, Default, Clone)]
-pub struct NaiveMIME<'a> {
-    pub ctype: Option<NaiveType<'a>>,
-    pub transfer_encoding: Mechanism<'a>,
-    pub id: Option<MessageID<'a>>,
-    pub description: Option<Unstructured<'a>>,
-    pub kv: Vec<header::Field<'a>>,
-    pub raw: &'a [u8],
+impl<'a> Into<AnyMIME<'a>> for MIME<'a, r#type::DeductibleMessage> {
+    fn into(self) -> AnyMIME<'a> {
+        AnyMIME::Msg(self)
+    }
 }
-impl<'a> fmt::Debug for NaiveMIME<'a> {
-    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt.debug_struct("NaiveMime")
-            .field("ctype", &self.ctype)
-            .field("transfer_encoding", &self.transfer_encoding)
-            .field("id", &self.id)
-            .field("description", &self.description)
-            .field("kv", &self.kv)
-            .field("raw", &String::from_utf8_lossy(self.raw))
-            .finish()
+
+impl<'a> Into<AnyMIME<'a>> for MIME<'a, r#type::DeductibleText> {
+    fn into(self) -> AnyMIME<'a> {
+        AnyMIME::Txt(self)
+    }
+}
+impl<'a> Into<AnyMIME<'a>> for MIME<'a, r#type::Binary> {
+    fn into(self) -> AnyMIME<'a> {
+        AnyMIME::Bin(self)
+    }
+}
+
+// XXX inline and remove alias (by consistency by the other forms of MIME<'a, _> which do not have an alias)
+pub type NaiveMIME<'a> = MIME<'a, Option<NaiveType<'a>>>;
+
+impl<'a> Default for NaiveMIME<'a> {
+    fn default() -> Self {
+        Self {
+            ctype: None,
+            fields: CommonMIME::default(),
+        }
     }
 }
 
@@ -94,9 +121,9 @@ impl<'a> FromIterator<Content<'a>> for NaiveMIME<'a> {
             .fold(NaiveMIME::default(), |mut section, field| {
                 match field {
                     Content::Type(v) => section.ctype = Some(v),
-                    Content::TransferEncoding(v) => section.transfer_encoding = v,
-                    Content::ID(v) => section.id = Some(v),
-                    Content::Description(v) => section.description = Some(v),
+                    Content::TransferEncoding(v) => section.fields.transfer_encoding = v,
+                    Content::ID(v) => section.fields.id = Some(v),
+                    Content::Description(v) => section.fields.description = Some(v),
                 };
                 section
             })
@@ -104,46 +131,46 @@ impl<'a> FromIterator<Content<'a>> for NaiveMIME<'a> {
 }
 
 impl<'a> NaiveMIME<'a> {
-    pub fn with_kv(mut self, fields: Vec<header::Field<'a>>) -> Self {
-        self.kv = fields;
-        self
-    }
-    pub fn with_raw(mut self, raw: &'a [u8]) -> Self {
-        self.raw = raw;
-        self
-    }
-    pub fn to_interpreted<T: WithDefaultType>(self) -> AnyMIME<'a> {
-        self.ctype
+    pub fn to_interpreted(self, default_type: DefaultType) -> AnyMIME<'a> {
+        let typ: AnyType = self
+            .ctype
             .as_ref()
-            .map(|c| c.to_type())
-            .unwrap_or(T::default_type())
-            .to_mime(self)
-            .into()
+            .map(NaiveType::to_type)
+            .unwrap_or(default_type.to_type());
+
+        match typ {
+            AnyType::Multipart(ctype) => AnyMIME::Mult(MIME {
+                ctype,
+                fields: self.fields,
+            }),
+            AnyType::Message(ctype) => AnyMIME::Msg(MIME {
+                ctype,
+                fields: self.fields,
+            }),
+            AnyType::Text(ctype) => AnyMIME::Txt(MIME {
+                ctype,
+                fields: self.fields,
+            }),
+            AnyType::Binary(ctype) => AnyMIME::Bin(MIME {
+                ctype,
+                fields: self.fields,
+            }),
+        }
     }
 }
 
-pub trait WithDefaultType {
-    fn default_type() -> AnyType;
+#[derive(Default)]
+pub enum DefaultType {
+    #[default]
+    Generic,
+    Digest,
 }
 
-pub struct WithGenericDefault {}
-impl WithDefaultType for WithGenericDefault {
-    fn default_type() -> AnyType {
-        AnyType::Text(r#type::DeductibleText::default())
-    }
-}
-pub struct WithDigestDefault {}
-impl WithDefaultType for WithDigestDefault {
-    fn default_type() -> AnyType {
-        AnyType::Message(r#type::DeductibleMessage::default())
-    }
-}
-
-#[derive(Debug, PartialEq)]
-pub struct AnyMIMEWithDefault<'a, T: WithDefaultType>(pub AnyMIME<'a>, PhantomData<T>);
-
-impl<'a, T: WithDefaultType> Default for AnyMIMEWithDefault<'a, T> {
-    fn default() -> Self {
-        Self(T::default_type().to_mime(NaiveMIME::default()), PhantomData)
+impl DefaultType {
+    fn to_type(self) -> AnyType {
+        match self {
+            Self::Generic => AnyType::Text(Default::default()),
+            Self::Digest => AnyType::Message(Default::default()),
+        }
     }
 }

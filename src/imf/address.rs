@@ -40,7 +40,7 @@ pub type AddressList<'a> = Vec<AddressRef<'a>>;
 /// ```abnf
 ///    address         =   mailbox / group
 /// ```
-pub fn address(input: &[u8]) -> IResult<&[u8], AddressRef> {
+pub fn address(input: &[u8]) -> IResult<&[u8], AddressRef<'_>> {
     alt((into(mailbox), into(group)))(input)
 }
 
@@ -50,7 +50,7 @@ pub fn address(input: &[u8]) -> IResult<&[u8], AddressRef> {
 ///    group           =   display-name ":" [group-list] ";" [CFWS]
 ///    display-name    =   phrase
 /// ```
-pub fn group(input: &[u8]) -> IResult<&[u8], GroupRef> {
+pub fn group(input: &[u8]) -> IResult<&[u8], GroupRef<'_>> {
     let (input, (grp_name, _, grp_list, _, _)) =
         tuple((phrase, tag(":"), opt(group_list), tag(";"), opt(cfws)))(input)?;
 
@@ -68,11 +68,11 @@ pub fn group(input: &[u8]) -> IResult<&[u8], GroupRef> {
 /// ```abnf
 ///    group-list      =   mailbox-list / CFWS / obs-group-list
 /// ```
-pub fn group_list(input: &[u8]) -> IResult<&[u8], Vec<MailboxRef>> {
+pub fn group_list(input: &[u8]) -> IResult<&[u8], Vec<MailboxRef<'_>>> {
     alt((mailbox_list, mailbox_cfws))(input)
 }
 
-fn mailbox_cfws(input: &[u8]) -> IResult<&[u8], Vec<MailboxRef>> {
+fn mailbox_cfws(input: &[u8]) -> IResult<&[u8], Vec<MailboxRef<'_>>> {
     let (input, _) = cfws(input)?;
     Ok((input, vec![]))
 }
@@ -82,7 +82,7 @@ fn mailbox_cfws(input: &[u8]) -> IResult<&[u8], Vec<MailboxRef>> {
 /// ```abnf
 ///    mailbox-list    =   (mailbox *("," mailbox)) / obs-mbox-list
 /// ```
-pub fn mailbox_list(input: &[u8]) -> IResult<&[u8], Vec<MailboxRef>> {
+pub fn mailbox_list(input: &[u8]) -> IResult<&[u8], Vec<MailboxRef<'_>>> {
     separated_list1(tag(","), mailbox)(input)
 }
 
@@ -91,16 +91,16 @@ pub fn mailbox_list(input: &[u8]) -> IResult<&[u8], Vec<MailboxRef>> {
 /// ```abnf
 ///   address-list    =   (address *("," address)) / obs-addr-list
 /// ```
-pub fn address_list(input: &[u8]) -> IResult<&[u8], Vec<AddressRef>> {
+pub fn address_list(input: &[u8]) -> IResult<&[u8], Vec<AddressRef<'_>>> {
     separated_list1(tag(","), address)(input)
 }
 
-pub fn address_list_cfws(input: &[u8]) -> IResult<&[u8], Vec<AddressRef>> {
+pub fn address_list_cfws(input: &[u8]) -> IResult<&[u8], Vec<AddressRef<'_>>> {
     let (input, _) = cfws(input)?;
     Ok((input, vec![]))
 }
 
-pub fn nullable_address_list(input: &[u8]) -> IResult<&[u8], Vec<AddressRef>> {
+pub fn nullable_address_list(input: &[u8]) -> IResult<&[u8], Vec<AddressRef<'_>>> {
     map(opt(alt((address_list, address_list_cfws))), |v| {
         v.unwrap_or(vec![])
     })(input)

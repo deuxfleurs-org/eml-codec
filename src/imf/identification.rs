@@ -40,7 +40,7 @@ pub type MessageIDList<'a> = Vec<MessageID<'a>>;
 /// ```abnf
 ///    msg-id          =   [CFWS] "<" id-left "@" id-right ">" [CFWS]
 /// ```
-pub fn msg_id(input: &[u8]) -> IResult<&[u8], MessageID> {
+pub fn msg_id(input: &[u8]) -> IResult<&[u8], MessageID<'_>> {
     let (input, (left, _, right)) = delimited(
         pair(opt(cfws), tag("<")),
         tuple((id_left, tag("@"), id_right)),
@@ -49,7 +49,7 @@ pub fn msg_id(input: &[u8]) -> IResult<&[u8], MessageID> {
     Ok((input, MessageID { left, right }))
 }
 
-pub fn msg_list(input: &[u8]) -> IResult<&[u8], MessageIDList> {
+pub fn msg_list(input: &[u8]) -> IResult<&[u8], MessageIDList<'_>> {
     many1(msg_id)(input)
 }
 

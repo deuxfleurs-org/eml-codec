@@ -81,7 +81,7 @@ impl<'a> FromIterator<Field<'a>> for Imf<'a> {
     }
 }
 
-pub fn imf(input: &[u8]) -> IResult<&[u8], Imf> {
+pub fn imf(input: &[u8]) -> IResult<&[u8], Imf<'_>> {
     map(header::header_kv, |fields| {
         fields
             .iter()

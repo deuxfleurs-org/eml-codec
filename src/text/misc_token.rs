@@ -19,7 +19,7 @@ use crate::text::{
 
 #[derive(Debug, PartialEq, Default)]
 pub struct PhraseList<'a>(pub Vec<Phrase<'a>>);
-pub fn phrase_list(input: &[u8]) -> IResult<&[u8], PhraseList> {
+pub fn phrase_list(input: &[u8]) -> IResult<&[u8], PhraseList<'_>> {
     map(separated_list1(tag(","), phrase), PhraseList)(input)
 }
 
@@ -44,7 +44,7 @@ impl<'a> MIMEWord<'a> {
         }
     }
 }
-pub fn mime_word(input: &[u8]) -> IResult<&[u8], MIMEWord> {
+pub fn mime_word(input: &[u8]) -> IResult<&[u8], MIMEWord<'_>> {
     alt((
         map(quoted_string, MIMEWord::Quoted),
         map(mime_atom, MIMEWord::Atom),
@@ -83,7 +83,7 @@ impl<'a> fmt::Debug for Word<'a> {
 /// ```abnf
 ///    word            =   atom / quoted-string
 /// ```
-pub fn word(input: &[u8]) -> IResult<&[u8], Word> {
+pub fn word(input: &[u8]) -> IResult<&[u8], Word<'_>> {
     alt((
         map(quoted_string, Word::Quoted),
         map(encoded_word, Word::Encoded),
@@ -116,7 +116,7 @@ impl<'a> fmt::Debug for Phrase<'a> {
 /// ```abnf
 ///    phrase          =   1*word / obs-phrase
 /// ```
-pub fn phrase(input: &[u8]) -> IResult<&[u8], Phrase> {
+pub fn phrase(input: &[u8]) -> IResult<&[u8], Phrase<'_>> {
     let (input, phrase) = map(many1(word), Phrase)(input)?;
     Ok((input, phrase))
 }
@@ -190,7 +190,7 @@ impl<'a> fmt::Debug for Unstructured<'a> {
 /// ```abnf
 /// unstructured    =   (*([FWS] VCHAR_SEQ) *WSP) / obs-unstruct
 /// ```
-pub fn unstructured(input: &[u8]) -> IResult<&[u8], Unstructured> {
+pub fn unstructured(input: &[u8]) -> IResult<&[u8], Unstructured<'_>> {
     let (input, r) = many0(preceded(
         opt(fws),
         alt((
