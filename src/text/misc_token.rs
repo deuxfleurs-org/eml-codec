@@ -16,7 +16,7 @@ use crate::display_bytes::{Print, Formatter};
 use crate::text::{
     ascii,
     encoding::{self, encoded_word, encoded_word_plain},
-    quoted::{quoted_string, QuotedString},
+    quoted::{print_quoted, quoted_string, QuotedString},
     whitespace::{cfws, fws, is_obs_no_ws_ctl},
     words::{atom, is_vchar, mime_atom},
 };
@@ -90,6 +90,15 @@ impl<'a> fmt::Debug for Word<'a> {
     }
 }
 
+impl<'a> Print for Word<'a> {
+    fn print(&self, fmt: &mut impl Formatter) -> std::io::Result<()> {
+        match self {
+            Word::Quoted(q) => print_quoted(fmt, q.bytes()),
+            Word::Atom(a) => fmt.write_bytes(&a),
+        }
+    }
+}
+
 /// Word
 ///
 /// ```abnf
@@ -120,6 +129,14 @@ impl<'a> fmt::Debug for PhraseToken<'a> {
         fmt.debug_tuple("PhraseToken")
             .field(&format_args!("\"{}\"", self.to_string()))
             .finish()
+    }
+}
+impl<'a> Print for PhraseToken<'a> {
+    fn print(&self, fmt: &mut impl Formatter) -> std::io::Result<()> {
+        match self {
+            PhraseToken::Word(w) => w.print(fmt),
+            PhraseToken::Encoded(e) => e.print(fmt),
+        }
     }
 }
 
