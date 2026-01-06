@@ -132,11 +132,23 @@ fn is_unstructured(c: u8) -> bool {
     is_vchar(c) || is_obs_no_ws_ctl(c) || c == ascii::NULL
 }
 
-#[derive(Debug, PartialEq, Clone, ToStatic)]
+#[derive(PartialEq, Clone, ToStatic)]
 pub enum UnstrToken<'a> {
     Init,
     Encoded(encoding::EncodedWord<'a>),
     Plain(Cow<'a, [u8]>),
+}
+impl<'a> fmt::Debug for UnstrToken<'a> {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            UnstrToken::Init => fmt.debug_tuple("Init").finish(),
+            UnstrToken::Encoded(e) => fmt.debug_tuple("Encoded").field(&e.to_string()).finish(),
+            UnstrToken::Plain(s) => fmt
+                .debug_tuple("Plain")
+                .field(&String::from_utf8_lossy(&s))
+                .finish(),
+        }
+    }
 }
 
 impl<'a> ToString for UnstrToken<'a> {
@@ -152,7 +164,7 @@ impl<'a> ToString for UnstrToken<'a> {
     }
 }
 
-#[derive(PartialEq, Clone, ToStatic)]
+#[derive(Debug, PartialEq, Clone, ToStatic)]
 pub struct Unstructured<'a>(pub Vec<UnstrToken<'a>>);
 
 impl<'a> ToString for Unstructured<'a> {
@@ -177,13 +189,6 @@ impl<'a> ToString for Unstructured<'a> {
                 },
             )
             .1
-    }
-}
-impl<'a> fmt::Debug for Unstructured<'a> {
-    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt.debug_tuple("Unstructured")
-            .field(&format_args!("\"{}\"", self.to_string()))
-            .finish()
     }
 }
 
