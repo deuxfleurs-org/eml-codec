@@ -7,6 +7,7 @@ use nom::{
     IResult,
 };
 
+use crate::display_bytes::{Print, Formatter};
 use crate::text::whitespace::cfws;
 
 #[derive(Debug, PartialEq, ToStatic)]
@@ -30,6 +31,14 @@ pub fn version(input: &[u8]) -> IResult<&[u8], Version> {
 
 fn ascii_to_u64(c: &[u8]) -> u64 {
     str::from_utf8(c).unwrap().parse().unwrap()
+}
+
+impl Print for Version {
+    fn print(&self, fmt: &mut impl Formatter) -> std::io::Result<()> {
+        fmt.write_bytes(self.major.to_string().as_bytes())?;
+        fmt.write_bytes(b".")?;
+        fmt.write_bytes(self.minor.to_string().as_bytes())
+    }
 }
 
 #[cfg(test)]
