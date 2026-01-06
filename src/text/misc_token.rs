@@ -12,7 +12,7 @@ use nom::{
 use std::borrow::Cow;
 use std::fmt;
 
-use crate::display_bytes::{Print, Formatter};
+use crate::display_bytes::{print_seq, Print, Formatter};
 use crate::text::{
     ascii,
     encoding::{self, encoded_word, encoded_word_plain},
@@ -35,6 +35,14 @@ pub fn phrase_list(input: &[u8]) -> IResult<&[u8], PhraseList<'_>> {
     )(input)?;
     let phrases: Vec<Phrase> = phrases_opt.into_iter().flatten().collect();
     Ok((input, PhraseList(phrases)))
+}
+impl<'a> Print for PhraseList<'a> {
+    fn print(&self, fmt: &mut impl Formatter) -> std::io::Result<()> {
+        print_seq(fmt, &self.0, |fmt| {
+            fmt.write_bytes(b",")?;
+            fmt.write_fws()
+        })
+    }
 }
 
 #[derive(Debug, PartialEq, Clone, ToStatic)]
@@ -179,6 +187,12 @@ impl<'a> fmt::Debug for Phrase<'a> {
         fmt.debug_tuple("Phrase")
             .field(&format_args!("\"{}\"", self.to_string()))
             .finish()
+    }
+}
+
+impl<'a> Print for Phrase<'a> {
+    fn print(&self, fmt: &mut impl Formatter) -> std::io::Result<()> {
+        print_seq(fmt, &self.0, Formatter::write_fws)
     }
 }
 
