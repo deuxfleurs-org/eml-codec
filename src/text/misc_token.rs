@@ -12,6 +12,7 @@ use nom::{
 use std::borrow::Cow;
 use std::fmt;
 
+use crate::display_bytes::{Print, Formatter};
 use crate::text::{
     ascii,
     encoding::{self, encoded_word, encoded_word_plain},
@@ -249,6 +250,21 @@ impl<'a> fmt::Debug for UnstrToken<'a> {
         }
     }
 }
+impl<'a> Print for UnstrToken<'a> {
+    fn print(&self, fmt: &mut impl Formatter) -> std::io::Result<()> {
+        match self {
+            UnstrToken::Encoded(e) =>
+                e.print(fmt),
+            UnstrToken::Plain(txt, UnstrTxtKind::Txt) =>
+                fmt.write_bytes(&txt),
+            UnstrToken::Plain(_, UnstrTxtKind::Obs) =>
+                // skip obsolete parts
+                Ok(()),
+            UnstrToken::Plain(txt, UnstrTxtKind::Fws) =>
+                fmt.write_fws_bytes(&txt),
+        }
+    }
+}
 
 impl<'a> ToString for UnstrToken<'a> {
     fn to_string(&self) -> String {
@@ -289,6 +305,14 @@ impl<'a> ToString for Unstructured<'a> {
             .1
     }
 }
+impl<'a> Print for Unstructured<'a> {
+    fn print(&self, fmt: &mut impl Formatter) -> std::io::Result<()> {
+        for tok in &self.0 {
+            tok.print(fmt)?
+        }
+        Ok(())
+    }
+}
 
 /// Unstructured header field body
 ///
@@ -314,6 +338,7 @@ pub fn unstructured(input: &[u8]) -> IResult<&[u8], Unstructured<'_>> {
     ))(input)?;
     let (input, wsp0) = space0(input)?;
 
+    // construct UnstrToken tokens
     let mut tokens = vec![];
     for (fws_opt, toks) in r {
         if let Some(fws) = fws_opt {
