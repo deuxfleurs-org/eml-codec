@@ -16,7 +16,7 @@ use crate::display_bytes::{print_seq, Print, Formatter};
 use crate::text::{
     ascii,
     encoding::{self, encoded_word, encoded_word_plain},
-    quoted::{print_quoted, quoted_string, QuotedString},
+    quoted::{print_quoted, quoted_string, QuotedString, QuotedStringBytes},
     whitespace::{cfws, fws, is_obs_no_ws_ctl},
     words::{atom, is_vchar, mime_atom},
 };
@@ -73,7 +73,7 @@ pub fn mime_word(input: &[u8]) -> IResult<&[u8], MIMEWord<'_>> {
     ))(input)
 }
 
-#[derive(PartialEq, ToStatic)]
+#[derive(Clone, PartialEq, ToStatic)]
 pub enum Word<'a> {
     Quoted(QuotedString<'a>),
     Atom(Cow<'a, [u8]>),
@@ -107,6 +107,30 @@ impl<'a> Print for Word<'a> {
     }
 }
 
+impl<'a> Word<'a> {
+    pub fn bytes<'b>(&'b self) -> WordBytes<'a, 'b> {
+        match self {
+            Word::Quoted(q) => WordBytes::Quoted(q.bytes()),
+            Word::Atom(a) => WordBytes::Atom(a.iter()),
+        }
+    }
+}
+
+pub enum WordBytes<'a, 'b> {
+    Quoted(QuotedStringBytes<'a, 'b>),
+    Atom(std::slice::Iter<'b, u8>),
+}
+
+impl<'a, 'b> Iterator for WordBytes<'a, 'b> {
+    type Item = u8;
+    fn next(&mut self) -> Option<Self::Item> {
+        match self {
+            WordBytes::Quoted(q) => q.next(),
+            WordBytes::Atom(a) => a.next().copied(),
+        }
+    }
+}
+
 /// Word
 ///
 /// ```abnf
@@ -119,7 +143,7 @@ pub fn word(input: &[u8]) -> IResult<&[u8], Word<'_>> {
     ))(input)
 }
 
-#[derive(PartialEq, ToStatic)]
+#[derive(Clone, PartialEq, ToStatic)]
 pub enum PhraseToken<'a> {
     Word(Word<'a>),
     Encoded(encoding::EncodedWord<'a>),
@@ -170,7 +194,7 @@ pub fn phrase_token(input: &[u8]) -> IResult<&[u8], PhraseToken<'_>> {
 }
 
 // Must be a non-empty list
-#[derive(PartialEq, ToStatic)]
+#[derive(Clone, PartialEq, ToStatic)]
 pub struct Phrase<'a>(pub Vec<PhraseToken<'a>>);
 
 impl<'a> ToString for Phrase<'a> {
