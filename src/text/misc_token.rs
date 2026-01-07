@@ -134,14 +134,12 @@ fn is_unstructured(c: u8) -> bool {
 
 #[derive(PartialEq, Clone, ToStatic)]
 pub enum UnstrToken<'a> {
-    Init,
     Encoded(encoding::EncodedWord<'a>),
     Plain(Cow<'a, [u8]>),
 }
 impl<'a> fmt::Debug for UnstrToken<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            UnstrToken::Init => fmt.debug_tuple("Init").finish(),
             UnstrToken::Encoded(e) => fmt.debug_tuple("Encoded").field(&e.to_string()).finish(),
             UnstrToken::Plain(s) => fmt
                 .debug_tuple("Plain")
@@ -154,7 +152,6 @@ impl<'a> fmt::Debug for UnstrToken<'a> {
 impl<'a> ToString for UnstrToken<'a> {
     fn to_string(&self) -> String {
         match self {
-            UnstrToken::Init => "".into(),
             UnstrToken::Encoded(e) => e.to_string(),
             UnstrToken::Plain(e) => encoding_rs::UTF_8
                 .decode_without_bom_handling(e)
@@ -172,11 +169,11 @@ impl<'a> ToString for Unstructured<'a> {
         self.0
             .iter()
             .fold(
-                (&UnstrToken::Init, String::new()),
+                (None, String::new()),
                 |(prev_token, mut result), current_token| {
                     match (prev_token, current_token) {
-                        (UnstrToken::Init, v) => result.push_str(v.to_string().as_ref()),
-                        (UnstrToken::Encoded(_), UnstrToken::Encoded(v)) => {
+                        (None, v) => result.push_str(v.to_string().as_ref()),
+                        (Some(UnstrToken::Encoded(_)), UnstrToken::Encoded(v)) => {
                             result.push_str(v.to_string().as_ref())
                         }
                         (_, v) => {
@@ -185,7 +182,7 @@ impl<'a> ToString for Unstructured<'a> {
                         }
                     };
 
-                    (current_token, result)
+                    (Some(current_token.clone()), result)
                 },
             )
             .1
