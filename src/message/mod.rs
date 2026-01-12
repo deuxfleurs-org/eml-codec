@@ -110,7 +110,7 @@ mod tests {
     use crate::part::discrete::Text;
     use crate::part::{AnyPart, MimeBody};
     use crate::part::field::EntityField;
-    use crate::text::encoding::{Base64Word, EncodedWord, QuotedChunk, QuotedWord};
+    use crate::text::encoding::{Base64Word, EncodedWord, EncodedWordToken, QuotedChunk, QuotedWord};
     use crate::text::misc_token::*;
     use chrono::{FixedOffset, TimeZone};
     use pretty_assertions::assert_eq;
@@ -257,13 +257,15 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
 
                         imf.cc = vec![imf::address::AddressRef::Single(imf::mailbox::MailboxRef {
                             name: Some(Phrase(vec![
-                                PhraseToken::Encoded(EncodedWord::Quoted(QuotedWord {
-                                    enc: encoding_rs::WINDOWS_1252,
-                                    chunks: vec![
-                                        QuotedChunk::Safe(b"Andr"[..].into()),
-                                        QuotedChunk::Encoded(vec![0xE9]),
-                                    ],
-                                })),
+                                PhraseToken::Encoded(EncodedWord(vec![
+                                    EncodedWordToken::Quoted(QuotedWord {
+                                        enc: encoding_rs::WINDOWS_1252,
+                                        chunks: vec![
+                                            QuotedChunk::Safe(b"Andr"[..].into()),
+                                            QuotedChunk::Encoded(vec![0xE9]),
+                                        ],
+                                    })
+                                ])),
                                 PhraseToken::Word(Word::Atom(b"Pirard"[..].into())),
                             ])),
                             addrspec: imf::mailbox::AddrSpec {
@@ -278,15 +280,16 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
 
                         imf.subject = Some(Unstructured(vec![
                             UnstrToken::from_plain(b" ", UnstrTxtKind::Fws),
-                            UnstrToken::Encoded(EncodedWord::Base64(Base64Word{
-                                enc: encoding_rs::WINDOWS_1252,
-                                content: b"SWYgeW91IGNhbiByZWFkIHRoaXMgeW8"[..].into(),
-                            })),
-                            UnstrToken::from_plain(b"    ", UnstrTxtKind::Fws),
-                            UnstrToken::Encoded(EncodedWord::Base64(Base64Word{
-                                enc: encoding_rs::ISO_8859_2,
-                                content: b"dSB1bmRlcnN0YW5kIHRoZSBleGFtcGxlLg"[..].into(),
-                            })),
+                            UnstrToken::Encoded(EncodedWord(vec![
+                                EncodedWordToken::Base64(Base64Word{
+                                    enc: encoding_rs::WINDOWS_1252,
+                                    content: b"SWYgeW91IGNhbiByZWFkIHRoaXMgeW8"[..].into(),
+                                }),
+                                EncodedWordToken::Base64(Base64Word{
+                                    enc: encoding_rs::ISO_8859_2,
+                                    content: b"dSB1bmRlcnN0YW5kIHRoZSBleGFtcGxlLg"[..].into(),
+                                })
+                            ])),
                         ]));
 
                         imf.msg_id = Some(imf::identification::MessageID {

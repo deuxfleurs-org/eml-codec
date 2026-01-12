@@ -214,7 +214,7 @@ mod tests {
         )
     }
 
-    use crate::text::encoding::{EncodedWord, QuotedChunk, QuotedWord};
+    use crate::text::encoding::{EncodedWord, EncodedWordToken, QuotedChunk, QuotedWord};
     use crate::text::quoted::QuotedString;
 
     #[test]
@@ -256,18 +256,20 @@ mod tests {
                             }
                         },
                         MailboxRef {
-                            name: Some(Phrase(vec![PhraseToken::Encoded(EncodedWord::Quoted(
-                                QuotedWord {
-                                    enc: encoding_rs::UTF_8,
-                                    chunks: vec![
-                                        QuotedChunk::Safe(b"John"[..].into()),
-                                        QuotedChunk::Space,
-                                        QuotedChunk::Safe(b"Sm"[..].into()),
-                                        QuotedChunk::Encoded(vec![0xc3, 0xae]),
-                                        QuotedChunk::Safe(b"th"[..].into()),
-                                    ]
-                                }
-                            ))])),
+                            name: Some(Phrase(vec![PhraseToken::Encoded(EncodedWord(vec![
+                                EncodedWordToken::Quoted(
+                                    QuotedWord {
+                                        enc: encoding_rs::UTF_8,
+                                        chunks: vec![
+                                            QuotedChunk::Safe(b"John"[..].into()),
+                                            QuotedChunk::Space,
+                                            QuotedChunk::Safe(b"Sm"[..].into()),
+                                            QuotedChunk::Encoded(vec![0xc3, 0xae]),
+                                            QuotedChunk::Safe(b"th"[..].into()),
+                                        ]
+                                    }
+                                )
+                            ]))])),
                             addrspec: AddrSpec {
                                 local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(
                                     b"john"[..].into()

@@ -8,16 +8,16 @@ use nom::{
     character::complete::one_of,
     character::is_alphanumeric,
     combinator::{map, opt},
-    multi::{many0, many1},
+    multi::{many0, many1, separated_list1},
     sequence::{delimited, preceded, terminated, tuple},
     IResult,
 };
 use std::borrow::Cow;
 use std::io::Write;
 
-use crate::print::{Print, Formatter};
+use crate::print::{print_seq, Print, Formatter};
 use crate::text::ascii;
-use crate::text::whitespace::cfws;
+use crate::text::whitespace::{cfws, fws};
 use crate::text::words;
 
 // XXX: the parser below does not implement the spec stricty.
@@ -34,20 +34,21 @@ use crate::text::words;
 //
 // The printer is, in any case, strictly spec compliant.
 
-// FIXME: consecutive encoded words separated by linear-whitespace must
-// be merged together
-
 pub fn encoded_word(input: &[u8]) -> IResult<&[u8], EncodedWord<'_>> {
     delimited(opt(cfws), encoded_word_plain, opt(cfws))(input)
 }
 
-// NOTE: this is part of the comment syntax, so should not
+// NOTE: this is used in the comment syntax, so should not
 // recurse and call CFWS itself, for parsing efficiency reasons.
 pub fn encoded_word_plain(input: &[u8]) -> IResult<&[u8], EncodedWord<'_>> {
-    alt((encoded_word_quoted, encoded_word_base64))(input)
+    map(separated_list1(fws, encoded_word_token), EncodedWord)(input)
 }
 
-pub fn encoded_word_quoted(input: &[u8]) -> IResult<&[u8], EncodedWord<'_>> {
+pub fn encoded_word_token(input: &[u8]) -> IResult<&[u8], EncodedWordToken<'_>> {
+    alt((encoded_word_token_quoted, encoded_word_token_base64))(input)
+}
+
+pub fn encoded_word_token_quoted(input: &[u8]) -> IResult<&[u8], EncodedWordToken<'_>> {
     let (rest, (_, charset, _, _, _, txt, _)) = tuple((
         tag("=?"),
         words::mime_atom_plain,
@@ -62,14 +63,14 @@ pub fn encoded_word_quoted(input: &[u8]) -> IResult<&[u8], EncodedWord<'_>> {
     // we only care about decoding (in `to_string`); printing will then always use
     // UTF-8 as output charset.
     let renc = Encoding::for_label(charset).unwrap_or(encoding_rs::WINDOWS_1252);
-    let parsed = EncodedWord::Quoted(QuotedWord {
+    let parsed = EncodedWordToken::Quoted(QuotedWord {
         enc: renc,
         chunks: txt,
     });
     Ok((rest, parsed))
 }
 
-pub fn encoded_word_base64(input: &[u8]) -> IResult<&[u8], EncodedWord<'_>> {
+pub fn encoded_word_token_base64(input: &[u8]) -> IResult<&[u8], EncodedWordToken<'_>> {
     let (rest, (_, charset, _, _, _, txt, _)) = tuple((
         tag("=?"),
         words::mime_atom_plain,
@@ -82,7 +83,7 @@ pub fn encoded_word_base64(input: &[u8]) -> IResult<&[u8], EncodedWord<'_>> {
 
     // NOTE: we use encoding_rs and not crate::mime::charset; see above.
     let renc = Encoding::for_label(charset).unwrap_or(encoding_rs::WINDOWS_1252);
-    let parsed = EncodedWord::Base64(Base64Word {
+    let parsed = EncodedWordToken::Base64(Base64Word {
         enc: renc,
         content: Cow::Borrowed(txt),
     });
@@ -90,19 +91,33 @@ pub fn encoded_word_base64(input: &[u8]) -> IResult<&[u8], EncodedWord<'_>> {
 }
 
 #[derive(PartialEq, Debug, Clone, ToStatic)]
-pub enum EncodedWord<'a> {
-    Quoted(QuotedWord<'a>),
-    Base64(Base64Word<'a>),
-}
+pub struct EncodedWord<'a>(pub Vec<EncodedWordToken<'a>>);
+
 impl<'a> EncodedWord<'a> {
     pub fn to_string(&self) -> String {
-        match self {
-            EncodedWord::Quoted(v) => v.to_string(),
-            EncodedWord::Base64(v) => v.to_string(),
-        }
+        self.0.iter().map(|tok| tok.to_string()).collect::<Vec<_>>().join("")
     }
 }
 impl<'a> Print for EncodedWord<'a> {
+    fn print(&self, fmt: &mut impl Formatter) -> std::io::Result<()> {
+        print_seq(fmt, &self.0, Formatter::write_fws)
+    }
+}
+
+#[derive(PartialEq, Debug, Clone, ToStatic)]
+pub enum EncodedWordToken<'a> {
+    Quoted(QuotedWord<'a>),
+    Base64(Base64Word<'a>),
+}
+impl<'a> EncodedWordToken<'a> {
+    pub fn to_string(&self) -> String {
+        match self {
+            EncodedWordToken::Quoted(v) => v.to_string(),
+            EncodedWordToken::Base64(v) => v.to_string(),
+        }
+    }
+}
+impl<'a> Print for EncodedWordToken<'a> {
     fn print(&self, fmt: &mut impl Formatter) -> std::io::Result<()> {
         print_utf8_encoded(fmt, self.to_string().chars())
     }
@@ -361,6 +376,26 @@ mod tests {
                 .1
                 .to_string(),
             "John Smîth".to_string(),
+        );
+    }
+
+    #[test]
+    fn test_multiple() {
+        // white space between adjacent encoded word is not displayed
+        assert_eq!(
+            encoded_word(b"=?ISO-8859-1?Q?a?= =?ISO-8859-1?Q?b?=")
+                .unwrap()
+                .1
+                .to_string(),
+            "ab".to_string(),
+        );
+
+        assert_eq!(
+            encoded_word(b"=?ISO-8859-1?Q?a?=  \r\n   =?ISO-8859-1?Q?b?=")
+                .unwrap()
+                .1
+                .to_string(),
+            "ab".to_string(),
         );
     }
 
