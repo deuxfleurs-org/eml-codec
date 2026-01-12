@@ -9,7 +9,7 @@ use nom::{
 };
 use std::borrow::Cow;
 
-use crate::display_bytes::Formatter;
+use crate::print::Formatter;
 use crate::text::ascii;
 use crate::text::whitespace::{cfws, fws, is_obs_no_ws_ctl};
 use crate::text::words::is_vchar;
@@ -167,7 +167,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::display_bytes::with_line_folder;
+    use crate::print::with_line_folder;
 
     #[test]
     fn test_quoted_string_parser() {

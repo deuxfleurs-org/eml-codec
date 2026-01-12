@@ -1,7 +1,7 @@
 use bounded_static::ToStatic;
 use nom::combinator::map;
 
-use crate::display_bytes::{Print, Formatter};
+use crate::print::{Print, Formatter};
 use crate::header;
 use crate::imf::address::{address_list, nullable_address_list, AddressList};
 use crate::imf::datetime::{date_time, DateTime};

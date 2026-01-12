@@ -10,7 +10,7 @@ use nom::{
 use std::borrow::Cow;
 use std::fmt;
 
-use crate::display_bytes::{print_seq, Print, Formatter};
+use crate::print::{print_seq, Print, Formatter};
 use crate::imf::mailbox::{dtext, Dtext};
 use crate::text::whitespace::cfws;
 use crate::text::words::dot_atom_text;

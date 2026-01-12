@@ -7,7 +7,7 @@ use nom::{
     IResult,
 };
 
-use crate::display_bytes::{Print, Formatter};
+use crate::print::{Print, Formatter};
 use crate::text::whitespace::cfws;
 
 #[derive(Debug, PartialEq, ToStatic)]

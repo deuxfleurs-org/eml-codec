@@ -15,7 +15,7 @@ use nom::{
 use std::borrow::Cow;
 use std::io::Write;
 
-use crate::display_bytes::{Print, Formatter};
+use crate::print::{Print, Formatter};
 use crate::text::ascii;
 use crate::text::whitespace::cfws;
 use crate::text::words;
@@ -303,7 +303,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::display_bytes::with_line_folder;
+    use crate::print::with_line_folder;
 
     // =?iso8859-1?Q?Accus=E9_de_r=E9ception_(affich=E9)?=
     #[test]

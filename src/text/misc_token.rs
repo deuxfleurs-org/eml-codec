@@ -12,7 +12,7 @@ use nom::{
 use std::borrow::Cow;
 use std::fmt;
 
-use crate::display_bytes::{print_seq, Print, Formatter};
+use crate::print::{print_seq, Print, Formatter};
 use crate::text::{
     ascii,
     encoding::{self, encoded_word, encoded_word_plain},
@@ -428,7 +428,7 @@ mod tests {
 
         let (rest, parsed) = phrase(b"foo.bar").unwrap();
         assert_eq!(rest, &b""[..]);
-        let printed = crate::display_bytes::with_line_folder(|f| parsed.print(f).unwrap());
+        let printed = crate::print::with_line_folder(|f| parsed.print(f).unwrap());
         assert_eq!(printed, b"foo \".\" bar");
     }
 
@@ -436,7 +436,7 @@ mod tests {
     fn test_phrase_list() {
         let (rest, parsed) = phrase_list(b",abc def,,   ,ghi").unwrap();
         assert_eq!(rest, &b""[..]);
-        let printed = crate::display_bytes::with_line_folder(|f| parsed.print(f).unwrap());
+        let printed = crate::print::with_line_folder(|f| parsed.print(f).unwrap());
         assert_eq!(printed, b"abc def, ghi");
     }
 }

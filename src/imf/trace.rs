@@ -8,7 +8,7 @@ use nom::{
     IResult,
 };
 
-use crate::display_bytes::{print_seq, Print, Formatter};
+use crate::print::{print_seq, Print, Formatter};
 use crate::imf::{datetime, mailbox};
 use crate::text::{ascii, misc_token, whitespace};
 

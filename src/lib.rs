@@ -16,7 +16,7 @@ pub mod header;
 pub mod text;
 
 /// Printing with email-specific line folding
-pub mod display_bytes;
+pub mod print;
 
 use nom::{combinator::into, IResult};
 

@@ -1,8 +1,6 @@
 use std::io::{Result, Write};
 use crate::text::ascii;
 
-// TODO: rename this file
-
 pub trait Print {
     fn print(&self, fmt: &mut impl Formatter) -> Result<()>;
 }

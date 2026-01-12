@@ -11,7 +11,7 @@ use nom::{
 use std::borrow::Cow;
 use std::fmt;
 
-use crate::display_bytes::{print_seq, Print, Formatter};
+use crate::print::{print_seq, Print, Formatter};
 use crate::text::ascii;
 use crate::text::misc_token::{phrase, word, Phrase, Word};
 use crate::text::quoted::print_quoted;

@@ -11,7 +11,7 @@ use nom::{
 };
 use std::fmt::{Debug, Formatter};
 
-use crate::display_bytes::{Print, Formatter as PFmt};
+use crate::print::{Print, Formatter as PFmt};
 use crate::text::whitespace::{cfws, fws};
 //use crate::error::IMFError;
 
