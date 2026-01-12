@@ -425,5 +425,18 @@ mod tests {
         let (rest, parsed) = phrase(b"fin\r\n du\r\nmonde").unwrap();
         assert_eq!(rest, &b"\r\nmonde"[..]);
         assert_eq!(parsed.to_string(), "fin du".to_string());
+
+        let (rest, parsed) = phrase(b"foo.bar").unwrap();
+        assert_eq!(rest, &b""[..]);
+        let printed = crate::display_bytes::with_line_folder(|f| parsed.print(f).unwrap());
+        assert_eq!(printed, b"foo \".\" bar");
+    }
+
+    #[test]
+    fn test_phrase_list() {
+        let (rest, parsed) = phrase_list(b",abc def,,   ,ghi").unwrap();
+        assert_eq!(rest, &b""[..]);
+        let printed = crate::display_bytes::with_line_folder(|f| parsed.print(f).unwrap());
+        assert_eq!(printed, b"abc def, ghi");
     }
 }
