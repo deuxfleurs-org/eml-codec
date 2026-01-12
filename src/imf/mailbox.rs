@@ -105,15 +105,18 @@ fn obs_route(input: &[u8]) -> IResult<&[u8], Vec<Option<Domain<'_>>>> {
 ///    obs-domain-list =   *(CFWS / ",") "@" domain
 ///                        *("," [CFWS] ["@" domain])
 /// ```
-// XXX this doesn't seem to allow commas at the front as specified by the
-// grammar above
+/// The parser below is slightly more lenient as it allows domains list that
+/// contain no real domains (e.g. only commas).
 fn obs_domain_list(input: &[u8]) -> IResult<&[u8], Vec<Option<Domain<'_>>>> {
     preceded(
-        many0(cfws),
+        opt(cfws),
         separated_list1(
             tag(&[ascii::COMMA]),
-            preceded(many0(cfws), opt(preceded(tag(&[ascii::AT]), obs_domain))),
-        ),
+            alt((
+                map(preceded(pair(opt(cfws), tag(&[ascii::AT])), obs_domain), |d| Some(d)),
+                map(opt(cfws), |_| None),
+            ))
+        )
     )(input)
 }
 
@@ -517,6 +520,20 @@ mod tests {
                     None,
                     None,
                     Some(Domain::Atoms(vec![b"c"[..].into()])),
+                ]
+            ))
+        );
+
+        assert_eq!(
+            obs_domain_list(b",, ,@foo,"),
+            Ok((
+                &b""[..],
+                vec![
+                    None,
+                    None,
+                    None,
+                    Some(Domain::Atoms(vec![b"foo"[..].into()])),
+                    None,
                 ]
             ))
         );
