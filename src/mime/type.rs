@@ -9,7 +9,7 @@ use nom::{
 use std::borrow::Cow;
 use std::fmt;
 
-use crate::display_bytes::{Print, Formatter};
+use crate::print::{Print, Formatter};
 use crate::mime::charset::EmailCharset;
 use crate::text::misc_token::{mime_word, MIMEWord};
 use crate::text::words::mime_atom;

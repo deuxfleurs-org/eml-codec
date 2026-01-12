@@ -1,5 +1,5 @@
 use bounded_static::ToStatic;
-use crate::display_bytes::{Print, Formatter};
+use crate::print::{Print, Formatter};
 use crate::text::whitespace::cfws;
 use crate::text::words::mime_atom as token;
 use nom::{
@@ -41,12 +41,12 @@ impl<'a> Print for Mechanism<'a> {
     }
 }
 impl<'a> Mechanism<'a> {
-    // RFC2046: for entities of type "multipart", no encoding
-    // other than 7bit, 8bit and binary is permitted.
+    // RFC2046: for entities of type "multipart" or "message/rfc822",
+    // no encoding other than 7bit, 8bit and binary is permitted.
     // This converts a `Mechanism` to ensure it belongs to
     // one of these three encodings, defaulting to 7bit in case
     // of an invalid value.
-    pub fn to_multipart_encoding(&self) -> Mechanism<'static> {
+    pub fn to_part_encoding(&self) -> Mechanism<'static> {
         match self {
             Mechanism::_8Bit => Mechanism::_8Bit,
             Mechanism::Binary => Mechanism::Binary,

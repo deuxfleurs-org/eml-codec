@@ -1,6 +1,9 @@
 #![doc = include_str!("../README.md")]
 
-/// Parse and represent full emails as "parts" as defined by MIME (RFC 2046)
+/// Parse and represent full "top-level" emails (RFC 822, RFC 2045, RFC 2046)
+pub mod message;
+
+/// Parse and represent emails "parts" as defined by MIME (RFC 2046)
 pub mod part;
 
 /// Parse and represent IMF (Internet Message Format) headers (RFC 822, RFC 5322)
@@ -18,8 +21,12 @@ pub mod text;
 /// Printing with email-specific line folding
 pub mod print;
 
-use nom::{combinator::into, IResult};
+mod utils;
 
+use nom::IResult;
+
+// FIXME: in case of success there is no remaining input; update the comment
+// and return type?
 /// Parse a whole email including its (MIME) body
 ///
 /// Returns the parsed content, but also the remaining bytes
@@ -51,15 +58,13 @@ use nom::{combinator::into, IResult};
 ///
 /// let (_, email) = eml_codec::parse_message(input).unwrap();
 /// println!(
-///     "{} raw message is:\n{}",
-///     email.imf.from[0].to_string(),
-///     String::from_utf8_lossy(&email.child.as_text().unwrap().body),
+///     "{} message structure is:\n{:#?}",
+///     email.imf.sender().to_string(),
+///     email,
 /// );
 /// ```
-pub fn parse_message(input: &[u8]) -> IResult<&[u8], part::composite::Message<'_>> {
-    into(part::composite::message(mime::MIME::<
-        mime::r#type::DeductibleMessage,
-    >::default()))(input)
+pub fn parse_message(input: &[u8]) -> IResult<&[u8], message::Message<'_>> {
+    message::message(input)
 }
 
 /// Only extract the headers of the email that are part of the Internet Message Format spec
@@ -95,10 +100,10 @@ pub fn parse_message(input: &[u8]) -> IResult<&[u8], part::composite::Message<'_
 /// let (_, imf) = eml_codec::parse_imf(input).unwrap();
 /// println!(
 ///     "{} just sent you an email with subject \"{}\"",
-///     imf.from[0].to_string(),
+///     imf.sender().to_string(),
 ///     imf.subject.unwrap().to_string(),
 /// );
 /// ```
 pub fn parse_imf(input: &[u8]) -> IResult<&[u8], imf::Imf<'_>> {
-    imf::imf(input)
+    message::imf(input)
 }

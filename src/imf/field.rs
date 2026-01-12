@@ -41,6 +41,7 @@ pub enum Field<'a> {
     Received(ReceivedLog<'a>),
     ReturnPath(ReturnPath<'a>),
 
+    // MIME
     MIMEVersion(Version),
 }
 impl<'a> TryFrom<&header::FieldRaw<'a>> for Field<'a> {

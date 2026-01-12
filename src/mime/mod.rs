@@ -13,21 +13,18 @@ pub mod r#type;
 use bounded_static::ToStatic;
 use std::fmt;
 
-use crate::header;
 use crate::imf::identification::MessageID;
 use crate::mime::field::Content;
 use crate::mime::mechanism::Mechanism;
 use crate::mime::r#type::{AnyType, NaiveType};
 use crate::text::misc_token::Unstructured; //Multipart, Message, Text, Binary};
+use crate::utils::set_opt;
 
 #[derive(Default, PartialEq, Clone, ToStatic)]
 pub struct CommonMIME<'a> {
     pub transfer_encoding: Mechanism<'a>,
     pub id: Option<MessageID<'a>>,
     pub description: Option<Unstructured<'a>>,
-    // XXX: could `uninterp_headers` be moved to the parent e.g. Message?
-    // (to be alongside imf and mime)
-    pub uninterp_headers: Vec<header::Unstructured<'a>>,
 }
 impl<'a> fmt::Debug for CommonMIME<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -35,7 +32,6 @@ impl<'a> fmt::Debug for CommonMIME<'a> {
             .field("transfer_encoding", &self.transfer_encoding)
             .field("id", &self.id)
             .field("description", &self.description)
-            .field("uninterp_headers", &self.uninterp_headers)
             .finish()
     }
 }
@@ -104,65 +100,62 @@ impl<'a> Into<AnyMIME<'a>> for MIME<'a, r#type::Binary> {
     }
 }
 
-// XXX inline and remove alias (by consistency by the other forms of MIME<'a, _> which do not have an alias)
-pub type NaiveMIME<'a> = MIME<'a, Option<NaiveType<'a>>>;
-
-impl<'a> Default for NaiveMIME<'a> {
-    fn default() -> Self {
-        Self {
-            ctype: None,
-            fields: CommonMIME::default(),
-        }
-    }
+#[derive(Clone, Debug, Default, PartialEq, ToStatic)]
+pub struct NaiveMIME<'a> {
+    ctype: Option<r#type::NaiveType<'a>>,
+    transfer_encoding: Option<Mechanism<'a>>,
+    id: Option<MessageID<'a>>,
+    description: Option<Unstructured<'a>>,
 }
 
-impl<'a> FromIterator<Content<'a>> for NaiveMIME<'a> {
-    fn from_iter<I: IntoIterator<Item = Content<'a>>>(it: I) -> Self {
-        it.into_iter()
-            .fold(NaiveMIME::default(), |mut section, field| {
-                match field {
-                    Content::Type(v) => section.ctype = Some(v),
-                    Content::TransferEncoding(v) => section.fields.transfer_encoding = v,
-                    Content::ID(v) => section.fields.id = Some(v),
-                    Content::Description(v) => section.fields.description = Some(v),
-                };
-                section
-            })
-    }
+#[derive(Clone, Copy, Debug, PartialEq, ToStatic)]
+pub enum FieldEntry {
+    Type,
+    TransferEncoding,
+    ID,
+    Description,
 }
 
 impl<'a> NaiveMIME<'a> {
+    pub fn add_field(&mut self, f: Content<'a>) -> Option<FieldEntry> {
+        match f {
+            Content::Type(ctype) =>
+                set_opt(&mut self.ctype, ctype).then_some(FieldEntry::Type),
+            Content::TransferEncoding(enc) =>
+                set_opt(&mut self.transfer_encoding, enc).then_some(FieldEntry::TransferEncoding),
+            Content::ID(id) =>
+                set_opt(&mut self.id, id).then_some(FieldEntry::ID),
+            Content::Description(desc) =>
+                set_opt(&mut self.description, desc).then_some(FieldEntry::Description),
+        }
+    }
+
     pub fn to_interpreted(self, default_type: DefaultType) -> AnyMIME<'a> {
         let typ: AnyType = self
             .ctype
             .as_ref()
             .map(NaiveType::to_type)
             .unwrap_or(default_type.to_type());
+        let mut fields = CommonMIME {
+            transfer_encoding: self.transfer_encoding.unwrap_or_default(),
+            id: self.id,
+            description: self.description,
+        };
 
         match typ {
-            AnyType::Multipart(ctype) => AnyMIME::Mult(MIME {
-                ctype,
-                fields: CommonMIME {
-                    // Ensure we are using an encoding allowed for multipart
-                    transfer_encoding: self
-                        .fields
-                        .transfer_encoding
-                        .to_multipart_encoding(),
-                    ..self.fields
-                },
-            }),
-            AnyType::Message(ctype) => AnyMIME::Msg(MIME {
-                ctype,
-                fields: self.fields,
-            }),
-            AnyType::Text(ctype) => AnyMIME::Txt(MIME {
-                ctype,
-                fields: self.fields,
-            }),
-            AnyType::Binary(ctype) => AnyMIME::Bin(MIME {
-                ctype,
-                fields: self.fields,
-            }),
+            AnyType::Multipart(ctype) => {
+                // Ensure we are using an encoding allowed for multipart
+                fields.transfer_encoding = fields.transfer_encoding.to_part_encoding();
+                AnyMIME::Mult(MIME { ctype, fields })
+            },
+            AnyType::Message(ctype) => {
+                // Ensure we are using an encoding allowed for message/rfc822
+                // TODO: enforce corresponding restrictions for other message subtypes
+                fields.transfer_encoding = fields.transfer_encoding.to_part_encoding();
+                AnyMIME::Msg(MIME { ctype, fields })
+            },
+            AnyType::Text(ctype) => AnyMIME::Txt(MIME { ctype, fields }),
+            AnyType::Binary(ctype) => AnyMIME::Bin(MIME { ctype, fields }),
         }
     }
 }

@@ -1,32 +1,37 @@
+use bounded_static::ToStatic;
+
 use crate::header;
-use crate::imf;
 use crate::mime;
 
-pub fn split_and_build<'a>(v: &Vec<header::FieldRaw<'a>>) -> (mime::NaiveMIME<'a>, imf::Imf<'a>) {
-    let (mimev, imfv, otherv) = v.iter().fold(
-        (
-            Vec::<mime::field::Content>::new(),
-            Vec::<imf::field::Field>::new(),
-            Vec::<header::FieldRaw<'a>>::new(),
-        ),
-        |(mut mime, mut imf, mut other), f| {
-            if let Ok(m) = mime::field::Content::try_from(f) {
-                mime.push(m);
-            } else if let Ok(i) = imf::field::Field::try_from(f) {
-                imf.push(i);
-            } else {
-                other.push(f.clone().into())
-            }
-            (mime, imf, other)
-        },
-    );
+/// Header fields of a generic MIME entity (a MIME entity that is not a toplevel
+/// message). Contains either MIME-defined fields or unstructured fields.
+#[derive(Debug, Default, PartialEq, ToStatic)]
+pub(crate) struct EntityFields<'a> {
+    pub mime: mime::NaiveMIME<'a>,
+    pub all_fields: Vec<EntityField<'a>>,
+}
 
-    let mut fmime = mimev.into_iter().collect::<mime::NaiveMIME>();
-    let fimf = imfv.into_iter().collect::<imf::Imf>();
-    let uninterp_headers = otherv
-        .into_iter()
-        .filter_map(header::Unstructured::from_raw)
-        .collect();
-    fmime.fields.uninterp_headers = uninterp_headers;
-    (fmime, fimf)
+#[derive(Clone, Debug, PartialEq, ToStatic)]
+pub enum EntityField<'a> {
+    MIME(mime::FieldEntry),
+    Unstructured(header::Unstructured<'a>),
+}
+
+impl<'a> FromIterator<header::FieldRaw<'a>> for EntityFields<'a> {
+    fn from_iter<I: IntoIterator<Item = header::FieldRaw<'a>>>(it: I) -> Self {
+        let mut e: EntityFields<'a> = Default::default();
+        for f in it {
+            if let Ok(mimef) = mime::field::Content::try_from(&f) {
+                if let Some(entry) = e.mime.add_field(mimef) {
+                    e.all_fields.push(EntityField::MIME(entry))
+                } // otherwise drop the field
+                continue;
+            }
+
+            if let Some(u) = header::Unstructured::from_raw(f) {
+                e.all_fields.push(EntityField::Unstructured(u));
+            } // otherwise drop the field
+        }
+        e
+    }
 }

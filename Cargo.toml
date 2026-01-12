@@ -27,7 +27,6 @@ nom = "7"
 chrono = "0.4"
 base64 = "0.21"
 encoding_rs = "0.8"
-itertools = "0.14"
 bounded-static = { version = "0.8.0", features = ["derive"] }
 
 [dev-dependencies]

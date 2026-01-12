@@ -4,7 +4,7 @@ pub mod composite;
 /// Parts that have a body and no child parts
 pub mod discrete;
 
-/// IMF + MIME fields parsed at once
+/// Representation of all headers in a MIME entity
 pub mod field;
 
 use bounded_static::ToStatic;
@@ -29,13 +29,19 @@ use crate::text::boundary::boundary;
 use crate::text::whitespace::obs_crlf;
 
 #[derive(Debug, PartialEq, ToStatic)]
-pub enum AnyPart<'a> {
+pub struct AnyPart<'a> {
+    pub fields: Vec<field::EntityField<'a>>,
+    pub mime_body: MimeBody<'a>,
+}
+
+#[derive(Debug, PartialEq, ToStatic)]
+pub enum MimeBody<'a> {
     Mult(Multipart<'a>),
     Msg(Message<'a>),
     Txt(Text<'a>),
     Bin(Binary<'a>),
 }
-impl<'a> AnyPart<'a> {
+impl<'a> MimeBody<'a> {
     pub fn as_multipart(&self) -> Option<&Multipart<'a>> {
         match self {
             Self::Mult(x) => Some(x),
@@ -69,12 +75,12 @@ impl<'a> AnyPart<'a> {
         }
     }
 }
-impl<'a> From<Multipart<'a>> for AnyPart<'a> {
+impl<'a> From<Multipart<'a>> for MimeBody<'a> {
     fn from(m: Multipart<'a>) -> Self {
         Self::Mult(m)
     }
 }
-impl<'a> From<Message<'a>> for AnyPart<'a> {
+impl<'a> From<Message<'a>> for MimeBody<'a> {
     fn from(m: Message<'a>) -> Self {
         Self::Msg(m)
     }
@@ -86,28 +92,28 @@ impl<'a> From<Message<'a>> for AnyPart<'a> {
 ///
 /// Multiparts are a bit special as they have a clearly delimited beginning
 /// and end contrary to all the other parts that are going up to the end of the buffer
-pub fn anypart<'a>(m: AnyMIME<'a>) -> impl FnOnce(&'a [u8]) -> IResult<&'a [u8], AnyPart<'a>> {
+pub fn part_body<'a>(m: AnyMIME<'a>) -> impl FnOnce(&'a [u8]) -> IResult<&'a [u8], MimeBody<'a>> {
     move |input| {
         let part = match m {
             AnyMIME::Mult(a) => multipart(a)(input)
                 .map(|(_, multi)| multi.into())
-                .unwrap_or(AnyPart::Txt(Text {
+                .unwrap_or(MimeBody::Txt(Text {
                     mime: mime::MIME::<mime::r#type::DeductibleText>::default(),
                     body: Cow::Borrowed(input),
                 })),
             AnyMIME::Msg(a) => {
                 message(a)(input)
                     .map(|(_, msg)| msg.into())
-                    .unwrap_or(AnyPart::Txt(Text {
+                    .unwrap_or(MimeBody::Txt(Text {
                         mime: mime::MIME::<mime::r#type::DeductibleText>::default(),
                         body: Cow::Borrowed(input),
                     }))
             }
-            AnyMIME::Txt(a) => AnyPart::Txt(Text {
+            AnyMIME::Txt(a) => MimeBody::Txt(Text {
                 mime: a,
                 body: Cow::Borrowed(input),
             }),
-            AnyMIME::Bin(a) => AnyPart::Bin(Binary {
+            AnyMIME::Bin(a) => MimeBody::Bin(Binary {
                 mime: a,
                 body: Cow::Borrowed(input),
             }),
