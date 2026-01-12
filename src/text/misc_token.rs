@@ -4,8 +4,8 @@ use nom::{
     bytes::complete::{tag, take_while1},
     character::complete::space0,
     combinator::{map, opt},
-    multi::{many0, many1, separated_list1},
-    sequence::pair,
+    multi::{many0, many1, separated_list0},
+    sequence::{delimited, pair},
     IResult,
     Parser,
 };
@@ -16,14 +16,24 @@ use crate::text::{
     ascii,
     encoding::{self, encoded_word, encoded_word_plain},
     quoted::{quoted_string, QuotedString},
-    whitespace::{fws, is_obs_no_ws_ctl},
+    whitespace::{cfws, fws, is_obs_no_ws_ctl},
     words::{atom, is_vchar, mime_atom},
 };
 
 #[derive(Debug, PartialEq, Default, ToStatic)]
 pub struct PhraseList<'a>(pub Vec<Phrase<'a>>);
+
+/// A comma-separated list of phrases. Handles the obsolete syntax:
+///
+/// obs-phrase-list =   [phrase / CFWS] *("," [phrase / CFWS])
+///
 pub fn phrase_list(input: &[u8]) -> IResult<&[u8], PhraseList<'_>> {
-    map(separated_list1(tag(","), phrase), PhraseList)(input)
+    let (input, phrases_opt) = separated_list0(
+        tag(","),
+        alt((map(phrase, Some), map(opt(cfws), |_| None))),
+    )(input)?;
+    let phrases: Vec<Phrase> = phrases_opt.into_iter().flatten().collect();
+    Ok((input, PhraseList(phrases)))
 }
 
 #[derive(Debug, PartialEq, Clone, ToStatic)]
@@ -112,12 +122,24 @@ impl<'a> fmt::Debug for PhraseToken<'a> {
     }
 }
 
+/// A part of a phrase or obs-phrase
 pub fn phrase_token(input: &[u8]) -> IResult<&[u8], PhraseToken<'_>> {
     alt((
         // NOTE: we must try `encoded_word` first because encoded words
         // are also valid atoms
         map(encoded_word, PhraseToken::Encoded),
         map(word, PhraseToken::Word),
+        // "obs-phrase" allows periods while "phrase" does not.
+        // We could have a dedicated `Dot` constructor to `PhraseToken`
+        // to represent them, and later decide how `Dot` should be printed
+        // (note: printing must not use the obs- syntax!)
+        // Here, we use a different approach and directly parse naked dots
+        // as the AST for `"."` (note the quotes), which is allowed in the
+        // non-obs- syntax, thus ensuring that this AST can be safely
+        // printed as-is.
+        map(delimited(opt(cfws), tag(&[ascii::PERIOD]), opt(cfws)), |b| {
+            PhraseToken::Word(Word::Quoted(QuotedString(vec![Cow::Borrowed(b)])))
+        }),
     ))(input)
 }
 
@@ -142,15 +164,22 @@ impl<'a> fmt::Debug for Phrase<'a> {
     }
 }
 
-/// Phrase
+/// Phrase (including obsolete syntax)
 ///
 /// ```abnf
 ///    phrase          =   1*(encoded-word / word) / obs-phrase
+///    obs-phrase      =   word *(word / "." / CFWS)
 /// ```
 ///
 /// (encoded-word comes from RFC2047)
 ///
-/// TODO: obs-phrase
+/// The grammar above is equivalent to the following, which is
+/// what we parse:
+///
+/// ```abnf
+///   phrase       =  1*phrase_token
+///   phrase_token =  encoded-word / word / ([CFWS] "." [CFWS])
+/// ```
 pub fn phrase(input: &[u8]) -> IResult<&[u8], Phrase<'_>> {
     let (input, phrase) = map(many1(phrase_token), Phrase)(input)?;
     Ok((input, phrase))
