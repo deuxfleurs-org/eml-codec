@@ -10,9 +10,10 @@ use nom::{
 
 //use crate::error::IMFError;
 use crate::print::{print_seq, Print, Formatter};
-use crate::imf::mailbox::{mailbox, mailbox_list_nullable, MailboxRef, vec_filter_none_nonempty};
+use crate::imf::mailbox::{mailbox, mailbox_list_nullable, MailboxRef};
 use crate::text::misc_token::{phrase, Phrase};
 use crate::text::whitespace::cfws;
+use crate::utils::vec_filter_none_nonempty;
 
 #[derive(Clone, Debug, PartialEq, ToStatic)]
 pub struct GroupRef<'a> {

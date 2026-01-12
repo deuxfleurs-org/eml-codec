@@ -421,16 +421,6 @@ pub fn dtext<'a>(input: &'a [u8]) -> IResult<&'a [u8], Dtext<'a>> {
     map(take_while1(is_dtext), |b| Dtext(Cow::Borrowed(b)))(input)
 }
 
-// TODO: move to a utils file?
-pub(crate) fn vec_filter_none_nonempty<T>(v: Vec<Option<T>>) -> Option<Vec<T>> {
-    let v: Vec<T> = v.into_iter().flatten().collect();
-    if v.is_empty() {
-        None
-    } else {
-        Some(v)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
