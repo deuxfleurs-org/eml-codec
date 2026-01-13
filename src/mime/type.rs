@@ -31,7 +31,7 @@ impl<'a> fmt::Debug for NaiveType<'a> {
     }
 }
 impl<'a> NaiveType<'a> {
-    pub fn to_type(&self) -> AnyType {
+    pub fn to_type(&self) -> AnyType<'a> {
         self.into()
     }
 }
@@ -46,6 +46,23 @@ pub fn naive_type(input: &[u8]) -> IResult<&[u8], NaiveType<'_>> {
     )(input)
 }
 
+// XXX we allow printing content types without further validation;
+// this is not strictly allowed by the spec, which only allows
+// x-token or ietf-token on top of the RFC defined content types.
+impl<'a> Print for NaiveType<'a> {
+    fn print(&self, fmt: &mut impl Formatter) -> std::io::Result<()> {
+        self.main.print(fmt)?;
+        fmt.write_bytes(b"/")?;
+        self.sub.print(fmt)?;
+        for param in &self.params {
+            fmt.write_bytes(b";")?;
+            fmt.write_fws()?;
+            param.print(fmt)?;
+        }
+        Ok(())
+    }
+}
+
 #[derive(PartialEq, Clone, ToStatic)]
 pub struct Parameter<'a> {
     pub name: Cow<'a, [u8]>,
@@ -57,6 +74,13 @@ impl<'a> fmt::Debug for Parameter<'a> {
             .field("name", &String::from_utf8_lossy(&self.name))
             .field("value", &self.value)
             .finish()
+    }
+}
+impl<'a> Print for Parameter<'a> {
+    fn print(&self, fmt: &mut impl Formatter) -> std::io::Result<()> {
+        fmt.write_bytes(&self.name)?;
+        fmt.write_bytes(b"=")?;
+        self.value.print(fmt)
     }
 }
 
@@ -77,57 +101,38 @@ pub fn parameter_list(input: &[u8]) -> IResult<&[u8], Vec<Parameter<'_>>> {
 // MIME TYPES TRANSLATED TO RUST TYPING SYSTEM
 
 #[derive(Debug, PartialEq, ToStatic)]
-pub enum AnyType {
+pub enum AnyType<'a> {
     // Composite types
-    Multipart(Multipart),
-    Message(Deductible<Message>),
+    Multipart(Multipart<'a>),         // multipart/*
+    Message(Deductible<Message<'a>>), // message/*
 
     // Discrete types
-    Text(Deductible<Text>),
-    Binary(Binary),
+    Text(Deductible<Text<'a>>),       // text/*
+    Binary(Binary<'a>),               // everything else
 }
 
-impl<'a> From<&'a NaiveType<'a>> for AnyType {
-    fn from(nt: &'a NaiveType<'a>) -> Self {
+impl<'a> From<&NaiveType<'a>> for AnyType<'a> {
+    fn from(nt: &NaiveType<'a>) -> Self {
         match nt.main.to_ascii_lowercase().as_slice() {
-            b"multipart" => Multipart::try_from(nt)
+            b"multipart" =>
+                 // fails if there is no boundary parameter
+                Multipart::try_from(nt)
                 .map(Self::Multipart)
-                .unwrap_or(Self::Text(DeductibleText::default())),
+                .unwrap_or(Self::Binary(Binary::from(nt))),
             b"message" => Self::Message(DeductibleMessage::Explicit(Message::from(nt))),
             b"text" => Self::Text(DeductibleText::Explicit(Text::from(nt))),
-            _ => Self::Binary(Binary::default()),
+            _ => Self::Binary(Binary::from(nt)),
         }
     }
 }
 
-impl Print for AnyType {
+impl<'a> Print for AnyType<'a> {
     fn print(&self, fmt: &mut impl Formatter) -> std::io::Result<()> {
         match self {
-            AnyType::Multipart(mp) => {
-                fmt.write_bytes(b"multipart/")?;
-                fmt.write_bytes(mp.subtype.to_string().as_bytes())?;
-                fmt.write_bytes(b";")?;
-                fmt.write_fws()?;
-                // always quote the boundary ("never hurts" says RFC2046)
-                fmt.write_bytes(b"boundary=\"")?;
-                fmt.write_bytes(&mp.boundary)?;
-                fmt.write_bytes(b"\"")
-            },
-            AnyType::Message(msg) => {
-                fmt.write_bytes(b"message/")?;
-                fmt.write_bytes(msg.value().subtype.to_string().as_bytes())
-            },
-            AnyType::Text(txt) => {
-                fmt.write_bytes(b"text/")?;
-                fmt.write_bytes(txt.value().subtype.to_string().as_bytes())?;
-                fmt.write_bytes(b";")?;
-                fmt.write_fws()?;
-                fmt.write_bytes(b"charset=")?;
-                fmt.write_bytes(txt.value().charset.value().as_str().as_bytes())
-            },
-            AnyType::Binary(_bin) => {
-                fmt.write_bytes(b"application/octet-stream")
-            }
+            AnyType::Multipart(mp) => mp.print(fmt),
+            AnyType::Message(msg) => msg.value().print(fmt),
+            AnyType::Text(txt) => txt.value().print(fmt),
+            AnyType::Binary(bin) => bin.print(fmt),
         }
     }
 }
@@ -153,28 +158,65 @@ impl<T: Default> Deductible<T> {
 
 // REAL PARTS
 
-#[derive(Debug, PartialEq, Clone, ToStatic)]
-pub struct Multipart {
+#[derive(PartialEq, Clone, ToStatic)]
+pub struct Multipart<'a> {
     pub subtype: MultipartSubtype,
     pub boundary: Vec<u8>,
+    pub params: Vec<Parameter<'a>>,
 }
-impl Multipart {
-    pub fn main_type(&self) -> String {
-        "multipart".into()
+
+impl<'a> fmt::Debug for Multipart<'a> {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt.debug_struct("mime::r#type::Multipart")
+            .field("subtype", &self.subtype)
+            .field("boundary", &String::from_utf8_lossy(&self.boundary))
+            .field("params", &self.params)
+            .finish()
     }
 }
-impl<'a> TryFrom<&'a NaiveType<'a>> for Multipart {
+impl<'a> Print for Multipart<'a> {
+    fn print(&self, fmt: &mut impl Formatter) -> std::io::Result<()> {
+        fmt.write_bytes(b"multipart/")?;
+        self.subtype.print(fmt)?;
+        fmt.write_bytes(b";")?;
+        fmt.write_fws()?;
+        // always quote the boundary ("never hurts" says RFC2046)
+        fmt.write_bytes(b"boundary=\"")?;
+        fmt.write_bytes(&self.boundary)?;
+        fmt.write_bytes(b"\"")?;
+        for param in &self.params {
+            fmt.write_bytes(b";")?;
+            fmt.write_fws()?;
+            param.print(fmt)?;
+        }
+        Ok(())
+    }
+}
+
+impl<'a> TryFrom<&NaiveType<'a>> for Multipart<'a> {
     type Error = ();
 
-    fn try_from(nt: &'a NaiveType<'a>) -> Result<Self, Self::Error> {
-        nt.params
-            .iter()
-            .find(|x| x.name.to_ascii_lowercase().as_slice() == b"boundary")
-            .map(|boundary| Multipart {
+    fn try_from(nt: &NaiveType<'a>) -> Result<Self, Self::Error> {
+        let mut params = vec![];
+        let mut boundary = None;
+        for param in &nt.params {
+            if param.name.to_ascii_lowercase().as_slice() == b"boundary" {
+                if boundary.is_none() {
+                    boundary = Some(param.value.bytes().collect::<Vec<_>>());
+                }
+                // drop any redundant "boundary" parameter that is not the first
+            } else {
+                params.push(param.clone())
+            }
+        }
+        match boundary {
+            Some(boundary) => Ok(Multipart {
                 subtype: MultipartSubtype::from(nt),
-                boundary: boundary.value.bytes().collect(),
-            })
-            .ok_or(())
+                boundary,
+                params,
+            }),
+            None => Err(()),
+        }
     }
 }
 
@@ -185,30 +227,41 @@ pub enum MultipartSubtype {
     Digest,
     Parallel,
     Report,
-    Unknown,
+    Unknown(Vec<u8>), // should be treated as Mixed
+}
+impl MultipartSubtype {
+    fn as_bytes(&self) -> &[u8] {
+        match self {
+            Self::Alternative => b"alternative",
+            Self::Mixed => b"mixed",
+            Self::Digest => b"digest",
+            Self::Parallel => b"parallel",
+            Self::Report => b"report",
+            Self::Unknown(v) => &v,
+        }
+    }
 }
 impl ToString for MultipartSubtype {
     fn to_string(&self) -> String {
-        match self {
-            Self::Alternative => "alternative",
-            Self::Mixed => "mixed",
-            Self::Digest => "digest",
-            Self::Parallel => "parallel",
-            Self::Report => "report",
-            Self::Unknown => "mixed",
-        }
-        .into()
+        String::from_utf8_lossy(self.as_bytes()).to_string()
     }
 }
+impl Print for MultipartSubtype {
+    fn print(&self, fmt: &mut impl Formatter) -> std::io::Result<()> {
+        fmt.write_bytes(self.as_bytes())
+    }
+}
+
 impl<'a> From<&NaiveType<'a>> for MultipartSubtype {
     fn from(nt: &NaiveType<'a>) -> Self {
-        match nt.sub.to_ascii_lowercase().as_slice() {
+        let sub = nt.sub.to_ascii_lowercase();
+        match sub.as_slice() {
             b"alternative" => Self::Alternative,
             b"mixed" => Self::Mixed,
             b"digest" => Self::Digest,
             b"parallel" => Self::Parallel,
             b"report" => Self::Report,
-            _ => Self::Unknown,
+            _ => Self::Unknown(sub),
         }
     }
 }
@@ -219,76 +272,114 @@ pub enum MessageSubtype {
     RFC822,
     Partial,
     External,
-    Unknown,
+    Unknown(Vec<u8>), // should be treated as the Binary type
+}
+impl MessageSubtype {
+    fn as_bytes(&self) -> &[u8] {
+        match self {
+            Self::RFC822 => b"rfc822",
+            Self::Partial => b"partial",
+            Self::External => b"external",
+            Self::Unknown(b) => &b,
+        }
+    }
 }
 impl ToString for MessageSubtype {
     fn to_string(&self) -> String {
-        match self {
-            Self::RFC822 => "rfc822",
-            Self::Partial => "partial",
-            Self::External => "external",
-            Self::Unknown => "rfc822",
-        }
-        .into()
+        String::from_utf8_lossy(self.as_bytes()).to_string()
+    }
+}
+impl Print for MessageSubtype {
+    fn print(&self, fmt: &mut impl Formatter) -> std::io::Result<()> {
+        fmt.write_bytes(self.as_bytes())
     }
 }
 
-pub type DeductibleMessage = Deductible<Message>;
-#[derive(Debug, PartialEq, Default, Clone, ToStatic)]
-pub struct Message {
-    // XXX no parameters? required for 'partial' and 'external'
-    pub subtype: MessageSubtype,
-}
-impl<'a> From<&NaiveType<'a>> for Message {
+impl<'a> From<&NaiveType<'a>> for MessageSubtype {
     fn from(nt: &NaiveType<'a>) -> Self {
-        match nt.sub.to_ascii_lowercase().as_slice() {
-            b"rfc822" => Self {
-                subtype: MessageSubtype::RFC822,
-            },
-            b"partial" => Self {
-                subtype: MessageSubtype::Partial,
-            },
-            b"external" => Self {
-                subtype: MessageSubtype::External,
-            },
-            _ => Self {
-                subtype: MessageSubtype::Unknown,
-            },
-        }
-    }
-}
-impl From<Deductible<Message>> for Message {
-    fn from(d: Deductible<Message>) -> Self {
-        match d {
-            Deductible::Inferred(t) | Deductible::Explicit(t) => t,
+        let sub = nt.sub.to_ascii_lowercase();
+        match sub.as_slice() {
+            b"rfc822" => MessageSubtype::RFC822,
+            b"partial" => MessageSubtype::Partial,
+            b"external" => MessageSubtype::External,
+            _ => MessageSubtype::Unknown(sub),
         }
     }
 }
 
-pub type DeductibleText = Deductible<Text>;
+pub type DeductibleMessage<'a> = Deductible<Message<'a>>;
 #[derive(Debug, PartialEq, Default, Clone, ToStatic)]
-pub struct Text {
-    pub subtype: TextSubtype,
-    pub charset: Deductible<EmailCharset>,
+pub struct Message<'a> {
+    pub subtype: MessageSubtype,
+    pub params: Vec<Parameter<'a>>,
 }
-impl<'a> From<&NaiveType<'a>> for Text {
+
+impl<'a> Print for Message<'a> {
+    fn print(&self, fmt: &mut impl Formatter) -> std::io::Result<()> {
+        fmt.write_bytes(b"message/")?;
+        self.subtype.print(fmt)?;
+        for param in &self.params {
+            fmt.write_bytes(b";")?;
+            fmt.write_fws()?;
+            param.print(fmt)?;
+        }
+        Ok(())
+    }
+}
+
+impl<'a> From<&NaiveType<'a>> for Message<'a> {
     fn from(nt: &NaiveType<'a>) -> Self {
         Self {
-            subtype: TextSubtype::from(nt),
-            charset: nt
-                .params
-                .iter()
-                .find(|x| x.name.to_ascii_lowercase().as_slice() == b"charset")
-                .map(|x| Deductible::Explicit(EmailCharset::from(x.value.to_string().as_bytes())))
-                .unwrap_or(Deductible::Inferred(EmailCharset::US_ASCII)),
+            subtype: MessageSubtype::from(nt),
+            params: nt.params.clone(),
         }
     }
 }
-impl From<Deductible<Text>> for Text {
-    fn from(d: Deductible<Text>) -> Self {
-        match d {
-            Deductible::Inferred(t) | Deductible::Explicit(t) => t,
+
+pub type DeductibleText<'a> = Deductible<Text<'a>>;
+#[derive(Debug, PartialEq, Default, Clone, ToStatic)]
+pub struct Text<'a> {
+    // NOTE: an unknown subtype combined with an unknown charset should
+    // result in this type be treated as equivalent to the Binary type.
+    pub subtype: TextSubtype,
+    pub charset: Deductible<EmailCharset>,
+    pub params: Vec<Parameter<'a>>,
+}
+
+impl<'a> Print for Text<'a> {
+    fn print(&self, fmt: &mut impl Formatter) -> std::io::Result<()> {
+        fmt.write_bytes(b"text/")?;
+        self.subtype.print(fmt)?;
+        fmt.write_bytes(b";")?;
+        fmt.write_fws()?;
+        fmt.write_bytes(b"charset=")?;
+        fmt.write_bytes(self.charset.value().as_bytes())?;
+        for param in &self.params {
+            fmt.write_bytes(b";")?;
+            fmt.write_fws()?;
+            param.print(fmt)?;
         }
+        Ok(())
+    }
+}
+
+impl<'a> From<&NaiveType<'a>> for Text<'a> {
+    fn from(nt: &NaiveType<'a>) -> Self {
+        let mut params = vec![];
+        let mut charset = Deductible::Inferred(EmailCharset::US_ASCII);
+        for param in &nt.params {
+            if param.name.to_ascii_lowercase().as_slice() == b"charset" {
+                if matches!(charset, Deductible::Inferred(_)) {
+                    let value: Vec<u8> = param.value.bytes().collect();
+                    charset = Deductible::Explicit(EmailCharset::from(value.as_slice()));
+                }
+                // drop any "charset" parameter that is not the first
+            } else {
+                params.push(param.clone())
+            }
+        }
+
+        Self { subtype: TextSubtype::from(nt), charset, params }
     }
 }
 
@@ -297,30 +388,54 @@ pub enum TextSubtype {
     #[default]
     Plain,
     Html,
-    Unknown,
+    Unknown(Vec<u8>),
+}
+impl TextSubtype {
+    fn as_bytes(&self) -> &[u8] {
+        use TextSubtype::*;
+        match self {
+            Plain => b"plain",
+            Html => b"html",
+            Unknown(b) => &b,
+        }
+    }
 }
 impl ToString for TextSubtype {
     fn to_string(&self) -> String {
-        match self {
-            Self::Plain | Self::Unknown => "plain",
-            Self::Html => "html",
-        }
-        .into()
+        String::from_utf8_lossy(self.as_bytes()).to_string()
     }
 }
+impl Print for TextSubtype {
+    fn print(&self, fmt: &mut impl Formatter) -> std::io::Result<()> {
+        fmt.write_bytes(self.as_bytes())
+    }
+}
+
 impl<'a> From<&NaiveType<'a>> for TextSubtype {
     fn from(nt: &NaiveType<'a>) -> Self {
-        match nt.sub.to_ascii_lowercase().as_slice() {
+        let sub = nt.sub.to_ascii_lowercase();
+        match sub.as_slice() {
             b"plain" => Self::Plain,
             b"html" => Self::Html,
-            _ => Self::Unknown,
+            _ => Self::Unknown(sub),
         }
     }
 }
 
-#[derive(Debug, PartialEq, Default, Clone, ToStatic)]
-pub struct Binary {
-    // XXX forward content types even if not interpreted?
+#[derive(Debug, PartialEq, Clone, ToStatic)]
+pub struct Binary<'a> {
+    ctype: NaiveType<'a>,
+}
+
+impl<'a> Print for Binary<'a> {
+    fn print(&self, fmt: &mut impl Formatter) -> std::io::Result<()> {
+        self.ctype.print(fmt)
+    }
+}
+impl<'a> From<&NaiveType<'a>> for Binary<'a> {
+    fn from(nt: &NaiveType<'a>) -> Self {
+        Self { ctype: nt.clone() }
+    }
 }
 
 #[cfg(test)]
@@ -356,7 +471,7 @@ mod tests {
 
     #[test]
     fn test_content_type_plaintext() {
-        let (rest, nt) = naive_type(b"text/plain;\r\n charset=utf-8").unwrap();
+        let (rest, nt) = naive_type(b"text/plain;\r\n charset=utf-8 ; hello=yolo").unwrap();
         assert_eq!(rest, &b""[..]);
 
         assert_eq!(
@@ -364,6 +479,10 @@ mod tests {
             AnyType::Text(Deductible::Explicit(Text {
                 charset: Deductible::Explicit(EmailCharset::UTF_8),
                 subtype: TextSubtype::Plain,
+                params: vec![Parameter {
+                    name: b"hello"[..].into(),
+                    value: MIMEWord::Atom(b"yolo"[..].into()),
+                }],
             }))
         );
     }
@@ -377,6 +496,10 @@ mod tests {
             AnyType::Multipart(Multipart {
                 subtype: MultipartSubtype::Mixed,
                 boundary: "--==_mimepart_64a3f2c69114f_2a13d020975fe".into(),
+                params: vec![Parameter {
+                    name: b"charset"[..].into(),
+                    value: MIMEWord::Atom(b"UTF-8"[..].into()),
+                }],
             })
         );
     }
@@ -389,7 +512,8 @@ mod tests {
         assert_eq!(
             nt.to_type(),
             AnyType::Message(Deductible::Explicit(Message {
-                subtype: MessageSubtype::RFC822
+                subtype: MessageSubtype::RFC822,
+                params: vec![],
             }))
         );
     }
@@ -404,6 +528,7 @@ mod tests {
             AnyType::Text(Deductible::Explicit(Text {
                 subtype: TextSubtype::Plain,
                 charset: Deductible::Explicit(EmailCharset::US_ASCII),
+                params: vec![],
             }))
         );
     }

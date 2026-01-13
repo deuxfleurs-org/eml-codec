@@ -326,6 +326,7 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                             ctype: mime::r#type::Multipart {
                                 subtype: mime::r#type::MultipartSubtype::Alternative,
                                 boundary: b"b1_e376dc71bafc953c0b0fdeb9983a9956".to_vec(),
+                                params: vec![],
                             },
                             fields: mime::CommonMIME::default(),
                         },
@@ -342,6 +343,7 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                                         ctype: mime::r#type::Deductible::Explicit(mime::r#type::Text {
                                             subtype: mime::r#type::TextSubtype::Plain,
                                             charset: mime::r#type::Deductible::Explicit(mime::charset::EmailCharset::UTF_8),
+                                            params: vec![],
                                         }),
                                         fields: mime::CommonMIME {
                                             transfer_encoding: mime::mechanism::Mechanism::QuotedPrintable,
@@ -367,6 +369,7 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                                         ctype: mime::r#type::Deductible::Explicit(mime::r#type::Text {
                                             subtype: mime::r#type::TextSubtype::Html,
                                             charset: mime::r#type::Deductible::Explicit(mime::charset::EmailCharset::US_ASCII),
+                                            params: vec![],
                                         }),
 
                                         fields: mime::CommonMIME::default(),

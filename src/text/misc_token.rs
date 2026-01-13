@@ -84,6 +84,14 @@ impl<'a> MIMEWord<'a> {
         }
     }
 }
+impl<'a> Print for MIMEWord<'a> {
+    fn print(&self, fmt: &mut impl Formatter) -> std::io::Result<()> {
+        match self {
+            MIMEWord::Quoted(q) => print_quoted(fmt, q.bytes()),
+            MIMEWord::Atom(a) => fmt.write_bytes(&a),
+        }
+    }
+}
 
 #[derive(Clone, PartialEq, ToStatic)]
 pub enum Word<'a> {

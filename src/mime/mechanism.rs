@@ -21,23 +21,28 @@ pub enum Mechanism<'a> {
     Base64,
     Other(Cow<'a, [u8]>),
 }
-impl<'a> ToString for Mechanism<'a> {
-    fn to_string(&self) -> String {
+impl<'a> Mechanism<'a> {
+    pub fn as_bytes(&self) -> &[u8] {
         use Mechanism::*;
-        let buf: &[u8] = match self {
+        match self {
             _7Bit => b"7bit",
             _8Bit => b"8bit",
             Binary => b"binary",
             QuotedPrintable => b"quoted-printable",
             Base64 => b"base64",
             Other(x) => &x,
-        };
-        String::from_utf8_lossy(buf).to_string()
+        }
+    }
+}
+
+impl<'a> ToString for Mechanism<'a> {
+    fn to_string(&self) -> String {
+        String::from_utf8_lossy(self.as_bytes()).to_string()
     }
 }
 impl<'a> Print for Mechanism<'a> {
     fn print(&self, fmt: &mut impl Formatter) -> std::io::Result<()> {
-        fmt.write_bytes(self.to_string().as_bytes())
+        fmt.write_bytes(self.as_bytes())
     }
 }
 impl<'a> Mechanism<'a> {

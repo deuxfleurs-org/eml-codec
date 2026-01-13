@@ -11,7 +11,7 @@ use crate::text::boundary::{boundary, Delimiter};
 //--- Multipart
 #[derive(PartialEq, ToStatic)]
 pub struct Multipart<'a> {
-    pub mime: mime::MIME<'a, mime::r#type::Multipart>,
+    pub mime: mime::MIME<'a, mime::r#type::Multipart<'a>>,
     pub children: Vec<AnyPart<'a>>,
     pub preamble: Cow<'a, [u8]>,
     pub epilogue: Cow<'a, [u8]>,
@@ -28,7 +28,7 @@ impl<'a> fmt::Debug for Multipart<'a> {
 }
 
 pub fn multipart<'a>(
-    m: mime::MIME<'a, mime::r#type::Multipart>,
+    m: mime::MIME<'a, mime::r#type::Multipart<'a>>,
 ) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], Multipart<'a>> {
     let m = m.clone();
 
@@ -102,7 +102,7 @@ pub fn multipart<'a>(
 
 #[derive(PartialEq, ToStatic)]
 pub struct Message<'a> {
-    pub mime: mime::MIME<'a, mime::r#type::DeductibleMessage>,
+    pub mime: mime::MIME<'a, mime::r#type::DeductibleMessage<'a>>,
 
     // NOTE: RFC2046 does not define the contents of an encapsulated message to
     // be a "part" (instead parts are the children of a multipart entity).
@@ -132,7 +132,7 @@ impl<'a> fmt::Debug for Message<'a> {
 }
 
 pub fn message<'a>(
-    m: mime::MIME<'a, mime::r#type::DeductibleMessage>,
+    m: mime::MIME<'a, mime::r#type::DeductibleMessage<'a>>,
 ) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], Message<'a>> {
     move |input: &[u8]| {
         // parse header fields
@@ -171,6 +171,7 @@ mod tests {
             ctype: mime::r#type::Multipart {
                 subtype: mime::r#type::MultipartSubtype::Alternative,
                 boundary: b"simple boundary".to_vec(),
+                params: vec![],
             },
             fields: mime::CommonMIME::default(),
         };
@@ -218,6 +219,7 @@ This is the epilogue. It is also to be ignored.
                                     ctype: mime::r#type::Deductible::Inferred(mime::r#type::Text {
                                         subtype: mime::r#type::TextSubtype::Plain,
                                         charset: mime::r#type::Deductible::Inferred(mime::charset::EmailCharset::US_ASCII),
+                                        params: vec![],
                                     }),
                                     fields: mime::CommonMIME::default(),
                                 },
@@ -231,6 +233,7 @@ This is the epilogue. It is also to be ignored.
                                     ctype: mime::r#type::Deductible::Explicit(mime::r#type::Text {
                                         subtype: mime::r#type::TextSubtype::Plain,
                                         charset: mime::r#type::Deductible::Explicit(mime::charset::EmailCharset::US_ASCII),
+                                        params: vec![],
                                     }),
                                     fields: mime::CommonMIME::default(),
                                 },
@@ -252,6 +255,7 @@ This is the epilogue. It is also to be ignored.
             ctype: mime::r#type::Multipart {
                 subtype: mime::r#type::MultipartSubtype::Mixed,
                 boundary: b"outer boundary".to_vec(),
+                params: vec![],
             },
             fields: mime::CommonMIME::default(),
         };
@@ -283,6 +287,7 @@ This is implicitly typed plain US-ASCII text.
                                     ctype: mime::r#type::Multipart {
                                         subtype: mime::r#type::MultipartSubtype::Mixed,
                                         boundary: b"inner boundary".to_vec(),
+                                        params: vec![],
                                     },
                                     fields: mime::CommonMIME::default(),
                                 },
@@ -296,6 +301,7 @@ This is implicitly typed plain US-ASCII text.
                                                 ctype: mime::r#type::Deductible::Inferred(mime::r#type::Text {
                                                     subtype: mime::r#type::TextSubtype::Plain,
                                                     charset: mime::r#type::Deductible::Inferred(mime::charset::EmailCharset::US_ASCII),
+                                                    params: vec![],
                                                 }),
                                                 fields: mime::CommonMIME::default(),
                                             },
@@ -312,6 +318,7 @@ This is implicitly typed plain US-ASCII text.
                                     ctype: mime::r#type::Deductible::Inferred(mime::r#type::Text {
                                         subtype: mime::r#type::TextSubtype::Plain,
                                         charset: mime::r#type::Deductible::Inferred(mime::charset::EmailCharset::US_ASCII),
+                                        params: vec![],
                                     }),
                                     fields: mime::CommonMIME::default(),
                                 },

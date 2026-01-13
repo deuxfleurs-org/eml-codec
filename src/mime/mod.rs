@@ -42,7 +42,7 @@ pub struct MIME<'a, T> {
     pub fields: CommonMIME<'a>,
 }
 
-impl<'a> Default for MIME<'a, r#type::DeductibleText> {
+impl<'a> Default for MIME<'a, r#type::DeductibleText<'a>> {
     fn default() -> Self {
         Self {
             ctype: r#type::DeductibleText::default(),
@@ -50,7 +50,7 @@ impl<'a> Default for MIME<'a, r#type::DeductibleText> {
         }
     }
 }
-impl<'a> Default for MIME<'a, r#type::DeductibleMessage> {
+impl<'a> Default for MIME<'a, r#type::DeductibleMessage<'a>> {
     fn default() -> Self {
         Self {
             ctype: r#type::DeductibleMessage::default(),
@@ -61,10 +61,10 @@ impl<'a> Default for MIME<'a, r#type::DeductibleMessage> {
 
 #[derive(Debug, PartialEq, Clone, ToStatic)]
 pub enum AnyMIME<'a> {
-    Mult(MIME<'a, r#type::Multipart>),
-    Msg(MIME<'a, r#type::DeductibleMessage>),
-    Txt(MIME<'a, r#type::DeductibleText>),
-    Bin(MIME<'a, r#type::Binary>),
+    Mult(MIME<'a, r#type::Multipart<'a>>),
+    Msg(MIME<'a, r#type::DeductibleMessage<'a>>),
+    Txt(MIME<'a, r#type::DeductibleText<'a>>),
+    Bin(MIME<'a, r#type::Binary<'a>>),
 }
 impl<'a> AnyMIME<'a> {
     pub fn fields(&self) -> &CommonMIME<'a> {
@@ -77,24 +77,24 @@ impl<'a> AnyMIME<'a> {
     }
 }
 
-impl<'a> Into<AnyMIME<'a>> for MIME<'a, r#type::Multipart> {
+impl<'a> Into<AnyMIME<'a>> for MIME<'a, r#type::Multipart<'a>> {
     fn into(self) -> AnyMIME<'a> {
         AnyMIME::Mult(self)
     }
 }
 
-impl<'a> Into<AnyMIME<'a>> for MIME<'a, r#type::DeductibleMessage> {
+impl<'a> Into<AnyMIME<'a>> for MIME<'a, r#type::DeductibleMessage<'a>> {
     fn into(self) -> AnyMIME<'a> {
         AnyMIME::Msg(self)
     }
 }
 
-impl<'a> Into<AnyMIME<'a>> for MIME<'a, r#type::DeductibleText> {
+impl<'a> Into<AnyMIME<'a>> for MIME<'a, r#type::DeductibleText<'a>> {
     fn into(self) -> AnyMIME<'a> {
         AnyMIME::Txt(self)
     }
 }
-impl<'a> Into<AnyMIME<'a>> for MIME<'a, r#type::Binary> {
+impl<'a> Into<AnyMIME<'a>> for MIME<'a, r#type::Binary<'a>> {
     fn into(self) -> AnyMIME<'a> {
         AnyMIME::Bin(self)
     }
@@ -168,7 +168,7 @@ pub enum DefaultType {
 }
 
 impl DefaultType {
-    fn to_type(self) -> AnyType {
+    fn to_type(self) -> AnyType<'static> {
         match self {
             Self::Generic => AnyType::Text(Default::default()),
             Self::Digest => AnyType::Message(Default::default()),
