@@ -99,7 +99,7 @@ impl<'a> EncodedWord<'a> {
     }
 }
 impl<'a> Print for EncodedWord<'a> {
-    fn print(&self, fmt: &mut impl Formatter) -> std::io::Result<()> {
+    fn print(&self, fmt: &mut impl Formatter) {
         print_seq(fmt, &self.0, Formatter::write_fws)
     }
 }
@@ -118,7 +118,7 @@ impl<'a> EncodedWordToken<'a> {
     }
 }
 impl<'a> Print for EncodedWordToken<'a> {
-    fn print(&self, fmt: &mut impl Formatter) -> std::io::Result<()> {
+    fn print(&self, fmt: &mut impl Formatter) {
         print_utf8_encoded(fmt, self.to_string().chars())
     }
 }
@@ -264,7 +264,7 @@ fn is_qchar_safe_strict(b: u8) -> bool {
 
 // XXX: how can we enforce that encoded words are always preceded with linear
 // space (or beginning of header body)?
-pub fn print_utf8_encoded<I>(fmt: &mut impl Formatter, data: I) -> std::io::Result<()>
+pub fn print_utf8_encoded<I>(fmt: &mut impl Formatter, data: I)
 where
     I: IntoIterator<Item = char>
 {
@@ -294,10 +294,10 @@ where
             + char_encoded.len()
             + FOOTER.len() > MAX_LEN
         {
-            fmt.write_bytes(HEADER)?;
-            fmt.write_bytes(&buf)?;
-            fmt.write_bytes(FOOTER)?;
-            fmt.write_fws()?;
+            fmt.write_bytes(HEADER);
+            fmt.write_bytes(&buf);
+            fmt.write_bytes(FOOTER);
+            fmt.write_fws();
             buf.truncate(0);
         }
 
@@ -307,18 +307,16 @@ where
 
     // write any leftover data in buf
     if !buf.is_empty() {
-        fmt.write_bytes(HEADER)?;
-        fmt.write_bytes(&buf)?;
-        fmt.write_bytes(FOOTER)?;
+        fmt.write_bytes(HEADER);
+        fmt.write_bytes(&buf);
+        fmt.write_bytes(FOOTER);
     }
-
-    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::print::with_line_folder;
+    use crate::print::tests::with_formatter;
 
     // =?iso8859-1?Q?Accus=E9_de_r=E9ception_(affich=E9)?=
     #[test]
@@ -401,16 +399,16 @@ mod tests {
 
     #[test]
     fn test_encode() {
-        let out = with_line_folder(|f| {
-            print_utf8_encoded(f, "Accusé de réception (affiché)".chars()).unwrap();
+        let out = with_formatter(|f| {
+            print_utf8_encoded(f, "Accusé de réception (affiché)".chars());
         });
         assert_eq!(
             out,
             b"=?UTF-8?Q?Accus=C3=A9_de_r=C3=A9ception_=28affich=C3=A9=29?="
         );
 
-        let out = with_line_folder(|f| {
-            print_utf8_encoded(f, "John Smîth".chars()).unwrap();
+        let out = with_formatter(|f| {
+            print_utf8_encoded(f, "John Smîth".chars());
         });
         assert_eq!(
             out,
@@ -420,8 +418,9 @@ mod tests {
 
     #[test]
     fn test_encode_folding() {
-        let out = with_line_folder(|f| {
-            print_utf8_encoded(f, "Accusé de réception (affiché) Accusé de réception (affiché)".chars()).unwrap();
+        let out = with_formatter(|f| {
+            f.begin_line_folding();
+            print_utf8_encoded(f, "Accusé de réception (affiché) Accusé de réception (affiché)".chars());
         });
         assert_eq!(
             out,

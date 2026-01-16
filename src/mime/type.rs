@@ -50,16 +50,15 @@ pub fn naive_type(input: &[u8]) -> IResult<&[u8], NaiveType<'_>> {
 // this is not strictly allowed by the spec, which only allows
 // x-token or ietf-token on top of the RFC defined content types.
 impl<'a> Print for NaiveType<'a> {
-    fn print(&self, fmt: &mut impl Formatter) -> std::io::Result<()> {
-        self.main.print(fmt)?;
-        fmt.write_bytes(b"/")?;
-        self.sub.print(fmt)?;
+    fn print(&self, fmt: &mut impl Formatter) {
+        self.main.print(fmt);
+        fmt.write_bytes(b"/");
+        self.sub.print(fmt);
         for param in &self.params {
-            fmt.write_bytes(b";")?;
-            fmt.write_fws()?;
-            param.print(fmt)?;
+            fmt.write_bytes(b";");
+            fmt.write_fws();
+            param.print(fmt);
         }
-        Ok(())
     }
 }
 
@@ -77,9 +76,9 @@ impl<'a> fmt::Debug for Parameter<'a> {
     }
 }
 impl<'a> Print for Parameter<'a> {
-    fn print(&self, fmt: &mut impl Formatter) -> std::io::Result<()> {
-        fmt.write_bytes(&self.name)?;
-        fmt.write_bytes(b"=")?;
+    fn print(&self, fmt: &mut impl Formatter) {
+        fmt.write_bytes(&self.name);
+        fmt.write_bytes(b"=");
         self.value.print(fmt)
     }
 }
@@ -127,7 +126,7 @@ impl<'a> From<&NaiveType<'a>> for AnyType<'a> {
 }
 
 impl<'a> Print for AnyType<'a> {
-    fn print(&self, fmt: &mut impl Formatter) -> std::io::Result<()> {
+    fn print(&self, fmt: &mut impl Formatter) {
         match self {
             AnyType::Multipart(mp) => mp.print(fmt),
             AnyType::Message(msg) => msg.value().print(fmt),
@@ -161,7 +160,9 @@ impl<T: Default> Deductible<T> {
 #[derive(PartialEq, Clone, ToStatic)]
 pub struct Multipart<'a> {
     pub subtype: MultipartSubtype,
-    pub boundary: Vec<u8>,
+    // XXX: this is a hack, it is used to propagate information during parsing,
+    // but is ignored by the printer.
+    pub boundary: Option<Vec<u8>>,
     pub params: Vec<Parameter<'a>>,
 }
 
@@ -169,27 +170,27 @@ impl<'a> fmt::Debug for Multipart<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt.debug_struct("mime::r#type::Multipart")
             .field("subtype", &self.subtype)
-            .field("boundary", &String::from_utf8_lossy(&self.boundary))
+            .field("boundary", &self.boundary.as_deref().map(String::from_utf8_lossy))
             .field("params", &self.params)
             .finish()
     }
 }
 impl<'a> Print for Multipart<'a> {
-    fn print(&self, fmt: &mut impl Formatter) -> std::io::Result<()> {
-        fmt.write_bytes(b"multipart/")?;
-        self.subtype.print(fmt)?;
-        fmt.write_bytes(b";")?;
-        fmt.write_fws()?;
+    fn print(&self, fmt: &mut impl Formatter) {
+        fmt.push_new_boundary();
+        fmt.write_bytes(b"multipart/");
+        self.subtype.print(fmt);
+        fmt.write_bytes(b";");
+        fmt.write_fws();
         // always quote the boundary ("never hurts" says RFC2046)
-        fmt.write_bytes(b"boundary=\"")?;
-        fmt.write_bytes(&self.boundary)?;
-        fmt.write_bytes(b"\"")?;
+        fmt.write_bytes(b"boundary=\"");
+        fmt.write_current_boundary();
+        fmt.write_bytes(b"\"");
         for param in &self.params {
-            fmt.write_bytes(b";")?;
-            fmt.write_fws()?;
-            param.print(fmt)?;
+            fmt.write_bytes(b";");
+            fmt.write_fws();
+            param.print(fmt);
         }
-        Ok(())
     }
 }
 
@@ -212,7 +213,7 @@ impl<'a> TryFrom<&NaiveType<'a>> for Multipart<'a> {
         match boundary {
             Some(boundary) => Ok(Multipart {
                 subtype: MultipartSubtype::from(nt),
-                boundary,
+                boundary: Some(boundary),
                 params,
             }),
             None => Err(()),
@@ -247,7 +248,7 @@ impl ToString for MultipartSubtype {
     }
 }
 impl Print for MultipartSubtype {
-    fn print(&self, fmt: &mut impl Formatter) -> std::io::Result<()> {
+    fn print(&self, fmt: &mut impl Formatter) {
         fmt.write_bytes(self.as_bytes())
     }
 }
@@ -290,7 +291,7 @@ impl ToString for MessageSubtype {
     }
 }
 impl Print for MessageSubtype {
-    fn print(&self, fmt: &mut impl Formatter) -> std::io::Result<()> {
+    fn print(&self, fmt: &mut impl Formatter) {
         fmt.write_bytes(self.as_bytes())
     }
 }
@@ -315,15 +316,14 @@ pub struct Message<'a> {
 }
 
 impl<'a> Print for Message<'a> {
-    fn print(&self, fmt: &mut impl Formatter) -> std::io::Result<()> {
-        fmt.write_bytes(b"message/")?;
-        self.subtype.print(fmt)?;
+    fn print(&self, fmt: &mut impl Formatter) {
+        fmt.write_bytes(b"message/");
+        self.subtype.print(fmt);
         for param in &self.params {
-            fmt.write_bytes(b";")?;
-            fmt.write_fws()?;
-            param.print(fmt)?;
+            fmt.write_bytes(b";");
+            fmt.write_fws();
+            param.print(fmt);
         }
-        Ok(())
     }
 }
 
@@ -347,19 +347,18 @@ pub struct Text<'a> {
 }
 
 impl<'a> Print for Text<'a> {
-    fn print(&self, fmt: &mut impl Formatter) -> std::io::Result<()> {
-        fmt.write_bytes(b"text/")?;
-        self.subtype.print(fmt)?;
-        fmt.write_bytes(b";")?;
-        fmt.write_fws()?;
-        fmt.write_bytes(b"charset=")?;
-        fmt.write_bytes(self.charset.value().as_bytes())?;
+    fn print(&self, fmt: &mut impl Formatter) {
+        fmt.write_bytes(b"text/");
+        self.subtype.print(fmt);
+        fmt.write_bytes(b";");
+        fmt.write_fws();
+        fmt.write_bytes(b"charset=");
+        fmt.write_bytes(self.charset.value().as_bytes());
         for param in &self.params {
-            fmt.write_bytes(b";")?;
-            fmt.write_fws()?;
-            param.print(fmt)?;
+            fmt.write_bytes(b";");
+            fmt.write_fws();
+            param.print(fmt);
         }
-        Ok(())
     }
 }
 
@@ -406,7 +405,7 @@ impl ToString for TextSubtype {
     }
 }
 impl Print for TextSubtype {
-    fn print(&self, fmt: &mut impl Formatter) -> std::io::Result<()> {
+    fn print(&self, fmt: &mut impl Formatter) {
         fmt.write_bytes(self.as_bytes())
     }
 }
@@ -428,7 +427,7 @@ pub struct Binary<'a> {
 }
 
 impl<'a> Print for Binary<'a> {
-    fn print(&self, fmt: &mut impl Formatter) -> std::io::Result<()> {
+    fn print(&self, fmt: &mut impl Formatter) {
         self.ctype.print(fmt)
     }
 }
@@ -495,7 +494,7 @@ mod tests {
             nt.to_type(),
             AnyType::Multipart(Multipart {
                 subtype: MultipartSubtype::Mixed,
-                boundary: "--==_mimepart_64a3f2c69114f_2a13d020975fe".into(),
+                boundary: Some("--==_mimepart_64a3f2c69114f_2a13d020975fe".into()),
                 params: vec![Parameter {
                     name: b"charset"[..].into(),
                     value: MIMEWord::Atom(b"UTF-8"[..].into()),

@@ -27,6 +27,8 @@ impl<'a> fmt::Debug for Multipart<'a> {
     }
 }
 
+// REQUIRES: `m.ctype.boundary` is `Some(_)`. This is guaranteed by
+// the parser for `mime::MIME<_, Multipart>`.
 pub fn multipart<'a>(
     m: mime::MIME<'a, mime::r#type::Multipart<'a>>,
 ) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], Multipart<'a>> {
@@ -34,7 +36,10 @@ pub fn multipart<'a>(
 
     move |input| {
         // init
-        let bound = &m.ctype.boundary;
+        // NOTE: the `.unwrap()` cannot fail as long as `m` is produced by
+        // the parser, which always specifies a `boundary` (the boundary
+        // used by the input).
+        let bound = m.ctype.boundary.as_ref().unwrap();
         let mut mparts: Vec<AnyPart> = vec![];
 
         // preamble
@@ -170,7 +175,7 @@ mod tests {
         let base_mime = mime::MIME {
             ctype: mime::r#type::Multipart {
                 subtype: mime::r#type::MultipartSubtype::Alternative,
-                boundary: b"simple boundary".to_vec(),
+                boundary: Some(b"simple boundary".to_vec()),
                 params: vec![],
             },
             fields: mime::CommonMIME::default(),
@@ -254,7 +259,7 @@ This is the epilogue. It is also to be ignored.
         let base_mime = mime::MIME {
             ctype: mime::r#type::Multipart {
                 subtype: mime::r#type::MultipartSubtype::Mixed,
-                boundary: b"outer boundary".to_vec(),
+                boundary: Some(b"outer boundary".to_vec()),
                 params: vec![],
             },
             fields: mime::CommonMIME::default(),
@@ -286,7 +291,7 @@ This is implicitly typed plain US-ASCII text.
                                 mime: mime::MIME {
                                     ctype: mime::r#type::Multipart {
                                         subtype: mime::r#type::MultipartSubtype::Mixed,
-                                        boundary: b"inner boundary".to_vec(),
+                                        boundary: Some(b"inner boundary".to_vec()),
                                         params: vec![],
                                     },
                                     fields: mime::CommonMIME::default(),

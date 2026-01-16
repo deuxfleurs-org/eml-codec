@@ -77,7 +77,7 @@ impl<'a> TryFrom<&header::FieldRaw<'a>> for Field<'a> {
 }
 
 impl<'a> Print for Field<'a> {
-    fn print(&self, fmt: &mut impl Formatter) -> std::io::Result<()> {
+    fn print(&self, fmt: &mut impl Formatter) {
         match self {
             Field::Date(datetime) => p(fmt, b"Date", datetime),
 
@@ -105,22 +105,18 @@ impl<'a> Print for Field<'a> {
     }
 }
 
-fn p<T: Print>(fmt: &mut impl Formatter, name: &[u8], body: &T) ->
-    std::io::Result<()>
-{
-    fmt.write_bytes(name)?;
-    fmt.write_bytes(b":")?;
-    fmt.write_fws()?;
-    body.print(fmt)?;
+fn p<T: Print>(fmt: &mut impl Formatter, name: &[u8], body: &T) {
+    fmt.write_bytes(name);
+    fmt.write_bytes(b":");
+    fmt.write_fws();
+    body.print(fmt);
     fmt.write_crlf()
 }
 
-fn p_unstructured(fmt: &mut impl Formatter, name: &[u8], body: &Unstructured<'_>) ->
-    std::io::Result<()>
-{
-    fmt.write_bytes(name)?;
-    fmt.write_bytes(b":")?;
+fn p_unstructured(fmt: &mut impl Formatter, name: &[u8], body: &Unstructured<'_>) {
+    fmt.write_bytes(name);
+    fmt.write_bytes(b":");
     // all text is significant in an unstructured field; do not add FWS
-    body.print(fmt)?;
+    body.print(fmt);
     fmt.write_crlf()
 }

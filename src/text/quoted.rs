@@ -139,21 +139,21 @@ pub fn quoted_string(input: &[u8]) -> IResult<&[u8], QuotedString<'_>> {
     Ok((input, qstring))
 }
 
-pub fn print_quoted<I>(fmt: &mut impl Formatter, data: I) -> std::io::Result<()>
+pub fn print_quoted<I>(fmt: &mut impl Formatter, data: I)
 where
     I: IntoIterator<Item = u8>
 {
-    fmt.write_bytes(b"\"")?;
+    fmt.write_bytes(b"\"");
     for b in data.into_iter() {
         if is_restr_qtext(b) {
-            fmt.write_bytes(&[b])?;
+            fmt.write_bytes(&[b]);
         } else if ascii::WS.contains(&b) {
             // NOTE: we can either output the whitespace as folding
             // whitespace or to escape it; we choose to output it as folding
             // whitespace which helps performing line folding.
-            fmt.write_fws_bytes(&[b])?;
+            fmt.write_fws_bytes(&[b]);
         } else if is_vchar(b) {
-            fmt.write_bytes(&[b'\\', b])?;
+            fmt.write_bytes(&[b'\\', b]);
         } else {
             // RFC5322 does not allow escaping bytes other than VCHAR in
             // quoted strings. We drop them.
@@ -167,7 +167,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::print::with_line_folder;
+    use crate::print::tests::with_formatter;
 
     #[test]
     fn test_quoted_string_parser() {
@@ -195,7 +195,7 @@ mod tests {
 
     #[test]
     fn test_quoted_string_printer() {
-        let out = with_line_folder(|f| {
+        let out = with_formatter(|f| {
             print_quoted(
                 f,
                 QuotedString(vec![
@@ -203,7 +203,7 @@ mod tests {
                     vec![ascii::DQUOTE].into(),
                     b" world".into(),
                 ]).bytes()
-            ).unwrap();
+            );
         });
         assert_eq!(out, b"\"hello\\\" world\"");
     }

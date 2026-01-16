@@ -38,11 +38,11 @@ impl<'a> fmt::Debug for MessageID<'a> {
 }
 // TODO: drop obs parts (when implemented?)
 impl<'a> Print for MessageID<'a> {
-    fn print(&self, fmt: &mut impl Formatter) -> std::io::Result<()> {
-        fmt.write_bytes(b"<")?;
-        fmt.write_bytes(&self.left)?;
-        fmt.write_bytes(b"@")?;
-        self.right.print(fmt)?;
+    fn print(&self, fmt: &mut impl Formatter) {
+        fmt.write_bytes(b"<");
+        fmt.write_bytes(&self.left);
+        fmt.write_bytes(b"@");
+        self.right.print(fmt);
         fmt.write_bytes(b">")
     }
 }
@@ -52,7 +52,7 @@ impl<'a> Print for MessageID<'a> {
 pub struct MessageIDList<'a>(pub Vec<MessageID<'a>>);
 
 impl<'a> Print for MessageIDList<'a> {
-    fn print(&self, fmt: &mut impl Formatter) -> std::io::Result<()> {
+    fn print(&self, fmt: &mut impl Formatter) {
         print_seq(fmt, &self.0, Formatter::write_fws)
     }
 }
@@ -102,7 +102,7 @@ impl<'a> fmt::Debug for MessageIDRight<'a> {
     }
 }
 impl<'a> Print for MessageIDRight<'a> {
-    fn print(&self, fmt: &mut impl Formatter) -> std::io::Result<()> {
+    fn print(&self, fmt: &mut impl Formatter) {
         match self {
             MessageIDRight::DotAtom(a) => fmt.write_bytes(a),
             MessageIDRight::Literal(dt) => dt.print(fmt),

@@ -325,7 +325,7 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                         mime: mime::MIME {
                             ctype: mime::r#type::Multipart {
                                 subtype: mime::r#type::MultipartSubtype::Alternative,
-                                boundary: b"b1_e376dc71bafc953c0b0fdeb9983a9956".to_vec(),
+                                boundary: Some(b"b1_e376dc71bafc953c0b0fdeb9983a9956".to_vec()),
                                 params: vec![],
                             },
                             fields: mime::CommonMIME::default(),

@@ -37,9 +37,9 @@ pub fn phrase_list(input: &[u8]) -> IResult<&[u8], PhraseList<'_>> {
     Ok((input, PhraseList(phrases)))
 }
 impl<'a> Print for PhraseList<'a> {
-    fn print(&self, fmt: &mut impl Formatter) -> std::io::Result<()> {
+    fn print(&self, fmt: &mut impl Formatter) {
         print_seq(fmt, &self.0, |fmt| {
-            fmt.write_bytes(b",")?;
+            fmt.write_bytes(b",");
             fmt.write_fws()
         })
     }
@@ -85,7 +85,7 @@ impl<'a> MIMEWord<'a> {
     }
 }
 impl<'a> Print for MIMEWord<'a> {
-    fn print(&self, fmt: &mut impl Formatter) -> std::io::Result<()> {
+    fn print(&self, fmt: &mut impl Formatter) {
         match self {
             MIMEWord::Quoted(q) => print_quoted(fmt, q.bytes()),
             MIMEWord::Atom(a) => fmt.write_bytes(&a),
@@ -119,7 +119,7 @@ impl<'a> fmt::Debug for Word<'a> {
 }
 
 impl<'a> Print for Word<'a> {
-    fn print(&self, fmt: &mut impl Formatter) -> std::io::Result<()> {
+    fn print(&self, fmt: &mut impl Formatter) {
         match self {
             Word::Quoted(q) => print_quoted(fmt, q.bytes()),
             Word::Atom(a) => fmt.write_bytes(&a),
@@ -184,7 +184,7 @@ impl<'a> fmt::Debug for PhraseToken<'a> {
     }
 }
 impl<'a> Print for PhraseToken<'a> {
-    fn print(&self, fmt: &mut impl Formatter) -> std::io::Result<()> {
+    fn print(&self, fmt: &mut impl Formatter) {
         match self {
             PhraseToken::Word(w) => w.print(fmt),
             PhraseToken::Encoded(e) => e.print(fmt),
@@ -235,7 +235,7 @@ impl<'a> fmt::Debug for Phrase<'a> {
 }
 
 impl<'a> Print for Phrase<'a> {
-    fn print(&self, fmt: &mut impl Formatter) -> std::io::Result<()> {
+    fn print(&self, fmt: &mut impl Formatter) {
         print_seq(fmt, &self.0, Formatter::write_fws)
     }
 }
@@ -326,7 +326,7 @@ impl<'a> fmt::Debug for UnstrToken<'a> {
     }
 }
 impl<'a> Print for UnstrToken<'a> {
-    fn print(&self, fmt: &mut impl Formatter) -> std::io::Result<()> {
+    fn print(&self, fmt: &mut impl Formatter) {
         match self {
             UnstrToken::Encoded(e) =>
                 e.print(fmt),
@@ -334,7 +334,7 @@ impl<'a> Print for UnstrToken<'a> {
                 fmt.write_bytes(&txt),
             UnstrToken::Plain(_, UnstrTxtKind::Obs) =>
                 // skip obsolete parts
-                Ok(()),
+                (),
             UnstrToken::Plain(txt, UnstrTxtKind::Fws) =>
                 fmt.write_fws_bytes(&txt),
         }
@@ -381,11 +381,10 @@ impl<'a> ToString for Unstructured<'a> {
     }
 }
 impl<'a> Print for Unstructured<'a> {
-    fn print(&self, fmt: &mut impl Formatter) -> std::io::Result<()> {
+    fn print(&self, fmt: &mut impl Formatter) {
         for tok in &self.0 {
-            tok.print(fmt)?
+            tok.print(fmt)
         }
-        Ok(())
     }
 }
 
@@ -431,6 +430,8 @@ pub fn unstructured(input: &[u8]) -> IResult<&[u8], Unstructured<'_>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::print::tests::with_formatter;
+
     #[test]
     fn test_phrase() {
         assert_eq!(
@@ -448,7 +449,7 @@ mod tests {
 
         let (rest, parsed) = phrase(b"foo.bar").unwrap();
         assert_eq!(rest, &b""[..]);
-        let printed = crate::print::with_line_folder(|f| parsed.print(f).unwrap());
+        let printed = with_formatter(|f| parsed.print(f));
         assert_eq!(printed, b"foo \".\" bar");
     }
 
@@ -456,7 +457,7 @@ mod tests {
     fn test_phrase_list() {
         let (rest, parsed) = phrase_list(b",abc def,,   ,ghi").unwrap();
         assert_eq!(rest, &b""[..]);
-        let printed = crate::print::with_line_folder(|f| parsed.print(f).unwrap());
+        let printed = with_formatter(|f| parsed.print(f));
         assert_eq!(printed, b"abc def, ghi");
     }
 }

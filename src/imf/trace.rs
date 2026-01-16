@@ -26,7 +26,7 @@ pub enum ReceivedLogToken<'a> {
 }
 
 impl<'a> Print for ReceivedLogToken<'a> {
-    fn print(&self, fmt: &mut impl Formatter) -> std::io::Result<()> {
+    fn print(&self, fmt: &mut impl Formatter) {
         match self {
             ReceivedLogToken::Addr(a) => a.print(fmt),
             ReceivedLogToken::Domain(d) => d.print(fmt),
@@ -42,10 +42,10 @@ pub struct ReceivedLog<'a> {
 }
 
 impl<'a> Print for ReceivedLog<'a> {
-    fn print(&self, fmt: &mut impl Formatter) -> std::io::Result<()> {
-        print_seq(fmt, &self.log, Formatter::write_fws)?;
-        fmt.write_bytes(b";")?;
-        fmt.write_fws()?;
+    fn print(&self, fmt: &mut impl Formatter) {
+        print_seq(fmt, &self.log, Formatter::write_fws);
+        fmt.write_bytes(b";");
+        fmt.write_fws();
         self.date.print(fmt)
     }
 }
@@ -54,7 +54,7 @@ impl<'a> Print for ReceivedLog<'a> {
 pub struct ReturnPath<'a>(pub Option<mailbox::AddrSpec<'a>>);
 
 impl<'a> Print for ReturnPath<'a> {
-    fn print(&self, fmt: &mut impl Formatter) -> std::io::Result<()> {
+    fn print(&self, fmt: &mut impl Formatter) {
         match &self.0 {
             Some(a) => a.print(fmt),
             None => fmt.write_bytes(b"<>"),

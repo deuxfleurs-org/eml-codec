@@ -41,7 +41,7 @@ impl<'a> ToString for Mechanism<'a> {
     }
 }
 impl<'a> Print for Mechanism<'a> {
-    fn print(&self, fmt: &mut impl Formatter) -> std::io::Result<()> {
+    fn print(&self, fmt: &mut impl Formatter) {
         fmt.write_bytes(self.as_bytes())
     }
 }
