@@ -5,6 +5,7 @@ use crate::header;
 use crate::imf;
 use crate::mime;
 use crate::part;
+use crate::print::{Print, Formatter};
 
 /// A complete **toplevel message**.
 /// This represent a complete "email" that can be send and received over the wire, for example.
@@ -13,6 +14,58 @@ pub struct Message<'a> {
     pub imf: imf::Imf<'a>,
     pub mime_body: part::MimeBody<'a>,
     pub all_fields: Vec<MessageField<'a>>,
+}
+
+impl<'a> Print for Message<'a> {
+    fn print(&self, fmt: &mut impl Formatter) {
+        fmt.begin_line_folding();
+        let mime = self.mime_body.mime();
+        for field in &self.all_fields {
+            match field {
+                MessageField::Unstructured(u) => u.print(fmt),
+                MessageField::MIME(f) => mime.print_field(*f, fmt),
+                MessageField::Imf(f) => self.imf.print_field(*f, fmt),
+            }
+        }
+        fmt.end_line_folding();
+        fmt.write_crlf();
+        self.mime_body.print_body(fmt);
+    }
+}
+
+pub fn message<'a>(input: &'a [u8]) -> IResult<&'a [u8], Message<'a>> {
+    // parse headers
+    let (input_body, headers) = header::header_kv(input)?;
+    let fields: MessageFields =
+        headers.into_iter().collect::<Option<MessageFields>>()
+        .ok_or(
+            nom::Err::Failure(nom::error::Error::new(
+                input,
+                nom::error::ErrorKind::Verify, // FIXME: output the actual error
+            )))?;
+
+    let (input_end, mime_body) =
+        part::part_body(fields.mime.to_interpreted(mime::DefaultType::Generic))(input_body)?;
+    // note: part_body always consumes the whole input
+    debug_assert!(input_end.is_empty());
+    Ok((input_end, Message {
+        imf: fields.imf,
+        mime_body,
+        all_fields: fields.all_fields,
+    }))
+}
+
+pub fn imf<'a>(input: &'a [u8]) -> IResult<&'a [u8], imf::Imf<'a>> {
+    // parse headers
+    let (input_body, headers) = header::header_kv(input)?;
+    let fields: MessageFields =
+        headers.into_iter().collect::<Option<MessageFields>>()
+        .ok_or(
+            nom::Err::Failure(nom::error::Error::new(
+                input,
+                nom::error::ErrorKind::Verify, // FIXME: output the actual error
+            )))?;
+    Ok((input_body, fields.imf))
 }
 
 /// Header field of a toplevel message.
@@ -61,41 +114,6 @@ impl<'a> FromIterator<header::FieldRaw<'a>> for Option<MessageFields<'a>> {
 
         imf.to_imf().map(|imf| MessageFields { mime, imf, all_fields })
     }
-}
-
-pub fn message<'a>(input: &'a [u8]) -> IResult<&'a [u8], Message<'a>> {
-    // parse headers
-    let (input_body, headers) = header::header_kv(input)?;
-    let fields: MessageFields =
-        headers.into_iter().collect::<Option<MessageFields>>()
-        .ok_or(
-            nom::Err::Failure(nom::error::Error::new(
-                input,
-                nom::error::ErrorKind::Verify, // FIXME: output the actual error
-            )))?;
-
-    let (input_end, mime_body) =
-        part::part_body(fields.mime.to_interpreted(mime::DefaultType::Generic))(input_body)?;
-    // note: part_body always consumes the whole input
-    debug_assert!(input_end.is_empty());
-    Ok((input_end, Message {
-        imf: fields.imf,
-        mime_body,
-        all_fields: fields.all_fields,
-    }))
-}
-
-pub fn imf<'a>(input: &'a [u8]) -> IResult<&'a [u8], imf::Imf<'a>> {
-    // parse headers
-    let (input_body, headers) = header::header_kv(input)?;
-    let fields: MessageFields =
-        headers.into_iter().collect::<Option<MessageFields>>()
-        .ok_or(
-            nom::Err::Failure(nom::error::Error::new(
-                input,
-                nom::error::ErrorKind::Verify, // FIXME: output the actual error
-            )))?;
-    Ok((input_body, fields.imf))
 }
 
 #[cfg(test)]
