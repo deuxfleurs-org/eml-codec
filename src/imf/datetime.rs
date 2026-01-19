@@ -81,7 +81,7 @@ impl ToBoundedStatic for DateTime {
 impl Print for DateTime {
     fn print(&self, fmt: &mut impl PFmt) {
         // date
-        fmt.write_bytes(format!("{:02}", self.0.day()).as_bytes());
+        fmt.write_bytes(format!("{}", self.0.day()).as_bytes());
         fmt.write_fws();
         fmt.write_bytes(MONTHS[self.0.month0() as usize]);
         fmt.write_fws();
