@@ -29,7 +29,7 @@ use crate::text::ascii::CRLF;
 use crate::text::boundary::boundary;
 use crate::text::whitespace::obs_crlf;
 
-#[derive(Debug, PartialEq, ToStatic)]
+#[derive(Clone, Debug, PartialEq, ToStatic)]
 pub struct AnyPart<'a> {
     // Invariant: `fields` must be "complete and correct":
     // - it must contain an entry for every piece of information contained in
@@ -43,7 +43,7 @@ pub struct AnyPart<'a> {
     pub mime_body: MimeBody<'a>,
 }
 
-#[derive(Debug, PartialEq, ToStatic)]
+#[derive(Clone, Debug, PartialEq, ToStatic)]
 pub enum MimeBody<'a> {
     Mult(Multipart<'a>),
     Msg(Message<'a>),

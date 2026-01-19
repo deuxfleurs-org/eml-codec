@@ -9,7 +9,7 @@ use crate::part::{self, AnyPart, field::EntityFields};
 use crate::text::boundary::{boundary, Delimiter};
 
 //--- Multipart
-#[derive(PartialEq, ToStatic)]
+#[derive(Clone, PartialEq, ToStatic)]
 pub struct Multipart<'a> {
     pub mime: mime::MIME<'a, mime::r#type::Multipart<'a>>,
     pub children: Vec<AnyPart<'a>>,
@@ -105,7 +105,7 @@ pub fn multipart<'a>(
 
 //--- Message
 
-#[derive(PartialEq, ToStatic)]
+#[derive(Clone, PartialEq, ToStatic)]
 pub struct Message<'a> {
     pub mime: mime::MIME<'a, mime::r#type::DeductibleMessage<'a>>,
 

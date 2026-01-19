@@ -21,7 +21,7 @@ use crate::text::{
     words::{atom, is_vchar, mime_atom},
 };
 
-#[derive(Debug, PartialEq, Default, ToStatic)]
+#[derive(Clone, Debug, PartialEq, Default, ToStatic)]
 pub struct PhraseList<'a>(pub Vec<Phrase<'a>>);
 
 /// A comma-separated list of phrases. Handles the obsolete syntax:

@@ -9,7 +9,7 @@ use crate::print::{Print, Formatter};
 
 /// A complete **toplevel message**.
 /// This represent a complete "email" that can be send and received over the wire, for example.
-#[derive(Debug, PartialEq, ToStatic)]
+#[derive(Clone, Debug, PartialEq, ToStatic)]
 pub struct Message<'a> {
     pub imf: imf::Imf<'a>,
     pub mime_body: part::MimeBody<'a>,
@@ -72,7 +72,7 @@ pub fn imf<'a>(input: &'a [u8]) -> IResult<&'a [u8], imf::Imf<'a>> {
 /// Is either an Imf field (RFC 5322),
 /// MIME-defined fields (RFC 2045),
 /// or an unstructured field.
-#[derive(Debug, PartialEq, ToStatic)]
+#[derive(Clone, Debug, PartialEq, ToStatic)]
 pub enum MessageField<'a> {
     MIME(mime::field::Entry),
     Imf(imf::field::Entry),

@@ -12,13 +12,13 @@ use crate::print::{print_seq, Print, Formatter};
 use crate::imf::{datetime, mailbox};
 use crate::text::{ascii, misc_token, whitespace};
 
-#[derive(Debug, PartialEq, ToStatic)]
+#[derive(Clone, Debug, PartialEq, ToStatic)]
 pub struct TraceBlock<'a> {
     pub return_path: Option<ReturnPath<'a>>,
     pub received: Vec<ReceivedLog<'a>>, // non-empty
 }
 
-#[derive(Debug, PartialEq, ToStatic)]
+#[derive(Clone, Debug, PartialEq, ToStatic)]
 pub enum ReceivedLogToken<'a> {
     Addr(mailbox::AddrSpec<'a>),
     Domain(mailbox::Domain<'a>),
@@ -35,7 +35,7 @@ impl<'a> Print for ReceivedLogToken<'a> {
     }
 }
 
-#[derive(Debug, PartialEq, ToStatic)]
+#[derive(Clone, Debug, PartialEq, ToStatic)]
 pub struct ReceivedLog<'a> {
     pub log: Vec<ReceivedLogToken<'a>>,
     pub date: datetime::DateTime,

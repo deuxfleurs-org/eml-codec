@@ -21,7 +21,7 @@ use crate::print::Formatter;
 use crate::text::misc_token::{PhraseList, Unstructured};
 use crate::utils::{append_opt, set_opt};
 
-#[derive(Debug, PartialEq, ToStatic)]
+#[derive(Clone, Debug, PartialEq, ToStatic)]
 pub struct Imf<'a> {
     // 3.6.1.  The Origination Date Field
     pub date: DateTime,
@@ -53,7 +53,7 @@ pub struct Imf<'a> {
     pub mime_version: Version,
 }
 
-#[derive(Debug, PartialEq, ToStatic)]
+#[derive(Clone, Debug, PartialEq, ToStatic)]
 pub enum From<'a> {
     Single {
         from: MailboxRef<'a>,
