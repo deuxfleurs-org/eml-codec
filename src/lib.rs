@@ -23,6 +23,7 @@ pub mod print;
 
 mod utils;
 
+use crate::print::Print;
 use nom::IResult;
 
 // FIXME: in case of success there is no remaining input; update the comment
@@ -65,6 +66,14 @@ use nom::IResult;
 /// ```
 pub fn parse_message(input: &[u8]) -> IResult<&[u8], message::Message<'_>> {
     message::message(input)
+}
+
+/// Print a whole email.
+///
+/// The `seed` parameter controls the RNG used to generate multipart boundaries.
+/// Passing `None` will use randomness from the operating system.
+pub fn print_message(msg: message::Message<'_>, seed: Option<u64>) -> Vec<u8> {
+    print::with_formatter(seed, |fmt| msg.print(fmt))
 }
 
 /// Only extract the headers of the email that are part of the Internet Message Format spec
