@@ -124,64 +124,98 @@ mod tests {
     use crate::imf::address::*;
     use crate::imf::identification::MessageIDRight;
     use crate::imf::mailbox::*;
+    use crate::mime::{CommonMIME, MIME};
+    use crate::mime::r#type::Deductible;
     use crate::part::composite::Multipart;
     use crate::part::discrete::Text;
     use crate::part::{AnyPart, MimeBody};
     use crate::part::field::EntityField;
+    use crate::print::tests::with_formatter;
     use crate::text::encoding::{Base64Word, EncodedWord, EncodedWordToken, QuotedChunk, QuotedWord};
     use crate::text::misc_token::*;
     use chrono::{FixedOffset, TimeZone};
     use pretty_assertions::assert_eq;
 
-    #[test]
-    fn test_header() {
-        let fullmail = b"Date: 7 Mar 2023 08:00:00 +0200
-From: someone@example.com
-To: someone_else@example.com
-Subject: An  RFC 822  formatted message
+    fn test_message_roundtrip<'a>(txt: &[u8], parsed: Message<'a>) {
+        assert_eq!(message(txt), Ok((&b""[..], parsed.clone())));
+        let printed = with_formatter(|fmt| parsed.print(fmt));
+        assert_eq!(String::from_utf8_lossy(&printed), String::from_utf8_lossy(txt))
+    }
 
+    fn test_message_parse_print<'a>(txt: &[u8], parsed: Message<'a>, printed: &[u8]) {
+        assert_eq!(message(txt), Ok((&b""[..], parsed.clone())));
+        let reprinted = with_formatter(|fmt| parsed.print(fmt));
+        assert_eq!(String::from_utf8_lossy(&reprinted), String::from_utf8_lossy(printed))
+    }
+
+    #[test]
+    fn test_simple() {
+        let fullmail = b"Date: 7 Mar 2023 08:00:00 +0200\r
+From: someone@example.com\r
+To: someone_else@example.com\r
+Subject: An  RFC 822  formatted message\r
+\r
 This is the plain text body of the message. Note the blank line
 between the header information and the body of the message.";
 
-        assert_eq!(
-            imf(fullmail),
-            Ok((
-                &b"This is the plain text body of the message. Note the blank line\nbetween the header information and the body of the message."[..],
-                {
-                    let from = MailboxRef {
-                        name: None,
-                        addrspec: AddrSpec {
-                            local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(b"someone"[..].into()))]),
-                            domain: Domain::Atoms(vec![b"example"[..].into(), b"com"[..].into()]),
-                        }
-                    };
-                    let mut imf = Imf::new(
-                        From::Single { from, sender: None },
-                        DateTime(FixedOffset::east_opt(2 * 3600).unwrap().with_ymd_and_hms(2023, 3, 7, 8, 0, 0).unwrap()),
-                    );
-                    imf.to = vec![AddressRef::Single(MailboxRef {
-                        name: None,
-                        addrspec: AddrSpec {
-                            local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(b"someone_else"[..].into()))]),
-                            domain: Domain::Atoms(vec![b"example"[..].into(), b"com"[..].into()]),
-                        }
-                    })];
-                    imf.subject = Some(Unstructured(vec![
-                        UnstrToken::from_plain(b" ", UnstrTxtKind::Fws),
-                        UnstrToken::from_plain(b"An", UnstrTxtKind::Txt),
-                        UnstrToken::from_plain(b"  ", UnstrTxtKind::Fws),
-                        UnstrToken::from_plain(b"RFC", UnstrTxtKind::Txt),
-                        UnstrToken::from_plain(b" ", UnstrTxtKind::Fws),
-                        UnstrToken::from_plain(b"822", UnstrTxtKind::Txt),
-                        UnstrToken::from_plain(b"  ", UnstrTxtKind::Fws),
-                        UnstrToken::from_plain(b"formatted", UnstrTxtKind::Txt),
-                        UnstrToken::from_plain(b" ", UnstrTxtKind::Fws),
-                        UnstrToken::from_plain(b"message", UnstrTxtKind::Txt),
-                    ]));
-                    imf
+        test_message_roundtrip(
+            fullmail,
+            {
+                let from = MailboxRef {
+                    name: None,
+                    addrspec: AddrSpec {
+                        local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(b"someone"[..].into()))]),
+                        domain: Domain::Atoms(vec![b"example"[..].into(), b"com"[..].into()]),
+                    }
+                };
+                let mut imf = Imf::new(
+                    From::Single { from, sender: None },
+                    DateTime(FixedOffset::east_opt(2 * 3600).unwrap().with_ymd_and_hms(2023, 3, 7, 8, 0, 0).unwrap()),
+                );
+                imf.to = vec![AddressRef::Single(MailboxRef {
+                    name: None,
+                    addrspec: AddrSpec {
+                        local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(b"someone_else"[..].into()))]),
+                        domain: Domain::Atoms(vec![b"example"[..].into(), b"com"[..].into()]),
+                    }
+                })];
+                imf.subject = Some(Unstructured(vec![
+                    UnstrToken::from_plain(b" ", UnstrTxtKind::Fws),
+                    UnstrToken::from_plain(b"An", UnstrTxtKind::Txt),
+                    UnstrToken::from_plain(b"  ", UnstrTxtKind::Fws),
+                    UnstrToken::from_plain(b"RFC", UnstrTxtKind::Txt),
+                    UnstrToken::from_plain(b" ", UnstrTxtKind::Fws),
+                    UnstrToken::from_plain(b"822", UnstrTxtKind::Txt),
+                    UnstrToken::from_plain(b"  ", UnstrTxtKind::Fws),
+                    UnstrToken::from_plain(b"formatted", UnstrTxtKind::Txt),
+                    UnstrToken::from_plain(b" ", UnstrTxtKind::Fws),
+                    UnstrToken::from_plain(b"message", UnstrTxtKind::Txt),
+                ]));
+
+                let mime_body = part::MimeBody::Txt(
+                    part::discrete::Text {
+                        mime: MIME {
+                            ctype: Deductible::Inferred(mime::r#type::Text::default()),
+                            fields: CommonMIME::default(),
+                        },
+                        body: b"This is the plain text body of the message. Note the blank line\nbetween the header information and the body of the message."[..].into(),
+                    }
+                );
+
+                let all_fields = vec![
+                    MessageField::Imf(imf::field::Entry::Date),
+                    MessageField::Imf(imf::field::Entry::From),
+                    MessageField::Imf(imf::field::Entry::To),
+                    MessageField::Imf(imf::field::Entry::Subject),
+                ];
+
+                Message {
+                    imf,
+                    mime_body,
+                    all_fields,
                 }
-            )),
-        )
+            }
+        );
     }
 
     #[test]
@@ -235,11 +269,8 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
         let preamble = b"This is a multi-part message in MIME format.
 ";
 
-        assert_eq!(
-            message(fullmail),
-            Ok((
-                &[][..],
-                Message {
+        let ast =
+            Message {
                     imf: {
                         let from = imf::mailbox::MailboxRef {
                                 name: Some(Phrase(vec![
@@ -405,8 +436,50 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                             },
                         ],
                     })
-                }
-            ))
-        )
+                };
+
+        let reprinted: &[u8] = "Date: 8 Jul 2023 07:14:29 +0200\r
+From: Grrrnd Zero <grrrndzero@example.org>\r
+To: John Doe <jdoe@machine.example>\r
+Cc: =?UTF-8?Q?Andr=C3=A9?= Pirard <PIRARD@vm1.ulg.ac.be>\r
+Subject: =?UTF-8?Q?If_you_can_read_this_yo?=\r
+ =?UTF-8?Q?u_understand_the_example=2E?=\r
+X-Unknown: something something\r
+Message-ID: <NTAxNzA2AC47634Y366BAMTY4ODc5MzQyODY0ODY5@www.grrrndzero.org>\r
+MIME-Version: 1.0\r
+Content-Type: multipart/alternative;\r
+ boundary=\"V1Qy0rpB5tWE76WF3UelfGW5K9LZpjHjZ3PKE26vpVNnvofq7BLuYTWxzQB3HrYu7\"\r
+Content-Transfer-Encoding: 7bit\r
+\r
+--V1Qy0rpB5tWE76WF3UelfGW5K9LZpjHjZ3PKE26vpVNnvofq7BLuYTWxzQB3HrYu7\r
+Content-Type: text/plain; charset=UTF-8\r
+Content-Transfer-Encoding: quoted-printable\r
+\r
+GZ
+OoOoO
+oOoOoOoOo
+oOoOoOoOoOoOoOoOo
+oOoOoOoOoOoOoOoOoOoOoOo
+oOoOoOoOoOoOoOoOoOoOoOoOoOoOo
+OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO
+\r
+--V1Qy0rpB5tWE76WF3UelfGW5K9LZpjHjZ3PKE26vpVNnvofq7BLuYTWxzQB3HrYu7\r
+X-Custom: foobar\r
+Content-Type: text/html; charset=US-ASCII\r
+\r
+<div style=\"text-align: center;\"><strong>GZ</strong><br />
+OoOoO<br />
+oOoOoOoOo<br />
+oOoOoOoOoOoOoOoOo<br />
+oOoOoOoOoOoOoOoOoOoOoOo<br />
+oOoOoOoOoOoOoOoOoOoOoOoOoOoOo<br />
+OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
+</div>
+\r
+--V1Qy0rpB5tWE76WF3UelfGW5K9LZpjHjZ3PKE26vpVNnvofq7BLuYTWxzQB3HrYu7--\r
+"
+        .as_bytes();
+
+        test_message_parse_print(fullmail, ast, reprinted);
     }
 }
