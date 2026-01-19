@@ -129,8 +129,8 @@ impl<'a> Print for AnyType<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
         match self {
             AnyType::Multipart(mp) => mp.print(fmt),
-            AnyType::Message(msg) => msg.value().print(fmt),
-            AnyType::Text(txt) => txt.value().print(fmt),
+            AnyType::Message(msg) => msg.print(fmt),
+            AnyType::Text(txt) => txt.print(fmt),
             AnyType::Binary(bin) => bin.print(fmt),
         }
     }
@@ -154,6 +154,12 @@ impl<T: Default> Deductible<T> {
         }
     }
 }
+impl<T: Default + Print> Print for Deductible<T> {
+    fn print(&self, fmt: &mut impl Formatter) {
+        self.value().print(fmt)
+    }
+}
+
 
 // REAL PARTS
 
@@ -175,6 +181,7 @@ impl<'a> fmt::Debug for Multipart<'a> {
             .finish()
     }
 }
+
 impl<'a> Print for Multipart<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
         fmt.push_new_boundary();

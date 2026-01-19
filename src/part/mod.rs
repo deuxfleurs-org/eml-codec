@@ -24,12 +24,21 @@ use crate::part::{
     composite::{message, multipart, Message, Multipart},
     discrete::{Binary, Text},
 };
+use crate::print::{Print, Formatter};
 use crate::text::ascii::CRLF;
 use crate::text::boundary::boundary;
 use crate::text::whitespace::obs_crlf;
 
 #[derive(Debug, PartialEq, ToStatic)]
 pub struct AnyPart<'a> {
+    // Invariant: `fields` must be "complete and correct":
+    // - it must contain an entry for every piece of information contained in
+    //   `mime_body`'s mime headers that is not the default value. (This means
+    //    values of which are `Deductible::Explicit` or optionals set to
+    //    `Some(_)`.)
+    // - it must *only* contain entries for fields that have a value. (This means
+    //   no optional fields set to `None`.)
+    // Invariant: `fields` must contain no duplicates.
     pub fields: Vec<field::EntityField<'a>>,
     pub mime_body: MimeBody<'a>,
 }
@@ -74,6 +83,34 @@ impl<'a> MimeBody<'a> {
             Self::Bin(v) => v.mime.clone().into(),
         }
     }
+    pub fn print_body(&self, fmt: &mut impl Formatter) {
+        match &self {
+            MimeBody::Mult(multipart) => {
+                // TODO: also print preamble and epilogue?
+                for child in &multipart.children {
+                    fmt.write_bytes(b"--");
+                    fmt.write_current_boundary();
+                    fmt.write_crlf();
+                    child.print(fmt);
+                    fmt.write_crlf();
+                }
+                fmt.write_bytes(b"--");
+                fmt.write_current_boundary();
+                fmt.write_bytes(b"--");
+                fmt.write_crlf();
+                fmt.pop_boundary();
+            },
+            MimeBody::Msg(message) => {
+                message.child.print(fmt)
+            },
+            MimeBody::Txt(text) => {
+                fmt.write_bytes(&text.body)
+            },
+            MimeBody::Bin(binary) => {
+                fmt.write_bytes(&binary.body)
+            },
+        }
+    }
 }
 impl<'a> From<Multipart<'a>> for MimeBody<'a> {
     fn from(m: Multipart<'a>) -> Self {
@@ -83,6 +120,22 @@ impl<'a> From<Multipart<'a>> for MimeBody<'a> {
 impl<'a> From<Message<'a>> for MimeBody<'a> {
     fn from(m: Message<'a>) -> Self {
         Self::Msg(m)
+    }
+}
+
+impl<'a> Print for AnyPart<'a> {
+    fn print(&self, fmt: &mut impl Formatter) {
+        fmt.begin_line_folding();
+        let mime = self.mime_body.mime();
+        for field in &self.fields {
+            match field {
+                field::EntityField::Unstructured(u) => u.print(fmt),
+                field::EntityField::MIME(f) => mime.print_field(*f, fmt),
+            }
+        }
+        fmt.end_line_folding();
+        fmt.write_crlf();
+        self.mime_body.print_body(fmt);
     }
 }
 

@@ -13,11 +13,13 @@ pub mod r#type;
 use bounded_static::ToStatic;
 use std::fmt;
 
+use crate::header;
 use crate::imf::identification::MessageID;
-use crate::mime::field::Content;
+use crate::mime::field::{Content, Entry as FieldEntry};
 use crate::mime::mechanism::Mechanism;
 use crate::mime::r#type::{AnyType, NaiveType};
-use crate::text::misc_token::Unstructured; //Multipart, Message, Text, Binary};
+use crate::print::Formatter;
+use crate::text::misc_token::Unstructured;
 use crate::utils::set_opt;
 
 #[derive(Default, PartialEq, Clone, ToStatic)]
@@ -67,12 +69,44 @@ pub enum AnyMIME<'a> {
     Bin(MIME<'a, r#type::Binary<'a>>),
 }
 impl<'a> AnyMIME<'a> {
-    pub fn fields(&self) -> &CommonMIME<'a> {
+    pub fn ctype(&self) -> AnyType<'a> {
+        match self {
+            Self::Mult(m) => AnyType::Multipart(m.ctype.clone()),
+            Self::Msg(m) => AnyType::Message(m.ctype.clone()),
+            Self::Txt(m) => AnyType::Text(m.ctype.clone()),
+            Self::Bin(m) => AnyType::Binary(m.ctype.clone()),
+        }
+    }
+
+    pub fn common(&self) -> &CommonMIME<'a> {
         match self {
             Self::Mult(v) => &v.fields,
             Self::Msg(v) => &v.fields,
             Self::Txt(v) => &v.fields,
             Self::Bin(v) => &v.fields,
+        }
+    }
+
+    pub fn print_field(&self, f: FieldEntry, fmt: &mut impl Formatter) {
+        match f {
+            FieldEntry::Type =>
+                header::print(fmt, b"Content-Type", self.ctype()),
+            FieldEntry::TransferEncoding =>
+                header::print(
+                    fmt,
+                    b"Content-Transfer-Encoding",
+                    &self.common().transfer_encoding
+                ),
+            FieldEntry::ID => {
+                if let Some(id) = &self.common().id {
+                    header::print(fmt, b"Content-Id", id)
+                }
+            },
+            FieldEntry::Description => {
+                if let Some(desc) = &self.common().description {
+                    header::print(fmt, b"Content-Description", desc)
+                }
+            },
         }
     }
 }
@@ -106,14 +140,6 @@ pub struct NaiveMIME<'a> {
     transfer_encoding: Option<Mechanism<'a>>,
     id: Option<MessageID<'a>>,
     description: Option<Unstructured<'a>>,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, ToStatic)]
-pub enum FieldEntry {
-    Type,
-    TransferEncoding,
-    ID,
-    Description,
 }
 
 impl<'a> NaiveMIME<'a> {

@@ -164,7 +164,7 @@ pub fn message<'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mime::FieldEntry;
+    use crate::mime::field::Entry;
     use crate::part::discrete::Text;
     use crate::part::{AnyPart, MimeBody};
     use crate::part::field::EntityField;
@@ -232,7 +232,7 @@ This is the epilogue. It is also to be ignored.
                             }),
                         },
                         AnyPart {
-                            fields: vec![EntityField::MIME(FieldEntry::Type)],
+                            fields: vec![EntityField::MIME(Entry::Type)],
                             mime_body: MimeBody::Txt(Text {
                                 mime: mime::MIME {
                                     ctype: mime::r#type::Deductible::Explicit(mime::r#type::Text {
@@ -286,7 +286,7 @@ This is implicitly typed plain US-ASCII text.
                     epilogue: b"".into(),
                     children: vec![
                         AnyPart {
-                            fields: vec![EntityField::MIME(FieldEntry::Type)],
+                            fields: vec![EntityField::MIME(Entry::Type)],
                             mime_body: MimeBody::Mult(Multipart {
                                 mime: mime::MIME {
                                     ctype: mime::r#type::Multipart {

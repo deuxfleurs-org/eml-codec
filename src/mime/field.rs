@@ -7,6 +7,14 @@ use crate::mime::mechanism::{mechanism, Mechanism};
 use crate::mime::r#type::{naive_type, NaiveType};
 use crate::text::misc_token::{unstructured, Unstructured};
 
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, ToStatic)]
+pub enum Entry {
+    Type,
+    TransferEncoding,
+    ID,
+    Description,
+}
+
 #[derive(Debug, PartialEq, ToStatic)]
 pub enum Content<'a> {
     Type(NaiveType<'a>),

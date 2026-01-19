@@ -21,7 +21,7 @@ pub struct Message<'a> {
 /// or an unstructured field.
 #[derive(Debug, PartialEq, ToStatic)]
 pub enum MessageField<'a> {
-    MIME(mime::FieldEntry),
+    MIME(mime::field::Entry),
     Imf(imf::FieldEntry),
     Unstructured(header::Unstructured<'a>),
 }
@@ -318,8 +318,8 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                         ),
                         MessageField::Imf(imf::FieldEntry::MessageId),
                         MessageField::Imf(imf::FieldEntry::MIMEVersion),
-                        MessageField::MIME(mime::FieldEntry::Type),
-                        MessageField::MIME(mime::FieldEntry::TransferEncoding),
+                        MessageField::MIME(mime::field::Entry::Type),
+                        MessageField::MIME(mime::field::Entry::TransferEncoding),
                     ],
                     mime_body: MimeBody::Mult(Multipart {
                         mime: mime::MIME {
@@ -335,8 +335,8 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                         children: vec![
                             AnyPart {
                                 fields: vec![
-                                    EntityField::MIME(mime::FieldEntry::Type),
-                                    EntityField::MIME(mime::FieldEntry::TransferEncoding),
+                                    EntityField::MIME(mime::field::Entry::Type),
+                                    EntityField::MIME(mime::field::Entry::TransferEncoding),
                                 ],
                                 mime_body: MimeBody::Txt(Text {
                                     mime: mime::MIME {
@@ -362,7 +362,7 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                                             UnstrToken::from_plain(b"foobar", UnstrTxtKind::Txt),
                                         ])
                                     )),
-                                    EntityField::MIME(mime::FieldEntry::Type),
+                                    EntityField::MIME(mime::field::Entry::Type),
                                 ],
                                 mime_body: MimeBody::Txt(Text {
                                     mime: mime::MIME {

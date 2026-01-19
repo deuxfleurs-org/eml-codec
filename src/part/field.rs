@@ -13,7 +13,7 @@ pub(crate) struct EntityFields<'a> {
 
 #[derive(Clone, Debug, PartialEq, ToStatic)]
 pub enum EntityField<'a> {
-    MIME(mime::FieldEntry),
+    MIME(mime::field::Entry),
     Unstructured(header::Unstructured<'a>),
 }
 
