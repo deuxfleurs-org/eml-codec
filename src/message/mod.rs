@@ -22,7 +22,7 @@ pub struct Message<'a> {
 #[derive(Debug, PartialEq, ToStatic)]
 pub enum MessageField<'a> {
     MIME(mime::field::Entry),
-    Imf(imf::FieldEntry),
+    Imf(imf::field::Entry),
     Unstructured(header::Unstructured<'a>),
 }
 
@@ -300,11 +300,11 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                         imf
                     },
                     all_fields: vec![
-                        MessageField::Imf(imf::FieldEntry::Date),
-                        MessageField::Imf(imf::FieldEntry::From),
-                        MessageField::Imf(imf::FieldEntry::To),
-                        MessageField::Imf(imf::FieldEntry::Cc),
-                        MessageField::Imf(imf::FieldEntry::Subject),
+                        MessageField::Imf(imf::field::Entry::Date),
+                        MessageField::Imf(imf::field::Entry::From),
+                        MessageField::Imf(imf::field::Entry::To),
+                        MessageField::Imf(imf::field::Entry::Cc),
+                        MessageField::Imf(imf::field::Entry::Subject),
                         MessageField::Unstructured(
                             header::Unstructured(
                                 header::FieldName(b"X-Unknown"[..].into()),
@@ -316,8 +316,8 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                                 ]),
                             )
                         ),
-                        MessageField::Imf(imf::FieldEntry::MessageId),
-                        MessageField::Imf(imf::FieldEntry::MIMEVersion),
+                        MessageField::Imf(imf::field::Entry::MessageId),
+                        MessageField::Imf(imf::field::Entry::MIMEVersion),
                         MessageField::MIME(mime::field::Entry::Type),
                         MessageField::MIME(mime::field::Entry::TransferEncoding),
                     ],

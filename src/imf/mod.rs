@@ -9,13 +9,15 @@ pub mod trace;
 
 use bounded_static::ToStatic;
 
+use crate::header;
 use crate::imf::address::AddressRef;
 use crate::imf::datetime::DateTime;
-use crate::imf::field::Field;
+use crate::imf::field::{Field, Entry};
 use crate::imf::identification::MessageID;
 use crate::imf::mailbox::MailboxRef;
 use crate::imf::mime::Version;
 use crate::imf::trace::{ReceivedLog, ReturnPath, TraceBlock};
+use crate::print::Formatter;
 use crate::text::misc_token::{PhraseList, Unstructured};
 use crate::utils::{append_opt, set_opt};
 
@@ -83,11 +85,92 @@ impl<'a> Imf<'a> {
         }
     }
 
-    pub fn sender(&self) -> &MailboxRef<'a> {
+    pub fn from_or_sender(&self) -> &MailboxRef<'a> {
         match &self.from {
             From::Single { from: _, sender: Some(sender) } => sender,
             From::Single { from, sender: None } => from,
             From::Multiple { from: _, sender } => sender,
+        }
+    }
+
+    pub fn from(&self) -> Vec<MailboxRef<'a>> {
+        match &self.from {
+            From::Single { from, .. } => vec![from.clone()],
+            From::Multiple { from, .. } => from.clone(),
+        }
+    }
+
+    pub fn sender(&self) -> Option<MailboxRef<'a>> {
+        match &self.from {
+            From::Single { sender, .. } => sender.clone(),
+            From::Multiple { sender, .. } => Some(sender.clone()),
+        }
+    }
+
+    pub fn print_field(&self, f: field::Entry, fmt: &mut impl Formatter) {
+        match f {
+            field::Entry::Date =>
+                header::print(fmt, b"Date", &self.date),
+            field::Entry::From => {
+                if !self.from().is_empty() {
+                    header::print(fmt, b"From", self.from())
+                }
+            },
+            field::Entry::Sender => {
+                if let Some(sender) = self.sender() {
+                    header::print(fmt, b"Sender", sender)
+                }
+            },
+            field::Entry::ReplyTo => {
+                if !self.reply_to.is_empty() {
+                    header::print(fmt, b"Reply-To", &self.reply_to)
+                }
+            },
+            field::Entry::To => {
+                if !self.to.is_empty() {
+                    header::print(fmt, b"To", &self.to)
+                }
+            },
+            field::Entry::Cc => {
+                if !self.cc.is_empty() {
+                    header::print(fmt, b"Cc", &self.cc)
+                }
+            },
+            field::Entry::Bcc => {
+                if let Some(bcc) = &self.bcc {
+                    header::print(fmt, b"Bcc", bcc)
+                }
+            },
+            field::Entry::MessageId => {
+                if let Some(msg_id) = &self.msg_id {
+                    header::print(fmt, b"Message-ID", msg_id)
+                }
+            },
+            field::Entry::InReplyTo => {
+                if !self.in_reply_to.is_empty() {
+                    header::print(fmt, b"In-Reply-To", &self.in_reply_to)
+                }
+            },
+            field::Entry::References => {
+                if !self.references.is_empty() {
+                    header::print(fmt, b"References", &self.references)
+                }
+            },
+            field::Entry::Subject => {
+                if let Some(subject) = &self.subject {
+                    header::print_unstructured(fmt, b"Subject", subject)
+                }
+            },
+            field::Entry::Comments(i) =>
+                header::print_unstructured(fmt, b"Comments", &self.comments[i]),
+            field::Entry::Keywords(i) =>
+                header::print(fmt, b"Keywords", &self.keywords[i]),
+            field::Entry::ReturnPath(i) =>
+                header::print(fmt, b"Return-Path", &self.trace[i].return_path.as_ref().unwrap()),
+            field::Entry::Received(i, j) =>
+                header::print(fmt, b"Received", &self.trace[i].received[j]),
+            field::Entry::MIMEVersion =>
+                header::print(fmt, b"MIME-Version", &self.mime_version),
         }
     }
 }
@@ -118,28 +201,8 @@ pub struct PartialTraceBlock<'a> {
     received: Vec<ReceivedLog<'a>>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, ToStatic)]
-pub enum FieldEntry {
-    Date,
-    From,
-    Sender,
-    ReplyTo,
-    To,
-    Cc,
-    Bcc,
-    MessageId,
-    InReplyTo,
-    References,
-    Subject,
-    Comments(usize),
-    Keywords(usize),
-    ReturnPath(usize),
-    Received(usize, usize),
-    MIMEVersion,
-}
-
 impl<'a> PartialImf<'a> {
-    pub fn add_field(&mut self, f: Field<'a>) -> Option<FieldEntry> {
+    pub fn add_field(&mut self, f: Field<'a>) -> Option<Entry> {
         match &f {
             // trace fields
             Field::ReturnPath(_) |
@@ -159,68 +222,68 @@ impl<'a> PartialImf<'a> {
         match f {
             Field::Date(date) => {
                 if set_opt(&mut self.date, date) {
-                    return Some(FieldEntry::Date)
+                    return Some(Entry::Date)
                 }
             },
             Field::From(from) => {
                 if set_opt(&mut self.from, from) {
-                    return Some(FieldEntry::From)
+                    return Some(Entry::From)
                 }
             },
             Field::Sender(sender) => {
                 if set_opt(&mut self.sender, sender) {
-                    return Some(FieldEntry::Sender)
+                    return Some(Entry::Sender)
                 }
             },
             Field::ReplyTo(reply_to) => {
                 if set_opt(&mut self.reply_to, reply_to) {
-                    return Some(FieldEntry::ReplyTo)
+                    return Some(Entry::ReplyTo)
                 }
             },
             Field::To(to) => {
                 if append_opt(&mut self.to, to) {
-                    return Some(FieldEntry::To)
+                    return Some(Entry::To)
                 }
             },
             Field::Cc(cc) => {
                 if append_opt(&mut self.cc, cc) {
-                    return Some(FieldEntry::Cc)
+                    return Some(Entry::Cc)
                 }
             },
             Field::Bcc(bcc) => {
                 if append_opt(&mut self.bcc, bcc) {
-                    return Some(FieldEntry::Bcc)
+                    return Some(Entry::Bcc)
                 }
             },
             Field::MessageID(id) => {
                 if set_opt(&mut self.msg_id, id) {
-                    return Some(FieldEntry::MessageId)
+                    return Some(Entry::MessageId)
                 }
             },
             Field::InReplyTo(in_reply_to) => {
-                if set_opt(&mut self.in_reply_to, in_reply_to.0) {
-                    return Some(FieldEntry::InReplyTo)
+                if set_opt(&mut self.in_reply_to, in_reply_to) {
+                    return Some(Entry::InReplyTo)
                 }
             },
             Field::References(refs) => {
-                if set_opt(&mut self.references, refs.0) {
-                    return Some(FieldEntry::References)
+                if set_opt(&mut self.references, refs) {
+                    return Some(Entry::References)
                 }
             },
             Field::Subject(subject) => {
                 if set_opt(&mut self.subject, subject) {
-                    return Some(FieldEntry::Subject)
+                    return Some(Entry::Subject)
                 }
             },
             Field::Comments(comments) => {
                 let idx = self.comments.len();
                 self.comments.push(comments);
-                return Some(FieldEntry::Comments(idx))
+                return Some(Entry::Comments(idx))
             },
             Field::Keywords(kwds) => {
                 let idx = self.keywords.len();
                 self.keywords.push(kwds);
-                return Some(FieldEntry::Keywords(idx))
+                return Some(Entry::Keywords(idx))
             },
             Field::Received(received) => {
                 if self.trace.is_empty() {
@@ -229,7 +292,7 @@ impl<'a> PartialImf<'a> {
                 let block_idx = self.trace.len() - 1;
                 let field_idx = self.trace[block_idx].received.len();
                 self.trace[block_idx].received.push(received);
-                return Some(FieldEntry::Received(block_idx, field_idx))
+                return Some(Entry::Received(block_idx, field_idx))
             },
             Field::ReturnPath(path) => {
                 let block_idx = self.trace.len();
@@ -237,11 +300,11 @@ impl<'a> PartialImf<'a> {
                     return_path: Some(path),
                     received: vec![],
                 });
-                return Some(FieldEntry::ReturnPath(block_idx))
+                return Some(Entry::ReturnPath(block_idx))
             },
             Field::MIMEVersion(version) => {
                 if set_opt(&mut self.mime_version, version) {
-                    return Some(FieldEntry::MIMEVersion)
+                    return Some(Entry::MIMEVersion)
                 }
             }
         };

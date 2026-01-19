@@ -59,7 +59,7 @@ use nom::IResult;
 /// let (_, email) = eml_codec::parse_message(input).unwrap();
 /// println!(
 ///     "{} message structure is:\n{:#?}",
-///     email.imf.sender().to_string(),
+///     email.imf.from_or_sender().to_string(),
 ///     email,
 /// );
 /// ```
@@ -100,7 +100,7 @@ pub fn parse_message(input: &[u8]) -> IResult<&[u8], message::Message<'_>> {
 /// let (_, imf) = eml_codec::parse_imf(input).unwrap();
 /// println!(
 ///     "{} just sent you an email with subject \"{}\"",
-///     imf.sender().to_string(),
+///     imf.from_or_sender().to_string(),
 ///     imf.subject.unwrap().to_string(),
 /// );
 /// ```

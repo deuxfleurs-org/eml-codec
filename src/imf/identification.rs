@@ -48,12 +48,11 @@ impl<'a> Print for MessageID<'a> {
 }
 
 // Must be non-empty
-#[derive(PartialEq, Clone, Debug, ToStatic)]
-pub struct MessageIDList<'a>(pub Vec<MessageID<'a>>);
+pub type MessageIDList<'a> = Vec<MessageID<'a>>;
 
 impl<'a> Print for MessageIDList<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
-        print_seq(fmt, &self.0, Formatter::write_fws)
+        print_seq(fmt, &self, Formatter::write_fws)
     }
 }
 
@@ -73,7 +72,7 @@ pub fn msg_id(input: &[u8]) -> IResult<&[u8], MessageID<'_>> {
 }
 
 pub fn msg_list(input: &[u8]) -> IResult<&[u8], MessageIDList<'_>> {
-    map(many1(msg_id), MessageIDList)(input)
+    many1(msg_id)(input)
 }
 
 // @FIXME Missing obsolete

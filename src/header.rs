@@ -131,10 +131,7 @@ impl<'a> Unstructured<'a> {
 }
 impl<'a> Print for Unstructured<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
-        self.0.print(fmt);
-        fmt.write_bytes(b":");
-        self.1.print(fmt);
-        fmt.write_crlf()
+        print_unstructured(fmt, &self.0.0, &self.1)
     }
 }
 
@@ -145,7 +142,14 @@ pub fn print<T: Print>(fmt: &mut impl Formatter, name: &[u8], body: T) {
     fmt.write_bytes(b":");
     fmt.write_fws();
     body.print(fmt);
-    fmt.write_crlf()
+    fmt.write_crlf();
+}
+
+pub fn print_unstructured<'a>(fmt: &mut impl Formatter, name: &[u8], body: &misc_token::Unstructured<'a>) {
+    fmt.write_bytes(name);
+    fmt.write_bytes(b":");
+    body.print(fmt);
+    fmt.write_crlf();
 }
 
 #[cfg(test)]
