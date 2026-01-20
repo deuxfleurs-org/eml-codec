@@ -103,7 +103,7 @@ pub fn parameter_list(input: &[u8]) -> IResult<&[u8], Vec<Parameter<'_>>> {
 pub enum AnyType<'a> {
     // Composite types
     Multipart(Multipart<'a>),         // multipart/*
-    Message(Deductible<Message<'a>>), // message/*
+    Message(Message<'a>), // message/*
 
     // Discrete types
     Text(Deductible<Text<'a>>),       // text/*
@@ -118,7 +118,7 @@ impl<'a> From<&NaiveType<'a>> for AnyType<'a> {
                 Multipart::try_from(nt)
                 .map(Self::Multipart)
                 .unwrap_or(Self::Binary(Binary::from(nt))),
-            b"message" => Self::Message(DeductibleMessage::Explicit(Message::from(nt))),
+            b"message" => Self::Message(Message::from(nt)),
             b"text" => Self::Text(DeductibleText::Explicit(Text::from(nt))),
             _ => Self::Binary(Binary::from(nt)),
         }
@@ -315,7 +315,6 @@ impl<'a> From<&NaiveType<'a>> for MessageSubtype {
     }
 }
 
-pub type DeductibleMessage<'a> = Deductible<Message<'a>>;
 #[derive(Debug, PartialEq, Default, Clone, ToStatic)]
 pub struct Message<'a> {
     pub subtype: MessageSubtype,
@@ -517,10 +516,10 @@ mod tests {
 
         assert_eq!(
             nt.to_type(),
-            AnyType::Message(Deductible::Explicit(Message {
+            AnyType::Message(Message {
                 subtype: MessageSubtype::RFC822,
                 params: vec![],
-            }))
+            })
         );
     }
 

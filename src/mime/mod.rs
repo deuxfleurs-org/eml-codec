@@ -52,19 +52,11 @@ impl<'a> Default for MIME<'a, r#type::DeductibleText<'a>> {
         }
     }
 }
-impl<'a> Default for MIME<'a, r#type::DeductibleMessage<'a>> {
-    fn default() -> Self {
-        Self {
-            ctype: r#type::DeductibleMessage::default(),
-            fields: CommonMIME::default(),
-        }
-    }
-}
 
 #[derive(Debug, PartialEq, Clone, ToStatic)]
 pub enum AnyMIME<'a> {
     Mult(MIME<'a, r#type::Multipart<'a>>),
-    Msg(MIME<'a, r#type::DeductibleMessage<'a>>),
+    Msg(MIME<'a, r#type::Message<'a>>),
     Txt(MIME<'a, r#type::DeductibleText<'a>>),
     Bin(MIME<'a, r#type::Binary<'a>>),
 }
@@ -117,7 +109,7 @@ impl<'a> Into<AnyMIME<'a>> for MIME<'a, r#type::Multipart<'a>> {
     }
 }
 
-impl<'a> Into<AnyMIME<'a>> for MIME<'a, r#type::DeductibleMessage<'a>> {
+impl<'a> Into<AnyMIME<'a>> for MIME<'a, r#type::Message<'a>> {
     fn into(self) -> AnyMIME<'a> {
         AnyMIME::Msg(self)
     }
