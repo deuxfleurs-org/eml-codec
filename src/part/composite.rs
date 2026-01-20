@@ -222,11 +222,7 @@ This is the epilogue. It is also to be ignored.
                             fields: vec![],
                             mime_body: MimeBody::Txt(Text {
                                 mime: mime::MIME {
-                                    ctype: Deductible::Inferred(mime::r#type::Text {
-                                        subtype: mime::r#type::TextSubtype::Plain,
-                                        charset: Deductible::Inferred(mime::charset::EmailCharset::US_ASCII),
-                                        params: vec![],
-                                    }),
+                                    ctype: Deductible::Inferred,
                                     fields: mime::CommonMIME::default(),
                                 },
                                 body: b"This is implicitly typed plain US-ASCII text.\nIt does NOT end with a linebreak."[..].into(),
@@ -304,11 +300,7 @@ This is implicitly typed plain US-ASCII text.
                                         fields: vec![],
                                         mime_body: MimeBody::Txt(Text {
                                             mime: mime::MIME {
-                                                ctype: Deductible::Inferred(mime::r#type::Text {
-                                                    subtype: mime::r#type::TextSubtype::Plain,
-                                                    charset: Deductible::Inferred(mime::charset::EmailCharset::US_ASCII),
-                                                    params: vec![],
-                                                }),
+                                                ctype: Deductible::Inferred,
                                                 fields: mime::CommonMIME::default(),
                                             },
                                             body: b"This is the inner part; it misses its terminator"[..].into(),
@@ -321,11 +313,7 @@ This is implicitly typed plain US-ASCII text.
                             fields: vec![],
                             mime_body: MimeBody::Txt(Text {
                                 mime: mime::MIME {
-                                    ctype: Deductible::Inferred(mime::r#type::Text {
-                                        subtype: mime::r#type::TextSubtype::Plain,
-                                        charset: Deductible::Inferred(mime::charset::EmailCharset::US_ASCII),
-                                        params: vec![],
-                                    }),
+                                    ctype: Deductible::Inferred,
                                     fields: mime::CommonMIME::default(),
                                 },
                                 body: b"This is implicitly typed plain US-ASCII text."[..].into(),

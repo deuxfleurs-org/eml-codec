@@ -167,7 +167,7 @@ impl<'a> NaiveMIME<'a> {
                 // Ensure we are using an encoding allowed for multipart
                 fields.transfer_encoding =
                     match fields.transfer_encoding {
-                        t @ Deductible::Inferred(_) => t,
+                        t @ Deductible::Inferred => t,
                         Deductible::Explicit(t) => Deductible::Explicit(t.to_part_encoding()),
                     };
                 AnyMIME::Mult(MIME { ctype, fields })
@@ -177,7 +177,7 @@ impl<'a> NaiveMIME<'a> {
                 // TODO: enforce corresponding restrictions for other message subtypes
                 fields.transfer_encoding =
                     match fields.transfer_encoding {
-                        t @ Deductible::Inferred(_) => t,
+                        t @ Deductible::Inferred => t,
                         Deductible::Explicit(t) => Deductible::Explicit(t.to_part_encoding()),
                     };
                 AnyMIME::Msg(MIME { ctype, fields })

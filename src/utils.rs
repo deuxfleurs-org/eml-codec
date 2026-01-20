@@ -3,25 +3,28 @@ use crate::print::{Print, Formatter};
 
 #[derive(Debug, PartialEq, Clone, ToStatic)]
 pub enum Deductible<T: Default> {
-    Inferred(T),
+    Inferred,
     Explicit(T),
 }
 impl<T: Default> Default for Deductible<T> {
     fn default() -> Self {
-        Self::Inferred(T::default())
+        Self::Inferred
     }
 }
-impl<T: Default> Deductible<T> {
-    pub fn value(&self) -> &T {
+impl<T: Default + Clone> Deductible<T> {
+    pub fn value(&self) -> T {
         match self {
-            Deductible::Inferred(x) => x,
-            Deductible::Explicit(x) => x,
+            Deductible::Inferred => T::default(),
+            Deductible::Explicit(x) => x.clone(),
         }
     }
 }
 impl<T: Default + Print> Print for Deductible<T> {
     fn print(&self, fmt: &mut impl Formatter) {
-        self.value().print(fmt)
+        match self {
+            Deductible::Inferred => T::default().print(fmt),
+            Deductible::Explicit(x) => x.print(fmt),
+        }
     }
 }
 

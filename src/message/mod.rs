@@ -195,7 +195,7 @@ between the header information and the body of the message.";
                 let mime_body = part::MimeBody::Txt(
                     part::discrete::Text {
                         mime: MIME {
-                            ctype: Deductible::Inferred(mime::r#type::Text::default()),
+                            ctype: Deductible::Inferred,
                             fields: CommonMIME::default(),
                         },
                         body: b"This is the plain text body of the message. Note the blank line\nbetween the header information and the body of the message."[..].into(),

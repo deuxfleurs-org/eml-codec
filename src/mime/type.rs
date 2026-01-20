@@ -347,10 +347,10 @@ impl<'a> Print for Text<'a> {
 impl<'a> From<&NaiveType<'a>> for Text<'a> {
     fn from(nt: &NaiveType<'a>) -> Self {
         let mut params = vec![];
-        let mut charset = Deductible::Inferred(EmailCharset::US_ASCII);
+        let mut charset = Deductible::Inferred;
         for param in &nt.params {
             if param.name.to_ascii_lowercase().as_slice() == b"charset" {
-                if matches!(charset, Deductible::Inferred(_)) {
+                if charset == Deductible::Inferred {
                     let value: Vec<u8> = param.value.bytes().collect();
                     charset = Deductible::Explicit(EmailCharset::from(value.as_slice()));
                 }
