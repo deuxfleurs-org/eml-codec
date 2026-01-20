@@ -24,7 +24,7 @@ use crate::utils::{Deductible, set_opt};
 
 #[derive(Default, PartialEq, Clone, ToStatic)]
 pub struct CommonMIME<'a> {
-    pub transfer_encoding: Mechanism<'a>,
+    pub transfer_encoding: Deductible<Mechanism<'a>>,
     pub id: Option<MessageID<'a>>,
     pub description: Option<Unstructured<'a>>,
 }
@@ -154,22 +154,32 @@ impl<'a> NaiveMIME<'a> {
             .as_ref()
             .map(NaiveType::to_type)
             .unwrap_or(default_type.to_type());
+        let transfer_encoding = self.transfer_encoding
+            .map(Deductible::Explicit)
+            .unwrap_or_default();
         let mut fields = CommonMIME {
-            transfer_encoding: self.transfer_encoding.unwrap_or_default(),
+            transfer_encoding,
             id: self.id,
             description: self.description,
         };
-
         match typ {
             AnyType::Multipart(ctype) => {
                 // Ensure we are using an encoding allowed for multipart
-                fields.transfer_encoding = fields.transfer_encoding.to_part_encoding();
+                fields.transfer_encoding =
+                    match fields.transfer_encoding {
+                        t @ Deductible::Inferred(_) => t,
+                        Deductible::Explicit(t) => Deductible::Explicit(t.to_part_encoding()),
+                    };
                 AnyMIME::Mult(MIME { ctype, fields })
             },
             AnyType::Message(ctype) => {
                 // Ensure we are using an encoding allowed for message/rfc822
                 // TODO: enforce corresponding restrictions for other message subtypes
-                fields.transfer_encoding = fields.transfer_encoding.to_part_encoding();
+                fields.transfer_encoding =
+                    match fields.transfer_encoding {
+                        t @ Deductible::Inferred(_) => t,
+                        Deductible::Explicit(t) => Deductible::Explicit(t.to_part_encoding()),
+                    };
                 AnyMIME::Msg(MIME { ctype, fields })
             },
             AnyType::Text(ctype) => AnyMIME::Txt(MIME { ctype, fields }),

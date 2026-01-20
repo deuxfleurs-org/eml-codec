@@ -377,7 +377,10 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                                 boundary: Some(b"b1_e376dc71bafc953c0b0fdeb9983a9956".to_vec()),
                                 params: vec![],
                             },
-                            fields: mime::CommonMIME::default(),
+                            fields: mime::CommonMIME {
+                                transfer_encoding: Deductible::Explicit(mime::mechanism::Mechanism::_7Bit),
+                                ..mime::CommonMIME::default()
+                            }
                         },
                         preamble: preamble.into(),
                         epilogue: vec![].into(),
@@ -395,7 +398,7 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                                             params: vec![],
                                         }),
                                         fields: mime::CommonMIME {
-                                            transfer_encoding: mime::mechanism::Mechanism::QuotedPrintable,
+                                            transfer_encoding: Deductible::Explicit(mime::mechanism::Mechanism::QuotedPrintable),
                                             ..mime::CommonMIME::default()
                                         }
                                     },
