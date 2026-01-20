@@ -541,4 +541,15 @@ mod tests {
             ))
         );
     }
+
+    #[test]
+    fn test_roundtrip_unknown() {
+        let raw = b"foo/bar; bar=unknown; uu=zorro";
+        let (rest, nt) = naive_type(raw).unwrap();
+        assert_eq!(rest, &[]);
+        let t: AnyType = nt.to_type();
+        assert!(matches!(t, AnyType::Binary(_)));
+        let printed = crate::print::tests::with_formatter(|f| t.print(f));
+        assert_eq!(String::from_utf8_lossy(raw), String::from_utf8_lossy(&printed))
+    }
 }
