@@ -1,3 +1,30 @@
+use bounded_static::ToStatic;
+use crate::print::{Print, Formatter};
+
+#[derive(Debug, PartialEq, Clone, ToStatic)]
+pub enum Deductible<T: Default> {
+    Inferred(T),
+    Explicit(T),
+}
+impl<T: Default> Default for Deductible<T> {
+    fn default() -> Self {
+        Self::Inferred(T::default())
+    }
+}
+impl<T: Default> Deductible<T> {
+    pub fn value(&self) -> &T {
+        match self {
+            Deductible::Inferred(x) => x,
+            Deductible::Explicit(x) => x,
+        }
+    }
+}
+impl<T: Default + Print> Print for Deductible<T> {
+    fn print(&self, fmt: &mut impl Formatter) {
+        self.value().print(fmt)
+    }
+}
+
 pub(crate) fn set_opt<T>(o: &mut Option<T>, x: T) -> bool {
     match *o {
         None => { *o = Some(x); true },

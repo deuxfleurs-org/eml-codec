@@ -125,7 +125,7 @@ mod tests {
     use crate::imf::identification::MessageIDRight;
     use crate::imf::mailbox::*;
     use crate::mime::{CommonMIME, MIME};
-    use crate::mime::r#type::Deductible;
+    use crate::utils::Deductible;
     use crate::part::composite::Multipart;
     use crate::part::discrete::Text;
     use crate::part::{AnyPart, MimeBody};
@@ -389,9 +389,9 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                                 ],
                                 mime_body: MimeBody::Txt(Text {
                                     mime: mime::MIME {
-                                        ctype: mime::r#type::Deductible::Explicit(mime::r#type::Text {
+                                        ctype: Deductible::Explicit(mime::r#type::Text {
                                             subtype: mime::r#type::TextSubtype::Plain,
-                                            charset: mime::r#type::Deductible::Explicit(mime::charset::EmailCharset::UTF_8),
+                                            charset: Deductible::Explicit(mime::charset::EmailCharset::UTF_8),
                                             params: vec![],
                                         }),
                                         fields: mime::CommonMIME {
@@ -415,9 +415,9 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                                 ],
                                 mime_body: MimeBody::Txt(Text {
                                     mime: mime::MIME {
-                                        ctype: mime::r#type::Deductible::Explicit(mime::r#type::Text {
+                                        ctype: Deductible::Explicit(mime::r#type::Text {
                                             subtype: mime::r#type::TextSubtype::Html,
-                                            charset: mime::r#type::Deductible::Explicit(mime::charset::EmailCharset::US_ASCII),
+                                            charset: Deductible::Explicit(mime::charset::EmailCharset::US_ASCII),
                                             params: vec![],
                                         }),
 

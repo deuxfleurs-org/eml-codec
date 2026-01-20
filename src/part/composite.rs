@@ -168,6 +168,7 @@ mod tests {
     use crate::part::discrete::Text;
     use crate::part::{AnyPart, MimeBody};
     use crate::part::field::EntityField;
+    use crate::utils::Deductible;
     use pretty_assertions::assert_eq;
 
     #[test]
@@ -221,9 +222,9 @@ This is the epilogue. It is also to be ignored.
                             fields: vec![],
                             mime_body: MimeBody::Txt(Text {
                                 mime: mime::MIME {
-                                    ctype: mime::r#type::Deductible::Inferred(mime::r#type::Text {
+                                    ctype: Deductible::Inferred(mime::r#type::Text {
                                         subtype: mime::r#type::TextSubtype::Plain,
-                                        charset: mime::r#type::Deductible::Inferred(mime::charset::EmailCharset::US_ASCII),
+                                        charset: Deductible::Inferred(mime::charset::EmailCharset::US_ASCII),
                                         params: vec![],
                                     }),
                                     fields: mime::CommonMIME::default(),
@@ -235,9 +236,9 @@ This is the epilogue. It is also to be ignored.
                             fields: vec![EntityField::MIME(Entry::Type)],
                             mime_body: MimeBody::Txt(Text {
                                 mime: mime::MIME {
-                                    ctype: mime::r#type::Deductible::Explicit(mime::r#type::Text {
+                                    ctype: Deductible::Explicit(mime::r#type::Text {
                                         subtype: mime::r#type::TextSubtype::Plain,
-                                        charset: mime::r#type::Deductible::Explicit(mime::charset::EmailCharset::US_ASCII),
+                                        charset: Deductible::Explicit(mime::charset::EmailCharset::US_ASCII),
                                         params: vec![],
                                     }),
                                     fields: mime::CommonMIME::default(),
@@ -303,9 +304,9 @@ This is implicitly typed plain US-ASCII text.
                                         fields: vec![],
                                         mime_body: MimeBody::Txt(Text {
                                             mime: mime::MIME {
-                                                ctype: mime::r#type::Deductible::Inferred(mime::r#type::Text {
+                                                ctype: Deductible::Inferred(mime::r#type::Text {
                                                     subtype: mime::r#type::TextSubtype::Plain,
-                                                    charset: mime::r#type::Deductible::Inferred(mime::charset::EmailCharset::US_ASCII),
+                                                    charset: Deductible::Inferred(mime::charset::EmailCharset::US_ASCII),
                                                     params: vec![],
                                                 }),
                                                 fields: mime::CommonMIME::default(),
@@ -320,9 +321,9 @@ This is implicitly typed plain US-ASCII text.
                             fields: vec![],
                             mime_body: MimeBody::Txt(Text {
                                 mime: mime::MIME {
-                                    ctype: mime::r#type::Deductible::Inferred(mime::r#type::Text {
+                                    ctype: Deductible::Inferred(mime::r#type::Text {
                                         subtype: mime::r#type::TextSubtype::Plain,
-                                        charset: mime::r#type::Deductible::Inferred(mime::charset::EmailCharset::US_ASCII),
+                                        charset: Deductible::Inferred(mime::charset::EmailCharset::US_ASCII),
                                         params: vec![],
                                     }),
                                     fields: mime::CommonMIME::default(),

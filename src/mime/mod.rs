@@ -20,7 +20,7 @@ use crate::mime::mechanism::Mechanism;
 use crate::mime::r#type::{AnyType, NaiveType};
 use crate::print::Formatter;
 use crate::text::misc_token::Unstructured;
-use crate::utils::set_opt;
+use crate::utils::{Deductible, set_opt};
 
 #[derive(Default, PartialEq, Clone, ToStatic)]
 pub struct CommonMIME<'a> {

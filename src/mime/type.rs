@@ -13,6 +13,7 @@ use crate::print::{Print, Formatter};
 use crate::mime::charset::EmailCharset;
 use crate::text::misc_token::{mime_word, MIMEWord};
 use crate::text::words::mime_atom;
+use crate::utils::Deductible;
 
 // --------- NAIVE TYPE
 #[derive(PartialEq, Clone, ToStatic)]
@@ -135,31 +136,6 @@ impl<'a> Print for AnyType<'a> {
         }
     }
 }
-
-#[derive(Debug, PartialEq, Clone, ToStatic)]
-pub enum Deductible<T: Default> {
-    Inferred(T),
-    Explicit(T),
-}
-impl<T: Default> Default for Deductible<T> {
-    fn default() -> Self {
-        Self::Inferred(T::default())
-    }
-}
-impl<T: Default> Deductible<T> {
-    fn value(&self) -> &T {
-        match self {
-            Deductible::Inferred(x) => x,
-            Deductible::Explicit(x) => x,
-        }
-    }
-}
-impl<T: Default + Print> Print for Deductible<T> {
-    fn print(&self, fmt: &mut impl Formatter) {
-        self.value().print(fmt)
-    }
-}
-
 
 // REAL PARTS
 
@@ -447,7 +423,7 @@ impl<'a> From<&NaiveType<'a>> for Binary<'a> {
 mod tests {
     use super::*;
     use crate::mime::charset::EmailCharset;
-    use crate::mime::r#type::Deductible;
+    use crate::utils::Deductible;
     use crate::text::quoted::QuotedString;
 
     #[test]
