@@ -77,7 +77,9 @@ impl<'a> TryFrom<&header::FieldRaw<'a>> for Field<'a> {
                     b"cc" => map(address_list, Field::Cc)(value),
                     b"bcc" => map(nullable_address_list, Field::Bcc)(value),
                     b"message-id" => map(msg_id, Field::MessageID)(value),
+                    // TODO: obs-in-reply-to
                     b"in-reply-to" => map(msg_list, Field::InReplyTo)(value),
+                    // TODO: obs-references
                     b"references" => map(msg_list, Field::References)(value),
                     b"subject" => map(unstructured, Field::Subject)(value),
                     b"comments" => map(unstructured, Field::Comments)(value),
