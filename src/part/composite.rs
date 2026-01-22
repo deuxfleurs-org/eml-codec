@@ -164,6 +164,7 @@ mod tests {
     use crate::part::discrete::Text;
     use crate::part::{AnyPart, MimeBody};
     use crate::part::field::EntityField;
+    use crate::text::charset::EmailCharset;
     use crate::utils::Deductible;
     use pretty_assertions::assert_eq;
 
@@ -230,7 +231,7 @@ This is the epilogue. It is also to be ignored.
                              mime: mime::MIME {
                                  ctype: Deductible::Explicit(mime::r#type::Text {
                                      subtype: mime::r#type::TextSubtype::Plain,
-                                     charset: Deductible::Explicit(mime::charset::EmailCharset::US_ASCII),
+                                     charset: Deductible::Explicit(EmailCharset::US_ASCII),
                                      params: vec![],
                                  }),
                                  fields: mime::CommonMIME::default(),

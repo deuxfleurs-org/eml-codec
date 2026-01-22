@@ -9,7 +9,7 @@ use nom::{
 use std::fmt;
 
 use crate::print::{Print, Formatter};
-use crate::mime::charset::EmailCharset;
+use crate::text::charset::EmailCharset;
 use crate::text::misc_token::{mime_word, MIMEWord};
 use crate::text::words::{mime_atom, MIMEAtom};
 use crate::utils::Deductible;
@@ -397,9 +397,9 @@ impl<'a> From<&NaiveType<'a>> for Binary<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mime::charset::EmailCharset;
     use crate::utils::Deductible;
     use crate::text::quoted::QuotedString;
+    use crate::text::charset::EmailCharset;
 
     #[test]
     fn test_parameter() {

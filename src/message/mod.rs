@@ -149,6 +149,7 @@ mod tests {
     use crate::part::{AnyPart, MimeBody};
     use crate::part::field::EntityField;
     use crate::print::tests::with_formatter;
+    use crate::text::charset::EmailCharset;
     use crate::text::encoding::{Base64Word, EncodedWord, EncodedWordToken, QuotedChunk, QuotedWord};
     use crate::text::misc_token::*;
     use crate::text::words::{Atom, DotAtom};
@@ -424,7 +425,7 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                                     mime: mime::MIME {
                                         ctype: Deductible::Explicit(mime::r#type::Text {
                                             subtype: mime::r#type::TextSubtype::Plain,
-                                            charset: Deductible::Explicit(mime::charset::EmailCharset::UTF_8),
+                                            charset: Deductible::Explicit(EmailCharset::UTF_8),
                                             params: vec![],
                                         }),
                                         fields: mime::CommonMIME {
@@ -450,7 +451,7 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                                     mime: mime::MIME {
                                         ctype: Deductible::Explicit(mime::r#type::Text {
                                             subtype: mime::r#type::TextSubtype::Html,
-                                            charset: Deductible::Explicit(mime::charset::EmailCharset::US_ASCII),
+                                            charset: Deductible::Explicit(EmailCharset::US_ASCII),
                                             params: vec![],
                                         }),
 

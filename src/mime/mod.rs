@@ -1,6 +1,3 @@
-/// Parsed and represent an email character set
-pub mod charset;
-
 /// MIME specific headers
 pub mod field;
 
