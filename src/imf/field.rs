@@ -10,6 +10,8 @@ use crate::imf::mime::{version, Version};
 use crate::imf::trace::{received_log, return_path, ReceivedLog, ReturnPath};
 use crate::text::misc_token::{phrase_list, unstructured, PhraseList, Unstructured};
 
+// NOTE: we don't need `Entry` constructors for trace fields
+// because they are already stored in-order in the Imf struct.
 #[derive(Clone, Copy, Debug, PartialEq, ToStatic)]
 pub enum Entry {
     Date,
@@ -25,8 +27,6 @@ pub enum Entry {
     Subject,
     Comments(usize),
     Keywords(usize),
-    ReturnPath(usize),
-    Received(usize, usize),
     MIMEVersion,
 }
 

@@ -22,6 +22,15 @@ impl<'a> Print for Message<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
         fmt.begin_line_folding();
         let mime = self.mime_body.mime();
+        // always print trace fields first
+        for block in &self.imf.trace {
+            if let Some(path) = &block.return_path {
+                header::print(fmt, b"Return-Path", path)
+            }
+            for rec in &block.received {
+                header::print(fmt, b"Received", rec)
+            }
+        }
         for field in &self.all_fields {
             match field {
                 MessageField::Unstructured(u) => u.print(fmt),

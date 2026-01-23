@@ -162,10 +162,6 @@ impl<'a> Imf<'a> {
                 header::print_unstructured(fmt, b"Comments", &self.comments[i]),
             field::Entry::Keywords(i) =>
                 header::print(fmt, b"Keywords", &self.keywords[i]),
-            field::Entry::ReturnPath(i) =>
-                header::print(fmt, b"Return-Path", &self.trace[i].return_path.as_ref().unwrap()),
-            field::Entry::Received(i, j) =>
-                header::print(fmt, b"Received", &self.trace[i].received[j]),
             field::Entry::MIMEVersion =>
                 header::print(fmt, b"MIME-Version", &self.mime_version),
         }
@@ -291,17 +287,15 @@ impl<'a> PartialImf<'a> {
                     self.trace.push(PartialTraceBlock::default())
                 }
                 let block_idx = self.trace.len() - 1;
-                let field_idx = self.trace[block_idx].received.len();
                 self.trace[block_idx].received.push(received);
-                return Some(Entry::Received(block_idx, field_idx))
+                return None
             },
             Field::ReturnPath(path) => {
-                let block_idx = self.trace.len();
                 self.trace.push(PartialTraceBlock {
                     return_path: Some(path),
                     received: vec![],
                 });
-                return Some(Entry::ReturnPath(block_idx))
+                return None
             },
             Field::MIMEVersion(version) => {
                 if set_opt(&mut self.mime_version, version) {
