@@ -6,30 +6,20 @@ use nom::{
     sequence::{preceded, terminated, tuple},
     IResult,
 };
-use std::borrow::Cow;
 use std::fmt;
 
 use crate::print::{Print, Formatter};
 use crate::mime::charset::EmailCharset;
 use crate::text::misc_token::{mime_word, MIMEWord};
-use crate::text::words::mime_atom;
+use crate::text::words::{mime_atom, MIMEAtom};
 use crate::utils::Deductible;
 
 // --------- NAIVE TYPE
-#[derive(PartialEq, Clone, ToStatic)]
+#[derive(Debug, PartialEq, Clone, ToStatic)]
 pub struct NaiveType<'a> {
-    pub main: Cow<'a, [u8]>,
-    pub sub: Cow<'a, [u8]>,
+    pub main: MIMEAtom<'a>,
+    pub sub: MIMEAtom<'a>,
     pub params: Vec<Parameter<'a>>,
-}
-impl<'a> fmt::Debug for NaiveType<'a> {
-    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt.debug_struct("mime::NaiveType")
-            .field("main", &String::from_utf8_lossy(&self.main))
-            .field("sub", &String::from_utf8_lossy(&self.sub))
-            .field("params", &self.params)
-            .finish()
-    }
 }
 impl<'a> NaiveType<'a> {
     pub fn to_type(&self) -> AnyType<'a> {
@@ -39,11 +29,7 @@ impl<'a> NaiveType<'a> {
 pub fn naive_type(input: &[u8]) -> IResult<&[u8], NaiveType<'_>> {
     map(
         tuple((mime_atom, tag("/"), mime_atom, parameter_list)),
-        |(main, _, sub, params)| NaiveType {
-            main: Cow::Borrowed(main),
-            sub: Cow::Borrowed(sub),
-            params,
-        },
+        |(main, _, sub, params)| NaiveType { main, sub, params },
     )(input)
 }
 
@@ -63,22 +49,14 @@ impl<'a> Print for NaiveType<'a> {
     }
 }
 
-#[derive(PartialEq, Clone, ToStatic)]
+#[derive(Debug, PartialEq, Clone, ToStatic)]
 pub struct Parameter<'a> {
-    pub name: Cow<'a, [u8]>,
+    pub name: MIMEAtom<'a>,
     pub value: MIMEWord<'a>,
-}
-impl<'a> fmt::Debug for Parameter<'a> {
-    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt.debug_struct("mime::Parameter")
-            .field("name", &String::from_utf8_lossy(&self.name))
-            .field("value", &self.value)
-            .finish()
-    }
 }
 impl<'a> Print for Parameter<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
-        fmt.write_bytes(&self.name);
+        self.name.print(fmt);
         fmt.write_bytes(b"=");
         self.value.print(fmt)
     }
@@ -87,10 +65,7 @@ impl<'a> Print for Parameter<'a> {
 pub fn parameter(input: &[u8]) -> IResult<&[u8], Parameter<'_>> {
     map(
         tuple((mime_atom, tag(b"="), mime_word)),
-        |(name, _, value)| Parameter {
-            name: Cow::Borrowed(name),
-            value,
-        },
+        |(name, _, value)| Parameter { name, value },
     )(input)
 }
 // XXX the final optional ; is not specified in RFC2045
@@ -113,7 +88,7 @@ pub enum AnyType<'a> {
 
 impl<'a> From<&NaiveType<'a>> for AnyType<'a> {
     fn from(nt: &NaiveType<'a>) -> Self {
-        match nt.main.to_ascii_lowercase().as_slice() {
+        match nt.main.0.to_ascii_lowercase().as_slice() {
             b"multipart" =>
                  // fails if there is no boundary parameter
                 Multipart::try_from(nt)
@@ -184,7 +159,7 @@ impl<'a> TryFrom<&NaiveType<'a>> for Multipart<'a> {
         let mut params = vec![];
         let mut boundary = None;
         for param in &nt.params {
-            if param.name.to_ascii_lowercase().as_slice() == b"boundary" {
+            if param.name.0.to_ascii_lowercase().as_slice() == b"boundary" {
                 if boundary.is_none() {
                     boundary = Some(param.value.bytes().collect::<Vec<_>>());
                 }
@@ -211,7 +186,7 @@ pub enum MultipartSubtype {
     Digest,
     Parallel,
     Report,
-    Unknown(Vec<u8>), // should be treated as Mixed
+    Unknown(MIMEAtom<'static>), // should be treated as Mixed
 }
 impl MultipartSubtype {
     fn as_bytes(&self) -> &[u8] {
@@ -221,7 +196,7 @@ impl MultipartSubtype {
             Self::Digest => b"digest",
             Self::Parallel => b"parallel",
             Self::Report => b"report",
-            Self::Unknown(v) => &v,
+            Self::Unknown(v) => &v.0,
         }
     }
 }
@@ -238,14 +213,14 @@ impl Print for MultipartSubtype {
 
 impl<'a> From<&NaiveType<'a>> for MultipartSubtype {
     fn from(nt: &NaiveType<'a>) -> Self {
-        let sub = nt.sub.to_ascii_lowercase();
+        let sub = nt.sub.0.to_ascii_lowercase();
         match sub.as_slice() {
             b"alternative" => Self::Alternative,
             b"mixed" => Self::Mixed,
             b"digest" => Self::Digest,
             b"parallel" => Self::Parallel,
             b"report" => Self::Report,
-            _ => Self::Unknown(sub),
+            _ => Self::Unknown(MIMEAtom(sub.into())),
         }
     }
 }
@@ -256,7 +231,7 @@ pub enum MessageSubtype {
     RFC822,
     Partial,
     External,
-    Unknown(Vec<u8>), // should be treated as the Binary type
+    Unknown(MIMEAtom<'static>), // should be treated as the Binary type
 }
 impl MessageSubtype {
     fn as_bytes(&self) -> &[u8] {
@@ -264,7 +239,7 @@ impl MessageSubtype {
             Self::RFC822 => b"rfc822",
             Self::Partial => b"partial",
             Self::External => b"external",
-            Self::Unknown(b) => &b,
+            Self::Unknown(b) => &b.0,
         }
     }
 }
@@ -281,12 +256,12 @@ impl Print for MessageSubtype {
 
 impl<'a> From<&NaiveType<'a>> for MessageSubtype {
     fn from(nt: &NaiveType<'a>) -> Self {
-        let sub = nt.sub.to_ascii_lowercase();
+        let sub = nt.sub.0.to_ascii_lowercase();
         match sub.as_slice() {
             b"rfc822" => MessageSubtype::RFC822,
             b"partial" => MessageSubtype::Partial,
             b"external" => MessageSubtype::External,
-            _ => MessageSubtype::Unknown(sub),
+            _ => MessageSubtype::Unknown(MIMEAtom(sub.into())),
         }
     }
 }
@@ -349,7 +324,7 @@ impl<'a> From<&NaiveType<'a>> for Text<'a> {
         let mut params = vec![];
         let mut charset = Deductible::Inferred;
         for param in &nt.params {
-            if param.name.to_ascii_lowercase().as_slice() == b"charset" {
+            if param.name.0.to_ascii_lowercase().as_slice() == b"charset" {
                 if charset == Deductible::Inferred {
                     let value: Vec<u8> = param.value.bytes().collect();
                     charset = Deductible::Explicit(EmailCharset::from(value.as_slice()));
@@ -369,7 +344,7 @@ pub enum TextSubtype {
     #[default]
     Plain,
     Html,
-    Unknown(Vec<u8>),
+    Unknown(MIMEAtom<'static>),
 }
 impl TextSubtype {
     fn as_bytes(&self) -> &[u8] {
@@ -377,7 +352,7 @@ impl TextSubtype {
         match self {
             Plain => b"plain",
             Html => b"html",
-            Unknown(b) => &b,
+            Unknown(b) => &b.0,
         }
     }
 }
@@ -394,11 +369,11 @@ impl Print for TextSubtype {
 
 impl<'a> From<&NaiveType<'a>> for TextSubtype {
     fn from(nt: &NaiveType<'a>) -> Self {
-        let sub = nt.sub.to_ascii_lowercase();
+        let sub = nt.sub.0.to_ascii_lowercase();
         match sub.as_slice() {
             b"plain" => Self::Plain,
             b"html" => Self::Html,
-            _ => Self::Unknown(sub),
+            _ => Self::Unknown(MIMEAtom(sub.into())),
         }
     }
 }
@@ -433,8 +408,8 @@ mod tests {
             Ok((
                 &b""[..],
                 Parameter {
-                    name: b"charset"[..].into(),
-                    value: MIMEWord::Atom(b"utf-8"[..].into()),
+                    name: MIMEAtom(b"charset"[..].into()),
+                    value: MIMEWord::Atom(MIMEAtom(b"utf-8"[..].into())),
                 }
             )),
         );
@@ -443,7 +418,7 @@ mod tests {
             Ok((
                 &b""[..],
                 Parameter {
-                    name: b"charset"[..].into(),
+                    name: MIMEAtom(b"charset"[..].into()),
                     value: MIMEWord::Quoted(QuotedString(vec![b"utf-8"[..].into()])),
                 }
             )),
@@ -461,8 +436,8 @@ mod tests {
                 charset: Deductible::Explicit(EmailCharset::UTF_8),
                 subtype: TextSubtype::Plain,
                 params: vec![Parameter {
-                    name: b"hello"[..].into(),
-                    value: MIMEWord::Atom(b"yolo"[..].into()),
+                    name: MIMEAtom(b"hello"[..].into()),
+                    value: MIMEWord::Atom(MIMEAtom(b"yolo"[..].into())),
                 }],
             }))
         );
@@ -478,8 +453,8 @@ mod tests {
                 subtype: MultipartSubtype::Mixed,
                 boundary: Some("--==_mimepart_64a3f2c69114f_2a13d020975fe".into()),
                 params: vec![Parameter {
-                    name: b"charset"[..].into(),
-                    value: MIMEWord::Atom(b"UTF-8"[..].into()),
+                    name: MIMEAtom(b"charset"[..].into()),
+                    value: MIMEWord::Atom(MIMEAtom(b"UTF-8"[..].into())),
                 }],
             })
         );
@@ -521,8 +496,8 @@ mod tests {
             Ok((
                 &b""[..],
                 Parameter {
-                    name: b"charset"[..].into(),
-                    value: MIMEWord::Atom(b"us-ascii"[..].into()),
+                    name: MIMEAtom(b"charset"[..].into()),
+                    value: MIMEWord::Atom(MIMEAtom(b"us-ascii"[..].into())),
                 }
             ))
         );
@@ -535,7 +510,7 @@ mod tests {
             Ok((
                 &b""[..],
                 vec![Parameter {
-                    name: b"boundary"[..].into(),
+                    name: MIMEAtom(b"boundary"[..].into()),
                     value: MIMEWord::Quoted(QuotedString(vec![b"festivus"[..].into()])),
                 }],
             ))

@@ -18,7 +18,7 @@ use crate::text::{
     encoding::{self, encoded_word, encoded_word_plain},
     quoted::{print_quoted, quoted_string, QuotedString, QuotedStringBytes},
     whitespace::{cfws, fws, is_obs_no_ws_ctl},
-    words::{atom, is_vchar, mime_atom},
+    words::{atom, is_vchar, mime_atom, Atom, MIMEAtom},
 };
 
 #[derive(Clone, Debug, PartialEq, Default, ToStatic)]
@@ -51,19 +51,19 @@ impl<'a> Print for PhraseList<'a> {
 #[derive(Debug, PartialEq, Clone, ToStatic)]
 pub enum MIMEWord<'a> {
     Quoted(QuotedString<'a>),
-    Atom(Cow<'a, [u8]>),
+    Atom(MIMEAtom<'a>),
 }
 impl Default for MIMEWord<'static> {
     fn default() -> Self {
-        Self::Atom(Cow::Owned(vec![]))
+        Self::Atom(MIMEAtom::default())
     }
 }
 impl<'a> MIMEWord<'a> {
     pub fn to_string(&self) -> String {
         match self {
             Self::Quoted(v) => v.to_string(),
-            Self::Atom(v) => encoding_rs::UTF_8
-                .decode_without_bom_handling(v)
+            Self::Atom(a) => encoding_rs::UTF_8
+                .decode_without_bom_handling(&a.0)
                 .0
                 .to_string(),
         }
@@ -72,7 +72,7 @@ impl<'a> MIMEWord<'a> {
 pub fn mime_word(input: &[u8]) -> IResult<&[u8], MIMEWord<'_>> {
     alt((
         map(quoted_string, MIMEWord::Quoted),
-        map(mime_atom, |a| MIMEWord::Atom(Cow::Borrowed(a))),
+        map(mime_atom, MIMEWord::Atom),
     ))(input)
 }
 
@@ -80,7 +80,7 @@ impl<'a> MIMEWord<'a> {
     pub fn bytes<'b>(&'b self) -> WordBytes<'a, 'b> {
         match self {
             MIMEWord::Quoted(q) => WordBytes::Quoted(q.bytes()),
-            MIMEWord::Atom(a) => WordBytes::Atom(a.iter()),
+            MIMEWord::Atom(a) => WordBytes::Atom(a.0.iter()),
         }
     }
 }
@@ -88,7 +88,7 @@ impl<'a> Print for MIMEWord<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
         match self {
             MIMEWord::Quoted(q) => print_quoted(fmt, q.bytes()),
-            MIMEWord::Atom(a) => fmt.write_bytes(&a),
+            MIMEWord::Atom(a) => fmt.write_bytes(&a.0),
         }
     }
 }
@@ -96,15 +96,15 @@ impl<'a> Print for MIMEWord<'a> {
 #[derive(Clone, PartialEq, ToStatic)]
 pub enum Word<'a> {
     Quoted(QuotedString<'a>),
-    Atom(Cow<'a, [u8]>),
+    Atom(Atom<'a>),
 }
 
 impl<'a> ToString for Word<'a> {
     fn to_string(&self) -> String {
         match self {
             Word::Quoted(v) => v.to_string(),
-            Word::Atom(v) => encoding_rs::UTF_8
-                .decode_without_bom_handling(v)
+            Word::Atom(a) => encoding_rs::UTF_8
+                .decode_without_bom_handling(&a.0)
                 .0
                 .to_string(),
         }
@@ -122,7 +122,7 @@ impl<'a> Print for Word<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
         match self {
             Word::Quoted(q) => print_quoted(fmt, q.bytes()),
-            Word::Atom(a) => fmt.write_bytes(&a),
+            Word::Atom(a) => fmt.write_bytes(&a.0),
         }
     }
 }
@@ -131,7 +131,7 @@ impl<'a> Word<'a> {
     pub fn bytes<'b>(&'b self) -> WordBytes<'a, 'b> {
         match self {
             Word::Quoted(q) => WordBytes::Quoted(q.bytes()),
-            Word::Atom(a) => WordBytes::Atom(a.iter()),
+            Word::Atom(a) => WordBytes::Atom(a.0.iter()),
         }
     }
 }
@@ -159,7 +159,7 @@ impl<'a, 'b> Iterator for WordBytes<'a, 'b> {
 pub fn word(input: &[u8]) -> IResult<&[u8], Word<'_>> {
     alt((
         map(quoted_string, Word::Quoted),
-        map(atom, |a| Word::Atom(Cow::Borrowed(a))),
+        map(atom, Word::Atom),
     ))(input)
 }
 

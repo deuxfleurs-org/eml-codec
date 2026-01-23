@@ -6,7 +6,6 @@ use nom::{
     multi::{many0, separated_list1},
     sequence::{delimited, pair, preceded, terminated, tuple},
     IResult,
-    Parser,
 };
 use std::borrow::Cow;
 use std::fmt;
@@ -16,7 +15,7 @@ use crate::text::ascii;
 use crate::text::misc_token::{phrase, word, Phrase, Word};
 use crate::text::quoted::print_quoted;
 use crate::text::whitespace::{cfws, fws, is_obs_no_ws_ctl};
-use crate::text::words::{dot_atom_text, atom};
+use crate::text::words::{dot_atom_text, atom, Atom};
 
 #[derive(Clone, PartialEq, ToStatic)]
 pub struct AddrSpec<'a> {
@@ -60,9 +59,9 @@ impl MailboxRef<'static> {
         MailboxRef {
             addrspec: AddrSpec {
                 local_part: LocalPart(vec![
-                    LocalPartToken::Word(Word::Atom(b"unknown".into()))
+                    LocalPartToken::Word(Word::Atom(Atom(b"unknown".into())))
                 ]),
-                domain: Domain::Atoms(vec![b"unknown".into()]),
+                domain: Domain::Atoms(vec![Atom(b"unknown".into())]),
             },
             name: None,
         }
@@ -285,7 +284,7 @@ fn obs_local_part(input: &[u8]) -> IResult<&[u8], LocalPart<'_>> {
 
 #[derive(Clone, PartialEq, ToStatic)]
 pub enum Domain<'a> {
-    Atoms(Vec<Cow<'a, [u8]>>),
+    Atoms(Vec<Atom<'a>>),
     Literal(Vec<Dtext<'a>>),
 }
 
@@ -294,9 +293,9 @@ impl<'a> ToString for Domain<'a> {
         match self {
             Domain::Atoms(v) => v
                 .iter()
-                .map(|v| {
+                .map(|a| {
                     encoding_rs::UTF_8
-                        .decode_without_bom_handling(v)
+                        .decode_without_bom_handling(&a.0)
                         .0
                         .to_string()
                 })
@@ -353,7 +352,7 @@ impl<'a> Print for Domain<'a> {
 /// ```
 pub fn obs_domain(input: &[u8]) -> IResult<&[u8], Domain<'_>> {
     alt((
-        map(separated_list1(tag("."), atom.map(Cow::Borrowed)), Domain::Atoms),
+        map(separated_list1(tag("."), atom), Domain::Atoms),
         domain_litteral,
     ))(input)
 }
@@ -488,15 +487,15 @@ mod tests {
         addr_roundtrip_as(
             b"alice@example.com",
             AddrSpec {
-                local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(b"alice"[..].into()))]),
-                domain: Domain::Atoms(vec![b"example"[..].into(), b"com"[..].into()]),
+                local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(Atom(b"alice"[..].into())))]),
+                domain: Domain::Atoms(vec![Atom(b"example"[..].into()), Atom(b"com"[..].into())]),
             }
         );
 
         addr_roundtrip_as(
             b"jsmith@[192.168.2.1]",
             AddrSpec {
-                local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(b"jsmith"[..].into()))]),
+                local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(Atom(b"jsmith"[..].into())))]),
                 domain: Domain::Literal(vec![Dtext(b"192.168.2.1".into())]),
             }
         );
@@ -504,7 +503,7 @@ mod tests {
         addr_roundtrip_as(
             b"jsmith@[IPv6:2001:db8::1]",
             AddrSpec {
-                local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(b"jsmith"[..].into()))]),
+                local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(Atom(b"jsmith"[..].into())))]),
                 domain: Domain::Literal(vec![Dtext(b"IPv6:2001:db8::1".into())]),
             }
         );
@@ -532,7 +531,7 @@ mod tests {
                 local_part: LocalPart(vec![LocalPartToken::Word(Word::Quoted(QuotedString(
                     vec![b"Abc@def".into()]
                 )))]),
-                domain: Domain::Atoms(vec![b"example"[..].into(), b"com"[..].into()]),
+                domain: Domain::Atoms(vec![Atom(b"example"[..].into()), Atom(b"com"[..].into())]),
             }
         );
         addr_parsed_printed(
@@ -541,7 +540,7 @@ mod tests {
                 local_part: LocalPart(vec![LocalPartToken::Word(Word::Quoted(QuotedString(
                     vec![b"Fred".into(), b" ".into(), b"Bloggs".into()]
                 )))]),
-                domain: Domain::Atoms(vec![b"example"[..].into(), b"com"[..].into()]),
+                domain: Domain::Atoms(vec![Atom(b"example"[..].into()), Atom(b"com"[..].into())]),
             },
             r#""Fred Bloggs"@example.com"#.as_bytes(), // escaping the space is unnecessary
         );
@@ -551,7 +550,7 @@ mod tests {
                 local_part: LocalPart(vec![LocalPartToken::Word(Word::Quoted(QuotedString(
                     vec![b"Joe.".into(), vec![ascii::BACKSLASH].into(), b"Blow".into()]
                 )))]),
-                domain: Domain::Atoms(vec![b"example"[..].into(), b"com"[..].into()]),
+                domain: Domain::Atoms(vec![Atom(b"example"[..].into()), Atom(b"com"[..].into())]),
             }
         );
     }
@@ -571,13 +570,13 @@ mod tests {
                     ])))])),
                 addrspec: AddrSpec {
                     local_part: LocalPart(vec![
-                        LocalPartToken::Word(Word::Atom(b"john"[..].into())),
+                        LocalPartToken::Word(Word::Atom(Atom(b"john"[..].into()))),
                         LocalPartToken::Dot,
-                        LocalPartToken::Word(Word::Atom(b"q"[..].into())),
+                        LocalPartToken::Word(Word::Atom(Atom(b"q"[..].into()))),
                         LocalPartToken::Dot,
-                        LocalPartToken::Word(Word::Atom(b"public"[..].into())),
+                        LocalPartToken::Word(Word::Atom(Atom(b"public"[..].into()))),
                     ]),
-                    domain: Domain::Atoms(vec![b"example"[..].into(), b"com"[..].into()]),
+                    domain: Domain::Atoms(vec![Atom(b"example"[..].into()), Atom(b"com"[..].into())]),
                 }
             }
         );
@@ -586,12 +585,12 @@ mod tests {
             r#"Mary Smith <mary@x.test>"#.as_bytes(),
             MailboxRef {
                 name: Some(Phrase(vec![
-                    PhraseToken::Word(Word::Atom(b"Mary"[..].into())),
-                    PhraseToken::Word(Word::Atom(b"Smith"[..].into()))
+                    PhraseToken::Word(Word::Atom(Atom(b"Mary"[..].into()))),
+                    PhraseToken::Word(Word::Atom(Atom(b"Smith"[..].into())))
                 ])),
                 addrspec: AddrSpec {
-                    local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(b"mary"[..].into()))]),
-                    domain: Domain::Atoms(vec![b"x"[..].into(), b"test"[..].into()]),
+                    local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(Atom(b"mary"[..].into())))]),
+                    domain: Domain::Atoms(vec![Atom(b"x"[..].into()), Atom(b"test"[..].into())]),
                 }
             }
         );
@@ -601,8 +600,8 @@ mod tests {
             MailboxRef {
                 name: None,
                 addrspec: AddrSpec {
-                    local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(b"jdoe"[..].into()))]),
-                    domain: Domain::Atoms(vec![b"example"[..].into(), b"org"[..].into()]),
+                    local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(Atom(b"jdoe"[..].into())))]),
+                    domain: Domain::Atoms(vec![Atom(b"example"[..].into()), Atom(b"org"[..].into())]),
                 }
             }
         );
@@ -610,10 +609,10 @@ mod tests {
         mailbox_roundtrip_as(
             r#"Who? <one@y.test>"#.as_bytes(),
             MailboxRef {
-                name: Some(Phrase(vec![PhraseToken::Word(Word::Atom(b"Who?"[..].into()))])),
+                name: Some(Phrase(vec![PhraseToken::Word(Word::Atom(Atom(b"Who?"[..].into())))])),
                 addrspec: AddrSpec {
-                    local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(b"one"[..].into()))]),
-                    domain: Domain::Atoms(vec![b"y"[..].into(), b"test"[..].into()]),
+                    local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(Atom(b"one"[..].into())))]),
+                    domain: Domain::Atoms(vec![Atom(b"y"[..].into()), Atom(b"test"[..].into())]),
                 }
             }
         );
@@ -623,8 +622,8 @@ mod tests {
             MailboxRef {
                 name: None,
                 addrspec: AddrSpec {
-                    local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(b"boss"[..].into()))]),
-                    domain: Domain::Atoms(vec![b"nil"[..].into(), b"test"[..].into()]),
+                    local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(Atom(b"boss"[..].into())))]),
+                    domain: Domain::Atoms(vec![Atom(b"nil"[..].into()), Atom(b"test"[..].into())]),
                 }
             },
             r#"boss@nil.test"#.as_bytes(),
@@ -645,9 +644,9 @@ mod tests {
                     ])))])),
                 addrspec: AddrSpec {
                     local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(
-                        b"sysservices"[..].into()
+                        Atom(b"sysservices"[..].into())
                     ))]),
-                    domain: Domain::Atoms(vec![b"example"[..].into(), b"net"[..].into()]),
+                    domain: Domain::Atoms(vec![Atom(b"example"[..].into()), Atom(b"net"[..].into())]),
                 }
             }
         );
@@ -670,7 +669,7 @@ mod tests {
                 &b""[..],
                 vec![
                     None,
-                    Some(Domain::Atoms(vec![b"33+4"[..].into(), b"com"[..].into()])),
+                    Some(Domain::Atoms(vec![Atom(b"33+4"[..].into()), Atom(b"com"[..].into())])),
                     None,
                     None,
                     None,
@@ -678,13 +677,13 @@ mod tests {
                     None,
                     None,
                     None,
-                    Some(Domain::Atoms(vec![b"example"[..].into(), b"com"[..].into()])),
-                    Some(Domain::Atoms(vec![b"yep"[..].into(), b"com"[..].into()])),
-                    Some(Domain::Atoms(vec![b"a"[..].into()])),
-                    Some(Domain::Atoms(vec![b"b"[..].into()])),
+                    Some(Domain::Atoms(vec![Atom(b"example"[..].into()), Atom(b"com"[..].into())])),
+                    Some(Domain::Atoms(vec![Atom(b"yep"[..].into()), Atom(b"com"[..].into())])),
+                    Some(Domain::Atoms(vec![Atom(b"a"[..].into())])),
+                    Some(Domain::Atoms(vec![Atom(b"b"[..].into())])),
                     None,
                     None,
-                    Some(Domain::Atoms(vec![b"c"[..].into()])),
+                    Some(Domain::Atoms(vec![Atom(b"c"[..].into())])),
                 ]
             ))
         );
@@ -697,7 +696,7 @@ mod tests {
                     None,
                     None,
                     None,
-                    Some(Domain::Atoms(vec![b"foo"[..].into()])),
+                    Some(Domain::Atoms(vec![Atom(b"foo"[..].into())])),
                     None,
                 ]
             ))
@@ -710,12 +709,12 @@ mod tests {
             "a..howard@enron.com".as_bytes(),
             AddrSpec {
                 local_part: LocalPart(vec![
-                    LocalPartToken::Word(Word::Atom(b"a"[..].into())),
+                    LocalPartToken::Word(Word::Atom(Atom(b"a"[..].into()))),
                     LocalPartToken::Dot,
                     LocalPartToken::Dot,
-                    LocalPartToken::Word(Word::Atom(b"howard"[..].into())),
+                    LocalPartToken::Word(Word::Atom(Atom(b"howard"[..].into()))),
                 ]),
-                domain: Domain::Atoms(vec![b"enron"[..].into(), b"com"[..].into()]),
+                domain: Domain::Atoms(vec![Atom(b"enron"[..].into()), Atom(b"com"[..].into())]),
             },
             r#""a..howard"@enron.com"#.as_bytes()
         );
@@ -728,9 +727,9 @@ mod tests {
             AddrSpec {
                 local_part: LocalPart(vec![
                     LocalPartToken::Dot,
-                    LocalPartToken::Word(Word::Atom(b"nelson"[..].into())),
+                    LocalPartToken::Word(Word::Atom(Atom(b"nelson"[..].into()))),
                 ]),
-                domain: Domain::Atoms(vec![b"enron"[..].into(), b"com"[..].into()]),
+                domain: Domain::Atoms(vec![Atom(b"enron"[..].into()), Atom(b"com"[..].into())]),
             },
             r#"".nelson"@enron.com"#.as_bytes(),
         );
@@ -742,12 +741,12 @@ mod tests {
             "ecn2760.conf.@enron.com".as_bytes(),
             AddrSpec {
                 local_part: LocalPart(vec![
-                    LocalPartToken::Word(Word::Atom(b"ecn2760"[..].into())),
+                    LocalPartToken::Word(Word::Atom(Atom(b"ecn2760"[..].into()))),
                     LocalPartToken::Dot,
-                    LocalPartToken::Word(Word::Atom(b"conf"[..].into())),
+                    LocalPartToken::Word(Word::Atom(Atom(b"conf"[..].into()))),
                     LocalPartToken::Dot,
                 ]),
-                domain: Domain::Atoms(vec![b"enron"[..].into(), b"com"[..].into()]),
+                domain: Domain::Atoms(vec![Atom(b"enron"[..].into()), Atom(b"com"[..].into())]),
             },
             r#""ecn2760.conf."@enron.com"#.as_bytes(),
         );
@@ -764,7 +763,7 @@ mod tests {
                     local_part: LocalPart(vec![LocalPartToken::Word(Word::Quoted(
                         QuotedString(vec![b"mark_kopinski/intl/acim/americancentury"[..].into(),])
                     ))]),
-                    domain: Domain::Atoms(vec![b"americancentury"[..].into(), b"com"[..].into()]),
+                    domain: Domain::Atoms(vec![Atom(b"americancentury"[..].into()), Atom(b"com"[..].into())]),
                 }
             },
             b"mark_kopinski/intl/acim/americancentury@americancentury.com",

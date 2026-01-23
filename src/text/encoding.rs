@@ -62,7 +62,7 @@ pub fn encoded_word_token_quoted(input: &[u8]) -> IResult<&[u8], EncodedWordToke
     // NOTE: we use encoding_rs directly instead of crate::mime::charset, because
     // we only care about decoding (in `to_string`); printing will then always use
     // UTF-8 as output charset.
-    let renc = Encoding::for_label(charset).unwrap_or(encoding_rs::WINDOWS_1252);
+    let renc = Encoding::for_label(&charset.0).unwrap_or(encoding_rs::WINDOWS_1252);
     let parsed = EncodedWordToken::Quoted(QuotedWord {
         enc: renc,
         chunks: txt,
@@ -82,7 +82,7 @@ pub fn encoded_word_token_base64(input: &[u8]) -> IResult<&[u8], EncodedWordToke
     ))(input)?;
 
     // NOTE: we use encoding_rs and not crate::mime::charset; see above.
-    let renc = Encoding::for_label(charset).unwrap_or(encoding_rs::WINDOWS_1252);
+    let renc = Encoding::for_label(&charset.0).unwrap_or(encoding_rs::WINDOWS_1252);
     let parsed = EncodedWordToken::Base64(Base64Word {
         enc: renc,
         content: Cow::Borrowed(txt),

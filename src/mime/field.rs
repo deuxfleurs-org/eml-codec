@@ -79,6 +79,7 @@ mod tests {
     use crate::mime::r#type::*;
     use crate::text::misc_token::MIMEWord;
     use crate::text::quoted::QuotedString;
+    use crate::text::words::MIMEAtom;
 
     /*
     #[test]
@@ -125,10 +126,10 @@ This is a multipart message.
                 &b"This is a multipart message.\n\n"[..],
                 vec![
                     Content::Type(NaiveType {
-                        main: b"multipart"[..].into(),
-                        sub: b"alternative"[..].into(),
+                        main: MIMEAtom(b"multipart"[..].into()),
+                        sub: MIMEAtom(b"alternative"[..].into()),
                         params: vec![Parameter {
-                            name: b"boundary"[..].into(),
+                            name: MIMEAtom(b"boundary"[..].into()),
                             value: MIMEWord::Quoted(QuotedString(vec![
                                 b"b1_e376dc71bafc953c0b0fdeb9983a9956"[..].into()
                             ])),
