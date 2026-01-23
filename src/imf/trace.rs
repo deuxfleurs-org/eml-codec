@@ -1,4 +1,4 @@
-use chrono::{DateTime, FixedOffset};
+use bounded_static::ToStatic;
 use nom::{
     branch::alt,
     bytes::complete::{is_a, tag},
@@ -11,17 +11,17 @@ use nom::{
 use crate::imf::{datetime, mailbox};
 use crate::text::{ascii, misc_token, whitespace};
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, ToStatic)]
 pub enum ReceivedLogToken<'a> {
     Addr(mailbox::AddrSpec<'a>),
     Domain(mailbox::Domain<'a>),
     Word(misc_token::Word<'a>),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, ToStatic)]
 pub struct ReceivedLog<'a> {
     pub log: Vec<ReceivedLogToken<'a>>,
-    pub date: Option<DateTime<FixedOffset>>,
+    pub date: Option<datetime::DateTime>,
 }
 
 /*
@@ -76,7 +76,7 @@ fn received_tokens(input: &[u8]) -> IResult<&[u8], ReceivedLogToken<'_>> {
 mod tests {
     use super::*;
     use crate::imf::trace::misc_token::Word;
-    use chrono::TimeZone;
+    use chrono::{FixedOffset, TimeZone};
 
     #[test]
     fn test_received_body() {
@@ -93,30 +93,35 @@ mod tests {
                 &b""[..],
                 ReceivedLog {
                     date: Some(
-                        FixedOffset::east_opt(0)
-                            .unwrap()
-                            .with_ymd_and_hms(2023, 06, 13, 19, 1, 8)
-                            .unwrap()
+                        datetime::DateTime(
+                            FixedOffset::east_opt(0)
+                                .unwrap()
+                                .with_ymd_and_hms(2023, 06, 13, 19, 1, 8)
+                                .unwrap()
+                        )
                     ),
                     log: vec![
-                        ReceivedLogToken::Word(Word::Atom(&b"from"[..])),
+                        ReceivedLogToken::Word(Word::Atom(b"from"[..].into())),
                         ReceivedLogToken::Domain(mailbox::Domain::Atoms(vec![
-                            &b"smtp"[..],
-                            &b"example"[..],
-                            &b"com"[..]
+                            b"smtp"[..].into(),
+                            b"example"[..].into(),
+                            b"com"[..].into(),
                         ])),
-                        ReceivedLogToken::Word(Word::Atom(&b"by"[..])),
-                        ReceivedLogToken::Word(Word::Atom(&b"server"[..])),
-                        ReceivedLogToken::Word(Word::Atom(&b"with"[..])),
-                        ReceivedLogToken::Word(Word::Atom(&b"LMTP"[..])),
-                        ReceivedLogToken::Word(Word::Atom(&b"id"[..])),
-                        ReceivedLogToken::Word(Word::Atom(&b"xxxxxxxxx"[..])),
-                        ReceivedLogToken::Word(Word::Atom(&b"for"[..])),
+                        ReceivedLogToken::Word(Word::Atom(b"by"[..].into())),
+                        ReceivedLogToken::Word(Word::Atom(b"server"[..].into())),
+                        ReceivedLogToken::Word(Word::Atom(b"with"[..].into())),
+                        ReceivedLogToken::Word(Word::Atom(b"LMTP"[..].into())),
+                        ReceivedLogToken::Word(Word::Atom(b"id"[..].into())),
+                        ReceivedLogToken::Word(Word::Atom(b"xxxxxxxxx"[..].into())),
+                        ReceivedLogToken::Word(Word::Atom(b"for"[..].into())),
                         ReceivedLogToken::Addr(mailbox::AddrSpec {
                             local_part: mailbox::LocalPart(vec![mailbox::LocalPartToken::Word(
-                                Word::Atom(&b"me"[..])
+                                Word::Atom(b"me"[..].into())
                             )]),
-                            domain: mailbox::Domain::Atoms(vec![&b"example"[..], &b"com"[..]]),
+                            domain: mailbox::Domain::Atoms(vec![
+                                b"example"[..].into(),
+                                b"com"[..].into(),
+                            ]),
                         })
                     ],
                 }

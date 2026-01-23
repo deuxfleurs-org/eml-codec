@@ -1,3 +1,4 @@
+use bounded_static::{ToStatic, ToBoundedStatic, IntoBoundedStatic};
 use encoding_rs::Encoding;
 
 use base64::{engine::general_purpose, Engine as _};
@@ -11,6 +12,7 @@ use nom::{
     sequence::{preceded, terminated, tuple},
     IResult,
 };
+use std::borrow::Cow;
 
 use crate::text::ascii;
 use crate::text::whitespace::cfws;
@@ -55,12 +57,12 @@ pub fn encoded_word_base64(input: &[u8]) -> IResult<&[u8], EncodedWord<'_>> {
     let renc = Encoding::for_label(charset).unwrap_or(encoding_rs::WINDOWS_1252);
     let parsed = EncodedWord::Base64(Base64Word {
         enc: renc,
-        content: txt,
+        content: Cow::Borrowed(txt),
     });
     Ok((rest, parsed))
 }
 
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Debug, Clone, ToStatic)]
 pub enum EncodedWord<'a> {
     Quoted(QuotedWord<'a>),
     Base64(Base64Word<'a>),
@@ -77,13 +79,26 @@ impl<'a> EncodedWord<'a> {
 #[derive(PartialEq, Debug, Clone)]
 pub struct Base64Word<'a> {
     pub enc: &'static Encoding,
-    pub content: &'a [u8],
+    pub content: Cow<'a, [u8]>,
 }
+impl ToBoundedStatic for Base64Word<'_> {
+    type Static = Base64Word<'static>;
+    fn to_static(&self) -> Base64Word<'static> {
+        Base64Word { enc: self.enc, content: self.content.to_static() }
+    }
+}
+impl IntoBoundedStatic for Base64Word<'_> {
+    type Static = Base64Word<'static>;
+    fn into_static(self) -> Base64Word<'static> {
+        Base64Word { enc: self.enc, content: self.content.to_static() }
+    }
+}
+
 
 impl<'a> Base64Word<'a> {
     pub fn to_string(&self) -> String {
         general_purpose::STANDARD_NO_PAD
-            .decode(self.content)
+            .decode(&self.content)
             .map(|d| self.enc.decode(d.as_slice()).0.to_string())
             .unwrap_or("".into())
     }
@@ -93,6 +108,18 @@ impl<'a> Base64Word<'a> {
 pub struct QuotedWord<'a> {
     pub enc: &'static Encoding,
     pub chunks: Vec<QuotedChunk<'a>>,
+}
+impl ToBoundedStatic for QuotedWord<'_> {
+    type Static = QuotedWord<'static>;
+    fn to_static(&self) -> QuotedWord<'static> {
+        QuotedWord { enc: self.enc, chunks: self.chunks.to_static() }
+    }
+}
+impl<'a> IntoBoundedStatic for QuotedWord<'a> {
+    type Static = QuotedWord<'static>;
+    fn into_static(self) -> QuotedWord<'static> {
+        QuotedWord { enc: self.enc, chunks: self.chunks.to_static() }
+    }
 }
 
 impl<'a> QuotedWord<'a> {
@@ -114,9 +141,9 @@ impl<'a> QuotedWord<'a> {
     }
 }
 
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Debug, Clone, ToStatic)]
 pub enum QuotedChunk<'a> {
-    Safe(&'a [u8]),
+    Safe(Cow<'a, [u8]>),
     Encoded(Vec<u8>),
     Space,
 }
@@ -127,7 +154,9 @@ pub fn ptext(input: &[u8]) -> IResult<&[u8], Vec<QuotedChunk<'_>>> {
 }
 
 fn safe_char2(input: &[u8]) -> IResult<&[u8], QuotedChunk<'_>> {
-    map(take_while1(is_safe_char2), QuotedChunk::Safe)(input)
+    map(take_while1(is_safe_char2), |b| {
+        QuotedChunk::Safe(Cow::Borrowed(b))
+    })(input)
 }
 
 /// RFC2047 section 4.2
@@ -179,18 +208,18 @@ mod tests {
             Ok((
                 &b""[..],
                 vec![
-                    QuotedChunk::Safe(&b"Accus"[..]),
+                    QuotedChunk::Safe(b"Accus"[..].into()),
                     QuotedChunk::Encoded(vec![0xe9]),
                     QuotedChunk::Space,
-                    QuotedChunk::Safe(&b"de"[..]),
+                    QuotedChunk::Safe(b"de"[..].into()),
                     QuotedChunk::Space,
-                    QuotedChunk::Safe(&b"r"[..]),
+                    QuotedChunk::Safe(b"r"[..].into()),
                     QuotedChunk::Encoded(vec![0xe9]),
-                    QuotedChunk::Safe(&b"ception"[..]),
+                    QuotedChunk::Safe(b"ception"[..].into()),
                     QuotedChunk::Space,
-                    QuotedChunk::Safe(&b"(affich"[..]),
+                    QuotedChunk::Safe(b"(affich"[..].into()),
                     QuotedChunk::Encoded(vec![0xe9]),
-                    QuotedChunk::Safe(&b")"[..]),
+                    QuotedChunk::Safe(b")"[..].into()),
                 ]
             ))
         );

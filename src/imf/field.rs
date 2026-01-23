@@ -1,19 +1,19 @@
-use chrono::{DateTime, FixedOffset};
+use bounded_static::ToStatic;
 use nom::combinator::map;
 
 use crate::header;
 use crate::imf::address::{address_list, mailbox_list, nullable_address_list, AddressList};
-use crate::imf::datetime::section as date;
+use crate::imf::{datetime::section as date, datetime::DateTime};
 use crate::imf::identification::{msg_id, msg_list, MessageID, MessageIDList};
 use crate::imf::mailbox::{mailbox, AddrSpec, MailboxList, MailboxRef};
 use crate::imf::mime::{version, Version};
 use crate::imf::trace::{received_log, return_path, ReceivedLog};
 use crate::text::misc_token::{phrase_list, unstructured, PhraseList, Unstructured};
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, ToStatic)]
 pub enum Field<'a> {
     // 3.6.1.  The Origination Date Field
-    Date(Option<DateTime<FixedOffset>>),
+    Date(Option<DateTime>),
 
     // 3.6.2.  Originator Fields
     From(MailboxList<'a>),
@@ -42,12 +42,12 @@ pub enum Field<'a> {
 
     MIMEVersion(Version),
 }
-impl<'a> TryFrom<&header::Field<'a>> for Field<'a> {
+impl<'a> TryFrom<&header::FieldRaw<'a>> for Field<'a> {
     type Error = ();
-    fn try_from(f: &header::Field<'a>) -> Result<Self, Self::Error> {
+    fn try_from(f: &header::FieldRaw<'a>) -> Result<Self, Self::Error> {
         let content = match f {
-            header::Field::Good(header::Kv2(key, value)) => {
-                match key.to_ascii_lowercase().as_slice() {
+            header::FieldRaw::Good(key, value) => {
+                match key.bytes().to_ascii_lowercase().as_slice() {
                     b"date" => map(date, Field::Date)(value),
                     b"from" => map(mailbox_list, Field::From)(value),
                     b"sender" => map(mailbox, Field::Sender)(value),

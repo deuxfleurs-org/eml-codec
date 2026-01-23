@@ -22,6 +22,6 @@ between the header information and the body of the message."#;
     println!(
         "{} raw message is:\n{}",
         email.imf.from[0].to_string(),
-        String::from_utf8_lossy(email.child.as_text().unwrap().body),
+        String::from_utf8_lossy(&email.child.as_text().unwrap().body),
     );
 }

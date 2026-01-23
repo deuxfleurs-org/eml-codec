@@ -1,4 +1,5 @@
-use chrono::{DateTime, FixedOffset, NaiveDate, NaiveTime};
+use bounded_static::{IntoBoundedStatic, ToBoundedStatic};
+use chrono::{FixedOffset, NaiveDate, NaiveTime};
 use nom::{
     branch::alt,
     bytes::complete::{is_a, tag, tag_no_case, take_while_m_n},
@@ -8,6 +9,7 @@ use nom::{
     sequence::{delimited, preceded, terminated, tuple},
     IResult,
 };
+use std::fmt::{Debug, Formatter};
 
 use crate::text::whitespace::{cfws, fws};
 //use crate::error::IMFError;
@@ -28,6 +30,35 @@ impl<'a> TryFrom<&'a lazy::DateTime<'a>> for DateTime<FixedOffset> {
     }
 }*/
 
+#[derive(Clone, PartialEq)]
+pub struct DateTime(pub chrono::DateTime<FixedOffset>);
+
+impl Debug for DateTime {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        Debug::fmt(&self.0, f)
+    }
+}
+
+impl AsRef<chrono::DateTime<FixedOffset>> for DateTime {
+    fn as_ref(&self) -> &chrono::DateTime<FixedOffset> {
+        &self.0
+    }
+}
+
+impl IntoBoundedStatic for DateTime {
+    type Static = Self;
+    fn into_static(self) -> Self::Static {
+        self
+    }
+}
+
+impl ToBoundedStatic for DateTime {
+    type Static = Self;
+    fn to_static(&self) -> Self::Static {
+        self.clone()
+    }
+}
+
 /// Read datetime
 ///
 /// ```abnf
@@ -43,7 +74,7 @@ impl<'a> TryFrom<&'a lazy::DateTime<'a>> for DateTime<FixedOffset> {
 ///   - Obsolete military zones should be considered as NaiveTime
 /// due to an error in RFC0822 but are interpreted as their respective
 /// timezone according to the RFC5322 definition
-pub fn section(input: &[u8]) -> IResult<&[u8], Option<DateTime<FixedOffset>>> {
+pub fn section(input: &[u8]) -> IResult<&[u8], Option<DateTime>> {
     map(
         terminated(
             alt((
@@ -64,7 +95,7 @@ pub fn section(input: &[u8]) -> IResult<&[u8], Option<DateTime<FixedOffset>>> {
         ),
         |res| match res {
             (_, Some(date), Some(time), Some(tz)) => {
-                date.and_time(time).and_local_timezone(tz).earliest()
+                date.and_time(time).and_local_timezone(tz).earliest().map(DateTime)
             }
             _ => None,
         },
@@ -339,10 +370,12 @@ mod tests {
             Ok((
                 &b""[..],
                 Some(
-                    FixedOffset::west_opt(6 * HOUR)
-                        .unwrap()
-                        .with_ymd_and_hms(1997, 11, 21, 9, 55, 6)
-                        .unwrap()
+                    DateTime(
+                        FixedOffset::west_opt(6 * HOUR)
+                            .unwrap()
+                            .with_ymd_and_hms(1997, 11, 21, 9, 55, 6)
+                            .unwrap()
+                    )
                 )
             )),
         );
@@ -355,10 +388,12 @@ mod tests {
             Ok((
                 &b""[..],
                 Some(
-                    FixedOffset::east_opt(2 * HOUR)
-                        .unwrap()
-                        .with_ymd_and_hms(2023, 6, 18, 15, 39, 8)
-                        .unwrap()
+                    DateTime(
+                        FixedOffset::east_opt(2 * HOUR)
+                            .unwrap()
+                            .with_ymd_and_hms(2023, 6, 18, 15, 39, 8)
+                            .unwrap()
+                    )
                 )
             )),
         );
@@ -379,10 +414,12 @@ mod tests {
             Ok((
                 &b""[..],
                 Some(
-                    FixedOffset::west_opt(3 * HOUR + 30 * MIN)
-                        .unwrap()
-                        .with_ymd_and_hms(1969, 2, 13, 23, 32, 00)
-                        .unwrap()
+                    DateTime(
+                        FixedOffset::west_opt(3 * HOUR + 30 * MIN)
+                            .unwrap()
+                            .with_ymd_and_hms(1969, 2, 13, 23, 32, 00)
+                            .unwrap()
+                    )
                 )
             )),
         );
@@ -395,10 +432,12 @@ mod tests {
             Ok((
                 &b""[..],
                 Some(
-                    FixedOffset::east_opt(0)
-                        .unwrap()
-                        .with_ymd_and_hms(1997, 11, 21, 9, 55, 6)
-                        .unwrap()
+                    DateTime(
+                        FixedOffset::east_opt(0)
+                            .unwrap()
+                            .with_ymd_and_hms(1997, 11, 21, 9, 55, 6)
+                            .unwrap()
+                    )
                 )
             )),
         );
@@ -411,10 +450,12 @@ mod tests {
             Ok((
                 &b""[..],
                 Some(
-                    FixedOffset::east_opt(0)
-                        .unwrap()
-                        .with_ymd_and_hms(2003, 11, 21, 9, 55, 6)
-                        .unwrap()
+                    DateTime(
+                        FixedOffset::east_opt(0)
+                            .unwrap()
+                            .with_ymd_and_hms(2003, 11, 21, 9, 55, 6)
+                            .unwrap()
+                    )
                 )
             )),
         );
@@ -427,10 +468,12 @@ mod tests {
             Ok((
                 &b""[..],
                 Some(
-                    FixedOffset::west_opt(6 * HOUR)
-                        .unwrap()
-                        .with_ymd_and_hms(1997, 11, 21, 9, 55, 6)
-                        .unwrap()
+                    DateTime(
+                        FixedOffset::west_opt(6 * HOUR)
+                            .unwrap()
+                            .with_ymd_and_hms(1997, 11, 21, 9, 55, 6)
+                            .unwrap()
+                    )
                 )
             )),
         );
@@ -443,10 +486,12 @@ mod tests {
             Ok((
                 &b""[..],
                 Some(
-                    FixedOffset::east_opt(0)
-                        .unwrap()
-                        .with_ymd_and_hms(2023, 11, 21, 9, 55, 6)
-                        .unwrap()
+                    DateTime(
+                        FixedOffset::east_opt(0)
+                            .unwrap()
+                            .with_ymd_and_hms(2023, 11, 21, 9, 55, 6)
+                            .unwrap()
+                    )
                 )
             )),
         );
@@ -463,10 +508,12 @@ mod tests {
                     Ok((
                         &b""[..],
                         Some(
-                            FixedOffset::east_opt((i as i32 + 1) * HOUR)
-                                .unwrap()
-                                .with_ymd_and_hms(2022, 01, 01, 8, 0, 0)
-                                .unwrap()
+                            DateTime(
+                                FixedOffset::east_opt((i as i32 + 1) * HOUR)
+                                    .unwrap()
+                                    .with_ymd_and_hms(2022, 01, 01, 8, 0, 0)
+                                    .unwrap()
+                            )
                         )
                     ))
                 );
@@ -484,10 +531,12 @@ mod tests {
                     Ok((
                         &b""[..],
                         Some(
-                            FixedOffset::west_opt((i as i32 + 1) * HOUR)
-                                .unwrap()
-                                .with_ymd_and_hms(2022, 01, 01, 8, 0, 0)
-                                .unwrap()
+                            DateTime(
+                                FixedOffset::west_opt((i as i32 + 1) * HOUR)
+                                    .unwrap()
+                                    .with_ymd_and_hms(2022, 01, 01, 8, 0, 0)
+                                    .unwrap()
+                            )
                         )
                     ))
                 );
@@ -501,10 +550,12 @@ mod tests {
             Ok((
                 &b""[..],
                 Some(
-                    FixedOffset::east_opt(0)
-                        .unwrap()
-                        .with_ymd_and_hms(2023, 11, 21, 7, 7, 7)
-                        .unwrap()
+                    DateTime(
+                        FixedOffset::east_opt(0)
+                            .unwrap()
+                            .with_ymd_and_hms(2023, 11, 21, 7, 7, 7)
+                            .unwrap()
+                    )
                 )
             )),
         );
@@ -513,10 +564,12 @@ mod tests {
             Ok((
                 &b""[..],
                 Some(
-                    FixedOffset::east_opt(0)
-                        .unwrap()
-                        .with_ymd_and_hms(2023, 11, 21, 7, 7, 7)
-                        .unwrap()
+                    DateTime(
+                        FixedOffset::east_opt(0)
+                            .unwrap()
+                            .with_ymd_and_hms(2023, 11, 21, 7, 7, 7)
+                            .unwrap()
+                    )
                 )
             )),
         );
@@ -525,10 +578,12 @@ mod tests {
             Ok((
                 &b""[..],
                 Some(
-                    FixedOffset::east_opt(0)
-                        .unwrap()
-                        .with_ymd_and_hms(2023, 11, 21, 7, 7, 7)
-                        .unwrap()
+                    DateTime(
+                        FixedOffset::east_opt(0)
+                            .unwrap()
+                            .with_ymd_and_hms(2023, 11, 21, 7, 7, 7)
+                            .unwrap()
+                    )
                 )
             )),
         );
@@ -537,10 +592,12 @@ mod tests {
             Ok((
                 &b""[..],
                 Some(
-                    FixedOffset::east_opt(0)
-                        .unwrap()
-                        .with_ymd_and_hms(2023, 11, 21, 7, 7, 7)
-                        .unwrap()
+                    DateTime(
+                        FixedOffset::east_opt(0)
+                            .unwrap()
+                            .with_ymd_and_hms(2023, 11, 21, 7, 7, 7)
+                            .unwrap()
+                    )
                 )
             )),
         );
@@ -549,10 +606,12 @@ mod tests {
             Ok((
                 &b""[..],
                 Some(
-                    FixedOffset::east_opt(0)
-                        .unwrap()
-                        .with_ymd_and_hms(2023, 11, 21, 7, 7, 7)
-                        .unwrap()
+                    DateTime(
+                        FixedOffset::east_opt(0)
+                            .unwrap()
+                            .with_ymd_and_hms(2023, 11, 21, 7, 7, 7)
+                            .unwrap()
+                    )
                 )
             )),
         );
@@ -561,10 +620,12 @@ mod tests {
             Ok((
                 &b""[..],
                 Some(
-                    FixedOffset::east_opt(0)
-                        .unwrap()
-                        .with_ymd_and_hms(2023, 11, 21, 7, 7, 7)
-                        .unwrap()
+                    DateTime(
+                        FixedOffset::east_opt(0)
+                            .unwrap()
+                            .with_ymd_and_hms(2023, 11, 21, 7, 7, 7)
+                            .unwrap()
+                    )
                 )
             )),
         );
@@ -577,10 +638,12 @@ mod tests {
             Ok((
                 &b""[..],
                 Some(
-                    FixedOffset::west_opt(6 * HOUR)
-                        .unwrap()
-                        .with_ymd_and_hms(2023, 11, 21, 4, 4, 4)
-                        .unwrap()
+                    DateTime(
+                        FixedOffset::west_opt(6 * HOUR)
+                            .unwrap()
+                            .with_ymd_and_hms(2023, 11, 21, 4, 4, 4)
+                            .unwrap()
+                    )
                 )
             )),
         );

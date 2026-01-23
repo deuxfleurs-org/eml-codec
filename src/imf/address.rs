@@ -1,3 +1,4 @@
+use bounded_static::ToStatic;
 use nom::{
     branch::alt,
     bytes::complete::tag,
@@ -12,13 +13,13 @@ use crate::imf::mailbox::{mailbox, MailboxRef};
 use crate::text::misc_token::{phrase, Phrase};
 use crate::text::whitespace::cfws;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, ToStatic)]
 pub struct GroupRef<'a> {
     pub name: Phrase<'a>,
     pub participants: Vec<MailboxRef<'a>>,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, ToStatic)]
 pub enum AddressRef<'a> {
     Single(MailboxRef<'a>),
     Many(GroupRef<'a>),
@@ -139,36 +140,36 @@ mod tests {
                 &b""[..],
                 vec![
                     AddressRef::Many(GroupRef {
-                        name: Phrase(vec![Word::Atom(&b"A"[..]), Word::Atom(&b"Group"[..])]),
+                        name: Phrase(vec![Word::Atom(b"A"[..].into()), Word::Atom(b"Group"[..].into())]),
                         participants: vec![
                             MailboxRef {
-                                name: Some(Phrase(vec![Word::Atom(&b"Ed"[..]), Word::Atom(&b"Jones"[..])])),
+                                name: Some(Phrase(vec![Word::Atom(b"Ed"[..].into()), Word::Atom(b"Jones"[..].into())])),
                                 addrspec: AddrSpec {
-                                    local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(&b"c"[..]))]),
-                                    domain: Domain::Atoms(vec![&b"a"[..], &b"test"[..]]),
+                                    local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(b"c"[..].into()))]),
+                                    domain: Domain::Atoms(vec![b"a"[..].into(), b"test"[..].into()]),
                                 },
                             },
                             MailboxRef {
                                 name: None,
                                 addrspec: AddrSpec {
-                                    local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(&b"joe"[..]))]),
-                                    domain: Domain::Atoms(vec![&b"where"[..], &b"test"[..]])
+                                    local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(b"joe"[..].into()))]),
+                                    domain: Domain::Atoms(vec![b"where"[..].into(), b"test"[..].into()])
                                 },
                             },
                             MailboxRef {
-                                name: Some(Phrase(vec![Word::Atom(&b"John"[..])])),
+                                name: Some(Phrase(vec![Word::Atom(b"John"[..].into())])),
                                 addrspec: AddrSpec {
-                                    local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(&b"jdoe"[..]))]),
-                                    domain: Domain::Atoms(vec![&b"one"[..], &b"test"[..]])
+                                    local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(b"jdoe"[..].into()))]),
+                                    domain: Domain::Atoms(vec![b"one"[..].into(), b"test"[..].into()])
                                 },
                             },
                         ],
                     }),
                     AddressRef::Single(MailboxRef {
-                        name: Some(Phrase(vec![Word::Atom(&b"Mary"[..]), Word::Atom(&b"Smith"[..])])),
+                        name: Some(Phrase(vec![Word::Atom(b"Mary"[..].into()), Word::Atom(b"Smith"[..].into())])),
                         addrspec: AddrSpec {
-                            local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(&b"mary"[..]))]),
-                            domain: Domain::Atoms(vec![&b"x"[..], &b"test"[..]])
+                            local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(b"mary"[..].into()))]),
+                            domain: Domain::Atoms(vec![b"x"[..].into(), b"test"[..].into()])
                         },
                     }),
                 ]
@@ -190,31 +191,31 @@ mod tests {
                 &b""[..],
                 vec![
                     AddressRef::Many(GroupRef {
-                        name: Phrase(vec![Word::Quoted(QuotedString(vec![&b"Colleagues"[..]]))]),
+                        name: Phrase(vec![Word::Quoted(QuotedString(vec![b"Colleagues"[..].into()]))]),
                         participants: vec![MailboxRef {
                             name: Some(Phrase(vec![Word::Quoted(QuotedString(vec![
-                                &b"James"[..],
-                                &b" "[..],
-                                &b"Smythe"[..]
+                                b"James"[..].into(),
+                                b" "[..].into(),
+                                b"Smythe"[..].into(),
                             ]))])),
                             addrspec: AddrSpec {
                                 local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(
-                                    &b"james"[..]
+                                    b"james"[..].into()
                                 ))]),
-                                domain: Domain::Atoms(vec![&b"vandelay"[..], &b"com"[..]]),
+                                domain: Domain::Atoms(vec![b"vandelay"[..].into(), b"com"[..].into()]),
                             }
                         },],
                     }),
                     AddressRef::Many(GroupRef {
-                        name: Phrase(vec![Word::Atom(&b"Friends"[..])]),
+                        name: Phrase(vec![Word::Atom(b"Friends"[..].into())]),
                         participants: vec![
                             MailboxRef {
                                 name: None,
                                 addrspec: AddrSpec {
                                     local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(
-                                        &b"jane"[..]
+                                        b"jane"[..].into()
                                     ))]),
-                                    domain: Domain::Atoms(vec![&b"example"[..], &b"com"[..]]),
+                                    domain: Domain::Atoms(vec![b"example"[..].into(), b"com"[..].into()]),
                                 }
                             },
                             MailboxRef {
@@ -222,19 +223,19 @@ mod tests {
                                     QuotedWord {
                                         enc: encoding_rs::UTF_8,
                                         chunks: vec![
-                                            QuotedChunk::Safe(&b"John"[..]),
+                                            QuotedChunk::Safe(b"John"[..].into()),
                                             QuotedChunk::Space,
-                                            QuotedChunk::Safe(&b"Sm"[..]),
+                                            QuotedChunk::Safe(b"Sm"[..].into()),
                                             QuotedChunk::Encoded(vec![0xc3, 0xae]),
-                                            QuotedChunk::Safe(&b"th"[..]),
+                                            QuotedChunk::Safe(b"th"[..].into()),
                                         ]
                                     }
                                 ))])),
                                 addrspec: AddrSpec {
                                     local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(
-                                        &b"john"[..]
+                                        b"john"[..].into()
                                     ))]),
-                                    domain: Domain::Atoms(vec![&b"example"[..], &b"com"[..]]),
+                                    domain: Domain::Atoms(vec![b"example"[..].into(), b"com"[..].into()]),
                                 }
                             },
                         ]

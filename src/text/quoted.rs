@@ -1,3 +1,4 @@
+use bounded_static::ToStatic;
 use nom::{
     branch::alt,
     bytes::complete::{tag, take, take_while1},
@@ -6,16 +7,17 @@ use nom::{
     sequence::{pair, preceded},
     IResult,
 };
+use std::borrow::Cow;
 
 use crate::text::ascii;
 use crate::text::whitespace::{cfws, fws, is_obs_no_ws_ctl};
 
-#[derive(Debug, PartialEq, Default, Clone)]
-pub struct QuotedString<'a>(pub Vec<&'a [u8]>);
+#[derive(Debug, PartialEq, Default, Clone, ToStatic)]
+pub struct QuotedString<'a>(pub Vec<Cow<'a, [u8]>>);
 
 impl<'a> QuotedString<'a> {
     pub fn push(&mut self, e: &'a [u8]) {
-        self.0.push(e)
+        self.0.push(Cow::Borrowed(e))
     }
 
     pub fn to_string(&self) -> String {
@@ -110,14 +112,22 @@ mod tests {
     fn test_quoted_string_parser() {
         assert_eq!(
             quoted_string(b" \"hello\\\"world\" ").unwrap().1,
-            QuotedString(vec![b"hello", &[ascii::DQUOTE], b"world"])
+            QuotedString(vec![
+                b"hello".into(),
+                vec![ascii::DQUOTE].into(),
+                b"world".into(),
+            ])
         );
 
         assert_eq!(
             quoted_string(b"\"hello\r\n world\""),
             Ok((
                 &b""[..],
-                QuotedString(vec![b"hello", &[ascii::SP], b"world"])
+                QuotedString(vec![
+                    b"hello".into(),
+                    vec![ascii::SP].into(),
+                    b"world".into(),
+                ])
             )),
         );
     }
@@ -127,7 +137,12 @@ mod tests {
     #[test]
     fn test_quoted_string_object() {
         assert_eq!(
-            QuotedString(vec![b"hello", &[ascii::SP], b"world"]).to_string(),
+            QuotedString(vec![
+                b"hello".into(),
+                vec![ascii::SP].into(),
+                b"world".into(),
+            ])
+            .to_string(),
             "hello world".to_string(),
         );
     }
