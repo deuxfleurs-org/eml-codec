@@ -336,7 +336,7 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                             name: Some(Phrase(vec![
                                 PhraseToken::Encoded(EncodedWord(vec![
                                     EncodedWordToken::Quoted(QuotedWord {
-                                        enc: encoding_rs::WINDOWS_1252,
+                                        enc: EmailCharset::ISO_8859_1,
                                         chunks: vec![
                                             QuotedChunk::Safe(b"Andr"[..].into()),
                                             QuotedChunk::Encoded(vec![0xE9]),
@@ -362,11 +362,11 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                             UnstrToken::from_plain(b" ", UnstrTxtKind::Fws),
                             UnstrToken::Encoded(EncodedWord(vec![
                                 EncodedWordToken::Base64(Base64Word{
-                                    enc: encoding_rs::WINDOWS_1252,
+                                    enc: EmailCharset::ISO_8859_1,
                                     content: b"SWYgeW91IGNhbiByZWFkIHRoaXMgeW8"[..].into(),
                                 }),
                                 EncodedWordToken::Base64(Base64Word{
-                                    enc: encoding_rs::ISO_8859_2,
+                                    enc: EmailCharset::ISO_8859_2,
                                     content: b"dSB1bmRlcnN0YW5kIHRoZSBleGFtcGxlLg"[..].into(),
                                 })
                             ])),

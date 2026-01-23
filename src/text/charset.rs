@@ -39,9 +39,9 @@ pub enum EmailCharset {
     Unknown(Vec<u8>),
 }
 
-impl<'a> From<&'a [u8]> for EmailCharset {
-    fn from(s: &'a [u8]) -> Self {
-        let s = s.to_ascii_lowercase();
+impl<T: AsRef<[u8]>> From<T> for EmailCharset {
+    fn from(s: T) -> Self {
+        let s = s.as_ref().to_ascii_lowercase();
         match s.as_slice() {
             b"us-ascii" | b"ascii" => EmailCharset::US_ASCII,
             b"iso-8859-1" => EmailCharset::ISO_8859_1,

@@ -316,7 +316,10 @@ impl<'a> UnstrToken<'a> {
 impl<'a> fmt::Debug for UnstrToken<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            UnstrToken::Encoded(e) => fmt.debug_tuple("Encoded").field(&e.to_string()).finish(),
+            UnstrToken::Encoded(e) => fmt
+                .debug_tuple("Encoded")
+                .field(e)
+                .finish(),
             UnstrToken::Plain(s, k) => fmt
                 .debug_tuple("Plain")
                 .field(&String::from_utf8_lossy(&s))

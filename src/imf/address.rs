@@ -135,6 +135,7 @@ pub fn nullable_address_list(input: &[u8]) -> IResult<&[u8], Vec<AddressRef<'_>>
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::text::charset::EmailCharset;
     use crate::imf::mailbox::{AddrSpec, Domain, LocalPart, LocalPartToken};
     use crate::print::tests::with_formatter;
     use crate::text::misc_token::{Phrase, PhraseToken, Word};
@@ -260,7 +261,7 @@ mod tests {
                             name: Some(Phrase(vec![PhraseToken::Encoded(EncodedWord(vec![
                                 EncodedWordToken::Quoted(
                                     QuotedWord {
-                                        enc: encoding_rs::UTF_8,
+                                        enc: EmailCharset::UTF_8,
                                         chunks: vec![
                                             QuotedChunk::Safe(b"John"[..].into()),
                                             QuotedChunk::Space,
