@@ -1,5 +1,14 @@
+#[cfg(feature = "arbitrary")]
+use arbitrary::Arbitrary;
 use bounded_static::ToStatic;
 
+#[cfg(feature = "arbitrary")]
+use crate::{
+    arbitrary_utils::arbitrary_shuffle,
+    fuzz_eq::FuzzEq,
+    imf::Imf,
+    part::MimeBody,
+};
 use crate::header;
 use crate::imf;
 use crate::mime;
@@ -9,6 +18,7 @@ use crate::print::{Print, Formatter};
 /// A complete **toplevel message**.
 /// This represent a complete "email" that can be send and received over the wire, for example.
 #[derive(Clone, Debug, PartialEq, ToStatic)]
+#[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
 pub struct Message<'a> {
     // Invariant: `all_fields` must contain an entry for every piece of information
     // contained in `imf` and `mime_body`'s mime headers that is mandatory or is
@@ -44,6 +54,25 @@ impl<'a> Print for Message<'a> {
     }
 }
 
+#[cfg(feature = "arbitrary")]
+impl<'a> Arbitrary<'a> for Message<'a> {
+    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
+        let imf: Imf = u.arbitrary()?;
+        let mime_body: MimeBody = u.arbitrary()?;
+        let mut entries: Vec<MessageEntry> =
+            mime_body.mime()
+                     .field_entries()
+                     .into_iter()
+                     .map(MessageEntry::MIME)
+                     .collect();
+        entries.extend(imf.field_entries().into_iter().map(MessageEntry::Imf));
+        let unstr: Vec<header::Unstructured> = u.arbitrary()?;
+        entries.extend(unstr.into_iter().map(MessageEntry::Unstructured));
+        arbitrary_shuffle(u, &mut entries);
+        Ok(Message { imf, mime_body, entries })
+    }
+}
+
 /// Parse a toplevel message.
 pub fn message<'a>(input: &'a [u8]) -> Message<'a> {
     // parse headers
@@ -71,6 +100,7 @@ pub fn imf<'a>(input: &'a [u8]) -> (&'a [u8], imf::Imf<'a>) {
 /// MIME-defined fields (RFC 2045),
 /// or an unstructured field.
 #[derive(Clone, Debug, PartialEq, ToStatic)]
+#[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
 pub enum MessageEntry<'a> {
     MIME(mime::field::Entry),
     Imf(imf::field::Entry),

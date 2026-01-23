@@ -1,7 +1,11 @@
+#[cfg(feature = "arbitrary")]
+use arbitrary::Arbitrary;
 use bounded_static::ToStatic;
 use std::borrow::Cow;
 use std::fmt;
 
+#[cfg(feature = "arbitrary")]
+use crate::fuzz_eq::FuzzEq;
 use crate::header;
 use crate::mime;
 use crate::part::{self, AnyPart, field::EntityFields};
@@ -9,10 +13,13 @@ use crate::text::boundary::{boundary, Delimiter};
 
 //--- Multipart
 #[derive(Clone, PartialEq, ToStatic)]
+#[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
 pub struct Multipart<'a> {
     pub mime: mime::MIME<'a, mime::r#type::Multipart<'a>>,
     pub children: Vec<AnyPart<'a>>,
+    #[cfg_attr(feature = "arbitrary", fuzz_eq(ignore))]
     pub preamble: Cow<'a, [u8]>,
+    #[cfg_attr(feature = "arbitrary", fuzz_eq(ignore))]
     pub epilogue: Cow<'a, [u8]>,
 }
 impl<'a> fmt::Debug for Multipart<'a> {
@@ -23,6 +30,17 @@ impl<'a> fmt::Debug for Multipart<'a> {
             .field("preamble", &String::from_utf8_lossy(&self.preamble))
             .field("epilogue", &String::from_utf8_lossy(&self.epilogue))
             .finish()
+    }
+}
+#[cfg(feature = "arbitrary")]
+impl<'a> Arbitrary<'a> for Multipart<'a> {
+    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
+        Ok(Multipart {
+            mime: u.arbitrary()?,
+            children: u.arbitrary()?,
+            preamble: b"".into(),
+            epilogue: b"".into(),
+        })
     }
 }
 
@@ -102,6 +120,7 @@ pub fn multipart<'a>(
 //--- Message
 
 #[derive(Clone, Debug, PartialEq, ToStatic)]
+#[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
 pub struct Message<'a> {
     pub mime: mime::MIME<'a, mime::r#type::Message<'a>>,
 

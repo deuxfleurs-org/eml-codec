@@ -1,3 +1,5 @@
+#[cfg(feature = "arbitrary")]
+use arbitrary::Arbitrary;
 use bounded_static::ToStatic;
 use nom::{
     character::complete::digit1,
@@ -7,10 +9,13 @@ use nom::{
     IResult,
 };
 
+#[cfg(feature = "arbitrary")]
+use crate::fuzz_eq::FuzzEq;
 use crate::print::{Print, Formatter};
 use crate::text::whitespace::cfws;
 
 #[derive(Clone, Debug, PartialEq, ToStatic)]
+#[cfg_attr(feature = "arbitrary", derive(Arbitrary))]
 pub struct Version {
     pub major: u64,
     pub minor: u64,
@@ -19,6 +24,12 @@ pub struct Version {
 impl Default for Version {
     fn default() -> Version {
         Version { major: 1, minor: 0 }
+    }
+}
+#[cfg(feature = "arbitrary")]
+impl FuzzEq for Version {
+    fn fuzz_eq(&self, other: &Self) -> bool {
+        self == other
     }
 }
 

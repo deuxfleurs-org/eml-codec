@@ -1,17 +1,21 @@
 use bounded_static::ToStatic;
 
+#[cfg(feature = "arbitrary")]
+use crate::fuzz_eq::FuzzEq;
 use crate::header;
 use crate::mime;
 
 /// Header fields of a generic MIME entity (a MIME entity that is not a toplevel
 /// message). Contains either MIME-defined fields or unstructured fields.
 #[derive(Debug, Default, PartialEq, ToStatic)]
+#[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
 pub(crate) struct EntityFields<'a> {
     pub mime: mime::NaiveMIME<'a>,
     pub entries: Vec<EntityEntry<'a>>,
 }
 
 #[derive(Clone, Debug, PartialEq, ToStatic)]
+#[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
 pub enum EntityEntry<'a> {
     MIME(mime::field::Entry),
     Unstructured(header::Unstructured<'a>),

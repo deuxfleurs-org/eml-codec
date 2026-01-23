@@ -1,6 +1,8 @@
 use bounded_static::ToStatic;
 use nom::combinator::map;
 
+#[cfg(feature = "arbitrary")]
+use crate::fuzz_eq::FuzzEq;
 use crate::header;
 use crate::imf::address::{address_list, nullable_address_list, AddressList};
 use crate::imf::datetime::{date_time, DateTime};
@@ -12,7 +14,8 @@ use crate::text::misc_token::{phrase_list, unstructured, PhraseList, Unstructure
 
 // NOTE: we don't need `Entry` constructors for trace fields
 // because they are already stored in-order in the Imf struct.
-#[derive(Clone, Copy, Debug, PartialEq, ToStatic)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, ToStatic)]
+#[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
 pub enum Entry {
     Date,
     From,
@@ -25,7 +28,9 @@ pub enum Entry {
     InReplyTo,
     References,
     Subject,
+    #[cfg_attr(feature = "arbitrary", fuzz_eq(use_eq))]
     Comments(usize),
+    #[cfg_attr(feature = "arbitrary", fuzz_eq(use_eq))]
     Keywords(usize),
     MIMEVersion,
 }

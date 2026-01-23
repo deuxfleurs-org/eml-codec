@@ -1,4 +1,11 @@
+#[cfg(feature = "arbitrary")]
+use arbitrary::Arbitrary;
 use bounded_static::ToStatic;
+#[cfg(feature = "arbitrary")]
+use crate::{
+    arbitrary_utils::arbitrary_vec_where,
+    fuzz_eq::FuzzEq,
+};
 use crate::print::{Print, Formatter};
 use crate::text::ascii;
 use crate::text::whitespace::cfws;
@@ -35,12 +42,24 @@ impl<'a> Print for MIMEAtom<'a> {
         fmt.write_bytes(&self.0)
     }
 }
-
+#[cfg(feature = "arbitrary")]
+impl<'a, 'b> Arbitrary<'a> for MIMEAtom<'b> {
+    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<MIMEAtom<'b>> {
+        let bytes = arbitrary_vec_where(u, is_mime_atom_text)?;
+        Ok(MIMEAtom(Cow::Owned(bytes)))
+    }
+}
+#[cfg(feature = "arbitrary")]
+impl<'a> FuzzEq for MIMEAtom<'a> {
+    fn fuzz_eq(&self, other: &Self) -> bool {
+        self == other
+    }
+}
 
 /// MIME Token allowed characters
 ///
 /// forbidden: ()<>@,;:\"/[]?=
-fn is_mime_atom_text(c: u8) -> bool {
+pub fn is_mime_atom_text(c: u8) -> bool {
     is_alphanumeric(c)
         || c == ascii::EXCLAMATION
         || c == ascii::NUM
@@ -90,11 +109,24 @@ impl<'a> Print for Atom<'a> {
         fmt.write_bytes(&self.0)
     }
 }
+#[cfg(feature = "arbitrary")]
+impl<'a> Arbitrary<'a> for Atom<'a> {
+    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Atom<'a>> {
+        let bytes = arbitrary_vec_where(u, is_atext)?;
+        Ok(Atom(Cow::Owned(bytes)))
+    }
+}
+#[cfg(feature = "arbitrary")]
+impl<'a> FuzzEq for Atom<'a> {
+    fn fuzz_eq(&self, other: &Self) -> bool {
+        self == other
+    }
+}
 
 /// Atom allowed characters
 ///
 /// authorized: !#$%&'*+-/=?^_`{|}~
-fn is_atext(c: u8) -> bool {
+pub fn is_atext(c: u8) -> bool {
     is_alphanumeric(c)
         || c == ascii::EXCLAMATION
         || c == ascii::NUM
@@ -142,6 +174,19 @@ impl<'a> fmt::Debug for DotAtom<'a> {
 impl<'a> Print for DotAtom<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
         fmt.write_bytes(&self.0)
+    }
+}
+#[cfg(feature = "arbitrary")]
+impl<'a> Arbitrary<'a> for DotAtom<'a> {
+    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<DotAtom<'a>> {
+        let bytes = arbitrary_vec_where(u, |b| is_atext(b) || b == b'.')?;
+        Ok(DotAtom(Cow::Owned(bytes)))
+    }
+}
+#[cfg(feature = "arbitrary")]
+impl<'a> FuzzEq for DotAtom<'a> {
+    fn fuzz_eq(&self, other: &Self) -> bool {
+        self == other
     }
 }
 

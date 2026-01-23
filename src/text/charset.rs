@@ -1,5 +1,9 @@
+#[cfg(feature = "arbitrary")]
+use arbitrary::Arbitrary;
 use bounded_static::ToStatic;
 use encoding_rs::Encoding;
+#[cfg(feature = "arbitrary")]
+use crate::fuzz_eq::FuzzEq;
 
 /// Specific implementation of charset
 ///
@@ -9,6 +13,7 @@ use encoding_rs::Encoding;
 /// <https://www.iana.org/assignments/character-sets/character-sets.xhtml>
 #[allow(non_camel_case_types)]
 #[derive(Debug, PartialEq, Default, Clone, ToStatic)]
+#[cfg_attr(feature = "arbitrary", derive(Arbitrary))]
 pub enum EmailCharset {
     #[default]
     US_ASCII,
@@ -116,6 +121,13 @@ impl EmailCharset {
         // XXX currently the `Unknown` case is passed through as-is to encoding_rs,
         // is this what we should do?
         Encoding::for_label(self.as_bytes()).unwrap_or(encoding_rs::WINDOWS_1252)
+    }
+}
+
+#[cfg(feature = "arbitrary")]
+impl FuzzEq for EmailCharset {
+    fn fuzz_eq(&self, other: &Self) -> bool {
+        self == other
     }
 }
 

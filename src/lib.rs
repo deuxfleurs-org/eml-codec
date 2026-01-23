@@ -27,6 +27,9 @@ pub mod fuzz_eq;
 
 mod utils;
 
+#[cfg(feature = "arbitrary")]
+mod arbitrary_utils;
+
 use crate::print::Print;
 
 /// Parse a whole email including its (MIME) body

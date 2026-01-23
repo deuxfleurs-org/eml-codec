@@ -7,6 +7,8 @@ pub mod discrete;
 /// Representation of all headers in a MIME entity
 pub mod field;
 
+#[cfg(feature = "arbitrary")]
+use arbitrary::Arbitrary;
 use bounded_static::ToStatic;
 use nom::{
     branch::alt,
@@ -17,6 +19,12 @@ use nom::{
 };
 use std::borrow::Cow;
 
+#[cfg(feature = "arbitrary")]
+use crate::{
+    header,
+    arbitrary_utils::arbitrary_shuffle,
+    fuzz_eq::FuzzEq,
+};
 use crate::mime::AnyMIME;
 use crate::part::{
     composite::{message, multipart, Message, Multipart},
@@ -28,6 +36,7 @@ use crate::text::boundary::boundary;
 use crate::text::whitespace::obs_crlf;
 
 #[derive(Clone, Debug, PartialEq, ToStatic)]
+#[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
 pub struct AnyPart<'a> {
     // Invariant: `fields` must be "complete and correct":
     // - it must contain an entry for every piece of information contained in
@@ -41,7 +50,25 @@ pub struct AnyPart<'a> {
     pub mime_body: MimeBody<'a>,
 }
 
+#[cfg(feature = "arbitrary")]
+impl<'a> Arbitrary<'a> for AnyPart<'a> {
+    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
+        let mime_body: MimeBody = u.arbitrary()?;
+        let mut entries: Vec<field::EntityEntry> =
+            mime_body.mime()
+                     .field_entries()
+                     .into_iter()
+                     .map(field::EntityEntry::MIME)
+                     .collect();
+        let unstr: Vec<header::Unstructured> = u.arbitrary()?;
+        entries.extend(unstr.into_iter().map(field::EntityEntry::Unstructured));
+        arbitrary_shuffle(u, &mut entries);
+        Ok(AnyPart { entries, mime_body })
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, ToStatic)]
+#[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
 pub enum MimeBody<'a> {
     Mult(Multipart<'a>),
     Msg(Message<'a>),
