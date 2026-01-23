@@ -1,4 +1,6 @@
 /// Parse and represent IMF (Internet Message Format) headers (RFC822, RFC5322)
+#[cfg(feature = "arbitrary")]
+use arbitrary::Arbitrary;
 pub mod address;
 pub mod datetime;
 pub mod field;
@@ -8,7 +10,10 @@ pub mod mime;
 pub mod trace;
 
 use bounded_static::ToStatic;
+use std::collections::HashSet;
 
+#[cfg(feature = "arbitrary")]
+use crate::fuzz_eq::FuzzEq;
 use crate::header;
 use crate::imf::address::AddressRef;
 use crate::imf::datetime::DateTime;
@@ -22,6 +27,7 @@ use crate::text::misc_token::{PhraseList, Unstructured};
 use crate::utils::{append_opt, set_opt};
 
 #[derive(Clone, Debug, PartialEq, ToStatic)]
+#[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
 pub struct Imf<'a> {
     // 3.6.1.  The Origination Date Field
     pub date: DateTime,
@@ -54,6 +60,7 @@ pub struct Imf<'a> {
 }
 
 #[derive(Clone, Debug, PartialEq, ToStatic)]
+#[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
 pub enum From<'a> {
     Single {
         from: MailboxRef<'a>,
@@ -165,6 +172,57 @@ impl<'a> Imf<'a> {
             field::Entry::MIMEVersion =>
                 header::print(fmt, b"MIME-Version", &self.mime_version),
         }
+    }
+
+    pub fn field_entries(&self) -> HashSet<field::Entry> {
+        let mut fs = HashSet::default();
+        fs.insert(field::Entry::Date);
+        fs.insert(field::Entry::From);
+        match &self.from {
+            From::Single { from: _, sender } => {
+                if sender.is_some() {
+                    fs.insert(field::Entry::Sender);
+                }
+            },
+            From::Multiple { from: _, sender: _ } => {
+                fs.insert(field::Entry::Sender);
+            },
+        }
+        if !self.reply_to.is_empty() {
+            fs.insert(field::Entry::ReplyTo);
+        }
+        if !self.to.is_empty() {
+            fs.insert(field::Entry::To);
+        }
+        if !self.cc.is_empty() {
+            fs.insert(field::Entry::Cc);
+        }
+        if self.bcc.is_some() {
+            fs.insert(field::Entry::Bcc);
+        }
+        if self.msg_id.is_some() {
+            fs.insert(field::Entry::MessageId);
+        }
+        if !self.in_reply_to.is_empty() {
+            fs.insert(field::Entry::InReplyTo);
+        }
+        if !self.references.is_empty() {
+            fs.insert(field::Entry::References);
+        }
+        if self.subject.is_some() {
+            fs.insert(field::Entry::Subject);
+        }
+        for i in 0..self.comments.len() {
+            fs.insert(field::Entry::Comments(i));
+        }
+        for i in 0..self.keywords.len() {
+            fs.insert(field::Entry::Keywords(i));
+        }
+        for i in 0..self.keywords.len() {
+            fs.insert(field::Entry::Keywords(i));
+        }
+        fs.insert(field::Entry::MIMEVersion);
+        fs
     }
 }
 

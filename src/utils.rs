@@ -1,7 +1,12 @@
+#[cfg(feature = "arbitrary")]
+use arbitrary::Arbitrary;
 use bounded_static::ToStatic;
+#[cfg(feature = "arbitrary")]
+use crate::fuzz_eq::FuzzEq;
 use crate::print::{Print, Formatter};
 
 #[derive(Debug, PartialEq, Clone, ToStatic)]
+#[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
 pub enum Deductible<T: Default> {
     Inferred,
     Explicit(T),

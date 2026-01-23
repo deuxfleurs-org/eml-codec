@@ -1,3 +1,7 @@
+#[cfg(feature = "arbitrary")]
+use arbitrary::Arbitrary;
+#[cfg(feature = "arbitrary")]
+use std::ops::ControlFlow;
 use bounded_static::ToStatic;
 use nom::{
     branch::alt,
@@ -9,13 +13,16 @@ use nom::{
 };
 use std::borrow::Cow;
 
+#[cfg(feature = "arbitrary")]
+use crate::fuzz_eq::FuzzEq;
 use crate::print::Formatter;
 use crate::text::ascii;
 use crate::text::whitespace::{cfws, fws, is_obs_no_ws_ctl};
 use crate::text::words::is_vchar;
 
-// TODO: add a debug impl that prints ASCII text as ASCII
-// (but beware: a quoted string can also contain non-ascii/printable bytes)
+// A quoted string can hold arbitrary bytes.
+// TODO: add a debug impl that prints ASCII bytes as ASCII while escaping
+// non-ascii bytes
 #[derive(Debug, PartialEq, Default, Clone, ToStatic)]
 pub struct QuotedString<'a>(pub Vec<Cow<'a, [u8]>>);
 
@@ -40,6 +47,26 @@ impl<'a> QuotedString<'a> {
 
     pub fn bytes<'b>(&'b self) -> QuotedStringBytes<'a, 'b> {
         QuotedStringBytes { q: self, outer: 0, inner: 0 }
+    }
+}
+
+#[cfg(feature = "arbitrary")]
+impl<'a> Arbitrary<'a> for QuotedString<'a> {
+    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<QuotedString<'a>> {
+        let mut chunks = Vec::new();
+        u.arbitrary_loop(None, Some(10), |u| {
+            let bytes: Vec<u8> = u.arbitrary()?;
+            chunks.push(Cow::Owned(bytes));
+            Ok(ControlFlow::Continue(()))
+        })?;
+        Ok(QuotedString(chunks))
+    }
+}
+
+#[cfg(feature = "arbitrary")]
+impl<'a> FuzzEq for QuotedString<'a> {
+    fn fuzz_eq(&self, other: &Self) -> bool {
+        self.bytes().collect::<Vec<_>>() == other.bytes().collect::<Vec<_>>()
     }
 }
 

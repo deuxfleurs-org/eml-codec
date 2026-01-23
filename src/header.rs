@@ -1,3 +1,5 @@
+#[cfg(feature = "arbitrary")]
+use arbitrary::Arbitrary;
 use bounded_static::ToStatic;
 use nom::{
     branch::alt,
@@ -11,6 +13,11 @@ use nom::{
 use std::borrow::Cow;
 use std::fmt;
 
+#[cfg(feature = "arbitrary")]
+use crate::{
+    arbitrary_utils::arbitrary_vec_where,
+    fuzz_eq::FuzzEq,
+};
 use crate::print::{Print, Formatter};
 use crate::text::misc_token;
 use crate::text::whitespace::{foldable_line, obs_crlf};
@@ -33,6 +40,19 @@ impl<'a> fmt::Debug for FieldName<'a> {
 impl<'a> Print for FieldName<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
         fmt.write_bytes(&self.0)
+    }
+}
+#[cfg(feature = "arbitrary")]
+impl<'a> Arbitrary<'a> for FieldName<'a> {
+    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<FieldName<'a>> {
+        let bytes: Vec<u8> = arbitrary_vec_where(u, is_ftext)?;
+        Ok(FieldName(Cow::Owned(bytes)))
+    }
+}
+#[cfg(feature = "arbitrary")]
+impl<'a> FuzzEq for FieldName<'a> {
+    fn fuzz_eq(&self, other: &Self) -> bool {
+        &self.0 == &other.0
     }
 }
 
@@ -123,15 +143,19 @@ fn field_raw_opt(input: &[u8]) -> IResult<&[u8], Option<FieldRaw<'_>>> {
 /// ```
 pub fn field_name(input: &[u8]) -> IResult<&[u8], FieldName<'_>> {
     terminated(
-        take_while1(|c| (0x21..=0x7E).contains(&c) && c != 0x3A)
-            .map(|s| FieldName(Cow::Borrowed(s))),
+        take_while1(is_ftext).map(|s| FieldName(Cow::Borrowed(s))),
         tuple((space0, tag(b":"))),
     )(input)
+}
+
+fn is_ftext(c: u8) -> bool {
+    (0x21..=0x7E).contains(&c) && c != 0x3A
 }
 
 // Parse a raw header field as an unstructured header
 
 #[derive(Debug, PartialEq, Clone, ToStatic)]
+#[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
 pub struct Unstructured<'a>(pub FieldName<'a>, pub misc_token::Unstructured<'a>);
 
 impl<'a> Unstructured<'a> {

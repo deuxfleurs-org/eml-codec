@@ -1,3 +1,5 @@
+#[cfg(feature = "arbitrary")]
+use arbitrary::Arbitrary;
 use bounded_static::ToStatic;
 use nom::{
     branch::alt,
@@ -10,6 +12,11 @@ use nom::{
 use std::borrow::Cow;
 use std::fmt;
 
+#[cfg(feature = "arbitrary")]
+use crate::{
+    arbitrary_utils::{arbitrary_vec_nonempty, arbitrary_vec_where},
+    fuzz_eq::FuzzEq,
+};
 use crate::print::{print_seq, Print, Formatter};
 use crate::text::ascii;
 use crate::text::misc_token::{phrase, word, Phrase, Word};
@@ -18,6 +25,7 @@ use crate::text::whitespace::{cfws, fws, is_obs_no_ws_ctl};
 use crate::text::words::{dot_atom_text, atom, Atom};
 
 #[derive(Clone, Debug, PartialEq, ToStatic)]
+#[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
 pub struct AddrSpec<'a> {
     pub local_part: LocalPart<'a>,
     pub domain: Domain<'a>,
@@ -40,6 +48,7 @@ impl<'a> Print for AddrSpec<'a> {
 }
 
 #[derive(Clone, Debug, PartialEq, ToStatic)]
+#[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
 pub struct MailboxRef<'a> {
     // The actual "email address" like hello@example.com
     pub addrspec: AddrSpec<'a>,
@@ -94,6 +103,7 @@ impl<'a> Print for MailboxRef<'a> {
 
 /// A non-empty list of mailboxes.
 #[derive(Clone, Debug, PartialEq, ToStatic)]
+#[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
 pub struct MailboxList<'a>(pub Vec<MailboxRef<'a>>);
 
 impl<'a> Print for MailboxList<'a> {
@@ -102,6 +112,12 @@ impl<'a> Print for MailboxList<'a> {
             fmt.write_bytes(b",");
             fmt.write_fws()
         })
+    }
+}
+#[cfg(feature = "arbitrary")]
+impl<'a> Arbitrary<'a> for MailboxList<'a> {
+    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
+        Ok(MailboxList(arbitrary_vec_nonempty(u)?))
     }
 }
 
@@ -212,12 +228,14 @@ pub fn addr_spec(input: &[u8]) -> IResult<&[u8], AddrSpec<'_>> {
 }
 
 #[derive(Clone, Debug, PartialEq, ToStatic)]
+#[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
 pub enum LocalPartToken<'a> {
     Dot,
     Word(Word<'a>),
 }
 
 #[derive(Clone, Debug, PartialEq, ToStatic)]
+#[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
 pub struct LocalPart<'a>(pub Vec<LocalPartToken<'a>>);
 
 impl<'a> LocalPart<'a> {
@@ -285,6 +303,7 @@ fn obs_local_part(input: &[u8]) -> IResult<&[u8], LocalPart<'_>> {
 }
 
 #[derive(Clone, Debug, PartialEq, ToStatic)]
+#[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
 pub enum Domain<'a> {
     Atoms(Vec<Atom<'a>>),
     Literal(Vec<Dtext<'a>>),
@@ -403,6 +422,19 @@ impl<'a> Print for Dtext<'a> {
                 fmt.write_bytes(&[b]);
             }
         }
+    }
+}
+#[cfg(feature = "arbitrary")]
+impl<'a> Arbitrary<'a> for Dtext<'a> {
+    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Dtext<'a>> {
+        let bytes: Vec<u8> = arbitrary_vec_where(u, is_dtext)?;
+        Ok(Dtext(Cow::Owned(bytes)))
+    }
+}
+#[cfg(feature = "arbitrary")]
+impl<'a> FuzzEq for Dtext<'a> {
+    fn fuzz_eq(&self, other: &Self) -> bool {
+        self == other
     }
 }
 

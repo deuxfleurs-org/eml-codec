@@ -1,3 +1,5 @@
+#[cfg(feature = "arbitrary")]
+use arbitrary::Arbitrary;
 use bounded_static::ToStatic;
 use nom::{
     branch::alt,
@@ -8,12 +10,15 @@ use nom::{
     IResult,
 };
 
+#[cfg(feature = "arbitrary")]
+use crate::fuzz_eq::FuzzEq;
 use crate::print::{print_seq, Print, Formatter};
 use crate::imf::mailbox::{dtext, Dtext};
 use crate::text::whitespace::cfws;
 use crate::text::words::{dot_atom_text, DotAtom};
 
 #[derive(Clone, Debug, PartialEq, ToStatic)]
+#[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
 pub struct MessageID<'a> {
     pub left: DotAtom<'a>,
     pub right: MessageIDRight<'a>,
@@ -71,6 +76,7 @@ fn id_left(input: &[u8]) -> IResult<&[u8], DotAtom<'_>> {
 }
 
 #[derive(Clone, Debug, PartialEq, ToStatic)]
+#[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
 pub enum MessageIDRight<'a> {
     DotAtom(DotAtom<'a>),
     Literal(Dtext<'a>),

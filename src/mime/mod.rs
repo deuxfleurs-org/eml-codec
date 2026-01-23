@@ -7,8 +7,13 @@ pub mod mechanism;
 /// Content-Type representation
 pub mod r#type;
 
+#[cfg(feature = "arbitrary")]
+use arbitrary::Arbitrary;
 use bounded_static::ToStatic;
+use std::collections::HashSet;
 
+#[cfg(feature = "arbitrary")]
+use crate::fuzz_eq::FuzzEq;
 use crate::header;
 use crate::imf::identification::MessageID;
 use crate::mime::field::{Content, Entry as FieldEntry};
@@ -19,6 +24,7 @@ use crate::text::misc_token::Unstructured;
 use crate::utils::{Deductible, set_opt};
 
 #[derive(Debug, Default, PartialEq, Clone, ToStatic)]
+#[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
 pub struct CommonMIME<'a> {
     pub transfer_encoding: Deductible<Mechanism<'a>>,
     pub id: Option<MessageID<'a>>,
@@ -26,6 +32,7 @@ pub struct CommonMIME<'a> {
 }
 
 #[derive(Debug, PartialEq, Clone, ToStatic)]
+#[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
 pub struct MIME<'a, T> {
     pub ctype: T,
     pub fields: CommonMIME<'a>,
@@ -41,6 +48,7 @@ impl<'a> Default for MIME<'a, r#type::DeductibleText<'a>> {
 }
 
 #[derive(Debug, PartialEq, Clone, ToStatic)]
+#[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
 pub enum AnyMIME<'a> {
     Mult(MIME<'a, r#type::Multipart<'a>>),
     Msg(MIME<'a, r#type::Message<'a>>),
@@ -88,6 +96,24 @@ impl<'a> AnyMIME<'a> {
             },
         }
     }
+
+    pub fn field_entries(&self) -> HashSet<field::Entry> {
+        let mut fs = HashSet::default();
+        if !matches!(self.ctype(), AnyType::Text(Deductible::Inferred)) {
+            fs.insert(field::Entry::Type);
+        }
+        let common = self.common();
+        if let Deductible::Explicit(_) = common.transfer_encoding {
+            fs.insert(field::Entry::TransferEncoding);
+        }
+        if common.id.is_some() {
+            fs.insert(field::Entry::ID);
+        }
+        if common.description.is_some() {
+            fs.insert(field::Entry::Description);
+        }
+        fs
+    }
 }
 
 impl<'a> Into<AnyMIME<'a>> for MIME<'a, r#type::Multipart<'a>> {
@@ -114,6 +140,7 @@ impl<'a> Into<AnyMIME<'a>> for MIME<'a, r#type::Binary<'a>> {
 }
 
 #[derive(Clone, Debug, Default, PartialEq, ToStatic)]
+#[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
 pub struct NaiveMIME<'a> {
     ctype: Option<r#type::NaiveType<'a>>,
     transfer_encoding: Option<Mechanism<'a>>,

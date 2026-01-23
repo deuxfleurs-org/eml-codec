@@ -1,3 +1,5 @@
+#[cfg(feature = "arbitrary")]
+use arbitrary::Arbitrary;
 use bounded_static::ToStatic;
 use nom::{
     branch::alt,
@@ -12,6 +14,11 @@ use nom::{
 use std::borrow::Cow;
 use std::fmt;
 
+#[cfg(feature = "arbitrary")]
+use crate::{
+    arbitrary_utils::{arbitrary_fws, arbitrary_vec_nonempty, arbitrary_vec_where},
+    fuzz_eq::FuzzEq,
+};
 use crate::print::{print_seq, Print, Formatter};
 use crate::text::{
     ascii,
@@ -23,7 +30,15 @@ use crate::text::{
 
 // A non-empty list of phrases.
 #[derive(Clone, Debug, PartialEq, Default, ToStatic)]
+#[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
 pub struct PhraseList<'a>(pub Vec<Phrase<'a>>);
+
+#[cfg(feature = "arbitrary")]
+impl<'a> Arbitrary<'a> for PhraseList<'a> {
+    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<PhraseList<'a>> {
+        Ok(PhraseList(arbitrary_vec_nonempty(u)?))
+    }
+}
 
 /// A comma-separated list of phrases. Handles the obsolete syntax:
 ///
@@ -60,6 +75,7 @@ impl<'a> Print for PhraseList<'a> {
 // does not allow the same characters as `Word::Atom` (see the definitions
 // of `mime_atom` and `atom`).
 #[derive(Debug, PartialEq, Clone, ToStatic)]
+#[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
 pub enum MIMEWord<'a> {
     Quoted(QuotedString<'a>),
     Atom(MIMEAtom<'a>),
@@ -105,6 +121,7 @@ impl<'a> Print for MIMEWord<'a> {
 }
 
 #[derive(Clone, Debug, PartialEq, ToStatic)]
+#[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
 pub enum Word<'a> {
     Quoted(QuotedString<'a>),
     Atom(Atom<'a>),
@@ -168,6 +185,7 @@ pub fn word(input: &[u8]) -> IResult<&[u8], Word<'_>> {
 }
 
 #[derive(Clone, Debug, PartialEq, ToStatic)]
+#[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
 pub enum PhraseToken<'a> {
     Word(Word<'a>),
     Encoded(encoding::EncodedWord<'a>),
@@ -212,6 +230,7 @@ pub fn phrase_token(input: &[u8]) -> IResult<&[u8], PhraseToken<'_>> {
 
 // Must be a non-empty list
 #[derive(Clone, Debug, PartialEq, ToStatic)]
+#[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
 pub struct Phrase<'a>(pub Vec<PhraseToken<'a>>);
 
 impl<'a> ToString for Phrase<'a> {
@@ -284,8 +303,10 @@ pub enum UnstrTxtKind {
 }
 
 #[derive(PartialEq, Clone, ToStatic)]
+#[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
 pub enum UnstrToken<'a> {
     Encoded(encoding::EncodedWord<'a>),
+    #[cfg_attr(feature = "arbitrary", fuzz_eq(use_eq))]
     Plain(Cow<'a, [u8]>, UnstrTxtKind),
 }
 
@@ -332,7 +353,6 @@ impl<'a> Print for UnstrToken<'a> {
         }
     }
 }
-
 impl<'a> ToString for UnstrToken<'a> {
     fn to_string(&self) -> String {
         match self {
@@ -345,8 +365,32 @@ impl<'a> ToString for UnstrToken<'a> {
         }
     }
 }
+#[cfg(feature = "arbitrary")]
+impl<'a> Arbitrary<'a> for UnstrToken<'a> {
+    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<UnstrToken<'a>> {
+        match u.int_in_range(0..=3)? {
+            0 => Ok(UnstrToken::Encoded(u.arbitrary()?)),
+            1 => {
+                let txt = arbitrary_vec_where(u, is_vchar)?;
+                Ok(UnstrToken::Plain(txt.into(), UnstrTxtKind::Txt))
+            },
+            2 => {
+                let txt = arbitrary_vec_where(u, |b| {
+                    is_obs_no_ws_ctl(b) || b == ascii::NULL
+                })?;
+                Ok(UnstrToken::Plain(txt.into(), UnstrTxtKind::Obs))
+            },
+            3 => {
+                let txt = arbitrary_fws(u)?;
+                Ok(UnstrToken::Plain(txt.into(), UnstrTxtKind::Fws))
+            },
+            _ => unreachable!(),
+        }
+    }
+}
 
 #[derive(Debug, PartialEq, Clone, ToStatic)]
+#[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
 pub struct Unstructured<'a>(pub Vec<UnstrToken<'a>>);
 
 impl<'a> ToString for Unstructured<'a> {

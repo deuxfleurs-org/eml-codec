@@ -1,3 +1,5 @@
+#[cfg(feature = "arbitrary")]
+use arbitrary::Arbitrary;
 use bounded_static::ToStatic;
 use nom::{
     branch::alt,
@@ -8,7 +10,8 @@ use nom::{
     IResult,
 };
 
-//use crate::error::IMFError;
+#[cfg(feature = "arbitrary")]
+use crate::fuzz_eq::FuzzEq;
 use crate::print::{print_seq, Print, Formatter};
 use crate::imf::mailbox::{mailbox, mailbox_list_nullable, MailboxRef, MailboxList};
 use crate::text::misc_token::{phrase, Phrase};
@@ -16,6 +19,7 @@ use crate::text::whitespace::cfws;
 use crate::utils::vec_filter_none_nonempty;
 
 #[derive(Clone, Debug, PartialEq, ToStatic)]
+#[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
 pub struct GroupRef<'a> {
     pub name: Phrase<'a>,
     pub participants: Option<MailboxList<'a>>,
@@ -32,6 +36,7 @@ impl<'a> Print for GroupRef<'a> {
 }
 
 #[derive(Clone, Debug, PartialEq, ToStatic)]
+#[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
 pub enum AddressRef<'a> {
     Single(MailboxRef<'a>),
     Many(GroupRef<'a>),

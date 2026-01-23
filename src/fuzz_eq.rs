@@ -20,3 +20,9 @@ impl<T: FuzzEq> FuzzEq for Option<T> {
         }
     }
 }
+
+impl<T: FuzzEq> FuzzEq for Box<T> {
+    fn fuzz_eq(&self, other: &Self) -> bool {
+        self.as_ref().fuzz_eq(other.as_ref())
+    }
+}

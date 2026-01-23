@@ -1,6 +1,8 @@
 use bounded_static::ToStatic;
 use nom::combinator::map;
 
+#[cfg(feature = "arbitrary")]
+use crate::fuzz_eq::FuzzEq;
 use crate::header;
 use crate::imf::identification::{msg_id, MessageID};
 use crate::mime::mechanism::{mechanism, Mechanism};
@@ -8,6 +10,7 @@ use crate::mime::r#type::{naive_type, NaiveType};
 use crate::text::misc_token::{unstructured, Unstructured};
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, ToStatic)]
+#[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
 pub enum Entry {
     Type,
     TransferEncoding,

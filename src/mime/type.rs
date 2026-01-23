@@ -1,3 +1,5 @@
+#[cfg(feature = "arbitrary")]
+use arbitrary::Arbitrary;
 use bounded_static::ToStatic;
 use nom::{
     bytes::complete::tag,
@@ -8,6 +10,8 @@ use nom::{
 };
 use std::fmt;
 
+#[cfg(feature = "arbitrary")]
+use crate::fuzz_eq::FuzzEq;
 use crate::print::{Print, Formatter};
 use crate::text::charset::EmailCharset;
 use crate::text::misc_token::{mime_word, MIMEWord};
@@ -16,6 +20,7 @@ use crate::utils::Deductible;
 
 // --------- NAIVE TYPE
 #[derive(Debug, PartialEq, Clone, ToStatic)]
+#[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
 pub struct NaiveType<'a> {
     pub main: MIMEAtom<'a>,
     pub sub: MIMEAtom<'a>,
@@ -50,6 +55,7 @@ impl<'a> Print for NaiveType<'a> {
 }
 
 #[derive(Debug, PartialEq, Clone, ToStatic)]
+#[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
 pub struct Parameter<'a> {
     pub name: MIMEAtom<'a>,
     pub value: MIMEWord<'a>,
@@ -76,6 +82,7 @@ pub fn parameter_list(input: &[u8]) -> IResult<&[u8], Vec<Parameter<'_>>> {
 // MIME TYPES TRANSLATED TO RUST TYPING SYSTEM
 
 #[derive(Debug, PartialEq, ToStatic)]
+#[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
 pub enum AnyType<'a> {
     // Composite types
     Multipart(Multipart<'a>),         // multipart/*
@@ -115,10 +122,12 @@ impl<'a> Print for AnyType<'a> {
 // REAL PARTS
 
 #[derive(PartialEq, Clone, ToStatic)]
+#[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
 pub struct Multipart<'a> {
     pub subtype: MultipartSubtype,
     // XXX: this is a hack, it is used to propagate information during parsing,
     // but is ignored by the printer.
+    #[cfg_attr(feature = "arbitrary", fuzz_eq(ignore))]
     pub boundary: Option<Vec<u8>>,
     pub params: Vec<Parameter<'a>>,
 }
@@ -130,6 +139,12 @@ impl<'a> fmt::Debug for Multipart<'a> {
             .field("boundary", &self.boundary.as_deref().map(String::from_utf8_lossy))
             .field("params", &self.params)
             .finish()
+    }
+}
+#[cfg(feature = "arbitrary")]
+impl<'a> Arbitrary<'a> for Multipart<'a> {
+    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Multipart<'a>> {
+        Ok(Multipart { subtype: u.arbitrary()?, boundary: None, params: u.arbitrary()? })
     }
 }
 
@@ -180,6 +195,7 @@ impl<'a> TryFrom<&NaiveType<'a>> for Multipart<'a> {
 }
 
 #[derive(Debug, PartialEq, Clone, ToStatic)]
+#[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
 pub enum MultipartSubtype {
     Alternative,
     Mixed,
@@ -226,6 +242,7 @@ impl<'a> From<&NaiveType<'a>> for MultipartSubtype {
 }
 
 #[derive(Debug, PartialEq, Default, Clone, ToStatic)]
+#[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
 pub enum MessageSubtype {
     #[default]
     RFC822,
@@ -267,6 +284,7 @@ impl<'a> From<&NaiveType<'a>> for MessageSubtype {
 }
 
 #[derive(Debug, PartialEq, Default, Clone, ToStatic)]
+#[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
 pub struct Message<'a> {
     pub subtype: MessageSubtype,
     pub params: Vec<Parameter<'a>>,
@@ -295,6 +313,7 @@ impl<'a> From<&NaiveType<'a>> for Message<'a> {
 
 pub type DeductibleText<'a> = Deductible<Text<'a>>;
 #[derive(Debug, PartialEq, Default, Clone, ToStatic)]
+#[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
 pub struct Text<'a> {
     // NOTE: an unknown subtype combined with an unknown charset should
     // result in this type be treated as equivalent to the Binary type.
@@ -340,6 +359,7 @@ impl<'a> From<&NaiveType<'a>> for Text<'a> {
 }
 
 #[derive(Debug, PartialEq, Default, Clone, ToStatic)]
+#[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
 pub enum TextSubtype {
     #[default]
     Plain,
@@ -379,6 +399,7 @@ impl<'a> From<&NaiveType<'a>> for TextSubtype {
 }
 
 #[derive(Debug, PartialEq, Clone, ToStatic)]
+#[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
 pub struct Binary<'a> {
     ctype: NaiveType<'a>,
 }
