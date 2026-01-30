@@ -36,13 +36,7 @@ impl<'a> Print for Message<'a> {
 pub fn message<'a>(input: &'a [u8]) -> IResult<&'a [u8], Message<'a>> {
     // parse headers
     let (input_body, headers) = header::header_kv(input)?;
-    let fields: MessageFields =
-        headers.into_iter().collect::<Option<MessageFields>>()
-        .ok_or(
-            nom::Err::Failure(nom::error::Error::new(
-                input,
-                nom::error::ErrorKind::Verify, // FIXME: output the actual error
-            )))?;
+    let fields: MessageFields = headers.into_iter().collect::<MessageFields>();
 
     let (input_end, mime_body) =
         part::part_body(fields.mime.to_interpreted(mime::DefaultType::Generic))(input_body)?;
@@ -58,13 +52,7 @@ pub fn message<'a>(input: &'a [u8]) -> IResult<&'a [u8], Message<'a>> {
 pub fn imf<'a>(input: &'a [u8]) -> IResult<&'a [u8], imf::Imf<'a>> {
     // parse headers
     let (input_body, headers) = header::header_kv(input)?;
-    let fields: MessageFields =
-        headers.into_iter().collect::<Option<MessageFields>>()
-        .ok_or(
-            nom::Err::Failure(nom::error::Error::new(
-                input,
-                nom::error::ErrorKind::Verify, // FIXME: output the actual error
-            )))?;
+    let fields: MessageFields = headers.into_iter().collect::<MessageFields>();
     Ok((input_body, fields.imf))
 }
 
@@ -87,7 +75,7 @@ struct MessageFields<'a> {
     all_fields: Vec<MessageField<'a>>,
 }
 
-impl<'a> FromIterator<header::FieldRaw<'a>> for Option<MessageFields<'a>> {
+impl<'a> FromIterator<header::FieldRaw<'a>> for MessageFields<'a> {
     fn from_iter<I: IntoIterator<Item = header::FieldRaw<'a>>>(it: I) -> Self {
         let mut mime = mime::NaiveMIME::default();
         let mut imf = imf::PartialImf::default();
@@ -112,7 +100,11 @@ impl<'a> FromIterator<header::FieldRaw<'a>> for Option<MessageFields<'a>> {
             } // otherwise drop the field
         }
 
-        imf.to_imf().map(|imf| MessageFields { mime, imf, all_fields })
+        MessageFields {
+            mime,
+            imf: imf.to_imf(),
+            all_fields,
+        }
     }
 }
 
