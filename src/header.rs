@@ -3,7 +3,7 @@ use nom::{
     branch::alt,
     bytes::complete::{tag, take_while1},
     character::complete::space0,
-    combinator::{all_consuming, eof, into},
+    combinator::{all_consuming, eof, map, rest, into},
     multi::many0,
     sequence::{pair, terminated, tuple},
     IResult, Parser,
@@ -77,18 +77,35 @@ impl<'a> From<&'a [u8]> for FieldRaw<'a> {
     }
 }
 
-/// Parse headers as raw key/values
-pub fn header_kv(input: &[u8]) -> IResult<&[u8], Vec<FieldRaw<'_>>> {
-    terminated(
-        many0(field_raw),
-        // the CRLF is optional if there is no body following the headers
-        alt((eof, obs_crlf))
-    )(input)
+/// Parse headers as raw key/values.
+/// Stop at an empty line or at EOF.
+pub fn header_kv(input: &[u8]) -> (&[u8], Vec<FieldRaw<'_>>) {
+    // SAFETY: `field_raw` always accepts non-empty inputs
+    let (input, mut fields) = many0(field_raw)(input).unwrap();
+    // SAFETY: `rest` (last case) always succeeds.
+    let (input, terminator) = alt((
+        // empty line
+        map(obs_crlf, |_| None),
+        // The empty line is optional if there is no body following the headers,
+        // so we must also accept EOF.
+        map(eof, |_| None),
+        // For best-effort parsing, we also try to parse any remaining bytes before
+        // EOF (as if EOF was a CRLF).
+        map(pair(field_name, rest), |(k,v)| Some(FieldRaw::Good(k, v))),
+        map(rest, |b| Some(FieldRaw::Bad(b))),
+    ))(input).unwrap();
+
+    if let Some(field) = terminator {
+        fields.push(field)
+    }
+
+    (input, fields)
 }
 
-// NOTE: foldable_line is always non-empty; this is important so that
-// it does not consume the final empty line (obs_crlf) that terminates
-// `header_kv`.
+// NOTE: field_raw only recognizes non-empty inputs.
+// NOTE: furthermore, foldable_line always receognizes non-empty lines; this is
+// important so that it does not consume the final empty line (obs_crlf) that
+// terminates `header_kv`.
 pub fn field_raw(input: &[u8]) -> IResult<&[u8], FieldRaw<'_>> {
     alt((
         into(pair(field_name, foldable_line)), // good
@@ -189,13 +206,39 @@ mod tests {
 
     #[test]
     fn test_no_body() {
-        let (rest, fields) = header_kv(b"X-Foo: something something\r\nX-Bar: something else\r\n").unwrap();
+        let (rest, fields) = header_kv(b"X-Foo: something something\r\nX-Bar: something else\r\n");
         assert!(rest.is_empty());
         assert_eq!(
             fields,
             vec![
                 FieldRaw::Good(FieldName(b"X-Foo".into()), b" something something"),
                 FieldRaw::Good(FieldName(b"X-Bar".into()), b" something else"),
+            ]
+        )
+    }
+
+    #[test]
+    fn test_best_effort_good_before_eof() {
+        let (rest, fields) = header_kv(b"X-Foo: something something\r\nX-Bar: something else");
+        assert!(rest.is_empty());
+        assert_eq!(
+            fields,
+            vec![
+                FieldRaw::Good(FieldName(b"X-Foo".into()), b" something something"),
+                FieldRaw::Good(FieldName(b"X-Bar".into()), b" something else"),
+            ]
+        )
+    }
+
+    #[test]
+    fn test_best_effort_bad_before_eof() {
+        let (rest, fields) = header_kv(b"X-Foo: something something\r\nrandom junk");
+        assert!(rest.is_empty());
+        assert_eq!(
+            fields,
+            vec![
+                FieldRaw::Good(FieldName(b"X-Foo".into()), b" something something"),
+                FieldRaw::Bad(b"random junk"),
             ]
         )
     }

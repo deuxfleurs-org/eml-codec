@@ -116,12 +116,11 @@ This is a multipart message.
 "#
         .as_bytes();
 
+        let (input, hdrs) = header::header_kv(fullmail);
+
         assert_eq!(
-            map(header::header_kv, |k| k
-                .iter()
-                .flat_map(Content::try_from)
-                .collect())(fullmail),
-            Ok((
+            (input, hdrs.iter().flat_map(Content::try_from).collect()),
+            (
                 &b"This is a multipart message.\n\n"[..],
                 vec![
                     Content::Type(NaiveType {
@@ -136,7 +135,7 @@ This is a multipart message.
                     }),
                     Content::TransferEncoding(Mechanism::_7Bit),
                 ],
-            )),
+            ),
         );
     }
 }

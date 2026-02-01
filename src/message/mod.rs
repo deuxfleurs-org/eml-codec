@@ -35,7 +35,7 @@ impl<'a> Print for Message<'a> {
 
 pub fn message<'a>(input: &'a [u8]) -> IResult<&'a [u8], Message<'a>> {
     // parse headers
-    let (input_body, headers) = header::header_kv(input)?;
+    let (input_body, headers) = header::header_kv(input);
     let fields: MessageFields = headers.into_iter().collect::<MessageFields>();
 
     let (input_end, mime_body) =
@@ -51,7 +51,7 @@ pub fn message<'a>(input: &'a [u8]) -> IResult<&'a [u8], Message<'a>> {
 
 pub fn imf<'a>(input: &'a [u8]) -> IResult<&'a [u8], imf::Imf<'a>> {
     // parse headers
-    let (input_body, headers) = header::header_kv(input)?;
+    let (input_body, headers) = header::header_kv(input);
     let fields: MessageFields = headers.into_iter().collect::<MessageFields>();
     Ok((input_body, fields.imf))
 }

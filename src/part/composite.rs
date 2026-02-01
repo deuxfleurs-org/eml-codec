@@ -73,11 +73,8 @@ pub fn multipart<'a>(
             };
 
             // parse mime headers, otherwise pick default mime
-            let (input, fields) = match header::header_kv(input) {
-                Ok((input_eom, fields)) =>
-                    (input_eom, fields.into_iter().collect::<EntityFields>()),
-                Err(_) => (input, EntityFields::default()),
-            };
+            let (input, fields_raw) = header::header_kv(input);
+            let fields = fields_raw.into_iter().collect::<EntityFields>();
 
             // interpret mime according to context
             let mime = match m.ctype.subtype {
@@ -141,7 +138,7 @@ pub fn message<'a>(
 ) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], Message<'a>> {
     move |input: &[u8]| {
         // parse header fields
-        let (input, headers) = header::header_kv(input)?;
+        let (input, headers) = header::header_kv(input);
         let fields: EntityFields = headers.into_iter().collect();
 
         // interpret headers to choose the child mime type
