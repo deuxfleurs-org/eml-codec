@@ -139,13 +139,15 @@ impl<'a> Print for AnyPart<'a> {
     }
 }
 
-/// Parse any type of part
+/// Parse any type of part.
+///
+/// This function always consumes the whole input.
 ///
 /// ## Note
 ///
 /// Multiparts are a bit special as they have a clearly delimited beginning
 /// and end contrary to all the other parts that are going up to the end of the buffer
-pub fn part_body<'a>(m: AnyMIME<'a>) -> impl FnOnce(&'a [u8]) -> IResult<&'a [u8], MimeBody<'a>> {
+pub fn part_body<'a>(m: AnyMIME<'a>) -> impl FnOnce(&'a [u8]) -> MimeBody<'a> {
     move |input| {
         let part = match m {
             AnyMIME::Mult(a) => multipart(a)(input)
@@ -154,14 +156,8 @@ pub fn part_body<'a>(m: AnyMIME<'a>) -> impl FnOnce(&'a [u8]) -> IResult<&'a [u8
                     mime: mime::MIME::<mime::r#type::DeductibleText>::default(),
                     body: Cow::Borrowed(input),
                 })),
-            AnyMIME::Msg(a) => {
-                message(a)(input)
-                    .map(|(_, msg)| msg.into())
-                    .unwrap_or(MimeBody::Txt(Text {
-                        mime: mime::MIME::<mime::r#type::DeductibleText>::default(),
-                        body: Cow::Borrowed(input),
-                    }))
-            }
+            AnyMIME::Msg(a) =>
+                message(a)(input).into(),
             AnyMIME::Txt(a) => MimeBody::Txt(Text {
                 mime: a,
                 body: Cow::Borrowed(input),
@@ -172,8 +168,7 @@ pub fn part_body<'a>(m: AnyMIME<'a>) -> impl FnOnce(&'a [u8]) -> IResult<&'a [u8
             }),
         };
 
-        // This function always consumes the whole input
-        Ok((&input[input.len()..], part))
+        part
     }
 }
 

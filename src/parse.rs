@@ -8,6 +8,6 @@ fn main() {
     let mut rawmail = Vec::new();
     io::stdin().lock().read_to_end(&mut rawmail).unwrap();
 
-    let (_, eml) = eml_codec::parse_message(&rawmail).unwrap();
+    let eml = eml_codec::parse_message(&rawmail);
     println!("{:#?}", eml)
 }

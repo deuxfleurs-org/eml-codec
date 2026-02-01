@@ -1,5 +1,4 @@
 use bounded_static::ToStatic;
-use nom::IResult;
 
 use crate::header;
 use crate::imf;
@@ -33,27 +32,26 @@ impl<'a> Print for Message<'a> {
     }
 }
 
-pub fn message<'a>(input: &'a [u8]) -> IResult<&'a [u8], Message<'a>> {
+/// Parse a toplevel message.
+pub fn message<'a>(input: &'a [u8]) -> Message<'a> {
     // parse headers
     let (input_body, headers) = header::header_kv(input);
     let fields: MessageFields = headers.into_iter().collect::<MessageFields>();
 
-    let (input_end, mime_body) =
-        part::part_body(fields.mime.to_interpreted(mime::DefaultType::Generic))(input_body)?;
-    // note: part_body always consumes the whole input
-    debug_assert!(input_end.is_empty());
-    Ok((input_end, Message {
+    let mime_body =
+        part::part_body(fields.mime.to_interpreted(mime::DefaultType::Generic))(input_body);
+    Message {
         imf: fields.imf,
         mime_body,
         all_fields: fields.all_fields,
-    }))
+    }
 }
 
-pub fn imf<'a>(input: &'a [u8]) -> IResult<&'a [u8], imf::Imf<'a>> {
+pub fn imf<'a>(input: &'a [u8]) -> (&'a [u8], imf::Imf<'a>) {
     // parse headers
     let (input_body, headers) = header::header_kv(input);
     let fields: MessageFields = headers.into_iter().collect::<MessageFields>();
-    Ok((input_body, fields.imf))
+    (input_body, fields.imf)
 }
 
 /// Header field of a toplevel message.
@@ -129,13 +127,13 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     fn test_message_roundtrip<'a>(txt: &[u8], parsed: Message<'a>) {
-        assert_eq!(message(txt), Ok((&b""[..], parsed.clone())));
+        assert_eq!(message(txt), parsed.clone());
         let printed = with_formatter(|fmt| parsed.print(fmt));
         assert_eq!(String::from_utf8_lossy(&printed), String::from_utf8_lossy(txt))
     }
 
     fn test_message_parse_print<'a>(txt: &[u8], parsed: Message<'a>, printed: &[u8]) {
-        assert_eq!(message(txt), Ok((&b""[..], parsed.clone())));
+        assert_eq!(message(txt), parsed.clone());
         let reprinted = with_formatter(|fmt| parsed.print(fmt));
         assert_eq!(String::from_utf8_lossy(&reprinted), String::from_utf8_lossy(printed))
     }

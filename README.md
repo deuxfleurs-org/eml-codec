@@ -18,7 +18,7 @@ Content-Type: text/plain; charset=us-ascii
 This is the plain text body of the message. Note the blank line
 between the header information and the body of the message."#;
 
-let (_, email) = eml_codec::parse_message(input).unwrap();
+let email = eml_codec::parse_message(input);
 println!(
     "{} just sent you an email with subject \"{}\"",
     email.imf.from_or_sender().to_string(),

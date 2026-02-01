@@ -92,7 +92,7 @@ pub fn multipart<'a>(
             // part_raw function as our cursor here.
             // XXX this can be an (indirect) recursive call;
             // -> risk of stack overflow
-            let (_, mime_body) = part::part_body(mime)(rpart)?;
+            let mime_body = part::part_body(mime)(rpart);
             mparts.push(AnyPart { fields: fields.all_fields, mime_body });
 
             input_loop = input;
@@ -133,9 +133,12 @@ impl<'a> fmt::Debug for Message<'a> {
     }
 }
 
+/// Parse an embedded message.
+///
+/// This function always consumes its entire input.
 pub fn message<'a>(
     m: mime::MIME<'a, mime::r#type::Message<'a>>,
-) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], Message<'a>> {
+) -> impl Fn(&'a [u8]) -> Message<'a> {
     move |input: &[u8]| {
         // parse header fields
         let (input, headers) = header::header_kv(input);
@@ -146,15 +149,12 @@ pub fn message<'a>(
         //---------------
 
         // parse the body following this mime specification
-        let (input, mime_body) = part::part_body(in_mime)(input)?;
+        let mime_body = part::part_body(in_mime)(input);
 
-        Ok((
-            input,
-            Message {
-                mime: m.clone(),
-                child: Box::new(AnyPart { fields: fields.all_fields, mime_body }),
-            },
-        ))
+        Message {
+            mime: m.clone(),
+            child: Box::new(AnyPart { fields: fields.all_fields, mime_body }),
+        }
     }
 }
 
