@@ -317,6 +317,29 @@ impl<'a> PartialImf<'a> {
         None
     }
 
+    pub fn missing_mandatory_fields(&self) -> Vec<Entry> {
+        let mut entries = Vec::new();
+        if self.date.is_none() {
+            entries.push(Entry::Date)
+        }
+        match &self.from {
+            None => {
+                entries.push(Entry::From)
+            },
+            Some(v) => {
+                if v.is_empty() {
+                    entries.push(Entry::From)
+                } else if v.len() > 1 && self.sender.is_none() {
+                    entries.push(Entry::Sender)
+                }
+            },
+        }
+        if self.mime_version.is_none() {
+            entries.push(Entry::MIMEVersion)
+        }
+        entries
+    }
+
     pub fn to_imf(self) -> Imf<'a> {
         let date = self.date.unwrap_or_else(DateTime::placeholder);
         let from = {
