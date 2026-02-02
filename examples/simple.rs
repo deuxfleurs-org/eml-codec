@@ -23,4 +23,11 @@ between the header information and the body of the message."#;
         "message structure:\n{:#?}",
         email,
     );
+
+    // to re-print the whole message.
+    let bytes = eml_codec::print_message(email, None);
+    println!(
+        "\nreformatted email:\n{}",
+        String::from_utf8_lossy(&bytes),
+    );
 }

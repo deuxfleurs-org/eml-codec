@@ -1,5 +1,3 @@
-//use imf_codec::fragments::section::Section;
-//use imf_codec::multipass::segment;
 use std::io;
 use std::io::Read;
 
@@ -9,5 +7,7 @@ fn main() {
     io::stdin().lock().read_to_end(&mut rawmail).unwrap();
 
     let eml = eml_codec::parse_message(&rawmail);
-    println!("{:#?}", eml)
+    eprintln!("--- message structure ---\n{:#?}\n--- message structure end ---", eml);
+    let bytes = eml_codec::print_message(eml, None);
+    print!("{}", String::from_utf8_lossy(&bytes));
 }

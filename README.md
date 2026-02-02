@@ -28,6 +28,50 @@ println!(
 
 [See more examples in the examples/ folder](./examples/)
 
+The provided `eml_parse` binary can be used to test email parsing and printing.
+The binary takes parses its standard input as an email (on a best-effort basis),
+and reprints the parsed email on its standard output. It also prints a debugging
+view of the parsed AST on the standard error output. The printed email is
+guaranteed to be RFC compliant; parts of the input using obsolete or invalid
+syntax will be reprinted using valid syntax when possible, or dropped otherwise.
+
+Usage example:
+```shell
+$ cargo run --bin eml_parse <<EOF
+hello: barrr
+date: uhh
+
+hello??
+EOF
+```
+
+outputs:
+
+```shell
+--- message structure ---
+Message {
+    imf: Imf {
+        date: 1970-01-01T00:00:00+00:00,
+        from: Single {
+            from: MailboxRef {
+                addrspec: AddrSpec(
+                    "unknown@unknown",
+                ),
+                name: None,
+            },
+            sender: None,
+        },
+[...]
+}
+--- message structure end ---
+hello: barrr
+Date: 1 Jan 1970 00:00:00 +0000
+From: unknown@unknown
+MIME-Version: 1.0
+
+hello??
+```
+
 ## About the name
 
 This library does not aim at implementing a specific RFC, but to be a swiss-army knife to decode and encode ("codec") what is generaly considered an email (generally abbreviated "eml"), hence the name: **eml-codec**.
