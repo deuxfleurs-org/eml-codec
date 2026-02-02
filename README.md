@@ -1,7 +1,5 @@
 # eml-codec
 
-**⚠️ This is currently only a decoder (ie. a parser), encoding is not yet implemented.**
-
 `eml-codec` is a child project of [Aerogramme](https://aerogramme.deuxfleurs.fr), a distributed and encrypted IMAP server developped by the non-profit organization [Deuxfleurs](https://deuxfleurs.fr).
 Its aim is to be a swiss army knife to handle emails, whether it is to build an IMAP/JMAP server, a mail filter (like an antispam), or a mail client.
 
