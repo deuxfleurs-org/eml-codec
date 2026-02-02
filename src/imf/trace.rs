@@ -8,6 +8,7 @@ use nom::{
     IResult,
 };
 
+use crate::print::{print_seq, Print, Formatter};
 use crate::imf::{datetime, mailbox};
 use crate::text::{ascii, misc_token, whitespace};
 
@@ -18,10 +19,41 @@ pub enum ReceivedLogToken<'a> {
     Word(misc_token::Word<'a>),
 }
 
+impl<'a> Print for ReceivedLogToken<'a> {
+    fn print(&self, fmt: &mut impl Formatter) -> std::io::Result<()> {
+        match self {
+            ReceivedLogToken::Addr(a) => a.print(fmt),
+            ReceivedLogToken::Domain(d) => d.print(fmt),
+            ReceivedLogToken::Word(w) => w.print(fmt),
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, ToStatic)]
 pub struct ReceivedLog<'a> {
     pub log: Vec<ReceivedLogToken<'a>>,
-    pub date: Option<datetime::DateTime>,
+    pub date: datetime::DateTime,
+}
+
+impl<'a> Print for ReceivedLog<'a> {
+    fn print(&self, fmt: &mut impl Formatter) -> std::io::Result<()> {
+        print_seq(fmt, &self.log, Formatter::write_fws)?;
+        fmt.write_bytes(b";")?;
+        fmt.write_fws()?;
+        self.date.print(fmt)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, ToStatic)]
+pub struct ReturnPath<'a>(pub Option<mailbox::AddrSpec<'a>>);
+
+impl<'a> Print for ReturnPath<'a> {
+    fn print(&self, fmt: &mut impl Formatter) -> std::io::Result<()> {
+        match &self.0 {
+            Some(a) => a.print(fmt),
+            None => fmt.write_bytes(b"<>"),
+        }
+    }
 }
 
 /*
@@ -37,7 +69,7 @@ impl<'a> TryFrom<&'a lazy::ReceivedLog<'a>> for ReceivedLog<'a> {
 
 pub fn received_log(input: &[u8]) -> IResult<&[u8], ReceivedLog<'_>> {
     map(
-        tuple((many0(received_tokens), tag(";"), datetime::section)),
+        tuple((many0(received_tokens), tag(";"), datetime::date_time)),
         |(tokens, _, dt)| ReceivedLog {
             log: tokens,
             date: dt,
@@ -45,11 +77,14 @@ pub fn received_log(input: &[u8]) -> IResult<&[u8], ReceivedLog<'_>> {
     )(input)
 }
 
-pub fn return_path(input: &[u8]) -> IResult<&[u8], Option<mailbox::AddrSpec<'_>>> {
-    alt((map(mailbox::angle_addr, Some), empty_path))(input)
+pub fn return_path(input: &[u8]) -> IResult<&[u8], ReturnPath<'_>> {
+    alt((
+        map(mailbox::angle_addr, |a| ReturnPath(Some(a))),
+        empty_path
+    ))(input)
 }
 
-fn empty_path(input: &[u8]) -> IResult<&[u8], Option<mailbox::AddrSpec<'_>>> {
+fn empty_path(input: &[u8]) -> IResult<&[u8], ReturnPath<'_>> {
     let (input, _) = tuple((
         opt(whitespace::cfws),
         tag(&[ascii::LT]),
@@ -57,7 +92,7 @@ fn empty_path(input: &[u8]) -> IResult<&[u8], Option<mailbox::AddrSpec<'_>>> {
         tag(&[ascii::GT]),
         opt(whitespace::cfws),
     ))(input)?;
-    Ok((input, None))
+    Ok((input, ReturnPath(None)))
 }
 
 fn received_tokens(input: &[u8]) -> IResult<&[u8], ReceivedLogToken<'_>> {
@@ -92,13 +127,12 @@ mod tests {
             Ok((
                 &b""[..],
                 ReceivedLog {
-                    date: Some(
-                        datetime::DateTime(
-                            FixedOffset::east_opt(0)
-                                .unwrap()
-                                .with_ymd_and_hms(2023, 06, 13, 19, 1, 8)
-                                .unwrap()
-                        )
+                    date:
+                    datetime::DateTime(
+                        FixedOffset::east_opt(0)
+                            .unwrap()
+                            .with_ymd_and_hms(2023, 06, 13, 19, 1, 8)
+                            .unwrap()
                     ),
                     log: vec![
                         ReceivedLogToken::Word(Word::Atom(b"from"[..].into())),

@@ -164,6 +164,7 @@ pub fn message<'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::imf::identification::MessageIDRight;
     use crate::part::discrete::Text;
     use crate::part::AnyPart;
     use crate::text::encoding::{Base64Word, EncodedWord, QuotedChunk, QuotedWord};
@@ -367,7 +368,7 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                         ])),
                         msg_id: Some(imf::identification::MessageID {
                             left: b"NTAxNzA2AC47634Y366BAMTY4ODc5MzQyODY0ODY5"[..].into(),
-                            right: b"www.grrrndzero.org"[..].into(),
+                            right: MessageIDRight::DotAtom(b"www.grrrndzero.org"[..].into()),
                         }),
                         mime_version: Some(imf::mime::Version { major: 1, minor: 0}),
                         ..imf::Imf::default()

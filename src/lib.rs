@@ -9,11 +9,14 @@ pub mod imf;
 /// Parse and represent MIME headers (RFC 2045, RFC 2047)
 pub mod mime;
 
-/// MIME and IMF represent headers the same way: module contains their commong logic
+/// MIME and IMF represent headers the same way: module contains their common logic
 pub mod header;
 
 /// Low-level email-specific text-based representation for data
 pub mod text;
+
+/// Printing with email-specific line folding
+pub mod print;
 
 use nom::{combinator::into, IResult};
 

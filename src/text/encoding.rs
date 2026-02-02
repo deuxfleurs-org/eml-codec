@@ -13,7 +13,9 @@ use nom::{
     IResult,
 };
 use std::borrow::Cow;
+use std::io::Write;
 
+use crate::print::{Print, Formatter};
 use crate::text::ascii;
 use crate::text::whitespace::cfws;
 use crate::text::words;
@@ -56,6 +58,9 @@ pub fn encoded_word_quoted(input: &[u8]) -> IResult<&[u8], EncodedWord<'_>> {
         tag("?="),
     ))(input)?;
 
+    // NOTE: we use encoding_rs directly instead of crate::mime::charset, because
+    // we only care about decoding (in `to_string`); printing will then always use
+    // UTF-8 as output charset.
     let renc = Encoding::for_label(charset).unwrap_or(encoding_rs::WINDOWS_1252);
     let parsed = EncodedWord::Quoted(QuotedWord {
         enc: renc,
@@ -75,6 +80,7 @@ pub fn encoded_word_base64(input: &[u8]) -> IResult<&[u8], EncodedWord<'_>> {
         tag("?="),
     ))(input)?;
 
+    // NOTE: we use encoding_rs and not crate::mime::charset; see above.
     let renc = Encoding::for_label(charset).unwrap_or(encoding_rs::WINDOWS_1252);
     let parsed = EncodedWord::Base64(Base64Word {
         enc: renc,
@@ -94,6 +100,11 @@ impl<'a> EncodedWord<'a> {
             EncodedWord::Quoted(v) => v.to_string(),
             EncodedWord::Base64(v) => v.to_string(),
         }
+    }
+}
+impl<'a> Print for EncodedWord<'a> {
+    fn print(&self, fmt: &mut impl Formatter) -> std::io::Result<()> {
+        print_utf8_encoded(fmt, self.to_string().chars())
     }
 }
 
@@ -218,9 +229,81 @@ fn is_bchar(c: u8) -> bool {
     is_alphanumeric(c) || c == ascii::PLUS || c == ascii::SLASH
 }
 
+// Returns whether ASCII char `b` is safe to display as-is in the
+// encoded-text of an encoded-word.
+// As per RFC2047, in general this depends on the context in which
+// this encoded-word occurs. Because this function is used for
+// printing, it returns the most conservative answer, i.e. it only
+// returns `true` if the character is safe to use in any context.
+fn is_qchar_safe_strict(b: u8) -> bool {
+    // General restrictions for the Q encoding (RFC2047, 4.2, (3)),
+    // + restrictions when inside a comment (RFC2047, 5, (2)),
+    // + restrictions when inside a phrase (RFC2047, 5, (3)).
+    is_alphanumeric(b) ||
+        b == ascii::EXCLAMATION ||
+        b == ascii::ASTERISK ||
+        b == ascii::PLUS ||
+        b == ascii::MINUS ||
+        b == ascii::SLASH
+}
+
+// XXX: how can we enforce that encoded words are always preceded with linear
+// space (or beginning of header body)?
+pub fn print_utf8_encoded<I>(fmt: &mut impl Formatter, data: I) -> std::io::Result<()>
+where
+    I: IntoIterator<Item = char>
+{
+    const HEADER: &[u8] = b"=?UTF-8?Q?";
+    const FOOTER: &[u8] = b"?=";
+    const MAX_LEN: usize = 75; // specified in RFC2047
+
+    let mut buf: Vec<u8> = Vec::with_capacity(MAX_LEN);
+    let mut char_bytes: [u8; 4] = [0; 4];
+    let mut char_encoded: Vec<u8> = Vec::new();
+
+    for c in data {
+        if c.is_ascii() && is_qchar_safe_strict(c as u8) {
+            char_encoded.push(c as u8);
+        } else if c == char::from(ascii::SP) {
+            // space has a special treatment (RFC2047, 4.2, (2))
+            char_encoded.push(ascii::UNDERSCORE);
+        } else {
+            c.encode_utf8(&mut char_bytes);
+            for i in 0..c.len_utf8() {
+                write!(&mut char_encoded, "={:02X}", char_bytes[i]).unwrap();
+            }
+        }
+
+        if HEADER.len()
+            + buf.len()
+            + char_encoded.len()
+            + FOOTER.len() > MAX_LEN
+        {
+            fmt.write_bytes(HEADER)?;
+            fmt.write_bytes(&buf)?;
+            fmt.write_bytes(FOOTER)?;
+            fmt.write_fws()?;
+            buf.truncate(0);
+        }
+
+        buf.extend_from_slice(&char_encoded);
+        char_encoded.truncate(0);
+    }
+
+    // write any leftover data in buf
+    if !buf.is_empty() {
+        fmt.write_bytes(HEADER)?;
+        fmt.write_bytes(&buf)?;
+        fmt.write_bytes(FOOTER)?;
+    }
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::print::with_line_folder;
 
     // =?iso8859-1?Q?Accus=E9_de_r=E9ception_(affich=E9)?=
     #[test]
@@ -278,6 +361,36 @@ mod tests {
                 .1
                 .to_string(),
             "John Smîth".to_string(),
+        );
+    }
+
+    #[test]
+    fn test_encode() {
+        let out = with_line_folder(|f| {
+            print_utf8_encoded(f, "Accusé de réception (affiché)".chars()).unwrap();
+        });
+        assert_eq!(
+            out,
+            b"=?UTF-8?Q?Accus=C3=A9_de_r=C3=A9ception_=28affich=C3=A9=29?="
+        );
+
+        let out = with_line_folder(|f| {
+            print_utf8_encoded(f, "John Smîth".chars()).unwrap();
+        });
+        assert_eq!(
+            out,
+            b"=?UTF-8?Q?John_Sm=C3=AEth?="
+        );
+    }
+
+    #[test]
+    fn test_encode_folding() {
+        let out = with_line_folder(|f| {
+            print_utf8_encoded(f, "Accusé de réception (affiché) Accusé de réception (affiché)".chars()).unwrap();
+        });
+        assert_eq!(
+            out,
+            b"=?UTF-8?Q?Accus=C3=A9_de_r=C3=A9ception_=28affich=C3=A9=29_Accus=C3=A9_de?=\r\n =?UTF-8?Q?_r=C3=A9ception_=28affich=C3=A9=29?="
         );
     }
 }

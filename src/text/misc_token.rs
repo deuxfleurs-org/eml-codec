@@ -12,10 +12,11 @@ use nom::{
 use std::borrow::Cow;
 use std::fmt;
 
+use crate::print::{print_seq, Print, Formatter};
 use crate::text::{
     ascii,
     encoding::{self, encoded_word, encoded_word_plain},
-    quoted::{quoted_string, QuotedString},
+    quoted::{print_quoted, quoted_string, QuotedString, QuotedStringBytes},
     whitespace::{cfws, fws, is_obs_no_ws_ctl},
     words::{atom, is_vchar, mime_atom},
 };
@@ -34,6 +35,14 @@ pub fn phrase_list(input: &[u8]) -> IResult<&[u8], PhraseList<'_>> {
     )(input)?;
     let phrases: Vec<Phrase> = phrases_opt.into_iter().flatten().collect();
     Ok((input, PhraseList(phrases)))
+}
+impl<'a> Print for PhraseList<'a> {
+    fn print(&self, fmt: &mut impl Formatter) -> std::io::Result<()> {
+        print_seq(fmt, &self.0, |fmt| {
+            fmt.write_bytes(b",")?;
+            fmt.write_fws()
+        })
+    }
 }
 
 #[derive(Debug, PartialEq, Clone, ToStatic)]
@@ -64,7 +73,7 @@ pub fn mime_word(input: &[u8]) -> IResult<&[u8], MIMEWord<'_>> {
     ))(input)
 }
 
-#[derive(PartialEq, ToStatic)]
+#[derive(Clone, PartialEq, ToStatic)]
 pub enum Word<'a> {
     Quoted(QuotedString<'a>),
     Atom(Cow<'a, [u8]>),
@@ -89,6 +98,39 @@ impl<'a> fmt::Debug for Word<'a> {
     }
 }
 
+impl<'a> Print for Word<'a> {
+    fn print(&self, fmt: &mut impl Formatter) -> std::io::Result<()> {
+        match self {
+            Word::Quoted(q) => print_quoted(fmt, q.bytes()),
+            Word::Atom(a) => fmt.write_bytes(&a),
+        }
+    }
+}
+
+impl<'a> Word<'a> {
+    pub fn bytes<'b>(&'b self) -> WordBytes<'a, 'b> {
+        match self {
+            Word::Quoted(q) => WordBytes::Quoted(q.bytes()),
+            Word::Atom(a) => WordBytes::Atom(a.iter()),
+        }
+    }
+}
+
+pub enum WordBytes<'a, 'b> {
+    Quoted(QuotedStringBytes<'a, 'b>),
+    Atom(std::slice::Iter<'b, u8>),
+}
+
+impl<'a, 'b> Iterator for WordBytes<'a, 'b> {
+    type Item = u8;
+    fn next(&mut self) -> Option<Self::Item> {
+        match self {
+            WordBytes::Quoted(q) => q.next(),
+            WordBytes::Atom(a) => a.next().copied(),
+        }
+    }
+}
+
 /// Word
 ///
 /// ```abnf
@@ -101,7 +143,7 @@ pub fn word(input: &[u8]) -> IResult<&[u8], Word<'_>> {
     ))(input)
 }
 
-#[derive(PartialEq, ToStatic)]
+#[derive(Clone, PartialEq, ToStatic)]
 pub enum PhraseToken<'a> {
     Word(Word<'a>),
     Encoded(encoding::EncodedWord<'a>),
@@ -119,6 +161,14 @@ impl<'a> fmt::Debug for PhraseToken<'a> {
         fmt.debug_tuple("PhraseToken")
             .field(&format_args!("\"{}\"", self.to_string()))
             .finish()
+    }
+}
+impl<'a> Print for PhraseToken<'a> {
+    fn print(&self, fmt: &mut impl Formatter) -> std::io::Result<()> {
+        match self {
+            PhraseToken::Word(w) => w.print(fmt),
+            PhraseToken::Encoded(e) => e.print(fmt),
+        }
     }
 }
 
@@ -144,7 +194,7 @@ pub fn phrase_token(input: &[u8]) -> IResult<&[u8], PhraseToken<'_>> {
 }
 
 // Must be a non-empty list
-#[derive(PartialEq, ToStatic)]
+#[derive(Clone, PartialEq, ToStatic)]
 pub struct Phrase<'a>(pub Vec<PhraseToken<'a>>);
 
 impl<'a> ToString for Phrase<'a> {
@@ -161,6 +211,12 @@ impl<'a> fmt::Debug for Phrase<'a> {
         fmt.debug_tuple("Phrase")
             .field(&format_args!("\"{}\"", self.to_string()))
             .finish()
+    }
+}
+
+impl<'a> Print for Phrase<'a> {
+    fn print(&self, fmt: &mut impl Formatter) -> std::io::Result<()> {
+        print_seq(fmt, &self.0, Formatter::write_fws)
     }
 }
 
@@ -249,6 +305,21 @@ impl<'a> fmt::Debug for UnstrToken<'a> {
         }
     }
 }
+impl<'a> Print for UnstrToken<'a> {
+    fn print(&self, fmt: &mut impl Formatter) -> std::io::Result<()> {
+        match self {
+            UnstrToken::Encoded(e) =>
+                e.print(fmt),
+            UnstrToken::Plain(txt, UnstrTxtKind::Txt) =>
+                fmt.write_bytes(&txt),
+            UnstrToken::Plain(_, UnstrTxtKind::Obs) =>
+                // skip obsolete parts
+                Ok(()),
+            UnstrToken::Plain(txt, UnstrTxtKind::Fws) =>
+                fmt.write_fws_bytes(&txt),
+        }
+    }
+}
 
 impl<'a> ToString for UnstrToken<'a> {
     fn to_string(&self) -> String {
@@ -289,6 +360,14 @@ impl<'a> ToString for Unstructured<'a> {
             .1
     }
 }
+impl<'a> Print for Unstructured<'a> {
+    fn print(&self, fmt: &mut impl Formatter) -> std::io::Result<()> {
+        for tok in &self.0 {
+            tok.print(fmt)?
+        }
+        Ok(())
+    }
+}
 
 /// Unstructured header field body
 ///
@@ -314,6 +393,7 @@ pub fn unstructured(input: &[u8]) -> IResult<&[u8], Unstructured<'_>> {
     ))(input)?;
     let (input, wsp0) = space0(input)?;
 
+    // construct UnstrToken tokens
     let mut tokens = vec![];
     for (fws_opt, toks) in r {
         if let Some(fws) = fws_opt {
@@ -345,5 +425,18 @@ mod tests {
         let (rest, parsed) = phrase(b"fin\r\n du\r\nmonde").unwrap();
         assert_eq!(rest, &b"\r\nmonde"[..]);
         assert_eq!(parsed.to_string(), "fin du".to_string());
+
+        let (rest, parsed) = phrase(b"foo.bar").unwrap();
+        assert_eq!(rest, &b""[..]);
+        let printed = crate::print::with_line_folder(|f| parsed.print(f).unwrap());
+        assert_eq!(printed, b"foo \".\" bar");
+    }
+
+    #[test]
+    fn test_phrase_list() {
+        let (rest, parsed) = phrase_list(b",abc def,,   ,ghi").unwrap();
+        assert_eq!(rest, &b""[..]);
+        let printed = crate::print::with_line_folder(|f| parsed.print(f).unwrap());
+        assert_eq!(printed, b"abc def, ghi");
     }
 }
