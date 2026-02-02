@@ -21,12 +21,22 @@ impl<'a> FromIterator<header::FieldRaw<'a>> for EntityFields<'a> {
     fn from_iter<I: IntoIterator<Item = header::FieldRaw<'a>>>(it: I) -> Self {
         let mut e: EntityFields<'a> = Default::default();
         for f in it {
-            if let Ok(mimef) = mime::field::Content::try_from(&f) {
-                if let Some(entry) = e.mime.add_field(mimef) {
-                    e.all_fields.push(EntityField::MIME(entry))
-                } // otherwise drop the field
-                continue;
-            }
+            match mime::field::Content::try_from(&f) {
+                Ok(mimef) => {
+                    if let Some(entry) = e.mime.add_field(mimef) {
+                        e.all_fields.push(EntityField::MIME(entry))
+                    }; // otherwise drop the field
+                    continue;
+                },
+                Err(mime::field::InvalidField::Body) => {
+                    // this is a MIME field but its body is invalid; drop it.
+                    continue;
+                },
+                Err(mime::field::InvalidField::Name) => {
+                    // not a MIME field
+                    ()
+                }
+            };
 
             if let Some(u) = header::Unstructured::from_raw(f) {
                 e.all_fields.push(EntityField::Unstructured(u));

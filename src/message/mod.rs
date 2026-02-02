@@ -79,18 +79,38 @@ impl<'a> FromIterator<header::FieldRaw<'a>> for MessageFields<'a> {
         let mut imf = imf::PartialImf::default();
         let mut all_fields = vec![];
         for f in it {
-            if let Ok(mimef) = mime::field::Content::try_from(&f) {
-                if let Some(entry) = mime.add_field(mimef) {
-                    all_fields.push(MessageField::MIME(entry))
-                } // otherwise drop the field
-                continue;
-            }
+            match mime::field::Content::try_from(&f) {
+                Ok(mimef) => {
+                    if let Some(entry) = mime.add_field(mimef) {
+                        all_fields.push(MessageField::MIME(entry))
+                    }; // otherwise drop the field
+                    continue;
+                },
+                Err(mime::field::InvalidField::Body) => {
+                    // this is a MIME field but its body is invalid; drop it.
+                    continue;
+                },
+                Err(mime::field::InvalidField::Name) => {
+                    // not a MIME field
+                    ()
+                }
+            };
 
-            if let Ok(imff) = imf::field::Field::try_from(&f) {
-                if let Some(entry) = imf.add_field(imff) {
-                    all_fields.push(MessageField::Imf(entry))
-                } // otherwise drop the field
-                continue;
+            match imf::field::Field::try_from(&f) {
+                Ok(imff) => {
+                    if let Some(entry) = imf.add_field(imff) {
+                        all_fields.push(MessageField::Imf(entry))
+                    }; // otherwise drop the field
+                    continue;
+                },
+                Err(imf::field::InvalidField::Body) => {
+                    // this is an IMF field but its body is invalid; drop it.
+                    continue;
+                }
+                Err(imf::field::InvalidField::Name) => {
+                    // not an IMF field
+                    ()
+                }
             }
 
             if let Some(u) = header::Unstructured::from_raw(f) {

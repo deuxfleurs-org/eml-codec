@@ -63,36 +63,38 @@ pub enum Field<'a> {
     // MIME
     MIMEVersion(Version),
 }
+
+pub enum InvalidField {
+    Name,
+    Body,
+}
+
 impl<'a> TryFrom<&header::FieldRaw<'a>> for Field<'a> {
-    type Error = ();
+    type Error = InvalidField;
     fn try_from(f: &header::FieldRaw<'a>) -> Result<Self, Self::Error> {
-        let content = match f {
-            header::FieldRaw::Good(key, value) => {
-                match key.bytes().to_ascii_lowercase().as_slice() {
-                    b"date" => map(date_time, Field::Date)(value),
-                    b"from" => map(mailbox_list, Field::From)(value),
-                    b"sender" => map(mailbox, Field::Sender)(value),
-                    b"reply-to" => map(address_list, Field::ReplyTo)(value),
-                    b"to" => map(address_list, Field::To)(value),
-                    b"cc" => map(address_list, Field::Cc)(value),
-                    b"bcc" => map(nullable_address_list, Field::Bcc)(value),
-                    b"message-id" => map(msg_id, Field::MessageID)(value),
-                    // TODO: obs-in-reply-to
-                    b"in-reply-to" => map(msg_list, Field::InReplyTo)(value),
-                    // TODO: obs-references
-                    b"references" => map(msg_list, Field::References)(value),
-                    b"subject" => map(unstructured, Field::Subject)(value),
-                    b"comments" => map(unstructured, Field::Comments)(value),
-                    b"keywords" => map(phrase_list, Field::Keywords)(value),
-                    b"return-path" => map(return_path, Field::ReturnPath)(value),
-                    b"received" => map(received_log, Field::Received)(value),
-                    b"mime-version" => map(version, Field::MIMEVersion)(value),
-                    _ => return Err(()),
-                }
-            }
-            _ => return Err(()),
+        let content = match f.name.bytes().to_ascii_lowercase().as_slice() {
+            b"date" => map(date_time, Field::Date)(f.body),
+            b"from" => map(mailbox_list, Field::From)(f.body),
+            b"sender" => map(mailbox, Field::Sender)(f.body),
+            b"reply-to" => map(address_list, Field::ReplyTo)(f.body),
+            b"to" => map(address_list, Field::To)(f.body),
+            b"cc" => map(address_list, Field::Cc)(f.body),
+            b"bcc" => map(nullable_address_list, Field::Bcc)(f.body),
+            b"message-id" => map(msg_id, Field::MessageID)(f.body),
+            // TODO: obs-in-reply-to
+            b"in-reply-to" => map(msg_list, Field::InReplyTo)(f.body),
+            // TODO: obs-references
+            b"references" => map(msg_list, Field::References)(f.body),
+            b"subject" => map(unstructured, Field::Subject)(f.body),
+            b"comments" => map(unstructured, Field::Comments)(f.body),
+            b"keywords" => map(phrase_list, Field::Keywords)(f.body),
+            b"return-path" => map(return_path, Field::ReturnPath)(f.body),
+            b"received" => map(received_log, Field::Received)(f.body),
+            b"mime-version" => map(version, Field::MIMEVersion)(f.body),
+            _ => return Err(InvalidField::Name),
         };
 
-        content.map(|(_, content)| content).or(Err(()))
+        // TODO: check that the parser consumed the entire body?
+        content.map(|(_, content)| content).or(Err(InvalidField::Body))
     }
 }
