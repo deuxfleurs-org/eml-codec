@@ -12,7 +12,13 @@ use crate::print::{print_seq, Print, Formatter};
 use crate::imf::{datetime, mailbox};
 use crate::text::{ascii, misc_token, whitespace};
 
-#[derive(Debug, PartialEq, ToStatic)]
+#[derive(Clone, Debug, PartialEq, ToStatic)]
+pub struct TraceBlock<'a> {
+    pub return_path: Option<ReturnPath<'a>>,
+    pub received: Vec<ReceivedLog<'a>>, // non-empty
+}
+
+#[derive(Clone, Debug, PartialEq, ToStatic)]
 pub enum ReceivedLogToken<'a> {
     Addr(mailbox::AddrSpec<'a>),
     Domain(mailbox::Domain<'a>),
@@ -20,7 +26,7 @@ pub enum ReceivedLogToken<'a> {
 }
 
 impl<'a> Print for ReceivedLogToken<'a> {
-    fn print(&self, fmt: &mut impl Formatter) -> std::io::Result<()> {
+    fn print(&self, fmt: &mut impl Formatter) {
         match self {
             ReceivedLogToken::Addr(a) => a.print(fmt),
             ReceivedLogToken::Domain(d) => d.print(fmt),
@@ -29,17 +35,17 @@ impl<'a> Print for ReceivedLogToken<'a> {
     }
 }
 
-#[derive(Debug, PartialEq, ToStatic)]
+#[derive(Clone, Debug, PartialEq, ToStatic)]
 pub struct ReceivedLog<'a> {
     pub log: Vec<ReceivedLogToken<'a>>,
     pub date: datetime::DateTime,
 }
 
 impl<'a> Print for ReceivedLog<'a> {
-    fn print(&self, fmt: &mut impl Formatter) -> std::io::Result<()> {
-        print_seq(fmt, &self.log, Formatter::write_fws)?;
-        fmt.write_bytes(b";")?;
-        fmt.write_fws()?;
+    fn print(&self, fmt: &mut impl Formatter) {
+        print_seq(fmt, &self.log, Formatter::write_fws);
+        fmt.write_bytes(b";");
+        fmt.write_fws();
         self.date.print(fmt)
     }
 }
@@ -48,7 +54,7 @@ impl<'a> Print for ReceivedLog<'a> {
 pub struct ReturnPath<'a>(pub Option<mailbox::AddrSpec<'a>>);
 
 impl<'a> Print for ReturnPath<'a> {
-    fn print(&self, fmt: &mut impl Formatter) -> std::io::Result<()> {
+    fn print(&self, fmt: &mut impl Formatter) {
         match &self.0 {
             Some(a) => a.print(fmt),
             None => fmt.write_bytes(b"<>"),

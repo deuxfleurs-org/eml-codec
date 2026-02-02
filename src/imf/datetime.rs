@@ -79,31 +79,30 @@ impl ToBoundedStatic for DateTime {
 }
 
 impl Print for DateTime {
-    fn print(&self, fmt: &mut impl PFmt) -> std::io::Result<()> {
+    fn print(&self, fmt: &mut impl PFmt) {
         // date
-        fmt.write_bytes(format!("{:02}", self.0.day()).as_bytes())?;
-        fmt.write_fws()?;
-        fmt.write_bytes(MONTHS[self.0.month0() as usize])?;
-        fmt.write_fws()?;
-        fmt.write_bytes(format!("{}", self.0.year()).as_bytes())?;
-        fmt.write_fws()?;
+        fmt.write_bytes(format!("{}", self.0.day()).as_bytes());
+        fmt.write_fws();
+        fmt.write_bytes(MONTHS[self.0.month0() as usize]);
+        fmt.write_fws();
+        fmt.write_bytes(format!("{}", self.0.year()).as_bytes());
+        fmt.write_fws();
         // time-of-day
-        fmt.write_bytes(format!("{:02}", self.0.hour()).as_bytes())?;
-        fmt.write_bytes(b":")?;
-        fmt.write_bytes(format!("{:02}", self.0.minute()).as_bytes())?;
-        fmt.write_bytes(b":")?;
-        fmt.write_bytes(format!("{:02}", self.0.second()).as_bytes())?;
-        fmt.write_fws()?;
+        fmt.write_bytes(format!("{:02}", self.0.hour()).as_bytes());
+        fmt.write_bytes(b":");
+        fmt.write_bytes(format!("{:02}", self.0.minute()).as_bytes());
+        fmt.write_bytes(b":");
+        fmt.write_bytes(format!("{:02}", self.0.second()).as_bytes());
+        fmt.write_fws();
         // zone
         let offset_secs = self.0.offset().local_minus_utc();
         let sign = if offset_secs >= 0 { b"+" } else { b"-" };
         let offset_mins = offset_secs.abs().rem_euclid(HOUR).div_euclid(MIN);
         let offset_hours = offset_secs.abs().div_euclid(HOUR);
-        fmt.write_bytes(sign)?;
+        fmt.write_bytes(sign);
         fmt.write_bytes(
             format!("{:02}{:02}", offset_hours, offset_mins).as_bytes()
-        )?;
-        Ok(())
+        );
     }
 }
 
@@ -408,12 +407,12 @@ fn obs_zone(input: &[u8]) -> IResult<&[u8], FixedOffset> {
 mod tests {
     use super::*;
     use chrono::TimeZone;
+    use crate::print::tests::with_formatter;
 
     fn date_parsed_printed(date: &[u8], printed: &[u8], parsed: DateTime) {
         assert_eq!(date_time(date).unwrap(), (&b""[..], parsed.clone()));
-        let mut v = Vec::new();
-        parsed.print(&mut v).unwrap();
-        assert_eq!(String::from_utf8_lossy(&v), String::from_utf8_lossy(printed));
+        let reprinted = with_formatter(|f| parsed.print(f));
+        assert_eq!(String::from_utf8_lossy(&reprinted), String::from_utf8_lossy(printed));
     }
 
 

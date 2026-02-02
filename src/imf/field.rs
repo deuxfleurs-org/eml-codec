@@ -1,7 +1,6 @@
 use bounded_static::ToStatic;
 use nom::combinator::map;
 
-use crate::print::{Print, Formatter};
 use crate::header;
 use crate::imf::address::{address_list, nullable_address_list, AddressList};
 use crate::imf::datetime::{date_time, DateTime};
@@ -10,6 +9,26 @@ use crate::imf::mailbox::{mailbox, mailbox_list, MailboxList, MailboxRef};
 use crate::imf::mime::{version, Version};
 use crate::imf::trace::{received_log, return_path, ReceivedLog, ReturnPath};
 use crate::text::misc_token::{phrase_list, unstructured, PhraseList, Unstructured};
+
+#[derive(Clone, Copy, Debug, PartialEq, ToStatic)]
+pub enum Entry {
+    Date,
+    From,
+    Sender,
+    ReplyTo,
+    To,
+    Cc,
+    Bcc,
+    MessageId,
+    InReplyTo,
+    References,
+    Subject,
+    Comments(usize),
+    Keywords(usize),
+    ReturnPath(usize),
+    Received(usize, usize),
+    MIMEVersion,
+}
 
 #[derive(Debug, PartialEq, ToStatic)]
 pub enum Field<'a> {
@@ -41,6 +60,7 @@ pub enum Field<'a> {
     Received(ReceivedLog<'a>),
     ReturnPath(ReturnPath<'a>),
 
+    // MIME
     MIMEVersion(Version),
 }
 impl<'a> TryFrom<&header::FieldRaw<'a>> for Field<'a> {
@@ -57,7 +77,9 @@ impl<'a> TryFrom<&header::FieldRaw<'a>> for Field<'a> {
                     b"cc" => map(address_list, Field::Cc)(value),
                     b"bcc" => map(nullable_address_list, Field::Bcc)(value),
                     b"message-id" => map(msg_id, Field::MessageID)(value),
+                    // TODO: obs-in-reply-to
                     b"in-reply-to" => map(msg_list, Field::InReplyTo)(value),
+                    // TODO: obs-references
                     b"references" => map(msg_list, Field::References)(value),
                     b"subject" => map(unstructured, Field::Subject)(value),
                     b"comments" => map(unstructured, Field::Comments)(value),
@@ -73,53 +95,4 @@ impl<'a> TryFrom<&header::FieldRaw<'a>> for Field<'a> {
 
         content.map(|(_, content)| content).or(Err(()))
     }
-}
-
-impl<'a> Print for Field<'a> {
-    fn print(&self, fmt: &mut impl Formatter) -> std::io::Result<()> {
-        match self {
-            Field::Date(datetime) => p(fmt, b"Date", datetime),
-
-            Field::From(mboxlist) => p(fmt, b"From", mboxlist),
-            Field::Sender(mbox) => p(fmt, b"Sender", mbox),
-            Field::ReplyTo(addrlist) => p(fmt, b"Reply-To", addrlist),
-
-            Field::To(addrlist) => p(fmt, b"To", addrlist),
-            Field::Cc(addrlist) => p(fmt, b"Cc", addrlist),
-            Field::Bcc(addrlist) => p(fmt, b"Bcc", addrlist),
-
-            Field::MessageID(id) => p(fmt, b"Message-ID", id),
-            Field::InReplyTo(refs) => p(fmt, b"In-Reply-To", refs),
-            Field::References(refs) => p(fmt, b"References", refs),
-
-            Field::Subject(unstr) => p_unstructured(fmt, b"Subject", unstr),
-            Field::Comments(unstr) => p_unstructured(fmt, b"Comments", unstr),
-            Field::Keywords(kwds) => p(fmt, b"Keywords", kwds),
-
-            Field::Received(log) => p(fmt, b"Received", log),
-            Field::ReturnPath(path) => p(fmt, b"Return-Path", path),
-
-            Field::MIMEVersion(ver) => p(fmt, b"MIME-Version", ver),
-        }
-    }
-}
-
-fn p<T: Print>(fmt: &mut impl Formatter, name: &[u8], body: &T) ->
-    std::io::Result<()>
-{
-    fmt.write_bytes(name)?;
-    fmt.write_bytes(b":")?;
-    fmt.write_fws()?;
-    body.print(fmt)?;
-    fmt.write_crlf()
-}
-
-fn p_unstructured(fmt: &mut impl Formatter, name: &[u8], body: &Unstructured<'_>) ->
-    std::io::Result<()>
-{
-    fmt.write_bytes(name)?;
-    fmt.write_bytes(b":")?;
-    // all text is significant in an unstructured field; do not add FWS
-    body.print(fmt)?;
-    fmt.write_crlf()
 }

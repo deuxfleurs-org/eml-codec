@@ -4,7 +4,7 @@ pub mod composite;
 /// Parts that have a body and no child parts
 pub mod discrete;
 
-/// IMF + MIME fields parsed at once
+/// Representation of all headers in a MIME entity
 pub mod field;
 
 use bounded_static::ToStatic;
@@ -24,18 +24,33 @@ use crate::part::{
     composite::{message, multipart, Message, Multipart},
     discrete::{Binary, Text},
 };
+use crate::print::{Print, Formatter};
 use crate::text::ascii::CRLF;
 use crate::text::boundary::boundary;
 use crate::text::whitespace::obs_crlf;
 
-#[derive(Debug, PartialEq, ToStatic)]
-pub enum AnyPart<'a> {
+#[derive(Clone, Debug, PartialEq, ToStatic)]
+pub struct AnyPart<'a> {
+    // Invariant: `fields` must be "complete and correct":
+    // - it must contain an entry for every piece of information contained in
+    //   `mime_body`'s mime headers that is not the default value. (This means
+    //    values of which are `Deductible::Explicit` or optionals set to
+    //    `Some(_)`.)
+    // - it must *only* contain entries for fields that have a value. (This means
+    //   no optional fields set to `None`.)
+    // Invariant: `fields` must contain no duplicates.
+    pub fields: Vec<field::EntityField<'a>>,
+    pub mime_body: MimeBody<'a>,
+}
+
+#[derive(Clone, Debug, PartialEq, ToStatic)]
+pub enum MimeBody<'a> {
     Mult(Multipart<'a>),
     Msg(Message<'a>),
     Txt(Text<'a>),
     Bin(Binary<'a>),
 }
-impl<'a> AnyPart<'a> {
+impl<'a> MimeBody<'a> {
     pub fn as_multipart(&self) -> Option<&Multipart<'a>> {
         match self {
             Self::Mult(x) => Some(x),
@@ -68,15 +83,59 @@ impl<'a> AnyPart<'a> {
             Self::Bin(v) => v.mime.clone().into(),
         }
     }
+    pub fn print_body(&self, fmt: &mut impl Formatter) {
+        match &self {
+            MimeBody::Mult(multipart) => {
+                // TODO: also print preamble and epilogue?
+                for child in &multipart.children {
+                    fmt.write_bytes(b"--");
+                    fmt.write_current_boundary();
+                    fmt.write_crlf();
+                    child.print(fmt);
+                    fmt.write_crlf();
+                }
+                fmt.write_bytes(b"--");
+                fmt.write_current_boundary();
+                fmt.write_bytes(b"--");
+                fmt.write_crlf();
+                fmt.pop_boundary();
+            },
+            MimeBody::Msg(message) => {
+                message.child.print(fmt)
+            },
+            MimeBody::Txt(text) => {
+                fmt.write_bytes(&text.body)
+            },
+            MimeBody::Bin(binary) => {
+                fmt.write_bytes(&binary.body)
+            },
+        }
+    }
 }
-impl<'a> From<Multipart<'a>> for AnyPart<'a> {
+impl<'a> From<Multipart<'a>> for MimeBody<'a> {
     fn from(m: Multipart<'a>) -> Self {
         Self::Mult(m)
     }
 }
-impl<'a> From<Message<'a>> for AnyPart<'a> {
+impl<'a> From<Message<'a>> for MimeBody<'a> {
     fn from(m: Message<'a>) -> Self {
         Self::Msg(m)
+    }
+}
+
+impl<'a> Print for AnyPart<'a> {
+    fn print(&self, fmt: &mut impl Formatter) {
+        fmt.begin_line_folding();
+        let mime = self.mime_body.mime();
+        for field in &self.fields {
+            match field {
+                field::EntityField::Unstructured(u) => u.print(fmt),
+                field::EntityField::MIME(f) => mime.print_field(*f, fmt),
+            }
+        }
+        fmt.end_line_folding();
+        fmt.write_crlf();
+        self.mime_body.print_body(fmt);
     }
 }
 
@@ -86,28 +145,28 @@ impl<'a> From<Message<'a>> for AnyPart<'a> {
 ///
 /// Multiparts are a bit special as they have a clearly delimited beginning
 /// and end contrary to all the other parts that are going up to the end of the buffer
-pub fn anypart<'a>(m: AnyMIME<'a>) -> impl FnOnce(&'a [u8]) -> IResult<&'a [u8], AnyPart<'a>> {
+pub fn part_body<'a>(m: AnyMIME<'a>) -> impl FnOnce(&'a [u8]) -> IResult<&'a [u8], MimeBody<'a>> {
     move |input| {
         let part = match m {
             AnyMIME::Mult(a) => multipart(a)(input)
                 .map(|(_, multi)| multi.into())
-                .unwrap_or(AnyPart::Txt(Text {
+                .unwrap_or(MimeBody::Txt(Text {
                     mime: mime::MIME::<mime::r#type::DeductibleText>::default(),
                     body: Cow::Borrowed(input),
                 })),
             AnyMIME::Msg(a) => {
                 message(a)(input)
                     .map(|(_, msg)| msg.into())
-                    .unwrap_or(AnyPart::Txt(Text {
+                    .unwrap_or(MimeBody::Txt(Text {
                         mime: mime::MIME::<mime::r#type::DeductibleText>::default(),
                         body: Cow::Borrowed(input),
                     }))
             }
-            AnyMIME::Txt(a) => AnyPart::Txt(Text {
+            AnyMIME::Txt(a) => MimeBody::Txt(Text {
                 mime: a,
                 body: Cow::Borrowed(input),
             }),
-            AnyMIME::Bin(a) => AnyPart::Bin(Binary {
+            AnyMIME::Bin(a) => MimeBody::Bin(Binary {
                 mime: a,
                 body: Cow::Borrowed(input),
             }),
@@ -120,6 +179,7 @@ pub fn anypart<'a>(m: AnyMIME<'a>) -> impl FnOnce(&'a [u8]) -> IResult<&'a [u8],
 
 pub fn part_raw<'a>(bound: &[u8]) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], &'a [u8]> + '_ {
     move |input| {
+        // XXX could this parser be defined in a way that matches the spec more naturally?
         recognize(many0(pair(
             not(boundary(bound)),
             alt((is_not(CRLF), obs_crlf)),

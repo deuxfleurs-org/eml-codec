@@ -1,4 +1,5 @@
 use bounded_static::ToStatic;
+use crate::print::{Print, Formatter};
 use crate::text::whitespace::cfws;
 use crate::text::words::mime_atom as token;
 use nom::{
@@ -20,18 +21,42 @@ pub enum Mechanism<'a> {
     Base64,
     Other(Cow<'a, [u8]>),
 }
-impl<'a> ToString for Mechanism<'a> {
-    fn to_string(&self) -> String {
+impl<'a> Mechanism<'a> {
+    pub fn as_bytes(&self) -> &[u8] {
         use Mechanism::*;
-        let buf: &[u8] = match self {
+        match self {
             _7Bit => b"7bit",
             _8Bit => b"8bit",
             Binary => b"binary",
             QuotedPrintable => b"quoted-printable",
             Base64 => b"base64",
             Other(x) => &x,
-        };
-        String::from_utf8_lossy(buf).to_string()
+        }
+    }
+}
+
+impl<'a> ToString for Mechanism<'a> {
+    fn to_string(&self) -> String {
+        String::from_utf8_lossy(self.as_bytes()).to_string()
+    }
+}
+impl<'a> Print for Mechanism<'a> {
+    fn print(&self, fmt: &mut impl Formatter) {
+        fmt.write_bytes(self.as_bytes())
+    }
+}
+impl<'a> Mechanism<'a> {
+    // RFC2046: for entities of type "multipart" or "message/rfc822",
+    // no encoding other than 7bit, 8bit and binary is permitted.
+    // This converts a `Mechanism` to ensure it belongs to
+    // one of these three encodings, defaulting to 7bit in case
+    // of an invalid value.
+    pub fn to_part_encoding(&self) -> Mechanism<'static> {
+        match self {
+            Mechanism::_8Bit => Mechanism::_8Bit,
+            Mechanism::Binary => Mechanism::Binary,
+            _ => Mechanism::_7Bit,
+        }
     }
 }
 

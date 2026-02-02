@@ -10,10 +10,16 @@ use nom::{
 use crate::print::{Print, Formatter};
 use crate::text::whitespace::cfws;
 
-#[derive(Debug, PartialEq, ToStatic)]
+#[derive(Clone, Debug, PartialEq, ToStatic)]
 pub struct Version {
     pub major: u64,
     pub minor: u64,
+}
+
+impl Default for Version {
+    fn default() -> Version {
+        Version { major: 1, minor: 0 }
+    }
 }
 
 pub fn version(input: &[u8]) -> IResult<&[u8], Version> {
@@ -34,9 +40,9 @@ fn ascii_to_u64(c: &[u8]) -> u64 {
 }
 
 impl Print for Version {
-    fn print(&self, fmt: &mut impl Formatter) -> std::io::Result<()> {
-        fmt.write_bytes(self.major.to_string().as_bytes())?;
-        fmt.write_bytes(b".")?;
+    fn print(&self, fmt: &mut impl Formatter) {
+        fmt.write_bytes(self.major.to_string().as_bytes());
+        fmt.write_bytes(b".");
         fmt.write_bytes(self.minor.to_string().as_bytes())
     }
 }

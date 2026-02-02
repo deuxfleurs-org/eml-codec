@@ -4,9 +4,9 @@ use std::fmt;
 
 use crate::mime;
 
-#[derive(PartialEq, ToStatic)]
+#[derive(Clone, PartialEq, ToStatic)]
 pub struct Text<'a> {
-    pub mime: mime::MIME<'a, mime::r#type::DeductibleText>,
+    pub mime: mime::MIME<'a, mime::r#type::DeductibleText<'a>>,
     pub body: Cow<'a, [u8]>,
 }
 
@@ -19,9 +19,9 @@ impl<'a> fmt::Debug for Text<'a> {
     }
 }
 
-#[derive(PartialEq, ToStatic)]
+#[derive(Clone, PartialEq, ToStatic)]
 pub struct Binary<'a> {
-    pub mime: mime::MIME<'a, mime::r#type::Binary>,
+    pub mime: mime::MIME<'a, mime::r#type::Binary<'a>>,
     pub body: Cow<'a, [u8]>,
 }
 

@@ -11,6 +11,7 @@ use nom::{
 use std::borrow::Cow;
 use std::fmt;
 
+use crate::print::{Print, Formatter};
 use crate::text::misc_token;
 use crate::text::whitespace::{foldable_line, obs_crlf};
 
@@ -27,6 +28,11 @@ impl<'a> fmt::Debug for FieldName<'a> {
         fmt.debug_tuple("header::FieldName")
             .field(&String::from_utf8_lossy(&self.0))
             .finish()
+    }
+}
+impl<'a> Print for FieldName<'a> {
+    fn print(&self, fmt: &mut impl Formatter) {
+        fmt.write_bytes(&self.0)
     }
 }
 
@@ -122,6 +128,28 @@ impl<'a> Unstructured<'a> {
             }
         }
     }
+}
+impl<'a> Print for Unstructured<'a> {
+    fn print(&self, fmt: &mut impl Formatter) {
+        print_unstructured(fmt, &self.0.0, &self.1)
+    }
+}
+
+// Helper to print structured headers
+
+pub fn print<T: Print>(fmt: &mut impl Formatter, name: &[u8], body: T) {
+    fmt.write_bytes(name);
+    fmt.write_bytes(b":");
+    fmt.write_fws();
+    body.print(fmt);
+    fmt.write_crlf();
+}
+
+pub fn print_unstructured<'a>(fmt: &mut impl Formatter, name: &[u8], body: &misc_token::Unstructured<'a>) {
+    fmt.write_bytes(name);
+    fmt.write_bytes(b":");
+    body.print(fmt);
+    fmt.write_crlf();
 }
 
 #[cfg(test)]

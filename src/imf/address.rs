@@ -10,9 +10,10 @@ use nom::{
 
 //use crate::error::IMFError;
 use crate::print::{print_seq, Print, Formatter};
-use crate::imf::mailbox::{mailbox, mailbox_list_nullable, MailboxRef, vec_filter_none_nonempty};
+use crate::imf::mailbox::{mailbox, mailbox_list_nullable, MailboxRef};
 use crate::text::misc_token::{phrase, Phrase};
 use crate::text::whitespace::cfws;
+use crate::utils::vec_filter_none_nonempty;
 
 #[derive(Clone, Debug, PartialEq, ToStatic)]
 pub struct GroupRef<'a> {
@@ -20,10 +21,10 @@ pub struct GroupRef<'a> {
     pub participants: Vec<MailboxRef<'a>>,
 }
 impl<'a> Print for GroupRef<'a> {
-    fn print(&self, fmt: &mut impl Formatter) -> std::io::Result<()> {
-        self.name.print(fmt)?;
-        fmt.write_bytes(b":")?;
-        self.participants.print(fmt)?;
+    fn print(&self, fmt: &mut impl Formatter) {
+        self.name.print(fmt);
+        fmt.write_bytes(b":");
+        self.participants.print(fmt);
         fmt.write_bytes(b";")
     }
 }
@@ -44,7 +45,7 @@ impl<'a> From<GroupRef<'a>> for AddressRef<'a> {
     }
 }
 impl<'a> Print for AddressRef<'a> {
-    fn print(&self, fmt: &mut impl Formatter) -> std::io::Result<()> {
+    fn print(&self, fmt: &mut impl Formatter) {
         match self {
             AddressRef::Single(mbox) => mbox.print(fmt),
             AddressRef::Many(group) => group.print(fmt),
@@ -55,9 +56,9 @@ impl<'a> Print for AddressRef<'a> {
 pub type AddressList<'a> = Vec<AddressRef<'a>>;
 
 impl<'a> Print for AddressList<'a> {
-    fn print(&self, fmt: &mut impl Formatter) -> std::io::Result<()> {
+    fn print(&self, fmt: &mut impl Formatter) {
         print_seq(fmt, self, |fmt| {
-            fmt.write_bytes(b",")?;
+            fmt.write_bytes(b",");
             fmt.write_fws()
         })
     }
@@ -135,21 +136,20 @@ pub fn nullable_address_list(input: &[u8]) -> IResult<&[u8], Vec<AddressRef<'_>>
 mod tests {
     use super::*;
     use crate::imf::mailbox::{AddrSpec, Domain, LocalPart, LocalPartToken};
+    use crate::print::tests::with_formatter;
     use crate::text::misc_token::{Phrase, PhraseToken, Word};
 
     fn address_list_parsed_printed(addrlist: &[u8], printed: &[u8], parsed: AddressList<'_>) {
         assert_eq!(address_list(addrlist).unwrap(), (&b""[..], parsed.clone()));
-        let mut v = Vec::new();
-        parsed.print(&mut v).unwrap();
-        assert_eq!(String::from_utf8_lossy(&v), String::from_utf8_lossy(printed));
+        let reprinted = with_formatter(|f| parsed.print(f));
+        assert_eq!(String::from_utf8_lossy(&reprinted), String::from_utf8_lossy(printed));
     }
 
     fn address_list_reprinted(addrlist: &[u8], printed: &[u8]) {
         let (input, parsed) = address_list(addrlist).unwrap();
         assert!(input.is_empty());
-        let mut v = Vec::new();
-        parsed.print(&mut v).unwrap();
-        assert_eq!(String::from_utf8_lossy(&v), String::from_utf8_lossy(printed));
+        let reprinted = with_formatter(|f| parsed.print(f));
+        assert_eq!(String::from_utf8_lossy(&reprinted), String::from_utf8_lossy(printed));
     }
 
     #[test]
@@ -214,7 +214,7 @@ mod tests {
         )
     }
 
-    use crate::text::encoding::{EncodedWord, QuotedChunk, QuotedWord};
+    use crate::text::encoding::{EncodedWord, EncodedWordToken, QuotedChunk, QuotedWord};
     use crate::text::quoted::QuotedString;
 
     #[test]
@@ -256,18 +256,20 @@ mod tests {
                             }
                         },
                         MailboxRef {
-                            name: Some(Phrase(vec![PhraseToken::Encoded(EncodedWord::Quoted(
-                                QuotedWord {
-                                    enc: encoding_rs::UTF_8,
-                                    chunks: vec![
-                                        QuotedChunk::Safe(b"John"[..].into()),
-                                        QuotedChunk::Space,
-                                        QuotedChunk::Safe(b"Sm"[..].into()),
-                                        QuotedChunk::Encoded(vec![0xc3, 0xae]),
-                                        QuotedChunk::Safe(b"th"[..].into()),
-                                    ]
-                                }
-                            ))])),
+                            name: Some(Phrase(vec![PhraseToken::Encoded(EncodedWord(vec![
+                                EncodedWordToken::Quoted(
+                                    QuotedWord {
+                                        enc: encoding_rs::UTF_8,
+                                        chunks: vec![
+                                            QuotedChunk::Safe(b"John"[..].into()),
+                                            QuotedChunk::Space,
+                                            QuotedChunk::Safe(b"Sm"[..].into()),
+                                            QuotedChunk::Encoded(vec![0xc3, 0xae]),
+                                            QuotedChunk::Safe(b"th"[..].into()),
+                                        ]
+                                    }
+                                )
+                            ]))])),
                             addrspec: AddrSpec {
                                 local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(
                                     b"john"[..].into()

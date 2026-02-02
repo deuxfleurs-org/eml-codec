@@ -40,9 +40,9 @@ impl<'a> fmt::Debug for AddrSpec<'a> {
     }
 }
 impl<'a> Print for AddrSpec<'a> {
-    fn print(&self, fmt: &mut impl Formatter) -> std::io::Result<()> {
-        self.local_part.print(fmt)?;
-        fmt.write_bytes(b"@")?;
+    fn print(&self, fmt: &mut impl Formatter) {
+        self.local_part.print(fmt);
+        fmt.write_bytes(b"@");
         self.domain.print(fmt)
     }
 }
@@ -70,13 +70,13 @@ impl<'a> From<AddrSpec<'a>> for MailboxRef<'a> {
     }
 }
 impl<'a> Print for MailboxRef<'a> {
-    fn print(&self, fmt: &mut impl Formatter) -> std::io::Result<()> {
+    fn print(&self, fmt: &mut impl Formatter) {
         match &self.name {
             Some(name) => {
-                name.print(fmt)?;
-                fmt.write_fws()?;
-                fmt.write_bytes(b"<")?;
-                self.addrspec.print(fmt)?;
+                name.print(fmt);
+                fmt.write_fws();
+                fmt.write_bytes(b"<");
+                self.addrspec.print(fmt);
                 fmt.write_bytes(b">")
             },
             None =>
@@ -88,9 +88,9 @@ impl<'a> Print for MailboxRef<'a> {
 pub type MailboxList<'a> = Vec<MailboxRef<'a>>;
 
 impl<'a> Print for MailboxList<'a> {
-    fn print(&self, fmt: &mut impl Formatter) -> std::io::Result<()> {
+    fn print(&self, fmt: &mut impl Formatter) {
         print_seq(fmt, self, |fmt| {
-            fmt.write_bytes(b",")?;
+            fmt.write_bytes(b",");
             fmt.write_fws()
         })
     }
@@ -218,7 +218,7 @@ impl<'a> LocalPart<'a> {
 
 impl<'a> Print for LocalPart<'a> {
     // Assumption: `self.bytes()` only contains ASCII bytes.
-    fn print(&self, fmt: &mut impl Formatter) -> std::io::Result<()> {
+    fn print(&self, fmt: &mut impl Formatter) {
         // Parsing of local parts is more lenient than printing (both wrt
         // the spec and because of obsolete syntax). Thus, for printing, we
         // only assume that `self` only contains ASCII and recompute how it
@@ -307,14 +307,14 @@ impl<'a> fmt::Debug for Domain<'a> {
 }
 
 impl<'a> Print for Domain<'a> {
-    fn print(&self, fmt: &mut impl Formatter) -> std::io::Result<()> {
+    fn print(&self, fmt: &mut impl Formatter) {
         match self {
             Domain::Atoms(atoms) => {
                 print_seq(fmt, &atoms, |fmt| fmt.write_bytes(b"."))
             },
             Domain::Literal(parts) => {
-                fmt.write_bytes(b"[")?;
-                print_seq(fmt, &parts, Formatter::write_fws)?;
+                fmt.write_bytes(b"[");
+                print_seq(fmt, &parts, Formatter::write_fws);
                 fmt.write_bytes(b"]")
             },
         }
@@ -383,7 +383,7 @@ impl<'a> fmt::Debug for Dtext<'a> {
 }
 
 impl<'a> Print for Dtext<'a> {
-    fn print(&self, fmt: &mut impl Formatter) -> std::io::Result<()> {
+    fn print(&self, fmt: &mut impl Formatter) {
         for &b in self.0.iter() {
             // NOTE: we drop characters which are not part of the strict syntax.
             // Unfortunately this can drop printable characters, if they were part
@@ -391,10 +391,9 @@ impl<'a> Print for Dtext<'a> {
             // we have no better option than to drop those since there is no way
             // to represent them in the strict syntax.
             if is_strict_dtext(b) {
-                fmt.write_bytes(&[b])?;
+                fmt.write_bytes(&[b]);
             }
         }
-        Ok(())
     }
 }
 
@@ -421,19 +420,10 @@ pub fn dtext<'a>(input: &'a [u8]) -> IResult<&'a [u8], Dtext<'a>> {
     map(take_while1(is_dtext), |b| Dtext(Cow::Borrowed(b)))(input)
 }
 
-// TODO: move to a utils file?
-pub(crate) fn vec_filter_none_nonempty<T>(v: Vec<Option<T>>) -> Option<Vec<T>> {
-    let v: Vec<T> = v.into_iter().flatten().collect();
-    if v.is_empty() {
-        None
-    } else {
-        Some(v)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::print::tests::with_formatter;
     use crate::text::misc_token::PhraseToken;
     use crate::text::quoted::QuotedString;
 
@@ -443,45 +433,39 @@ mod tests {
     // back as 'a').
     fn addr_roundtrip_as(addr: &[u8], parsed: AddrSpec<'_>) {
         assert_eq!(addr_spec(addr), Ok((&b""[..], parsed.clone())));
-        let mut v = Vec::new();
-        parsed.print(&mut v).unwrap();
-        assert_eq!(String::from_utf8_lossy(addr), String::from_utf8_lossy(&v));
+        let printed = with_formatter(|f| parsed.print(f));
+        assert_eq!(String::from_utf8_lossy(addr), String::from_utf8_lossy(&printed));
     }
     fn addr_roundtrip(addr: &[u8]) {
         let (input, parsed) = addr_spec(addr).unwrap();
         assert!(input.is_empty());
-        let mut v = Vec::new();
-        parsed.print(&mut v).unwrap();
-        assert_eq!(String::from_utf8_lossy(addr), String::from_utf8_lossy(&v));
+        let printed = with_formatter(|f| parsed.print(f));
+        assert_eq!(String::from_utf8_lossy(addr), String::from_utf8_lossy(&printed));
     }
     fn addr_parsed_printed(addr: &[u8], parsed: AddrSpec<'_>, printed: &[u8]) {
         assert_eq!(addr_spec(addr), Ok((&b""[..], parsed.clone())));
-        let mut v = Vec::new();
-        parsed.print(&mut v).unwrap();
-        assert_eq!(String::from_utf8_lossy(printed), String::from_utf8_lossy(&v));
+        let reprinted = with_formatter(|f| parsed.print(f));
+        assert_eq!(String::from_utf8_lossy(printed), String::from_utf8_lossy(&reprinted));
     }
 
     // NOTE: like for addr-spec, this roundtrip property is not expected to hold
     // in general.
     fn mailbox_roundtrip_as(mbox: &[u8], parsed: MailboxRef<'_>) {
         assert_eq!(mailbox(mbox), Ok((&b""[..], parsed.clone())));
-        let mut v = Vec::new();
-        parsed.print(&mut v).unwrap();
-        assert_eq!(String::from_utf8_lossy(mbox), String::from_utf8_lossy(&v));
+        let printed = with_formatter(|f| parsed.print(f));
+        assert_eq!(String::from_utf8_lossy(mbox), String::from_utf8_lossy(&printed));
     }
     fn mailbox_parsed_printed(mbox: &[u8], parsed: MailboxRef<'_>, printed: &[u8]) {
         assert_eq!(mailbox(mbox), Ok((&b""[..], parsed.clone())));
-        let mut v = Vec::new();
-        parsed.print(&mut v).unwrap();
-        assert_eq!(String::from_utf8_lossy(printed), String::from_utf8_lossy(&v));
+        let reprinted = with_formatter(|f| parsed.print(f));
+        assert_eq!(String::from_utf8_lossy(printed), String::from_utf8_lossy(&reprinted));
     }
 
     fn mailbox_list_reprint(mboxlist: &[u8], printed: &[u8]) {
         let (input, parsed) = mailbox_list(mboxlist).unwrap();
         assert!(input.is_empty());
-        let mut v = Vec::new();
-        parsed.print(&mut v).unwrap();
-        assert_eq!(String::from_utf8_lossy(&v), String::from_utf8_lossy(printed));
+        let reprinted = with_formatter(|f| parsed.print(f));
+        assert_eq!(String::from_utf8_lossy(&reprinted), String::from_utf8_lossy(printed));
     }
 
     #[test]
