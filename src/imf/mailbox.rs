@@ -105,13 +105,18 @@ fn obs_route(input: &[u8]) -> IResult<&[u8], Vec<Option<Domain<'_>>>> {
 ///    obs-domain-list =   *(CFWS / ",") "@" domain
 ///                        *("," [CFWS] ["@" domain])
 /// ```
+/// The parser below is slightly more lenient as it allows domains list that
+/// contain no real domains (e.g. only commas).
 fn obs_domain_list(input: &[u8]) -> IResult<&[u8], Vec<Option<Domain<'_>>>> {
     preceded(
-        many0(cfws),
+        opt(cfws),
         separated_list1(
             tag(&[ascii::COMMA]),
-            preceded(many0(cfws), opt(preceded(tag(&[ascii::AT]), obs_domain))),
-        ),
+            alt((
+                map(preceded(pair(opt(cfws), tag(&[ascii::AT])), obs_domain), |d| Some(d)),
+                map(opt(cfws), |_| None),
+            ))
+        )
     )(input)
 }
 
@@ -120,8 +125,6 @@ fn obs_domain_list(input: &[u8]) -> IResult<&[u8], Vec<Option<Domain<'_>>>> {
 /// ```abnf
 ///    addr-spec       =   local-part "@" domain
 /// ```
-/// @FIXME: this system does not work to alternate between strict and obsolete
-/// so I force obsolete for now...
 pub fn addr_spec(input: &[u8]) -> IResult<&[u8], AddrSpec<'_>> {
     map(
         tuple((
@@ -275,6 +278,7 @@ pub fn is_dtext(c: u8) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::text::misc_token::PhraseToken;
     use crate::text::quoted::QuotedString;
 
     #[test]
@@ -377,13 +381,14 @@ mod tests {
             Ok((
                 &b""[..],
                 MailboxRef {
-                    name: Some(Phrase(vec![Word::Quoted(QuotedString(vec![
-                        b"Joe"[..].into(),
-                        vec![ascii::SP].into(),
-                        b"Q."[..].into(),
-                        vec![ascii::SP].into(),
-                        b"Public"[..].into(),
-                    ]))])),
+                    name: Some(Phrase(vec![
+                        PhraseToken::Word(Word::Quoted(QuotedString(vec![
+                            b"Joe"[..].into(),
+                            vec![ascii::SP].into(),
+                            b"Q."[..].into(),
+                            vec![ascii::SP].into(),
+                            b"Public"[..].into(),
+                        ])))])),
                     addrspec: AddrSpec {
                         local_part: LocalPart(vec![
                             LocalPartToken::Word(Word::Atom(b"john"[..].into())),
@@ -404,8 +409,8 @@ mod tests {
                 &b""[..],
                 MailboxRef {
                     name: Some(Phrase(vec![
-                        Word::Atom(b"Mary"[..].into()),
-                        Word::Atom(b"Smith"[..].into())
+                        PhraseToken::Word(Word::Atom(b"Mary"[..].into())),
+                        PhraseToken::Word(Word::Atom(b"Smith"[..].into()))
                     ])),
                     addrspec: AddrSpec {
                         local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(b"mary"[..].into()))]),
@@ -434,7 +439,7 @@ mod tests {
             Ok((
                 &b""[..],
                 MailboxRef {
-                    name: Some(Phrase(vec![Word::Atom(b"Who?"[..].into())])),
+                    name: Some(Phrase(vec![PhraseToken::Word(Word::Atom(b"Who?"[..].into()))])),
                     addrspec: AddrSpec {
                         local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(b"one"[..].into()))]),
                         domain: Domain::Atoms(vec![b"y"[..].into(), b"test"[..].into()]),
@@ -462,15 +467,16 @@ mod tests {
             Ok((
                 &b""[..],
                 MailboxRef {
-                    name: Some(Phrase(vec![Word::Quoted(QuotedString(vec![
-                        b"Giant;"[..].into(),
-                        vec![ascii::SP].into(),
-                        vec![ascii::DQUOTE].into(),
-                        b"Big"[..].into(),
-                        vec![ascii::DQUOTE].into(),
-                        vec![ascii::SP].into(),
-                        b"Box"[..].into()
-                    ]))])),
+                    name: Some(Phrase(vec![
+                        PhraseToken::Word(Word::Quoted(QuotedString(vec![
+                            b"Giant;"[..].into(),
+                            vec![ascii::SP].into(),
+                            vec![ascii::DQUOTE].into(),
+                            b"Big"[..].into(),
+                            vec![ascii::DQUOTE].into(),
+                            vec![ascii::SP].into(),
+                            b"Box"[..].into()
+                        ])))])),
                     addrspec: AddrSpec {
                         local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(
                             b"sysservices"[..].into()
@@ -514,6 +520,20 @@ mod tests {
                     None,
                     None,
                     Some(Domain::Atoms(vec![b"c"[..].into()])),
+                ]
+            ))
+        );
+
+        assert_eq!(
+            obs_domain_list(b",, ,@foo,"),
+            Ok((
+                &b""[..],
+                vec![
+                    None,
+                    None,
+                    None,
+                    Some(Domain::Atoms(vec![b"foo"[..].into()])),
+                    None,
                 ]
             ))
         );

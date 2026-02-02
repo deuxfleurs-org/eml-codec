@@ -1,5 +1,5 @@
 use crate::text::ascii;
-use crate::text::encoding::encoded_word;
+use crate::text::encoding::encoded_word_plain;
 use crate::text::quoted::quoted_pair;
 use nom::{
     branch::alt,
@@ -9,6 +9,7 @@ use nom::{
     multi::{many0, many1},
     sequence::{pair, terminated, tuple},
     IResult,
+    Parser,
 };
 
 /// Whitespace (space, new line, tab) content and
@@ -20,6 +21,10 @@ use nom::{
 /// but some mail servers like Dovecot support malformated emails,
 /// for example with only \n eol. It works because
 /// \r or \n is allowed nowhere else, so we also add this support.
+/// XXX this comment is incorrect: \r and \n are allowed in
+/// obs-unstruct (obsolete unstructured fields).
+/// This means that using obs_crlf instead of CRLF (as done currently)
+/// may parse unstructured inputs in a way that contradicts the spec.
 
 pub fn obs_crlf(input: &[u8]) -> IResult<&[u8], &[u8]> {
     alt((
@@ -43,6 +48,23 @@ pub fn foldable_line(input: &[u8]) -> IResult<&[u8], &[u8]> {
     )(input)
 }
 
+// XXX if we want to do spec-compliant line framing later
+// ```abnf
+// fold_line = any *(crlf WS any) crlf
+// ```
+// used for pre-parsing / framing
+// pub fn foldable_line(input: &[u8]) -> IResult<&[u8], &[u8]> {
+//    terminated(
+//        recognize(
+//            pair(
+//                is_not(ascii::CRLF),
+//                many0(tuple((tag(ascii::CRLF), space1, is_not(ascii::CRLF))))
+//            )
+//        ),
+//        tag(ascii::CRLF),
+//    )(input)
+// }
+
 // --- whitespaces and comments
 
 // Note: WSP = SP / HTAB = %x20 / %x09
@@ -52,16 +74,45 @@ pub fn foldable_line(input: &[u8]) -> IResult<&[u8], &[u8]> {
 /// Permissive foldable white space
 ///
 /// Folding white space are used for long headers splitted on multiple lines.
-/// The obsolete syntax allowes multiple lines without content; implemented for compatibility
-/// reasons
-pub fn fws(input: &[u8]) -> IResult<&[u8], u8> {
-    let (input, _) = alt((recognize(many1(fold_marker)), space1))(input)?;
-    Ok((input, ascii::SP))
+/// The obsolete syntax allowes multiple lines without content; it is implemented
+/// for compatibility reasons (as mandated by the spec).
+///
+/// The parser returns the slices of whitespace characters that were parsed, without
+/// the CRLF line breaks. When printed back, line breaks will only be inserted according
+/// to the correct (non-obsolete) syntax.
+///
+// XXX: the current implementation does not look spec compliant; alternative proposal below
+//
+// FWS             =   ([*WSP CRLF] 1*WSP) /  obs-FWS
+// obs-FWS         =   1*([CRLF] WSP)                  (from errata)
+//
+// these definitions are in fact equivalent to:
+//
+// FWS             =   1*(WSP / CRLF WSP)
+// or, alternatively
+// FWS             =   1*(1*WSP / CRLF 1*WSP)
+//
+// We implement the latter because it represents sequences of WSP more efficiently.
+// pub fn fws(input: &[u8]) -> IResult<&[u8], Vec<&[u8]>> {
+//     many1(alt((space1, preceded(tag(ascii::CRLF), space1))))(input)
+// }
+pub fn fws(input: &[u8]) -> IResult<&[u8], Vec<&[u8]>> {
+    alt((
+        many1(fold_marker).map(|v| v.into_iter().flatten().collect()),
+        space1.map(|wsp| vec![wsp])
+    ))(input)
 }
-fn fold_marker(input: &[u8]) -> IResult<&[u8], &[u8]> {
-    let (input, _) = space0(input)?;
+fn fold_marker(input: &[u8]) -> IResult<&[u8], Vec<&[u8]>> {
+    let (input, wsp0) = space0(input)?;
     let (input, _) = obs_crlf(input)?;
-    space1(input)
+    let (input, wsp) = space1(input)?;
+
+    let mut res = vec![];
+    if !wsp0.is_empty() {
+        res.push(wsp0)
+    }
+    res.push(wsp);
+    Ok((input, res))
 }
 
 /// Folding White Space with Comment
@@ -80,6 +131,16 @@ fn fold_marker(input: &[u8]) -> IResult<&[u8], &[u8]> {
 ///
 ///   CFWS            =   (1*([FWS] comment) [FWS]) / FWS
 /// ```
+///
+/// Note: a naive implementation of the grammar above using the alt()
+/// combinator can lead to exponential backtracking on some inputs
+/// (e.g. "((((((((").
+/// Exponential backtracking can be tackled using the cut() combinator,
+/// however any recursive definition can still run into stack overflow
+/// errors on deeply nested inputs.
+///
+/// This is why we resort to the the low-level iterative implementation
+/// of `comment` and `comment_body` below.
 pub fn cfws(input: &[u8]) -> IResult<&[u8], &[u8]> {
     alt((recognize(comments), recognize(fws)))(input)
 }
@@ -92,19 +153,37 @@ pub fn comments(input: &[u8]) -> IResult<&[u8], ()> {
 
 pub fn comment(input: &[u8]) -> IResult<&[u8], ()> {
     let (input, _) = tag("(")(input)?;
-    let (input, _) = many0(tuple((opt(fws), ccontent)))(input)?;
-    let (input, _) = opt(fws)(input)?;
-    let (input, _) = tag(")")(input)?;
+    let (input, ()) = comment_body(input)?;
     Ok((input, ()))
 }
 
-pub fn ccontent(input: &[u8]) -> IResult<&[u8], &[u8]> {
-    alt((
-        ctext,
-        recognize(quoted_pair),
-        recognize(encoded_word),
-        recognize(comment),
-    ))(input)
+pub fn comment_body(input: &[u8]) -> IResult<&[u8], ()> {
+    let mut nesting = 1;
+    let mut cursor: &[u8] = input;
+    loop {
+        if let Ok((input, _)) = pair(opt(fws), tag(")"))(cursor) {
+            nesting -= 1;
+            if nesting == 0 {
+                return Ok((input, ()))
+            }
+            cursor = input;
+        }
+        let (input, _) = opt(fws)(cursor)?;
+        let (input, enter_subcomment) = alt((
+            tag("(").map(|_| true),
+            alt((
+                quoted_pair,
+                recognize(encoded_word_plain),
+                ctext,
+            )).map(|_| false)
+        ))(input)?;
+
+        if enter_subcomment {
+            nesting += 1;
+        }
+
+        cursor = input
+    }
 }
 
 pub fn ctext(input: &[u8]) -> IResult<&[u8], &[u8]> {
@@ -159,9 +238,10 @@ mod tests {
 
     #[test]
     fn test_fws() {
-        assert_eq!(fws(b"\r\n world"), Ok((&b"world"[..], ascii::SP)));
-        assert_eq!(fws(b" \r\n \r\n world"), Ok((&b"world"[..], ascii::SP)));
-        assert_eq!(fws(b" world"), Ok((&b"world"[..], ascii::SP)));
+        assert_eq!(fws(b"\r\n world"), Ok((&b"world"[..], vec![&b" "[..]])));
+        assert_eq!(fws(b" \r\n \r\n world"), Ok((&b"world"[..], vec![&b" "[..], &b" "[..], &b" "[..]])));
+        assert_eq!(fws(b" world"), Ok((&b"world"[..], vec![&b" "[..]])));
+        assert_eq!(fws(b" \t  \r\n  world"), Ok((&b"world"[..], vec![&b" \t  "[..], &b"  "[..]])));
         assert!(fws(b"\r\nFrom: test").is_err());
     }
 
@@ -182,6 +262,10 @@ mod tests {
             cfws(b"(double (comment) is fun) wouch"),
             Ok((&b"wouch"[..], &b"(double (comment) is fun) "[..]))
         );
+        // assert_eq!(
+        //     cfws(b"(unbalanced ( parens) wouch"),
+        //     Ok((&b"wouch"[..], &b"(double (comment) is fun) "[..]))
+        // );
     }
 
     #[test]

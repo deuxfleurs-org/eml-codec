@@ -3,7 +3,7 @@ use nom::{
     branch::alt,
     bytes::complete::{tag, take_while1},
     character::complete::space0,
-    combinator::{all_consuming, into},
+    combinator::{all_consuming, eof, into},
     multi::many0,
     sequence::{pair, terminated, tuple},
     IResult, Parser,
@@ -72,10 +72,12 @@ impl<'a> From<&'a [u8]> for FieldRaw<'a> {
 }
 
 /// Parse headers as raw key/values
-// XXX according to RFC5322 the CRLF is optional if there is no body
-// (ie it is a separator and not a terminator of the header section)
 pub fn header_kv(input: &[u8]) -> IResult<&[u8], Vec<FieldRaw<'_>>> {
-    terminated(many0(field_raw), obs_crlf)(input)
+    terminated(
+        many0(field_raw),
+        // the CRLF is optional if there is no body following the headers
+        alt((eof, obs_crlf))
+    )(input)
 }
 
 // NOTE: foldable_line is always non-empty; this is important so that
@@ -125,7 +127,7 @@ impl<'a> Unstructured<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use misc_token::UnstrToken;
+    use misc_token::{UnstrToken, UnstrTxtKind};
 
     #[test]
     fn test_field_raw_good() {
@@ -148,10 +150,25 @@ mod tests {
             Unstructured(
                 FieldName(b"X-Unknown".into()),
                 misc_token::Unstructured(vec![
-                    UnstrToken::Plain(b"something".into()),
-                    UnstrToken::Plain(b"something".into()),
+                    UnstrToken::from_plain(b" ", UnstrTxtKind::Fws),
+                    UnstrToken::from_plain(b"something", UnstrTxtKind::Txt),
+                    UnstrToken::from_plain(b" ", UnstrTxtKind::Fws),
+                    UnstrToken::from_plain(b"something", UnstrTxtKind::Txt),
                 ])
             )
+        )
+    }
+
+    #[test]
+    fn test_no_body() {
+        let (rest, fields) = header_kv(b"X-Foo: something something\r\nX-Bar: something else\r\n").unwrap();
+        assert!(rest.is_empty());
+        assert_eq!(
+            fields,
+            vec![
+                FieldRaw::Good(FieldName(b"X-Foo".into()), b" something something"),
+                FieldRaw::Good(FieldName(b"X-Bar".into()), b" something else"),
+            ]
         )
     }
 }

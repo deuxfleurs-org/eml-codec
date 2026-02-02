@@ -9,7 +9,7 @@ use nom::{
     character::is_alphanumeric,
     combinator::{map, opt},
     multi::{many0, many1},
-    sequence::{preceded, terminated, tuple},
+    sequence::{delimited, preceded, terminated, tuple},
     IResult,
 };
 use std::borrow::Cow;
@@ -18,21 +18,42 @@ use crate::text::ascii;
 use crate::text::whitespace::cfws;
 use crate::text::words;
 
+// XXX: the parser below does not implement the spec stricty.
+// Specifically, it is more lenient than the spec in what it accepts
+// inside of an encoded word. In particular:
+// - it allows characters that are always explicitly forbidden (e.g. space);
+// - it is not aware of the context in which the encoded word
+//   appears, which can cause more characters to be forbidden (e.g.
+//   "(" and ")" are forbidden inside of a comment).
+//
+// At this point it is not clear whether strictly implementing the spec
+// in the parser is a good or bad thing (since we also want to be resilient
+// to incorrect input, on a best-effort basis).
+//
+// The printer is, in any case, strictly spec compliant.
+
+// FIXME: consecutive encoded words separated by linear-whitespace must
+// be merged together
+
 pub fn encoded_word(input: &[u8]) -> IResult<&[u8], EncodedWord<'_>> {
+    delimited(opt(cfws), encoded_word_plain, opt(cfws))(input)
+}
+
+// NOTE: this is part of the comment syntax, so should not
+// recurse and call CFWS itself, for parsing efficiency reasons.
+pub fn encoded_word_plain(input: &[u8]) -> IResult<&[u8], EncodedWord<'_>> {
     alt((encoded_word_quoted, encoded_word_base64))(input)
 }
 
 pub fn encoded_word_quoted(input: &[u8]) -> IResult<&[u8], EncodedWord<'_>> {
-    let (rest, (_, _, charset, _, _, _, txt, _, _)) = tuple((
-        opt(cfws),
+    let (rest, (_, charset, _, _, _, txt, _)) = tuple((
         tag("=?"),
-        words::mime_atom,
+        words::mime_atom_plain,
         tag("?"),
         one_of("Qq"),
         tag("?"),
         ptext,
         tag("?="),
-        opt(cfws),
     ))(input)?;
 
     let renc = Encoding::for_label(charset).unwrap_or(encoding_rs::WINDOWS_1252);
@@ -46,7 +67,7 @@ pub fn encoded_word_quoted(input: &[u8]) -> IResult<&[u8], EncodedWord<'_>> {
 pub fn encoded_word_base64(input: &[u8]) -> IResult<&[u8], EncodedWord<'_>> {
     let (rest, (_, charset, _, _, _, txt, _)) = tuple((
         tag("=?"),
-        words::mime_atom,
+        words::mime_atom_plain,
         tag("?"),
         one_of("Bb"),
         tag("?"),
@@ -149,6 +170,7 @@ pub enum QuotedChunk<'a> {
 }
 
 //quoted_printable
+// XXX safe_char2 includes SPACE; is this really OK?
 pub fn ptext(input: &[u8]) -> IResult<&[u8], Vec<QuotedChunk<'_>>> {
     many0(alt((safe_char2, encoded_space, many_hex_octet)))(input)
 }
