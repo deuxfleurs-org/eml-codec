@@ -5,7 +5,7 @@ use nom::{
     branch::alt,
     bytes::complete::{tag, take_while1},
     combinator::{all_consuming, into, map, map_opt, opt},
-    multi::{many0, separated_list1},
+    multi::{many0, many1, separated_list1},
     sequence::{delimited, pair, preceded, terminated, tuple},
     IResult,
 };
@@ -14,7 +14,7 @@ use std::fmt;
 
 #[cfg(feature = "arbitrary")]
 use crate::{
-    arbitrary_utils::{arbitrary_vec_nonempty, arbitrary_vec_where},
+    arbitrary_utils::{arbitrary_vec_nonempty, arbitrary_vec_nonempty_where},
     fuzz_eq::FuzzEq,
 };
 use crate::print::{print_seq, Print, Formatter};
@@ -228,15 +228,14 @@ pub fn addr_spec(input: &[u8]) -> IResult<&[u8], AddrSpec<'_>> {
 }
 
 #[derive(Clone, Debug, PartialEq, ToStatic)]
-#[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
+#[cfg_attr(feature = "arbitrary", derive(Arbitrary))]
 pub enum LocalPartToken<'a> {
     Dot,
     Word(Word<'a>),
 }
 
 #[derive(Clone, Debug, PartialEq, ToStatic)]
-#[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
-pub struct LocalPart<'a>(pub Vec<LocalPartToken<'a>>);
+pub struct LocalPart<'a>(pub Vec<LocalPartToken<'a>>); // non-empty vec
 
 impl<'a> LocalPart<'a> {
     pub fn to_string(&self) -> String {
@@ -247,6 +246,29 @@ impl<'a> LocalPart<'a> {
             }
             acc
         })
+    }
+
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let mut v = Vec::new();
+        for tok in &self.0 {
+            match tok {
+                LocalPartToken::Dot => v.push(b'.'),
+                LocalPartToken::Word(w) => v.extend(w.bytes()),
+            }
+        }
+        v
+    }
+}
+#[cfg(feature = "arbitrary")]
+impl<'a> Arbitrary<'a> for LocalPart<'a> {
+    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
+        Ok(LocalPart(arbitrary_vec_nonempty(u)?))
+    }
+}
+#[cfg(feature = "arbitrary")]
+impl<'a> FuzzEq for LocalPart<'a> {
+    fn fuzz_eq(&self, other: &Self) -> bool {
+        self.to_bytes() == other.to_bytes()
     }
 }
 
@@ -259,16 +281,7 @@ impl<'a> Print for LocalPart<'a> {
         // should be printed.
 
         // print the local part as raw bytes
-        let as_bytes: Vec<u8> = {
-            let mut v = Vec::new();
-            for tok in &self.0 {
-                match tok {
-                    LocalPartToken::Dot => v.push(b'.'),
-                    LocalPartToken::Word(w) => v.extend(w.bytes()),
-                }
-            }
-            v
-        };
+        let as_bytes = self.to_bytes();
 
         // If `as_bytes` is a dot-atom we print it as-is, otherwise
         // we quote it. This ensures that our output is compliant with RFC5322.
@@ -284,28 +297,29 @@ impl<'a> Print for LocalPart<'a> {
 ///
 /// Compared to the RFC, we allow multiple dots.
 /// This is found in Enron emails and supported by Gmail.
+/// More generally, we allow an arbitrary interleaving of
+/// dots and words.
 ///
 /// Obsolete local part is a superset of strict_local_part:
 /// anything that is parsed by strict_local_part will be parsed by
 /// obs_local_part.
 ///
 /// ```abnf
-/// obs-local-part  =  *("." / word)
+/// obs-local-part  =  1*(word / ".")
 /// ```
 fn obs_local_part(input: &[u8]) -> IResult<&[u8], LocalPart<'_>> {
     map(
-        many0(alt((
-            map(tag(&[ascii::PERIOD]), |_| LocalPartToken::Dot),
+        many1(alt((
             map(word, LocalPartToken::Word),
+            map(tag(&[ascii::PERIOD]), |_| LocalPartToken::Dot),
         ))),
-        LocalPart,
+        LocalPart
     )(input)
 }
 
 #[derive(Clone, Debug, PartialEq, ToStatic)]
-#[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
 pub enum Domain<'a> {
-    Atoms(Vec<Atom<'a>>),
+    Atoms(Vec<Atom<'a>>), // non-empty vec
     Literal(Vec<Dtext<'a>>),
 }
 
@@ -345,6 +359,38 @@ impl<'a> Print for Domain<'a> {
                 print_seq(fmt, &parts, Formatter::write_fws);
                 fmt.write_bytes(b"]")
             },
+        }
+    }
+}
+#[cfg(feature = "arbitrary")]
+impl<'a> Arbitrary<'a> for Domain<'a> {
+    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
+        if u.arbitrary()? {
+            Ok(Domain::Atoms(arbitrary_vec_nonempty(u)?))
+        } else {
+            Ok(Domain::Literal(u.arbitrary()?))
+        }
+    }
+}
+#[cfg(feature = "arbitrary")]
+impl<'a> FuzzEq for Domain<'a> {
+    fn fuzz_eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Domain::Atoms(a1), Domain::Atoms(a2)) =>
+                FuzzEq::fuzz_eq(a1, a2),
+            (Domain::Literal(l1), Domain::Literal(l2)) => {
+                let v1: Vec<u8> = Vec::from_iter(
+                    l1.iter().flat_map(|dt| dt.0.into_iter()).cloned()
+                        .filter(|b| is_strict_dtext(*b))
+                );
+                let v2: Vec<u8> = Vec::from_iter(
+                    l2.iter().flat_map(|dt| dt.0.into_iter()).cloned()
+                        .filter(|b| is_strict_dtext(*b))
+                );
+                v1 == v2
+            },
+            (_, _) =>
+                false,
         }
     }
 }
@@ -427,14 +473,16 @@ impl<'a> Print for Dtext<'a> {
 #[cfg(feature = "arbitrary")]
 impl<'a> Arbitrary<'a> for Dtext<'a> {
     fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Dtext<'a>> {
-        let bytes: Vec<u8> = arbitrary_vec_where(u, is_dtext)?;
+        let bytes: Vec<u8> = arbitrary_vec_nonempty_where(u, is_dtext, b'X')?;
         Ok(Dtext(Cow::Owned(bytes)))
     }
 }
 #[cfg(feature = "arbitrary")]
 impl<'a> FuzzEq for Dtext<'a> {
     fn fuzz_eq(&self, other: &Self) -> bool {
-        self == other
+        let v1: Vec<u8> = self.0.iter().cloned().filter(|b| is_strict_dtext(*b)).collect();
+        let v2: Vec<u8> = other.0.iter().cloned().filter(|b| is_strict_dtext(*b)).collect();
+        v1 == v2
     }
 }
 
@@ -580,6 +628,23 @@ mod tests {
                 domain: Domain::Atoms(vec![Atom(b"example"[..].into()), Atom(b"com"[..].into())]),
             }
         );
+    }
+
+    #[test]
+    fn test_gmail_noncompliant() {
+        addr_parsed_printed(
+            b"foo..bar@gmail.com",
+            AddrSpec {
+                local_part: LocalPart(vec![
+                    LocalPartToken::Word(Word::Atom(Atom(b"foo".into()))),
+                    LocalPartToken::Dot,
+                    LocalPartToken::Dot,
+                    LocalPartToken::Word(Word::Atom(Atom(b"bar".into()))),
+                ]),
+                domain: Domain::Atoms(vec![Atom(b"gmail"[..].into()), Atom(b"com"[..].into())]),
+            },
+            b"\"foo..bar\"@gmail.com",
+        )
     }
 
     #[test]

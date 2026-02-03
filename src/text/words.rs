@@ -3,7 +3,7 @@ use arbitrary::Arbitrary;
 use bounded_static::ToStatic;
 #[cfg(feature = "arbitrary")]
 use crate::{
-    arbitrary_utils::arbitrary_vec_where,
+    arbitrary_utils::arbitrary_vec_nonempty_where,
     fuzz_eq::FuzzEq,
 };
 use crate::print::{Print, Formatter};
@@ -26,7 +26,7 @@ pub fn is_vchar(c: u8) -> bool {
 }
 
 /// A MIME atom.
-// Only contains bytes that satisfy `is_mime_atom_text`.
+// Contains a non-zero amount of bytes that satisfy `is_mime_atom_text`.
 #[derive(Clone, PartialEq, Default, ToStatic)]
 pub struct MIMEAtom<'a>(pub Cow<'a, [u8]>);
 
@@ -45,7 +45,7 @@ impl<'a> Print for MIMEAtom<'a> {
 #[cfg(feature = "arbitrary")]
 impl<'a, 'b> Arbitrary<'a> for MIMEAtom<'b> {
     fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<MIMEAtom<'b>> {
-        let bytes = arbitrary_vec_where(u, is_mime_atom_text)?;
+        let bytes = arbitrary_vec_nonempty_where(u, is_mime_atom_text, b'X')?;
         Ok(MIMEAtom(Cow::Owned(bytes)))
     }
 }
@@ -93,7 +93,7 @@ pub fn mime_atom_plain(input: &[u8]) -> IResult<&[u8], MIMEAtom<'_>> {
 }
 
 /// An IMF atom.
-// Only contains bytes that satisfy `is_atext`.
+// Contains a non-zero amount of bytes that satisfy `is_atext`.
 #[derive(Clone, PartialEq, ToStatic)]
 pub struct Atom<'a>(pub Cow<'a, [u8]>);
 
@@ -112,7 +112,7 @@ impl<'a> Print for Atom<'a> {
 #[cfg(feature = "arbitrary")]
 impl<'a> Arbitrary<'a> for Atom<'a> {
     fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Atom<'a>> {
-        let bytes = arbitrary_vec_where(u, is_atext)?;
+        let bytes = arbitrary_vec_nonempty_where(u, is_atext, b'X')?;
         Ok(Atom(Cow::Owned(bytes)))
     }
 }
@@ -179,7 +179,11 @@ impl<'a> Print for DotAtom<'a> {
 #[cfg(feature = "arbitrary")]
 impl<'a> Arbitrary<'a> for DotAtom<'a> {
     fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<DotAtom<'a>> {
-        let bytes = arbitrary_vec_where(u, |b| is_atext(b) || b == b'.')?;
+        let mut bytes = arbitrary_vec_nonempty_where(u, is_atext, b'X')?;
+        for _ in 0..u.int_in_range(0..=3)? {
+            bytes.push(b'.');
+            bytes.extend(arbitrary_vec_nonempty_where(u, is_atext, b'X')?.into_iter());
+        }
         Ok(DotAtom(Cow::Owned(bytes)))
     }
 }

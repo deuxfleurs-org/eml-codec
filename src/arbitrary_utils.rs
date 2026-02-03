@@ -20,6 +20,18 @@ where
     Ok(v)
 }
 
+pub fn arbitrary_vec_nonempty_where<'a, F, T>(u: &mut Unstructured<'a>, pred: F, default: T) -> Result<Vec<T>>
+where
+    F: Fn(T) -> bool,
+    T: Arbitrary<'a> + Copy
+{
+    let mut v = arbitrary_vec_where(u, pred)?;
+    if v.is_empty() {
+        v.push(default)
+    }
+    Ok(v)
+}
+
 pub fn arbitrary_vec_nonempty<'a, T>(u: &mut Unstructured<'a>) -> Result<Vec<T>>
 where
     T: Arbitrary<'a>

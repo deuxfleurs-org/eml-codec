@@ -172,7 +172,7 @@ pub fn comment_body(input: &[u8]) -> IResult<&[u8], ()> {
         let (input, enter_subcomment) = alt((
             tag("(").map(|_| true),
             alt((
-                quoted_pair,
+                recognize(quoted_pair),
                 recognize(encoded_word_plain),
                 ctext,
             )).map(|_| false)

@@ -19,7 +19,7 @@ use std::io::Write;
 
 #[cfg(feature = "arbitrary")]
 use crate::{
-    arbitrary_utils::arbitrary_vec_where,
+    arbitrary_utils::{arbitrary_vec_nonempty, arbitrary_vec_where},
     fuzz_eq::FuzzEq,
 };
 use crate::print::{print_seq, Print, Formatter};
@@ -93,7 +93,7 @@ pub fn encoded_word_token_base64(input: &[u8]) -> IResult<&[u8], EncodedWordToke
 }
 
 #[derive(PartialEq, Debug, Clone, ToStatic)]
-#[cfg_attr(feature = "arbitrary", derive(Arbitrary))]
+// a non-empty list of tokens
 pub struct EncodedWord<'a>(pub Vec<EncodedWordToken<'a>>);
 
 impl<'a> EncodedWord<'a> {
@@ -107,6 +107,12 @@ impl<'a> Print for EncodedWord<'a> {
     }
 }
 
+#[cfg(feature = "arbitrary")]
+impl<'a> Arbitrary<'a> for EncodedWord<'a> {
+    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
+        Ok(EncodedWord(arbitrary_vec_nonempty(u)?))
+    }
+}
 #[cfg(feature = "arbitrary")]
 impl<'a> FuzzEq for EncodedWord<'a> {
     fn fuzz_eq(&self, other: &Self) -> bool {
@@ -315,8 +321,10 @@ where
     let mut buf: Vec<u8> = Vec::with_capacity(MAX_LEN);
     let mut char_bytes: [u8; 4] = [0; 4];
     let mut char_encoded: Vec<u8> = Vec::new();
+    let mut data_is_empty = true;
 
     for c in data {
+        data_is_empty = false;
         if c.is_ascii() && is_qchar_safe_strict(c as u8) {
             char_encoded.push(c as u8);
         } else if c == char::from(ascii::SP) {
@@ -345,11 +353,17 @@ where
         char_encoded.truncate(0);
     }
 
-    // write any leftover data in buf
-    if !buf.is_empty() {
+    if data_is_empty {
+        // output an empty encoded word
         fmt.write_bytes(HEADER);
-        fmt.write_bytes(&buf);
         fmt.write_bytes(FOOTER);
+    } else {
+        // write any leftover data in buf
+        if !buf.is_empty() {
+            fmt.write_bytes(HEADER);
+            fmt.write_bytes(&buf);
+            fmt.write_bytes(FOOTER);
+        }
     }
 }
 
@@ -480,6 +494,17 @@ mod tests {
         assert_eq!(
             out,
             b"=?UTF-8?Q?Accus=C3=A9_de_r=C3=A9ception_=28affich=C3=A9=29_Accus=C3=A9_de?=\r\n =?UTF-8?Q?_r=C3=A9ception_=28affich=C3=A9=29?="
+        );
+    }
+
+    #[test]
+    fn test_encode_empty() {
+        let out = with_formatter(|f| {
+            print_utf8_encoded(f, "".chars());
+        });
+        assert_eq!(
+            out,
+            b"=?UTF-8?Q??="
         );
     }
 }

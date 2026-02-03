@@ -16,7 +16,7 @@ use std::fmt;
 
 #[cfg(feature = "arbitrary")]
 use crate::{
-    arbitrary_utils::{arbitrary_fws, arbitrary_vec_nonempty, arbitrary_vec_where},
+    arbitrary_utils::{arbitrary_fws, arbitrary_vec_nonempty, arbitrary_vec_nonempty_where},
     fuzz_eq::FuzzEq,
 };
 use crate::print::{print_seq, Print, Formatter};
@@ -228,9 +228,11 @@ pub fn phrase_token(input: &[u8]) -> IResult<&[u8], PhraseToken<'_>> {
     ))(input)
 }
 
-// Must be a non-empty list
+// Must be a non-empty list.
+// MUST NOT contain consecutive `PhraseToken::Encoded` tokens (instead these
+// must be merged together as a single `PhraseToken::Encoded` token).
 #[derive(Clone, Debug, PartialEq, ToStatic)]
-#[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
+#[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
 pub struct Phrase<'a>(pub Vec<PhraseToken<'a>>);
 
 impl<'a> ToString for Phrase<'a> {
@@ -245,6 +247,27 @@ impl<'a> ToString for Phrase<'a> {
 impl<'a> Print for Phrase<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
         print_seq(fmt, &self.0, Formatter::write_fws)
+    }
+}
+#[cfg(feature = "arbitrary")]
+impl<'a> Arbitrary<'a> for Phrase<'a> {
+    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
+        let mut tokens = Vec::new();
+        let mut tok0: PhraseToken = u.arbitrary()?;
+        for _ in 0..u.arbitrary_len::<PhraseToken>()? {
+            let tok: PhraseToken = u.arbitrary()?;
+            match (&mut tok0, tok) {
+                (PhraseToken::Encoded(ref mut e0), PhraseToken::Encoded(e)) => {
+                    e0.0.extend(e.0.into_iter())
+                },
+                (_, tok) => {
+                    tokens.push(tok0);
+                    tok0 = tok
+                }
+            }
+        }
+        tokens.push(tok0);
+        Ok(Phrase(tokens))
     }
 }
 
@@ -371,13 +394,13 @@ impl<'a> Arbitrary<'a> for UnstrToken<'a> {
         match u.int_in_range(0..=3)? {
             0 => Ok(UnstrToken::Encoded(u.arbitrary()?)),
             1 => {
-                let txt = arbitrary_vec_where(u, is_vchar)?;
+                let txt = arbitrary_vec_nonempty_where(u, is_vchar, b'X')?;
                 Ok(UnstrToken::Plain(txt.into(), UnstrTxtKind::Txt))
             },
             2 => {
-                let txt = arbitrary_vec_where(u, |b| {
+                let txt = arbitrary_vec_nonempty_where(u, |b| {
                     is_obs_no_ws_ctl(b) || b == ascii::NULL
-                })?;
+                }, b'X')?;
                 Ok(UnstrToken::Plain(txt.into(), UnstrTxtKind::Obs))
             },
             3 => {
