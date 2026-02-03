@@ -99,11 +99,13 @@ impl<'a> Print for MailboxRef<'a> {
     }
 }
 
-pub type MailboxList<'a> = Vec<MailboxRef<'a>>;
+/// A non-empty list of mailboxes.
+#[derive(Clone, Debug, PartialEq, ToStatic)]
+pub struct MailboxList<'a>(pub Vec<MailboxRef<'a>>);
 
 impl<'a> Print for MailboxList<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
-        print_seq(fmt, self, |fmt| {
+        print_seq(fmt, &self.0, |fmt| {
             fmt.write_bytes(b",");
             fmt.write_fws()
         })
@@ -125,12 +127,12 @@ pub fn mailbox(input: &[u8]) -> IResult<&[u8], MailboxRef<'_>> {
 ///    mailbox-list    =   (mailbox *("," mailbox)) / obs-mbox-list
 ///    obs-mbox-list   =   *([CFWS] ",") mailbox *("," [mailbox / CFWS])
 /// ```
-pub fn mailbox_list(input: &[u8]) -> IResult<&[u8], Vec<MailboxRef<'_>>> {
-    map_opt(mailbox_list_nullable, |v| (!v.is_empty()).then_some(v))(input)
+pub fn mailbox_list(input: &[u8]) -> IResult<&[u8], MailboxList<'_>> {
+    map_opt(mailbox_list_nullable, |mlist| mlist)(input)
 }
 
 // mailbox-list but allows the list to only contain "null" elements
-pub(crate) fn mailbox_list_nullable(input: &[u8]) -> IResult<&[u8], Vec<MailboxRef<'_>>> {
+pub(crate) fn mailbox_list_nullable(input: &[u8]) -> IResult<&[u8], Option<MailboxList<'_>>> {
     map(
         separated_list1(
             tag(","),
@@ -139,7 +141,14 @@ pub(crate) fn mailbox_list_nullable(input: &[u8]) -> IResult<&[u8], Vec<MailboxR
                 map(opt(cfws), |_| None),
             ))
         ),
-        |v: Vec<Option<_>>| v.into_iter().flatten().collect()
+        |v: Vec<Option<_>>| {
+            let v: Vec<_> = v.into_iter().flatten().collect();
+            if v.is_empty() {
+                None
+            } else {
+                Some(MailboxList(v))
+            }
+        }
     )(input)
 }
 
