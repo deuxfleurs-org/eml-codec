@@ -53,7 +53,7 @@ pub enum Field<'a> {
     // 3.6.5.  Informational Fields
     Subject(Unstructured<'a>),
     Comments(Unstructured<'a>),
-    Keywords(PhraseList<'a>),
+    Keywords(Option<PhraseList<'a>>),
 
     // 3.6.6   Resent Fields (not implemented)
     // 3.6.7   Trace Fields

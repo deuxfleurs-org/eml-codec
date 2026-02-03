@@ -21,6 +21,7 @@ use crate::text::{
     words::{atom, is_vchar, mime_atom, Atom, MIMEAtom},
 };
 
+// A non-empty list of phrases.
 #[derive(Clone, Debug, PartialEq, Default, ToStatic)]
 pub struct PhraseList<'a>(pub Vec<Phrase<'a>>);
 
@@ -28,13 +29,23 @@ pub struct PhraseList<'a>(pub Vec<Phrase<'a>>);
 ///
 /// obs-phrase-list =   [phrase / CFWS] *("," [phrase / CFWS])
 ///
-pub fn phrase_list(input: &[u8]) -> IResult<&[u8], PhraseList<'_>> {
+/// where phrase-list (not defined explicitly in the RFC, but used in keywords):
+///
+/// phrase-list     = phrase *("," phrase)
+///
+/// We return an option to represent the empty-list case of the obsolete syntax;
+/// and in turn, a `PhraseList` is always non-empty.
+pub fn phrase_list(input: &[u8]) -> IResult<&[u8], Option<PhraseList<'_>>> {
     let (input, phrases_opt) = separated_list0(
         tag(","),
         alt((map(phrase, Some), map(opt(cfws), |_| None))),
     )(input)?;
     let phrases: Vec<Phrase> = phrases_opt.into_iter().flatten().collect();
-    Ok((input, PhraseList(phrases)))
+    if phrases.is_empty() {
+        Ok((input, None))
+    } else {
+        Ok((input, Some(PhraseList(phrases))))
+    }
 }
 impl<'a> Print for PhraseList<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
@@ -460,7 +471,7 @@ mod tests {
     fn test_phrase_list() {
         let (rest, parsed) = phrase_list(b",abc def,,   ,ghi").unwrap();
         assert_eq!(rest, &b""[..]);
-        let printed = with_formatter(|f| parsed.print(f));
+        let printed = with_formatter(|f| parsed.as_ref().unwrap().print(f));
         assert_eq!(printed, b"abc def, ghi");
     }
 }

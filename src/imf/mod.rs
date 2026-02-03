@@ -43,7 +43,7 @@ pub struct Imf<'a> {
     // 3.6.5.  Informational Fields
     pub subject: Option<Unstructured<'a>>,
     pub comments: Vec<Unstructured<'a>>,
-    pub keywords: Vec<PhraseList<'a>>, // must be non-empty
+    pub keywords: Vec<PhraseList<'a>>,
 
     // 3.6.6 Not implemented
     // 3.6.7 Trace Fields
@@ -283,12 +283,10 @@ impl<'a> PartialImf<'a> {
             Field::Keywords(kwds) => {
                 // the obs syntax allows empty phrase lists, but not
                 // the normal syntax. we drop them.
-                if !kwds.0.is_empty() {
+                if let Some(kwds) = kwds {
                     let idx = self.keywords.len();
                     self.keywords.push(kwds);
                     return Some(Entry::Keywords(idx))
-                } else {
-                    return None
                 }
             },
             Field::Received(received) => {
