@@ -15,7 +15,7 @@ pub struct Message<'a> {
     // not the default value.
     pub imf: imf::Imf<'a>,
     pub mime_body: part::MimeBody<'a>,
-    pub all_fields: Vec<MessageField<'a>>,
+    pub entries: Vec<MessageEntry<'a>>,
 }
 
 impl<'a> Print for Message<'a> {
@@ -31,11 +31,11 @@ impl<'a> Print for Message<'a> {
                 header::print(fmt, b"Received", rec)
             }
         }
-        for field in &self.all_fields {
-            match field {
-                MessageField::Unstructured(u) => u.print(fmt),
-                MessageField::MIME(f) => mime.print_field(*f, fmt),
-                MessageField::Imf(f) => self.imf.print_field(*f, fmt),
+        for entry in &self.entries {
+            match entry {
+                MessageEntry::Unstructured(u) => u.print(fmt),
+                MessageEntry::MIME(f) => mime.print_field(*f, fmt),
+                MessageEntry::Imf(f) => self.imf.print_field(*f, fmt),
             }
         }
         fmt.end_line_folding();
@@ -55,7 +55,7 @@ pub fn message<'a>(input: &'a [u8]) -> Message<'a> {
     Message {
         imf: fields.imf,
         mime_body,
-        all_fields: fields.all_fields,
+        entries: fields.entries,
     }
 }
 
@@ -71,7 +71,7 @@ pub fn imf<'a>(input: &'a [u8]) -> (&'a [u8], imf::Imf<'a>) {
 /// MIME-defined fields (RFC 2045),
 /// or an unstructured field.
 #[derive(Clone, Debug, PartialEq, ToStatic)]
-pub enum MessageField<'a> {
+pub enum MessageEntry<'a> {
     MIME(mime::field::Entry),
     Imf(imf::field::Entry),
     Unstructured(header::Unstructured<'a>),
@@ -81,20 +81,19 @@ pub enum MessageField<'a> {
 struct MessageFields<'a> {
     mime: mime::NaiveMIME<'a>,
     imf: imf::Imf<'a>,
-    // trace fields guaranteed to occur before all other IMF fields
-    all_fields: Vec<MessageField<'a>>,
+    entries: Vec<MessageEntry<'a>>,
 }
 
 impl<'a> FromIterator<header::FieldRaw<'a>> for MessageFields<'a> {
     fn from_iter<I: IntoIterator<Item = header::FieldRaw<'a>>>(it: I) -> Self {
         let mut mime = mime::NaiveMIME::default();
         let mut imf = imf::PartialImf::default();
-        let mut all_fields = vec![];
+        let mut entries = vec![];
         for f in it {
             match mime::field::Content::try_from(&f) {
                 Ok(mimef) => {
                     if let Some(entry) = mime.add_field(mimef) {
-                        all_fields.push(MessageField::MIME(entry))
+                        entries.push(MessageEntry::MIME(entry))
                     }; // otherwise drop the field
                     continue;
                 },
@@ -111,7 +110,7 @@ impl<'a> FromIterator<header::FieldRaw<'a>> for MessageFields<'a> {
             match imf::field::Field::try_from(&f) {
                 Ok(imff) => {
                     if let Some(entry) = imf.add_field(imff) {
-                        all_fields.push(MessageField::Imf(entry))
+                        entries.push(MessageEntry::Imf(entry))
                     }; // otherwise drop the field
                     continue;
                 },
@@ -126,19 +125,19 @@ impl<'a> FromIterator<header::FieldRaw<'a>> for MessageFields<'a> {
             }
 
             if let Some(u) = header::Unstructured::from_raw(f) {
-                all_fields.push(MessageField::Unstructured(u));
+                entries.push(MessageEntry::Unstructured(u));
             } // otherwise drop the field
         }
-        all_fields.extend(
+        entries.extend(
             imf.missing_mandatory_fields()
                .into_iter()
-               .map(MessageField::Imf)
+               .map(MessageEntry::Imf)
         );
 
         MessageFields {
             mime,
             imf: imf.to_imf(),
-            all_fields,
+            entries,
         }
     }
 }
@@ -156,7 +155,7 @@ mod tests {
     use crate::part::composite::Multipart;
     use crate::part::discrete::Text;
     use crate::part::{AnyPart, MimeBody};
-    use crate::part::field::EntityField;
+    use crate::part::field::EntityEntry;
     use crate::print::tests::with_formatter;
     use crate::text::charset::EmailCharset;
     use crate::text::encoding::{Base64Word, EncodedWord, EncodedWordToken, QuotedChunk, QuotedWord};
@@ -232,18 +231,18 @@ between the header information and the body of the message.";
                     }
                 );
 
-                let all_fields = vec![
-                    MessageField::Imf(imf::field::Entry::Date),
-                    MessageField::Imf(imf::field::Entry::From),
-                    MessageField::Imf(imf::field::Entry::To),
-                    MessageField::Imf(imf::field::Entry::Subject),
-                    MessageField::Imf(imf::field::Entry::MIMEVersion),
+                let entries = vec![
+                    MessageEntry::Imf(imf::field::Entry::Date),
+                    MessageEntry::Imf(imf::field::Entry::From),
+                    MessageEntry::Imf(imf::field::Entry::To),
+                    MessageEntry::Imf(imf::field::Entry::Subject),
+                    MessageEntry::Imf(imf::field::Entry::MIMEVersion),
                 ];
 
                 Message {
                     imf,
                     mime_body,
-                    all_fields,
+                    entries,
                 }
             }
         );
@@ -388,13 +387,13 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
 
                         imf
                     },
-                    all_fields: vec![
-                        MessageField::Imf(imf::field::Entry::Date),
-                        MessageField::Imf(imf::field::Entry::From),
-                        MessageField::Imf(imf::field::Entry::To),
-                        MessageField::Imf(imf::field::Entry::Cc),
-                        MessageField::Imf(imf::field::Entry::Subject),
-                        MessageField::Unstructured(
+                    entries: vec![
+                        MessageEntry::Imf(imf::field::Entry::Date),
+                        MessageEntry::Imf(imf::field::Entry::From),
+                        MessageEntry::Imf(imf::field::Entry::To),
+                        MessageEntry::Imf(imf::field::Entry::Cc),
+                        MessageEntry::Imf(imf::field::Entry::Subject),
+                        MessageEntry::Unstructured(
                             header::Unstructured(
                                 header::FieldName(b"X-Unknown"[..].into()),
                                 Unstructured(vec![
@@ -405,10 +404,10 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                                 ]),
                             )
                         ),
-                        MessageField::Imf(imf::field::Entry::MessageId),
-                        MessageField::Imf(imf::field::Entry::MIMEVersion),
-                        MessageField::MIME(mime::field::Entry::Type),
-                        MessageField::MIME(mime::field::Entry::TransferEncoding),
+                        MessageEntry::Imf(imf::field::Entry::MessageId),
+                        MessageEntry::Imf(imf::field::Entry::MIMEVersion),
+                        MessageEntry::MIME(mime::field::Entry::Type),
+                        MessageEntry::MIME(mime::field::Entry::TransferEncoding),
                     ],
                     mime_body: MimeBody::Mult(Multipart {
                         mime: mime::MIME {
@@ -426,9 +425,9 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                         epilogue: vec![].into(),
                         children: vec![
                             AnyPart {
-                                fields: vec![
-                                    EntityField::MIME(mime::field::Entry::Type),
-                                    EntityField::MIME(mime::field::Entry::TransferEncoding),
+                                entries: vec![
+                                    EntityEntry::MIME(mime::field::Entry::Type),
+                                    EntityEntry::MIME(mime::field::Entry::TransferEncoding),
                                 ],
                                 mime_body: MimeBody::Txt(Text {
                                     mime: mime::MIME {
@@ -446,15 +445,15 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                                 }),
                             },
                             AnyPart {
-                                fields: vec![
-                                    EntityField::Unstructured(header::Unstructured(
+                                entries: vec![
+                                    EntityEntry::Unstructured(header::Unstructured(
                                         header::FieldName(b"X-Custom".into()),
                                         Unstructured(vec![
                                             UnstrToken::from_plain(b" ", UnstrTxtKind::Fws),
                                             UnstrToken::from_plain(b"foobar", UnstrTxtKind::Txt),
                                         ])
                                     )),
-                                    EntityField::MIME(mime::field::Entry::Type),
+                                    EntityEntry::MIME(mime::field::Entry::Type),
                                 ],
                                 mime_body: MimeBody::Txt(Text {
                                     mime: mime::MIME {
@@ -550,23 +549,23 @@ hello??",
                     }
                 );
 
-                let all_fields = vec![
-                    MessageField::Unstructured(header::Unstructured(
+                let entries = vec![
+                    MessageEntry::Unstructured(header::Unstructured(
                         header::FieldName(b"hello".into()),
                         Unstructured(vec![
                             UnstrToken::from_plain(b" ", UnstrTxtKind::Fws),
                             UnstrToken::from_plain(b"yolo", UnstrTxtKind::Txt),
                         ])
                     )),
-                    MessageField::Imf(imf::field::Entry::Date),
-                    MessageField::Imf(imf::field::Entry::From),
-                    MessageField::Imf(imf::field::Entry::MIMEVersion),
+                    MessageEntry::Imf(imf::field::Entry::Date),
+                    MessageEntry::Imf(imf::field::Entry::From),
+                    MessageEntry::Imf(imf::field::Entry::MIMEVersion),
                 ];
 
                 Message {
                     imf,
                     mime_body,
-                    all_fields,
+                    entries,
                 }
             },
             b"hello: yolo\r

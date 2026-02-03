@@ -8,11 +8,11 @@ use crate::mime;
 #[derive(Debug, Default, PartialEq, ToStatic)]
 pub(crate) struct EntityFields<'a> {
     pub mime: mime::NaiveMIME<'a>,
-    pub all_fields: Vec<EntityField<'a>>,
+    pub entries: Vec<EntityEntry<'a>>,
 }
 
 #[derive(Clone, Debug, PartialEq, ToStatic)]
-pub enum EntityField<'a> {
+pub enum EntityEntry<'a> {
     MIME(mime::field::Entry),
     Unstructured(header::Unstructured<'a>),
 }
@@ -24,7 +24,7 @@ impl<'a> FromIterator<header::FieldRaw<'a>> for EntityFields<'a> {
             match mime::field::Content::try_from(&f) {
                 Ok(mimef) => {
                     if let Some(entry) = e.mime.add_field(mimef) {
-                        e.all_fields.push(EntityField::MIME(entry))
+                        e.entries.push(EntityEntry::MIME(entry))
                     }; // otherwise drop the field
                     continue;
                 },
@@ -39,7 +39,7 @@ impl<'a> FromIterator<header::FieldRaw<'a>> for EntityFields<'a> {
             };
 
             if let Some(u) = header::Unstructured::from_raw(f) {
-                e.all_fields.push(EntityField::Unstructured(u));
+                e.entries.push(EntityEntry::Unstructured(u));
             } // otherwise drop the field
         }
         e
