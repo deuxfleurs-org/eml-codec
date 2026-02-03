@@ -90,8 +90,6 @@ Current known limitations/bugs:
  - **Part transfer-decoding is not implemented yet**
  - **Internationalized headers (UTF-8) is not implemented yet**
  - Resent Header Fields are not implemented
- - Return-Path/Received headers might be hard to use as their order is important, and it's currently lost in the final datastructure.
- - Datetime parsing of invalid date might return `None` instead of falling back to the `bad_body` field
  - Comments contained in the email headers are dropped during parsing
  - No support is provided for message/external-body (read data from local computer) and message/partial (aggregate multiple fragmented emails) as they seem obsolete and dangerous to implement.
 
