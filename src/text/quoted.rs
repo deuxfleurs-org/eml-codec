@@ -6,25 +6,37 @@ use bounded_static::ToStatic;
 use nom::{
     branch::alt,
     bytes::complete::{tag, take, take_while1},
-    combinator::opt,
+    combinator::{map, opt},
     multi::many0,
     sequence::{pair, preceded},
     IResult,
 };
 use std::borrow::Cow;
+use std::fmt;
 
 #[cfg(feature = "arbitrary")]
-use crate::fuzz_eq::FuzzEq;
+use crate::{
+    arbitrary_utils::arbitrary_vec_where,
+    fuzz_eq::FuzzEq,
+};
 use crate::print::Formatter;
 use crate::text::ascii;
 use crate::text::whitespace::{cfws, fws, is_obs_no_ws_ctl};
 use crate::text::words::is_vchar;
 
-// A quoted string can hold arbitrary bytes.
-// TODO: add a debug impl that prints ASCII bytes as ASCII while escaping
-// non-ascii bytes
-#[derive(Debug, PartialEq, Default, Clone, ToStatic)]
+// A quoted string contains bytes that satisfy `is_vchar` or are in `ascii::WS`.
+#[derive(PartialEq, Default, Clone, ToStatic)]
 pub struct QuotedString<'a>(pub Vec<Cow<'a, [u8]>>);
+
+impl<'a> fmt::Debug for QuotedString<'a> {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt.debug_tuple("QuotedString")
+            .field(&self.0.iter()
+                   .map(|b| String::from_utf8_lossy(&b))
+                   .collect::<Vec<_>>())
+            .finish()
+    }
+}
 
 impl<'a> QuotedString<'a> {
     pub fn push(&mut self, e: &'a [u8]) {
@@ -55,7 +67,9 @@ impl<'a> Arbitrary<'a> for QuotedString<'a> {
     fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<QuotedString<'a>> {
         let mut chunks = Vec::new();
         u.arbitrary_loop(None, Some(10), |u| {
-            let bytes: Vec<u8> = u.arbitrary()?;
+            let bytes = arbitrary_vec_where(u, |b| {
+                is_vchar(b) || ascii::WS.contains(&b)
+            })?;
             chunks.push(Cow::Owned(bytes));
             Ok(ControlFlow::Continue(()))
         })?;
@@ -104,8 +118,21 @@ impl<'a, 'b> Iterator for QuotedStringBytes<'a, 'b> {
 /// ```
 /// We parse quoted pairs even more liberally, allowing any byte after
 /// the backslash.
-pub fn quoted_pair(input: &[u8]) -> IResult<&[u8], &[u8]> {
-    preceded(tag(&[ascii::BACKSLASH]), take(1usize))(input)
+///
+/// However, we only return `Some(_)` for quoted pairs that are valid
+/// according to the strict syntax; other quoted pairs cannot be printed
+/// back and wee chose to ignore them.
+pub fn quoted_pair(input: &[u8]) -> IResult<&[u8], Option<&[u8]>> {
+    preceded(
+        tag(&[ascii::BACKSLASH]),
+        map(take(1usize), |b: &[u8]| {
+            is_strict_quoted_pair(b[0]).then_some(b)
+        })
+    )(input)
+}
+
+fn is_strict_quoted_pair(b: u8) -> bool {
+    is_vchar(b) || ascii::WS.contains(&b)
 }
 
 /// Allowed characters in quote
@@ -116,14 +143,14 @@ pub fn quoted_pair(input: &[u8]) -> IResult<&[u8], &[u8]> {
 ///                       %d93-126 /         ;  "\" or the quote character
 ///                       obs-qtext
 /// ```
-fn is_restr_qtext(c: u8) -> bool {
+fn is_strict_qtext(c: u8) -> bool {
     c == ascii::EXCLAMATION
         || (ascii::NUM..=ascii::LEFT_BRACKET).contains(&c)
         || (ascii::RIGHT_BRACKET..=ascii::TILDE).contains(&c)
 }
 
-fn is_qtext(c: u8) -> bool {
-    is_restr_qtext(c) || is_obs_no_ws_ctl(c)
+fn is_obs_qtext(c: u8) -> bool {
+    is_obs_no_ws_ctl(c)
 }
 
 /// Quoted pair content
@@ -131,8 +158,15 @@ fn is_qtext(c: u8) -> bool {
 /// ```abnf
 ///   qcontent        =   qtext / quoted-pair
 /// ```
-fn qcontent(input: &[u8]) -> IResult<&[u8], &[u8]> {
-    alt((take_while1(is_qtext), quoted_pair))(input)
+///
+/// Like for `quoted_pair`, this supports the obsolete syntax but
+/// returns `None` in this case.
+fn qcontent(input: &[u8]) -> IResult<&[u8], Option<&[u8]>> {
+    alt((
+        map(take_while1(is_strict_qtext), Some),
+        map(take_while1(is_obs_qtext), |_| None),
+        quoted_pair,
+    ))(input)
 }
 
 /// Quoted string
@@ -146,25 +180,27 @@ pub fn quoted_string(input: &[u8]) -> IResult<&[u8], QuotedString<'_>> {
     let (input, _) = opt(cfws)(input)?;
     let (input, _) = tag("\"")(input)?;
     let (input, content) = many0(pair(opt(fws), qcontent))(input)?;
+    let (input, maybe_wsp) = opt(fws)(input)?;
+    let (input, _) = tag("\"")(input)?;
+    let (input, _) = opt(cfws)(input)?;
 
     // Rebuild string
     let mut qstring = content
         .iter()
         .fold(QuotedString::default(), |mut acc, (maybe_wsp, c)| {
-            if maybe_wsp.is_some() {
-                acc.push(&[ascii::SP]);
+            for wsp in maybe_wsp.into_iter().flat_map(|v| v.into_iter()) {
+                acc.push(wsp);
             }
-            acc.push(c);
+            if let Some(c) = c {
+                acc.push(c);
+            }
             acc
         });
 
-    let (input, maybe_wsp) = opt(fws)(input)?;
-    if maybe_wsp.is_some() {
-        qstring.push(&[ascii::SP]);
+    for wsp in maybe_wsp.into_iter().flat_map(|v| v.into_iter()) {
+        qstring.push(wsp);
     }
 
-    let (input, _) = tag("\"")(input)?;
-    let (input, _) = opt(cfws)(input)?;
     Ok((input, qstring))
 }
 
@@ -174,7 +210,7 @@ where
 {
     fmt.write_bytes(b"\"");
     for b in data.into_iter() {
-        if is_restr_qtext(b) {
+        if is_strict_qtext(b) {
             fmt.write_bytes(&[b]);
         } else if ascii::WS.contains(&b) {
             // NOTE: we can either output the whitespace as folding
@@ -186,6 +222,9 @@ where
         } else {
             // RFC5322 does not allow escaping bytes other than VCHAR in
             // quoted strings. We drop them.
+            // NOTE: this case shouldn't happen in practice, because
+            // non-displayable quoted pairs are already dropped during
+            // parsing...
             // TODO: return the invalid input bytes that were skipped.
             ()
         }
@@ -217,6 +256,16 @@ mod tests {
                     b"hello".into(),
                     vec![ascii::SP].into(),
                     b"world".into(),
+                ])
+            )),
+        );
+
+        assert_eq!(
+            quoted_string(b"\"\t\""),
+            Ok((
+                &b""[..],
+                QuotedString(vec![
+                    b"\t".into(),
                 ])
             )),
         );
