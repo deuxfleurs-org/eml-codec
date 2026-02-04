@@ -12,6 +12,7 @@ use nom::{
     IResult,
 };
 use std::borrow::Cow;
+use std::fmt;
 use std::io::Write;
 
 use crate::print::{print_seq, Print, Formatter};
@@ -117,10 +118,18 @@ impl<'a> Print for EncodedWordToken<'a> {
     }
 }
 
-#[derive(PartialEq, Debug, Clone, ToStatic)]
+#[derive(PartialEq, Clone, ToStatic)]
 pub struct Base64Word<'a> {
     pub enc: EmailCharset,
     pub content: Cow<'a, [u8]>,
+}
+impl<'a> fmt::Debug for Base64Word<'a> {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt.debug_struct("Base64Word")
+            .field("enc", &self.enc)
+            .field("content", &String::from_utf8_lossy(&self.content))
+            .finish()
+    }
 }
 
 impl<'a> Base64Word<'a> {
@@ -157,11 +166,28 @@ impl<'a> QuotedWord<'a> {
     }
 }
 
-#[derive(PartialEq, Debug, Clone, ToStatic)]
+#[derive(PartialEq, Clone, ToStatic)]
 pub enum QuotedChunk<'a> {
     Safe(Cow<'a, [u8]>),
     Encoded(Vec<u8>),
     Space,
+}
+impl<'a> fmt::Debug for QuotedChunk<'a> {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            QuotedChunk::Safe(b) =>
+                fmt.debug_tuple("QuotedChunk::Safe")
+                   .field(&String::from_utf8_lossy(&b))
+                   .finish(),
+            QuotedChunk::Encoded(e) =>
+                fmt.debug_tuple("QuotedChunk::Encoded")
+                   .field(e)
+                   .finish(),
+            QuotedChunk::Space =>
+                fmt.debug_tuple("QuotedChunk::Space")
+                   .finish(),
+        }
+    }
 }
 
 //quoted_printable

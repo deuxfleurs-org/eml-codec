@@ -8,7 +8,6 @@ pub mod mechanism;
 pub mod r#type;
 
 use bounded_static::ToStatic;
-use std::fmt;
 
 use crate::header;
 use crate::imf::identification::MessageID;
@@ -19,20 +18,11 @@ use crate::print::Formatter;
 use crate::text::misc_token::Unstructured;
 use crate::utils::{Deductible, set_opt};
 
-#[derive(Default, PartialEq, Clone, ToStatic)]
+#[derive(Debug, Default, PartialEq, Clone, ToStatic)]
 pub struct CommonMIME<'a> {
     pub transfer_encoding: Deductible<Mechanism<'a>>,
     pub id: Option<MessageID<'a>>,
     pub description: Option<Unstructured<'a>>,
-}
-impl<'a> fmt::Debug for CommonMIME<'a> {
-    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt.debug_struct("CommonMIME")
-            .field("transfer_encoding", &self.transfer_encoding)
-            .field("id", &self.id)
-            .field("description", &self.description)
-            .finish()
-    }
 }
 
 #[derive(Debug, PartialEq, Clone, ToStatic)]

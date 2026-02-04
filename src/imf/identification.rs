@@ -7,14 +7,13 @@ use nom::{
     sequence::{delimited, pair, tuple},
     IResult,
 };
-use std::fmt;
 
 use crate::print::{print_seq, Print, Formatter};
 use crate::imf::mailbox::{dtext, Dtext};
 use crate::text::whitespace::cfws;
 use crate::text::words::{dot_atom_text, DotAtom};
 
-#[derive(PartialEq, Clone, ToStatic)]
+#[derive(Clone, Debug, PartialEq, ToStatic)]
 pub struct MessageID<'a> {
     pub left: DotAtom<'a>,
     pub right: MessageIDRight<'a>,
@@ -26,13 +25,6 @@ impl<'a> ToString for MessageID<'a> {
             String::from_utf8_lossy(&self.left.0),
             &self.right.to_string(),
         )
-    }
-}
-impl<'a> fmt::Debug for MessageID<'a> {
-    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt.debug_tuple("MessageID")
-            .field(&format_args!("\"{}\"", self.to_string()))
-            .finish()
     }
 }
 // TODO: drop obs parts (when implemented?)
@@ -78,7 +70,7 @@ fn id_left(input: &[u8]) -> IResult<&[u8], DotAtom<'_>> {
     dot_atom_text(input)
 }
 
-#[derive(Clone, PartialEq, ToStatic)]
+#[derive(Clone, Debug, PartialEq, ToStatic)]
 pub enum MessageIDRight<'a> {
     DotAtom(DotAtom<'a>),
     Literal(Dtext<'a>),
@@ -89,13 +81,6 @@ impl<'a> ToString for MessageIDRight<'a> {
             MessageIDRight::DotAtom(a) => String::from_utf8_lossy(&a.0).to_string(),
             MessageIDRight::Literal(dt) => dt.to_string(),
         }
-    }
-}
-impl<'a> fmt::Debug for MessageIDRight<'a> {
-    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt.debug_tuple("MessageIDRight")
-            .field(&format_args!("\"{}\"", self.to_string()))
-            .finish()
     }
 }
 impl<'a> Print for MessageIDRight<'a> {

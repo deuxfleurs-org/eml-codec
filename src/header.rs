@@ -25,7 +25,7 @@ impl<'a> FieldName<'a> {
 }
 impl<'a> fmt::Debug for FieldName<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt.debug_tuple("header::FieldName")
+        fmt.debug_tuple("FieldName")
             .field(&String::from_utf8_lossy(&self.0))
             .finish()
     }

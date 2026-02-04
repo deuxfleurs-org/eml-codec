@@ -101,7 +101,7 @@ pub fn multipart<'a>(
 
 //--- Message
 
-#[derive(Clone, PartialEq, ToStatic)]
+#[derive(Clone, Debug, PartialEq, ToStatic)]
 pub struct Message<'a> {
     pub mime: mime::MIME<'a, mime::r#type::Message<'a>>,
 
@@ -122,14 +122,6 @@ pub struct Message<'a> {
     // of information, so further parsing is possible, just not zero-copy
     // anymore.
     pub child: Box<AnyPart<'a>>,
-}
-impl<'a> fmt::Debug for Message<'a> {
-    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt.debug_struct("part::Message")
-            .field("mime", &self.mime)
-            .field("child", &self.child)
-            .finish()
-    }
 }
 
 /// Parse an embedded message.

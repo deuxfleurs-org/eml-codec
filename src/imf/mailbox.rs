@@ -17,7 +17,7 @@ use crate::text::quoted::print_quoted;
 use crate::text::whitespace::{cfws, fws, is_obs_no_ws_ctl};
 use crate::text::words::{dot_atom_text, atom, Atom};
 
-#[derive(Clone, PartialEq, ToStatic)]
+#[derive(Clone, Debug, PartialEq, ToStatic)]
 pub struct AddrSpec<'a> {
     pub local_part: LocalPart<'a>,
     pub domain: Domain<'a>,
@@ -29,13 +29,6 @@ impl<'a> ToString for AddrSpec<'a> {
             self.local_part.to_string(),
             self.domain.to_string()
         )
-    }
-}
-impl<'a> fmt::Debug for AddrSpec<'a> {
-    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt.debug_tuple("AddrSpec")
-            .field(&format_args!("\"{}\"", self.to_string()))
-            .finish()
     }
 }
 impl<'a> Print for AddrSpec<'a> {
@@ -291,7 +284,7 @@ fn obs_local_part(input: &[u8]) -> IResult<&[u8], LocalPart<'_>> {
     )(input)
 }
 
-#[derive(Clone, PartialEq, ToStatic)]
+#[derive(Clone, Debug, PartialEq, ToStatic)]
 pub enum Domain<'a> {
     Atoms(Vec<Atom<'a>>),
     Literal(Vec<Dtext<'a>>),
@@ -319,13 +312,6 @@ impl<'a> ToString for Domain<'a> {
                 format!("[{}]", inner)
             }
         }
-    }
-}
-impl<'a> fmt::Debug for Domain<'a> {
-    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt.debug_tuple("Domain")
-            .field(&format_args!("\"{}\"", self.to_string()))
-            .finish()
     }
 }
 
@@ -400,7 +386,7 @@ impl<'a> ToString for Dtext<'a> {
 impl<'a> fmt::Debug for Dtext<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt.debug_tuple("Dtext")
-            .field(&format_args!("\"{}\"", self.to_string()))
+            .field(&String::from_utf8_lossy(&self.0))
             .finish()
     }
 }

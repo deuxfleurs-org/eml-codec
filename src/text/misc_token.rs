@@ -104,7 +104,7 @@ impl<'a> Print for MIMEWord<'a> {
     }
 }
 
-#[derive(Clone, PartialEq, ToStatic)]
+#[derive(Clone, Debug, PartialEq, ToStatic)]
 pub enum Word<'a> {
     Quoted(QuotedString<'a>),
     Atom(Atom<'a>),
@@ -119,13 +119,6 @@ impl<'a> ToString for Word<'a> {
                 .0
                 .to_string(),
         }
-    }
-}
-impl<'a> fmt::Debug for Word<'a> {
-    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt.debug_tuple("Word")
-            .field(&format_args!("\"{}\"", self.to_string()))
-            .finish()
     }
 }
 
@@ -174,7 +167,7 @@ pub fn word(input: &[u8]) -> IResult<&[u8], Word<'_>> {
     ))(input)
 }
 
-#[derive(Clone, PartialEq, ToStatic)]
+#[derive(Clone, Debug, PartialEq, ToStatic)]
 pub enum PhraseToken<'a> {
     Word(Word<'a>),
     Encoded(encoding::EncodedWord<'a>),
@@ -185,13 +178,6 @@ impl<'a> ToString for PhraseToken<'a> {
             PhraseToken::Word(w) => w.to_string(),
             PhraseToken::Encoded(e) => e.to_string(),
         }
-    }
-}
-impl<'a> fmt::Debug for PhraseToken<'a> {
-    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt.debug_tuple("PhraseToken")
-            .field(&format_args!("\"{}\"", self.to_string()))
-            .finish()
     }
 }
 impl<'a> Print for PhraseToken<'a> {
@@ -225,7 +211,7 @@ pub fn phrase_token(input: &[u8]) -> IResult<&[u8], PhraseToken<'_>> {
 }
 
 // Must be a non-empty list
-#[derive(Clone, PartialEq, ToStatic)]
+#[derive(Clone, Debug, PartialEq, ToStatic)]
 pub struct Phrase<'a>(pub Vec<PhraseToken<'a>>);
 
 impl<'a> ToString for Phrase<'a> {
@@ -237,14 +223,6 @@ impl<'a> ToString for Phrase<'a> {
             .join(" ")
     }
 }
-impl<'a> fmt::Debug for Phrase<'a> {
-    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt.debug_tuple("Phrase")
-            .field(&format_args!("\"{}\"", self.to_string()))
-            .finish()
-    }
-}
-
 impl<'a> Print for Phrase<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
         print_seq(fmt, &self.0, Formatter::write_fws)

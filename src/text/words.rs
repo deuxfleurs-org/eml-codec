@@ -25,7 +25,9 @@ pub struct MIMEAtom<'a>(pub Cow<'a, [u8]>);
 
 impl<'a> fmt::Debug for MIMEAtom<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(fmt, "{}", &String::from_utf8_lossy(&self.0))
+        fmt.debug_tuple("MIMEAtom")
+            .field(&String::from_utf8_lossy(&self.0))
+            .finish()
     }
 }
 impl<'a> Print for MIMEAtom<'a> {
@@ -78,7 +80,9 @@ pub struct Atom<'a>(pub Cow<'a, [u8]>);
 
 impl<'a> fmt::Debug for Atom<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(fmt, "{}", &String::from_utf8_lossy(&self.0))
+        fmt.debug_tuple("Atom")
+            .field(&String::from_utf8_lossy(&self.0))
+            .finish()
     }
 }
 impl<'a> Print for Atom<'a> {
@@ -130,7 +134,9 @@ pub struct DotAtom<'a>(pub Cow<'a, [u8]>);
 
 impl<'a> fmt::Debug for DotAtom<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(fmt, "{}", &String::from_utf8_lossy(&self.0))
+        fmt.debug_tuple("DotAtom")
+            .field(&String::from_utf8_lossy(&self.0))
+            .finish()
     }
 }
 impl<'a> Print for DotAtom<'a> {
