@@ -320,9 +320,9 @@ fn obs_utext_token<'a>(input: &'a [u8]) -> IResult<&'a [u8], UtextToken<'a>> {
 
 #[derive(Debug, PartialEq, Clone, ToStatic)]
 pub enum UnstrTxtKind {
-    Txt,
-    Obs,
-    Fws,
+    Txt, // non-space text
+    Obs, // non-space text using obsolete characters
+    Fws, // whitespace
 }
 
 #[derive(PartialEq, Clone, ToStatic)]
@@ -480,7 +480,7 @@ pub fn unstructured(input: &[u8]) -> IResult<&[u8], Unstructured<'_>> {
         tokens.extend(toks);
     }
     if !wsp0.is_empty() {
-        tokens.push(UnstrToken::from_plain(wsp0, UnstrTxtKind::Txt))
+        tokens.push(UnstrToken::from_plain(wsp0, UnstrTxtKind::Fws))
     }
 
     Ok((input, Unstructured(tokens)))
@@ -525,5 +525,9 @@ mod tests {
         let (rest, parsed) = unstructured(b"").unwrap();
         assert_eq!(rest, &b""[..]);
         assert_eq!(parsed, Unstructured(vec![]));
+
+        let (rest, parsed) = unstructured(b" \t").unwrap();
+        assert_eq!(rest, &b""[..]);
+        assert_eq!(parsed, Unstructured(vec![UnstrToken::Plain(b" \t"[..].into(), UnstrTxtKind::Fws)]));
     }
 }
