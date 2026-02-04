@@ -69,6 +69,7 @@ pub enum Field<'a> {
     MIMEVersion(Version),
 }
 
+#[derive(Debug, Clone, Copy)]
 pub enum InvalidField {
     Name,
     Body,

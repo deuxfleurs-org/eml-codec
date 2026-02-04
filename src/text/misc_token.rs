@@ -519,4 +519,11 @@ mod tests {
         let printed = with_formatter(|f| parsed.as_ref().unwrap().print(f));
         assert_eq!(printed, b"abc def, ghi");
     }
+
+    #[test]
+    fn test_unstructured() {
+        let (rest, parsed) = unstructured(b"").unwrap();
+        assert_eq!(rest, &b""[..]);
+        assert_eq!(parsed, Unstructured(vec![]));
+    }
 }

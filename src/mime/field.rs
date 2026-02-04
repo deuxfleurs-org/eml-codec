@@ -53,6 +53,7 @@ impl<'a> Content<'a> {
     }
 }
 
+#[derive(Clone, Copy, Debug)]
 pub enum InvalidField {
     Name,
     Body,
