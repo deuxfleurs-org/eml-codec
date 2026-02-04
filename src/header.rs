@@ -87,7 +87,7 @@ impl<'a> fmt::Debug for FieldRaw<'a> {
 /// Parse headers as raw key/values.
 /// Stop at an empty line or at EOF.
 pub fn header_kv(input: &[u8]) -> (&[u8], Vec<FieldRaw<'_>>) {
-    // SAFETY: both `field_raw` and `foldable_line` only accept non-empty inputs
+    // SAFETY: `field_raw_opt` only accepts non-empty inputs
     let (input, mut fields) = many0(field_raw_opt)(input).unwrap();
     // SAFETY: `rest` (last case) always succeeds.
     let (input, terminator) = alt((
@@ -113,7 +113,10 @@ pub fn header_kv(input: &[u8]) -> (&[u8], Vec<FieldRaw<'_>>) {
 // NOTE: field_raw only recognizes non-empty inputs.
 fn field_raw(input: &[u8]) -> IResult<&[u8], FieldRaw<'_>> {
     map(
-        pair(field_name, foldable_line),
+        pair(field_name, alt((
+            foldable_line, // NB: foldable_line does not recognizes empty lines
+            map(obs_crlf, |_| &b""[..]),
+        ))),
         |(name, body)| FieldRaw { name, body }
     )(input)
 }
@@ -202,6 +205,16 @@ mod tests {
             FieldRaw {
                 name: FieldName(b"X-Unknown".into()),
                 body: &b" something something"[..],
+            }
+        );
+
+        let (rest, f) = field_raw(b"X-Foo:\r\n").unwrap();
+        assert!(rest.is_empty());
+        assert_eq!(
+            f,
+            FieldRaw {
+                name: FieldName(b"X-Foo".into()),
+                body: &b""[..],
             }
         );
     }
