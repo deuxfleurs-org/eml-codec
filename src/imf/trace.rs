@@ -96,8 +96,8 @@ impl<'a> TryFrom<&'a lazy::ReceivedLog<'a>> for ReceivedLog<'a> {
 
 pub fn received_log(input: &[u8]) -> IResult<&[u8], ReceivedLog<'_>> {
     map(
-        tuple((many0(received_tokens), tag(";"), datetime::date_time)),
-        |(tokens, _, dt)| ReceivedLog {
+        tuple((many0(received_tokens), opt(whitespace::cfws), tag(";"), datetime::date_time)),
+        |(tokens, _, _, dt)| ReceivedLog {
             log: tokens,
             date: dt,
         },
@@ -140,6 +140,26 @@ mod tests {
     use crate::imf::trace::misc_token::Word;
     use crate::text::words::Atom;
     use chrono::{FixedOffset, TimeZone};
+
+    #[test]
+    fn test_received_body_no_log() {
+        assert_eq!(
+            received_log(b" ; 31 Dec 1969 00:01:00 +0000"),
+            Ok((
+                &b""[..],
+                ReceivedLog {
+                    date:
+                    datetime::DateTime(
+                        FixedOffset::east_opt(0)
+                            .unwrap()
+                            .with_ymd_and_hms(1969, 12, 31, 0, 1, 0)
+                            .unwrap()
+                    ),
+                    log: vec![],
+                }
+            ))
+        )
+    }
 
     #[test]
     fn test_received_body() {
