@@ -16,7 +16,7 @@ use std::fmt;
 
 #[cfg(feature = "arbitrary")]
 use crate::{
-    arbitrary_utils::{arbitrary_fws, arbitrary_vec_nonempty, arbitrary_vec_nonempty_where},
+    arbitrary_utils::{arbitrary_whitespace, arbitrary_vec_nonempty, arbitrary_vec_nonempty_where},
     fuzz_eq::FuzzEq,
 };
 use crate::print::{print_seq, Print, Formatter};
@@ -404,7 +404,7 @@ impl<'a> Arbitrary<'a> for UnstrToken<'a> {
                 Ok(UnstrToken::Plain(txt.into(), UnstrTxtKind::Obs))
             },
             3 => {
-                let txt = arbitrary_fws(u)?;
+                let txt = arbitrary_whitespace(u)?;
                 Ok(UnstrToken::Plain(txt.into(), UnstrTxtKind::Fws))
             },
             _ => unreachable!(),

@@ -1,5 +1,4 @@
 use arbitrary::{Arbitrary, Unstructured, Result};
-use std::ops::ControlFlow;
 use crate::text::ascii;
 
 pub fn arbitrary_vec_where<'a, F, T>(u: &mut Unstructured<'a>, pred: F) -> Result<Vec<T>>
@@ -41,18 +40,11 @@ where
     Ok(v)
 }
 
-// generate simple FWS and obs-FWS
-pub fn arbitrary_fws(u: &mut Unstructured) -> Result<Vec<u8>> {
+pub fn arbitrary_whitespace(u: &mut Unstructured) -> Result<Vec<u8>> {
     let mut v = Vec::new();
-    u.arbitrary_loop(Some(1), Some(3), |u| {
-        if u.arbitrary()? {
-            v.extend(ascii::CRLF)
-        }
-        for _ in 0..u.int_in_range(1..=4)? {
-            v.push(b' ')
-        }
-        Ok(ControlFlow::Continue(()))
-    })?;
+    for r in u.arbitrary_iter()? {
+        v.push(if r? { ascii::SP } else { ascii::HT });
+    }
     Ok(v)
 }
 
