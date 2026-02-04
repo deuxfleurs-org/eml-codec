@@ -60,15 +60,34 @@ pub struct Imf<'a> {
 }
 
 #[derive(Clone, Debug, PartialEq, ToStatic)]
-#[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
+#[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
 pub enum From<'a> {
     Single {
         from: MailboxRef<'a>,
         sender: Option<MailboxRef<'a>>,
     },
     Multiple {
-        from: MailboxList<'a>,
+        from: MailboxList<'a>, // must contain at least two elements
         sender: MailboxRef<'a>,
+    }
+}
+
+#[cfg(feature = "arbitrary")]
+impl<'a> Arbitrary<'a> for From<'a> {
+    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
+        if u.arbitrary()? {
+            Ok(From::Single {
+                from: u.arbitrary()?,
+                sender: u.arbitrary()?,
+            })
+        } else {
+            let mut from: MailboxList = u.arbitrary()?;
+            from.0.push(u.arbitrary()?);
+            Ok(From::Multiple {
+                from,
+                sender: u.arbitrary()?,
+            })
+        }
     }
 }
 
