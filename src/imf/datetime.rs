@@ -92,8 +92,12 @@ impl ToBoundedStatic for DateTime {
 #[cfg(feature = "arbitrary")]
 impl<'a> Arbitrary<'a> for DateTime {
     fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
-        let d: chrono::DateTime<FixedOffset> = u.arbitrary()?;
-        if d.year() < 1900 || d.offset().local_minus_utc().rem_euclid(3600) != 0 {
+        let timestamp: i64 = u.arbitrary()?;
+        let d = chrono::DateTime::from_timestamp_secs(timestamp).ok_or(arbitrary::Error::IncorrectFormat)?;
+        let tz_mins = u.int_in_range(-24 * 60 + 1 ..= 24 * 60 - 1)?;
+        let tz = FixedOffset::east_opt(tz_mins * 60).unwrap();
+        let d: chrono::DateTime<FixedOffset> = d.with_timezone(&tz);
+        if d.year() < 1900 {
             Ok(DateTime(chrono::DateTime::UNIX_EPOCH.into()))
         } else {
             Ok(DateTime(d))
