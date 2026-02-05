@@ -26,6 +26,8 @@ println!(
 
 [See more examples in the examples/ folder](./examples/)
 
+### Email roundtrip
+
 The provided `eml_parse` binary can be used to test email parsing and printing.
 The binary takes parses its standard input as an email (on a best-effort basis),
 and reprints the parsed email on its standard output. It also prints a debugging
