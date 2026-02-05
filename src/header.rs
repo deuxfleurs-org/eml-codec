@@ -3,7 +3,7 @@ use nom::{
     branch::alt,
     bytes::complete::{tag, take_while1},
     character::complete::space0,
-    combinator::{all_consuming, eof, into},
+    combinator::{all_consuming, eof, map, rest},
     multi::many0,
     sequence::{pair, terminated, tuple},
     IResult, Parser,
@@ -50,49 +50,66 @@ impl<'a> Print for FieldName<'a> {
 // - `Bad` corresponds to a header field that could not be split into a name and
 // body; it basically contains arbitrary data.
 #[derive(PartialEq, Clone)]
-pub enum FieldRaw<'a> {
-    Good(FieldName<'a>, &'a [u8]),
-    Bad(&'a [u8]),
+pub struct FieldRaw<'a> {
+    pub name: FieldName<'a>,
+    pub body: &'a [u8],
 }
 impl<'a> fmt::Debug for FieldRaw<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            FieldRaw::Good(name, body) => fmt
-                .debug_tuple("header::FieldRaw::Good")
-                .field(name)
-                .field(&String::from_utf8_lossy(body))
-                .finish(),
-            FieldRaw::Bad(s) => fmt.debug_tuple("header::FieldRaw::Bad").field(s).finish(),
-        }
-    }
-}
-impl<'a> From<(FieldName<'a>, &'a [u8])> for FieldRaw<'a> {
-    fn from(p: (FieldName<'a>, &'a [u8])) -> Self {
-        Self::Good(p.0, p.1)
-    }
-}
-impl<'a> From<&'a [u8]> for FieldRaw<'a> {
-    fn from(bad: &'a [u8]) -> Self {
-        Self::Bad(bad)
+        fmt
+            .debug_struct("header::FieldRaw")
+            .field("name", &self.name)
+            .field("body", &String::from_utf8_lossy(&self.body))
+            .finish()
     }
 }
 
-/// Parse headers as raw key/values
-pub fn header_kv(input: &[u8]) -> IResult<&[u8], Vec<FieldRaw<'_>>> {
-    terminated(
-        many0(field_raw),
-        // the CRLF is optional if there is no body following the headers
-        alt((eof, obs_crlf))
+/// Parse headers as raw key/values.
+/// Stop at an empty line or at EOF.
+pub fn header_kv(input: &[u8]) -> (&[u8], Vec<FieldRaw<'_>>) {
+    // SAFETY: both `field_raw` and `foldable_line` only accept non-empty inputs
+    let (input, mut fields) = many0(field_raw_opt)(input).unwrap();
+    // SAFETY: `rest` (last case) always succeeds.
+    let (input, terminator) = alt((
+        // empty line
+        map(obs_crlf, |_| None),
+        // The empty line is optional if there is no body following the headers,
+        // so we must also accept EOF.
+        map(eof, |_| None),
+        // For best-effort parsing, we also try to parse any remaining bytes before
+        // EOF (as if EOF was a CRLF).
+        map(pair(field_name, rest), |(name, body)| Some(FieldRaw { name, body })),
+        map(rest, |_| None),
+    ))(input).unwrap();
+
+    fields.push(terminator);
+
+    // drop `None`s ("bad" fields)
+    let fields = fields.into_iter().filter_map(|f| f).collect();
+
+    (input, fields)
+}
+
+// NOTE: field_raw only recognizes non-empty inputs.
+fn field_raw(input: &[u8]) -> IResult<&[u8], FieldRaw<'_>> {
+    map(
+        pair(field_name, foldable_line),
+        |(name, body)| FieldRaw { name, body }
     )(input)
 }
 
-// NOTE: foldable_line is always non-empty; this is important so that
-// it does not consume the final empty line (obs_crlf) that terminates
-// `header_kv`.
-pub fn field_raw(input: &[u8]) -> IResult<&[u8], FieldRaw<'_>> {
+// A best-effort version of `field_raw` that also recognizes lines that cannot
+// be parsed as a field name and body. (It returns `None` in this case.)
+// NOTE: `field_raw_opt` only recognizes non-empty inputs.
+// NOTE: furthermore, in the "best effort" case, `foldable_line` always
+// recognizes non-empty lines; this is important so that it does not consume the
+// final empty line (obs_crlf) that terminates `header_kv`.
+fn field_raw_opt(input: &[u8]) -> IResult<&[u8], Option<FieldRaw<'_>>> {
     alt((
-        into(pair(field_name, foldable_line)), // good
-        into(foldable_line),                   // bad
+        map(field_raw, Some),
+        // best-effort: a foldable line that cannot even be parsed as a field name
+        // and body. We drop it afterwards.
+        map(foldable_line, |_| None),
     ))(input)
 }
 
@@ -119,14 +136,9 @@ pub struct Unstructured<'a>(pub FieldName<'a>, pub misc_token::Unstructured<'a>)
 
 impl<'a> Unstructured<'a> {
     // TODO: don't throw away the errors
-    pub fn from_raw(h: FieldRaw<'a>) -> Option<Unstructured<'a>> {
-        match h {
-            FieldRaw::Bad(_) => None,
-            FieldRaw::Good(name, body) => {
-                let (_, body) = all_consuming(misc_token::unstructured)(body).ok()?;
-                Some(Unstructured(name, body))
-            }
-        }
+    pub fn from_raw(f: FieldRaw<'a>) -> Option<Unstructured<'a>> {
+        let (_, body) = all_consuming(misc_token::unstructured)(f.body).ok()?;
+        Some(Unstructured(f.name, body))
     }
 }
 impl<'a> Print for Unstructured<'a> {
@@ -163,14 +175,20 @@ mod tests {
         assert!(rest.is_empty());
         assert_eq!(
             f,
-            (FieldName(b"X-Unknown".into()), &b" something something"[..]).into()
+            FieldRaw {
+                name: FieldName(b"X-Unknown".into()),
+                body: &b" something something"[..],
+            }
         );
     }
 
     #[test]
     fn test_unstructured() {
         let u = Unstructured::from_raw(
-            (FieldName(b"X-Unknown".into()), &b" something something"[..]).into(),
+            FieldRaw {
+                name: FieldName(b"X-Unknown".into()),
+                body: &b" something something"[..],
+            }
         )
         .unwrap();
         assert_eq!(
@@ -189,13 +207,38 @@ mod tests {
 
     #[test]
     fn test_no_body() {
-        let (rest, fields) = header_kv(b"X-Foo: something something\r\nX-Bar: something else\r\n").unwrap();
+        let (rest, fields) = header_kv(b"X-Foo: something something\r\nX-Bar: something else\r\n");
         assert!(rest.is_empty());
         assert_eq!(
             fields,
             vec![
-                FieldRaw::Good(FieldName(b"X-Foo".into()), b" something something"),
-                FieldRaw::Good(FieldName(b"X-Bar".into()), b" something else"),
+                FieldRaw { name: FieldName(b"X-Foo".into()), body: b" something something" },
+                FieldRaw { name: FieldName(b"X-Bar".into()), body: b" something else" },
+            ]
+        )
+    }
+
+    #[test]
+    fn test_best_effort_good_before_eof() {
+        let (rest, fields) = header_kv(b"X-Foo: something something\r\nX-Bar: something else");
+        assert!(rest.is_empty());
+        assert_eq!(
+            fields,
+            vec![
+                FieldRaw { name: FieldName(b"X-Foo".into()), body: b" something something" },
+                FieldRaw { name: FieldName(b"X-Bar".into()), body: b" something else" },
+            ]
+        )
+    }
+
+    #[test]
+    fn test_best_effort_bad_before_eof() {
+        let (rest, fields) = header_kv(b"X-Foo: something something\r\nrandom junk");
+        assert!(rest.is_empty());
+        assert_eq!(
+            fields,
+            vec![
+                FieldRaw { name: FieldName(b"X-Foo".into()), body: b" something something" },
             ]
         )
     }

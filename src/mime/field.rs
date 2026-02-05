@@ -50,23 +50,24 @@ impl<'a> Content<'a> {
     }
 }
 
+pub enum InvalidField {
+    Name,
+    Body,
+}
+
 impl<'a> TryFrom<&header::FieldRaw<'a>> for Content<'a> {
-    type Error = ();
+    type Error = InvalidField;
     fn try_from(f: &header::FieldRaw<'a>) -> Result<Self, Self::Error> {
-        let content = match f {
-            header::FieldRaw::Good(key, value) => match key.bytes().to_ascii_lowercase().as_slice()
-            {
-                b"content-type" => map(naive_type, Content::Type)(value),
-                b"content-transfer-encoding" => map(mechanism, Content::TransferEncoding)(value),
-                b"content-id" => map(msg_id, Content::ID)(value),
-                b"content-description" => map(unstructured, Content::Description)(value),
-                _ => return Err(()),
-            },
-            _ => return Err(()),
+        let content = match f.name.bytes().to_ascii_lowercase().as_slice() {
+            b"content-type" => map(naive_type, Content::Type)(f.body),
+            b"content-transfer-encoding" => map(mechanism, Content::TransferEncoding)(f.body),
+            b"content-id" => map(msg_id, Content::ID)(f.body),
+            b"content-description" => map(unstructured, Content::Description)(f.body),
+            _ => return Err(InvalidField::Name),
         };
 
         //@TODO check that the full value is parsed, otherwise maybe log an error ?!
-        content.map(|(_, content)| content).or(Err(()))
+        content.map(|(_, content)| content).or(Err(InvalidField::Body))
     }
 }
 
@@ -116,12 +117,11 @@ This is a multipart message.
 "#
         .as_bytes();
 
+        let (input, hdrs) = header::header_kv(fullmail);
+
         assert_eq!(
-            map(header::header_kv, |k| k
-                .iter()
-                .flat_map(Content::try_from)
-                .collect())(fullmail),
-            Ok((
+            (input, hdrs.iter().flat_map(Content::try_from).collect()),
+            (
                 &b"This is a multipart message.\n\n"[..],
                 vec![
                     Content::Type(NaiveType {
@@ -136,7 +136,7 @@ This is a multipart message.
                     }),
                     Content::TransferEncoding(Mechanism::_7Bit),
                 ],
-            )),
+            ),
         );
     }
 }

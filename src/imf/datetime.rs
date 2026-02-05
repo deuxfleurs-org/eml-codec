@@ -52,6 +52,13 @@ impl<'a> TryFrom<&'a lazy::DateTime<'a>> for DateTime<FixedOffset> {
 #[derive(Clone, PartialEq)]
 pub struct DateTime(pub chrono::DateTime<FixedOffset>);
 
+impl DateTime {
+    // Used as placeholder value for a missing or invalid date
+    pub fn placeholder() -> Self {
+        Self(chrono::DateTime::UNIX_EPOCH.into())
+    }
+}
+
 impl Debug for DateTime {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         Debug::fmt(&self.0, f)

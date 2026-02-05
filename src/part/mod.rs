@@ -14,11 +14,9 @@ use nom::{
     combinator::{not, recognize},
     multi::many0,
     sequence::pair,
-    IResult,
 };
 use std::borrow::Cow;
 
-use crate::mime;
 use crate::mime::AnyMIME;
 use crate::part::{
     composite::{message, multipart, Message, Multipart},
@@ -139,29 +137,23 @@ impl<'a> Print for AnyPart<'a> {
     }
 }
 
-/// Parse any type of part
+/// Parse any type of part.
+///
+/// This function always consumes the whole input.
 ///
 /// ## Note
 ///
 /// Multiparts are a bit special as they have a clearly delimited beginning
 /// and end contrary to all the other parts that are going up to the end of the buffer
-pub fn part_body<'a>(m: AnyMIME<'a>) -> impl FnOnce(&'a [u8]) -> IResult<&'a [u8], MimeBody<'a>> {
+pub fn part_body<'a>(m: AnyMIME<'a>) -> impl FnOnce(&'a [u8]) -> MimeBody<'a> {
     move |input| {
         let part = match m {
-            AnyMIME::Mult(a) => multipart(a)(input)
-                .map(|(_, multi)| multi.into())
-                .unwrap_or(MimeBody::Txt(Text {
-                    mime: mime::MIME::<mime::r#type::DeductibleText>::default(),
-                    body: Cow::Borrowed(input),
-                })),
-            AnyMIME::Msg(a) => {
-                message(a)(input)
-                    .map(|(_, msg)| msg.into())
-                    .unwrap_or(MimeBody::Txt(Text {
-                        mime: mime::MIME::<mime::r#type::DeductibleText>::default(),
-                        body: Cow::Borrowed(input),
-                    }))
-            }
+            AnyMIME::Mult(a) =>
+                // NOTE: we drop any input found after the closing multipart
+                // boundary and not parsed by `multipart`.
+                multipart(a)(input).1.into(),
+            AnyMIME::Msg(a) =>
+                message(a)(input).into(),
             AnyMIME::Txt(a) => MimeBody::Txt(Text {
                 mime: a,
                 body: Cow::Borrowed(input),
@@ -172,18 +164,20 @@ pub fn part_body<'a>(m: AnyMIME<'a>) -> impl FnOnce(&'a [u8]) -> IResult<&'a [u8
             }),
         };
 
-        // This function always consumes the whole input
-        Ok((&input[input.len()..], part))
+        part
     }
 }
 
-pub fn part_raw<'a>(bound: &[u8]) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], &'a [u8]> + '_ {
+pub fn part_raw<'a>(bound: &[u8]) -> impl Fn(&'a [u8]) -> (&'a [u8], &'a [u8]) + '_ {
     move |input| {
         // XXX could this parser be defined in a way that matches the spec more naturally?
+        // SAFETY: `many0` only fails if its argument parser recognizes the
+        // empty input, and both `is_not(CRLF)` and `obs_crlf` fail on the empty
+        // input.
         recognize(many0(pair(
             not(boundary(bound)),
             alt((is_not(CRLF), obs_crlf)),
-        )))(input)
+        )))(input).unwrap()
     }
 }
 
@@ -207,10 +201,10 @@ bloup--
 Field: Body
 "
             ),
-            Ok((
+            (
                 &b"\n--hello\nField: Body\n"[..],
                 &b"blip\nbloup\n\nblip\nbloup--\n--bim\n--bim--\n"[..],
-            ))
+            )
         );
     }
 
@@ -224,10 +218,10 @@ It DOES end with a linebreak.
 
 --simple boundary--
 "),
-            Ok((
+            (
                 &b"\n--simple boundary--\n"[..], 
                 &b"Content-type: text/plain; charset=us-ascii\n\nThis is explicitly typed plain US-ASCII text.\nIt DOES end with a linebreak.\n"[..],
-            ))
+            )
         );
     }
 }

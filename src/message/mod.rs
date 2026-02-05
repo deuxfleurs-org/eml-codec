@@ -1,5 +1,4 @@
 use bounded_static::ToStatic;
-use nom::IResult;
 
 use crate::header;
 use crate::imf;
@@ -11,6 +10,9 @@ use crate::print::{Print, Formatter};
 /// This represent a complete "email" that can be send and received over the wire, for example.
 #[derive(Clone, Debug, PartialEq, ToStatic)]
 pub struct Message<'a> {
+    // Invariant: `all_fields` must contain an entry for every piece of information
+    // contained in `imf` and `mime_body`'s mime headers that is mandatory or is
+    // not the default value.
     pub imf: imf::Imf<'a>,
     pub mime_body: part::MimeBody<'a>,
     pub all_fields: Vec<MessageField<'a>>,
@@ -33,39 +35,26 @@ impl<'a> Print for Message<'a> {
     }
 }
 
-pub fn message<'a>(input: &'a [u8]) -> IResult<&'a [u8], Message<'a>> {
+/// Parse a toplevel message.
+pub fn message<'a>(input: &'a [u8]) -> Message<'a> {
     // parse headers
-    let (input_body, headers) = header::header_kv(input)?;
-    let fields: MessageFields =
-        headers.into_iter().collect::<Option<MessageFields>>()
-        .ok_or(
-            nom::Err::Failure(nom::error::Error::new(
-                input,
-                nom::error::ErrorKind::Verify, // FIXME: output the actual error
-            )))?;
+    let (input_body, headers) = header::header_kv(input);
+    let fields: MessageFields = headers.into_iter().collect::<MessageFields>();
 
-    let (input_end, mime_body) =
-        part::part_body(fields.mime.to_interpreted(mime::DefaultType::Generic))(input_body)?;
-    // note: part_body always consumes the whole input
-    debug_assert!(input_end.is_empty());
-    Ok((input_end, Message {
+    let mime_body =
+        part::part_body(fields.mime.to_interpreted(mime::DefaultType::Generic))(input_body);
+    Message {
         imf: fields.imf,
         mime_body,
         all_fields: fields.all_fields,
-    }))
+    }
 }
 
-pub fn imf<'a>(input: &'a [u8]) -> IResult<&'a [u8], imf::Imf<'a>> {
+pub fn imf<'a>(input: &'a [u8]) -> (&'a [u8], imf::Imf<'a>) {
     // parse headers
-    let (input_body, headers) = header::header_kv(input)?;
-    let fields: MessageFields =
-        headers.into_iter().collect::<Option<MessageFields>>()
-        .ok_or(
-            nom::Err::Failure(nom::error::Error::new(
-                input,
-                nom::error::ErrorKind::Verify, // FIXME: output the actual error
-            )))?;
-    Ok((input_body, fields.imf))
+    let (input_body, headers) = header::header_kv(input);
+    let fields: MessageFields = headers.into_iter().collect::<MessageFields>();
+    (input_body, fields.imf)
 }
 
 /// Header field of a toplevel message.
@@ -87,32 +76,61 @@ struct MessageFields<'a> {
     all_fields: Vec<MessageField<'a>>,
 }
 
-impl<'a> FromIterator<header::FieldRaw<'a>> for Option<MessageFields<'a>> {
+impl<'a> FromIterator<header::FieldRaw<'a>> for MessageFields<'a> {
     fn from_iter<I: IntoIterator<Item = header::FieldRaw<'a>>>(it: I) -> Self {
         let mut mime = mime::NaiveMIME::default();
         let mut imf = imf::PartialImf::default();
         let mut all_fields = vec![];
         for f in it {
-            if let Ok(mimef) = mime::field::Content::try_from(&f) {
-                if let Some(entry) = mime.add_field(mimef) {
-                    all_fields.push(MessageField::MIME(entry))
-                } // otherwise drop the field
-                continue;
-            }
+            match mime::field::Content::try_from(&f) {
+                Ok(mimef) => {
+                    if let Some(entry) = mime.add_field(mimef) {
+                        all_fields.push(MessageField::MIME(entry))
+                    }; // otherwise drop the field
+                    continue;
+                },
+                Err(mime::field::InvalidField::Body) => {
+                    // this is a MIME field but its body is invalid; drop it.
+                    continue;
+                },
+                Err(mime::field::InvalidField::Name) => {
+                    // not a MIME field
+                    ()
+                }
+            };
 
-            if let Ok(imff) = imf::field::Field::try_from(&f) {
-                if let Some(entry) = imf.add_field(imff) {
-                    all_fields.push(MessageField::Imf(entry))
-                } // otherwise drop the field
-                continue;
+            match imf::field::Field::try_from(&f) {
+                Ok(imff) => {
+                    if let Some(entry) = imf.add_field(imff) {
+                        all_fields.push(MessageField::Imf(entry))
+                    }; // otherwise drop the field
+                    continue;
+                },
+                Err(imf::field::InvalidField::Body) => {
+                    // this is an IMF field but its body is invalid; drop it.
+                    continue;
+                }
+                Err(imf::field::InvalidField::Name) => {
+                    // not an IMF field
+                    ()
+                }
             }
 
             if let Some(u) = header::Unstructured::from_raw(f) {
                 all_fields.push(MessageField::Unstructured(u));
             } // otherwise drop the field
         }
+        all_fields.extend(
+            imf.missing_mandatory_fields()
+               .into_iter()
+               .map(MessageField::Imf)
+        );
 
-        imf.to_imf().map(|imf| MessageFields { mime, imf, all_fields })
+        MessageFields {
+            mime,
+            imf: imf.to_imf(),
+            all_fields,
+        }
     }
 }
 
@@ -137,13 +155,13 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     fn test_message_roundtrip<'a>(txt: &[u8], parsed: Message<'a>) {
-        assert_eq!(message(txt), Ok((&b""[..], parsed.clone())));
+        assert_eq!(message(txt), parsed.clone());
         let printed = with_formatter(|fmt| parsed.print(fmt));
         assert_eq!(String::from_utf8_lossy(&printed), String::from_utf8_lossy(txt))
     }
 
     fn test_message_parse_print<'a>(txt: &[u8], parsed: Message<'a>, printed: &[u8]) {
-        assert_eq!(message(txt), Ok((&b""[..], parsed.clone())));
+        assert_eq!(message(txt), parsed.clone());
         let reprinted = with_formatter(|fmt| parsed.print(fmt));
         assert_eq!(String::from_utf8_lossy(&reprinted), String::from_utf8_lossy(printed))
     }
@@ -154,6 +172,7 @@ mod tests {
 From: someone@example.com\r
 To: someone_else@example.com\r
 Subject: An  RFC 822  formatted message\r
+MIME-Version: 1.0\r
 \r
 This is the plain text body of the message. Note the blank line
 between the header information and the body of the message.";
@@ -207,6 +226,7 @@ between the header information and the body of the message.";
                     MessageField::Imf(imf::field::Entry::From),
                     MessageField::Imf(imf::field::Entry::To),
                     MessageField::Imf(imf::field::Entry::Subject),
+                    MessageField::Imf(imf::field::Entry::MIMEVersion),
                 ];
 
                 Message {
@@ -484,5 +504,57 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
         .as_bytes();
 
         test_message_parse_print(fullmail, ast, reprinted);
+    }
+
+    #[test]
+    fn test_best_effort() {
+        test_message_parse_print(
+            b"date: uhh
+hello: yolo
+
+hello??",
+            {
+                let from = imf::mailbox::MailboxRef::placeholder();
+                let imf = Imf::new(
+                    From::Single { from, sender: None },
+                    imf::datetime::DateTime::placeholder(),
+                );
+
+                let mime_body = part::MimeBody::Txt(
+                    part::discrete::Text {
+                        mime: MIME {
+                            ctype: Deductible::Inferred,
+                            fields: CommonMIME::default(),
+                        },
+                        body: b"hello??"[..].into(),
+                    }
+                );
+
+                let all_fields = vec![
+                    MessageField::Unstructured(header::Unstructured(
+                        header::FieldName(b"hello".into()),
+                        Unstructured(vec![
+                            UnstrToken::from_plain(b" ", UnstrTxtKind::Fws),
+                            UnstrToken::from_plain(b"yolo", UnstrTxtKind::Txt),
+                        ])
+                    )),
+                    MessageField::Imf(imf::field::Entry::Date),
+                    MessageField::Imf(imf::field::Entry::From),
+                    MessageField::Imf(imf::field::Entry::MIMEVersion),
+                ];
+
+                Message {
+                    imf,
+                    mime_body,
+                    all_fields,
+                }
+            },
+            b"hello: yolo\r
+Date: 1 Jan 1970 00:00:00 +0000\r
+From: unknown@unknown\r
+MIME-Version: 1.0\r
+\r
+hello??",
+        );
     }
 }

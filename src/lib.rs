@@ -24,15 +24,8 @@ pub mod print;
 mod utils;
 
 use crate::print::Print;
-use nom::IResult;
 
-// FIXME: in case of success there is no remaining input; update the comment
-// and return type?
 /// Parse a whole email including its (MIME) body
-///
-/// Returns the parsed content, but also the remaining bytes
-/// if the parser stopped before arriving to the end (for example
-/// due to a multipart delimiter).
 ///
 /// # Arguments
 ///
@@ -40,8 +33,6 @@ use nom::IResult;
 ///
 /// # Returns
 ///
-/// * `rest` - The rest of the buffer, the part that is not parsed as the email ended before the
-/// end of the data
 /// * `msg` - The parsed message
 ///
 /// # Examples
@@ -57,14 +48,14 @@ use nom::IResult;
 /// This is the plain text body of the message. Note the blank line
 /// between the header information and the body of the message."#;
 ///
-/// let (_, email) = eml_codec::parse_message(input).unwrap();
+/// let email = eml_codec::parse_message(input);
 /// println!(
 ///     "{} message structure is:\n{:#?}",
 ///     email.imf.from_or_sender().to_string(),
 ///     email,
 /// );
 /// ```
-pub fn parse_message(input: &[u8]) -> IResult<&[u8], message::Message<'_>> {
+pub fn parse_message(input: &[u8]) -> message::Message<'_> {
     message::message(input)
 }
 
@@ -106,13 +97,13 @@ pub fn print_message(msg: message::Message<'_>, seed: Option<u64>) -> Vec<u8> {
 /// This is the plain text body of the message. Note the blank line
 /// between the header information and the body of the message."#;
 ///
-/// let (_, imf) = eml_codec::parse_imf(input).unwrap();
+/// let (_, imf) = eml_codec::parse_imf(input);
 /// println!(
 ///     "{} just sent you an email with subject \"{}\"",
 ///     imf.from_or_sender().to_string(),
 ///     imf.subject.unwrap().to_string(),
 /// );
 /// ```
-pub fn parse_imf(input: &[u8]) -> IResult<&[u8], imf::Imf<'_>> {
+pub fn parse_imf(input: &[u8]) -> (&[u8], imf::Imf<'_>) {
     message::imf(input)
 }

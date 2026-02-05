@@ -1,7 +1,5 @@
 # eml-codec
 
-**⚠️ This is currently only a decoder (ie. a parser), encoding is not yet implemented.**
-
 `eml-codec` is a child project of [Aerogramme](https://aerogramme.deuxfleurs.fr), a distributed and encrypted IMAP server developped by the non-profit organization [Deuxfleurs](https://deuxfleurs.fr).
 Its aim is to be a swiss army knife to handle emails, whether it is to build an IMAP/JMAP server, a mail filter (like an antispam), or a mail client.
 
@@ -18,7 +16,7 @@ Content-Type: text/plain; charset=us-ascii
 This is the plain text body of the message. Note the blank line
 between the header information and the body of the message."#;
 
-let (_, email) = eml_codec::parse_message(input).unwrap();
+let email = eml_codec::parse_message(input);
 println!(
     "{} just sent you an email with subject \"{}\"",
     email.imf.from_or_sender().to_string(),
@@ -27,6 +25,50 @@ println!(
 ```
 
 [See more examples in the examples/ folder](./examples/)
+
+The provided `eml_parse` binary can be used to test email parsing and printing.
+The binary takes parses its standard input as an email (on a best-effort basis),
+and reprints the parsed email on its standard output. It also prints a debugging
+view of the parsed AST on the standard error output. The printed email is
+guaranteed to be RFC compliant; parts of the input using obsolete or invalid
+syntax will be reprinted using valid syntax when possible, or dropped otherwise.
+
+Usage example:
+```shell
+$ cargo run --bin eml_parse <<EOF
+hello: barrr
+date: uhh
+
+hello??
+EOF
+```
+
+outputs:
+
+```shell
+--- message structure ---
+Message {
+    imf: Imf {
+        date: 1970-01-01T00:00:00+00:00,
+        from: Single {
+            from: MailboxRef {
+                addrspec: AddrSpec(
+                    "unknown@unknown",
+                ),
+                name: None,
+            },
+            sender: None,
+        },
+[...]
+}
+--- message structure end ---
+hello: barrr
+Date: 1 Jan 1970 00:00:00 +0000
+From: unknown@unknown
+MIME-Version: 1.0
+
+hello??
+```
 
 ## About the name
 
@@ -48,8 +90,6 @@ Current known limitations/bugs:
  - **Part transfer-decoding is not implemented yet**
  - **Internationalized headers (UTF-8) is not implemented yet**
  - Resent Header Fields are not implemented
- - Return-Path/Received headers might be hard to use as their order is important, and it's currently lost in the final datastructure.
- - Datetime parsing of invalid date might return `None` instead of falling back to the `bad_body` field
  - Comments contained in the email headers are dropped during parsing
  - No support is provided for message/external-body (read data from local computer) and message/partial (aggregate multiple fragmented emails) as they seem obsolete and dangerous to implement.
 

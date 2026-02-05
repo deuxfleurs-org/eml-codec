@@ -53,6 +53,21 @@ pub struct MailboxRef<'a> {
     pub addrspec: AddrSpec<'a>,
     pub name: Option<Phrase<'a>>,
 }
+impl MailboxRef<'static> {
+    // Used as placeholder value for a missing or invalid address.
+    // Represents "unknown@unknown".
+    pub fn placeholder() -> Self {
+        MailboxRef {
+            addrspec: AddrSpec {
+                local_part: LocalPart(vec![
+                    LocalPartToken::Word(Word::Atom(b"unknown".into()))
+                ]),
+                domain: Domain::Atoms(vec![b"unknown".into()]),
+            },
+            name: None,
+        }
+    }
+}
 impl<'a> ToString for MailboxRef<'a> {
     fn to_string(&self) -> String {
         match &self.name {

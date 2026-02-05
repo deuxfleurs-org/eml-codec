@@ -317,12 +317,35 @@ impl<'a> PartialImf<'a> {
         None
     }
 
-    pub fn to_imf(self) -> Option<Imf<'a>> {
-        let date = self.date?;
+    pub fn missing_mandatory_fields(&self) -> Vec<Entry> {
+        let mut entries = Vec::new();
+        if self.date.is_none() {
+            entries.push(Entry::Date)
+        }
+        match &self.from {
+            None => {
+                entries.push(Entry::From)
+            },
+            Some(v) => {
+                if v.is_empty() {
+                    entries.push(Entry::From)
+                } else if v.len() > 1 && self.sender.is_none() {
+                    entries.push(Entry::Sender)
+                }
+            },
+        }
+        if self.mime_version.is_none() {
+            entries.push(Entry::MIMEVersion)
+        }
+        entries
+    }
+
+    pub fn to_imf(self) -> Imf<'a> {
+        let date = self.date.unwrap_or_else(DateTime::placeholder);
         let from = {
-            let mut p_from = self.from?;
+            let mut p_from = self.from.unwrap_or_else(|| vec![MailboxRef::placeholder()]);
             if p_from.is_empty() {
-                return None;
+                p_from = vec![MailboxRef::placeholder()]
             }
             if p_from.len() == 1 {
                 From::Single {
@@ -332,7 +355,7 @@ impl<'a> PartialImf<'a> {
             } else {
                 From::Multiple {
                     from: p_from,
-                    sender: self.sender?,
+                    sender: self.sender.unwrap_or_else(|| MailboxRef::placeholder()),
                 }
             }
         };
@@ -347,26 +370,24 @@ impl<'a> PartialImf<'a> {
             }).collect()
         };
 
-        Some(
-            Imf {
-                date,
-                from,
-                reply_to: self.reply_to.unwrap_or_default(),
-                to: self.to.unwrap_or_default(),
-                cc: self.cc.unwrap_or_default(),
-                bcc: self.bcc,
-                msg_id: self.msg_id,
-                in_reply_to: self.in_reply_to.unwrap_or_default(),
-                references: self.references.unwrap_or_default(),
-                subject: self.subject,
-                comments: self.comments,
-                keywords: self.keywords,
-                trace,
-                // XXX we don't support reading non-MIME compliant emails
-                // currently, so we always turn a missing MIME-Version field
-                // into the default supported version
-                mime_version: self.mime_version.unwrap_or_default()
-            }
-        )
+        Imf {
+            date,
+            from,
+            reply_to: self.reply_to.unwrap_or_default(),
+            to: self.to.unwrap_or_default(),
+            cc: self.cc.unwrap_or_default(),
+            bcc: self.bcc,
+            msg_id: self.msg_id,
+            in_reply_to: self.in_reply_to.unwrap_or_default(),
+            references: self.references.unwrap_or_default(),
+            subject: self.subject,
+            comments: self.comments,
+            keywords: self.keywords,
+            trace,
+            // XXX we don't support reading non-MIME compliant emails
+            // currently, so we always turn a missing MIME-Version field
+            // into the default supported version
+            mime_version: self.mime_version.unwrap_or_default()
+        }
     }
 }
