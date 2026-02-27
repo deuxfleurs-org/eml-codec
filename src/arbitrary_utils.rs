@@ -40,10 +40,11 @@ where
     Ok(v)
 }
 
-pub fn arbitrary_whitespace(u: &mut Unstructured) -> Result<Vec<u8>> {
+pub fn arbitrary_whitespace_nonempty(u: &mut Unstructured) -> Result<Vec<u8>> {
     let mut v = Vec::new();
-    for r in u.arbitrary_iter()? {
-        v.push(if r? { ascii::SP } else { ascii::HT });
+    for _ in 0..=u.arbitrary_len::<u8>()? {
+        let b: bool = u.arbitrary()?;
+        v.push(if b { ascii::SP } else { ascii::HT });
     }
     Ok(v)
 }
