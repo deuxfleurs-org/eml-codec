@@ -16,7 +16,11 @@ use std::fmt;
 
 #[cfg(feature = "arbitrary")]
 use crate::{
-    arbitrary_utils::{arbitrary_whitespace, arbitrary_vec_nonempty, arbitrary_vec_nonempty_where},
+    arbitrary_utils::{
+        arbitrary_whitespace_nonempty,
+        arbitrary_vec_nonempty,
+        arbitrary_vec_nonempty_where,
+    },
     fuzz_eq::FuzzEq,
 };
 use crate::print::{print_seq, Print, Formatter};
@@ -318,7 +322,7 @@ fn obs_utext_token<'a>(input: &'a [u8]) -> IResult<&'a [u8], UtextToken<'a>> {
     ))(input)
 }
 
-#[derive(Debug, PartialEq, Clone, ToStatic)]
+#[derive(Debug, PartialEq, Copy, Clone, ToStatic)]
 pub enum UnstrTxtKind {
     Txt, // non-space text
     Obs, // non-space text using obsolete characters
@@ -329,6 +333,8 @@ pub enum UnstrTxtKind {
 #[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
 pub enum UnstrToken<'a> {
     Encoded(encoding::EncodedWord<'a>),
+    // `Plain` MUST NOT contain text that represents an encoded word,
+    // ie. of the form =?..?..?..?=
     #[cfg_attr(feature = "arbitrary", fuzz_eq(use_eq))]
     Plain(Cow<'a, [u8]>, UnstrTxtKind),
 }
@@ -397,6 +403,11 @@ impl<'a> Arbitrary<'a> for UnstrToken<'a> {
             0 => Ok(UnstrToken::Encoded(u.arbitrary()?)),
             1 => {
                 let txt = arbitrary_vec_nonempty_where(u, is_vchar, b'X')?;
+                // As a coarse-grained measure, reject text that contains '=?' to avoid confusion with
+                // Encoded tokens
+                if txt.windows(2).find(|&s| s == b"=?").is_some() {
+                    return Err(arbitrary::Error::IncorrectFormat)
+                }
                 Ok(UnstrToken::Plain(txt.into(), UnstrTxtKind::Txt))
             },
             2 => {
@@ -408,8 +419,11 @@ impl<'a> Arbitrary<'a> for UnstrToken<'a> {
     }
 }
 
+// Invariant:
+// - Encoded and Plain(_, Txt) tokens are always separated by whitespace
+// - There are no consecutive Plain(_, _) tokens with the same k
 #[derive(Debug, PartialEq, Clone, ToStatic)]
-#[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
+#[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
 pub struct Unstructured<'a>(pub Vec<UnstrToken<'a>>);
 
 impl<'a> ToString for Unstructured<'a> {
@@ -440,6 +454,37 @@ impl<'a> Print for Unstructured<'a> {
         for tok in &self.0 {
             tok.print(fmt)
         }
+    }
+}
+
+#[cfg(feature = "arbitrary")]
+impl<'a> Arbitrary<'a> for Unstructured<'a> {
+    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Unstructured<'a>> {
+        let mut v: Vec<UnstrToken> = Vec::new();
+        let mut prev_kind: Option<UnstrTxtKind> = None;
+        for _ in 0..u.arbitrary_len::<UnstrToken>()? {
+            let tok: UnstrToken = u.arbitrary()?;
+            match (&prev_kind, tok) {
+                (Some(k1), UnstrToken::Plain(_, k2)) if *k1 == k2 => {
+                    return Err(arbitrary::Error::IncorrectFormat)
+                },
+                (Some(UnstrTxtKind::Fws), tok) |
+                (_, tok @ UnstrToken::Plain(_, UnstrTxtKind::Fws)) => {
+                    // first case: we know that `tok` is not Fws, this is
+                    // excluded by the previous case
+                    // second case: fws follows a non-whitespace token
+                    prev_kind = match &tok {
+                        UnstrToken::Plain(_, k) => Some(*k),
+                        UnstrToken::Encoded(_) => None,
+                    };
+                    v.push(tok);
+                },
+                (_, _) => {
+                    return Err(arbitrary::Error::IncorrectFormat)
+                }
+            };
+        }
+        Ok(Unstructured(v))
     }
 }
 
@@ -485,6 +530,8 @@ pub fn unstructured(input: &[u8]) -> IResult<&[u8], Unstructured<'_>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::text::charset::EmailCharset;
+    use crate::text::encoding::{EncodedWord, EncodedWordToken, QuotedChunk, QuotedWord};
     use crate::print::tests::with_formatter;
 
     #[test]
@@ -525,5 +572,27 @@ mod tests {
         let (rest, parsed) = unstructured(b" \t").unwrap();
         assert_eq!(rest, &b""[..]);
         assert_eq!(parsed, Unstructured(vec![UnstrToken::Plain(b" \t"[..].into(), UnstrTxtKind::Fws)]));
+
+
+        let (rest, parsed) = unstructured(b"foo =?UTF-8?q?foo?=").unwrap();
+        assert_eq!(rest, &b""[..]);
+        assert_eq!(parsed, Unstructured(vec![
+            UnstrToken::Plain(b"foo"[..].into(), UnstrTxtKind::Txt),
+            UnstrToken::Plain(b" "[..].into(), UnstrTxtKind::Fws),
+            UnstrToken::Encoded(EncodedWord(vec![EncodedWordToken::Quoted(
+                QuotedWord {
+                    enc: EmailCharset::UTF_8,
+                    chunks: vec![QuotedChunk::Safe(b"foo"[..].into())],
+                }
+            )]))
+        ]));
+
+        // RFC 2047 specifies that encoded words MUST be separated from other
+        // words by whitespace. otherwise, we parse them as normal text...
+        let (rest, parsed) = unstructured(b"foo=?UTF-8?q?foo?=").unwrap();
+        assert_eq!(rest, &b""[..]);
+        assert_eq!(parsed, Unstructured(vec![
+            UnstrToken::Plain(b"foo=?UTF-8?q?foo?="[..].into(), UnstrTxtKind::Txt),
+        ]));
     }
 }
