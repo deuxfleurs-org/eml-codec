@@ -1,6 +1,6 @@
 #[cfg(feature = "arbitrary")]
 use arbitrary::Arbitrary;
-use bounded_static::ToStatic;
+use bounded_static::{ToBoundedStatic, ToStatic};
 use nom::{
     bytes::complete::tag,
     combinator::{map, opt},
@@ -236,7 +236,7 @@ impl<'a> From<&NaiveType<'a>> for MultipartSubtype {
             b"digest" => Self::Digest,
             b"parallel" => Self::Parallel,
             b"report" => Self::Report,
-            _ => Self::Unknown(MIMEAtom(sub.into())),
+            _ => Self::Unknown(nt.sub.to_static()),
         }
     }
 }
@@ -278,7 +278,7 @@ impl<'a> From<&NaiveType<'a>> for MessageSubtype {
             b"rfc822" => MessageSubtype::RFC822,
             b"partial" => MessageSubtype::Partial,
             b"external" => MessageSubtype::External,
-            _ => MessageSubtype::Unknown(MIMEAtom(sub.into())),
+            _ => MessageSubtype::Unknown(nt.sub.to_static()),
         }
     }
 }
@@ -393,7 +393,7 @@ impl<'a> From<&NaiveType<'a>> for TextSubtype {
         match sub.as_slice() {
             b"plain" => Self::Plain,
             b"html" => Self::Html,
-            _ => Self::Unknown(MIMEAtom(sub.into())),
+            _ => Self::Unknown(nt.sub.to_static()),
         }
     }
 }
@@ -540,7 +540,7 @@ mod tests {
 
     #[test]
     fn test_roundtrip_unknown() {
-        let raw = b"foo/bar; bar=unknown; uu=zorro";
+        let raw = b"Foo/Bar; bAr=Unknown; uU=zorrO";
         let (rest, nt) = naive_type(raw).unwrap();
         assert_eq!(rest, &[]);
         let t: AnyType = nt.to_type();
