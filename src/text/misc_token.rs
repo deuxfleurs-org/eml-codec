@@ -391,20 +391,16 @@ impl<'a> ToString for UnstrToken<'a> {
 #[cfg(feature = "arbitrary")]
 impl<'a> Arbitrary<'a> for UnstrToken<'a> {
     fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<UnstrToken<'a>> {
-        match u.int_in_range(0..=3)? {
+        // XXX we do not generate `Obs` tokens because those are dropped at printing time.
+        // this is somewhat of a hack.
+        match u.int_in_range(0..=2)? {
             0 => Ok(UnstrToken::Encoded(u.arbitrary()?)),
             1 => {
                 let txt = arbitrary_vec_nonempty_where(u, is_vchar, b'X')?;
                 Ok(UnstrToken::Plain(txt.into(), UnstrTxtKind::Txt))
             },
             2 => {
-                let txt = arbitrary_vec_nonempty_where(u, |b| {
-                    is_obs_no_ws_ctl(b) || b == ascii::NULL
-                }, b'X')?;
-                Ok(UnstrToken::Plain(txt.into(), UnstrTxtKind::Obs))
-            },
-            3 => {
-                let txt = arbitrary_whitespace(u)?;
+                let txt = arbitrary_whitespace_nonempty(u)?;
                 Ok(UnstrToken::Plain(txt.into(), UnstrTxtKind::Fws))
             },
             _ => unreachable!(),
