@@ -85,7 +85,7 @@ impl<'a> ToString for MessageIDRight<'a> {
     fn to_string(&self) -> String {
         match self {
             MessageIDRight::DotAtom(a) => String::from_utf8_lossy(&a.0).to_string(),
-            MessageIDRight::Literal(dt) => dt.to_string(),
+            MessageIDRight::Literal(dt) => format!("[{}]", dt.to_string()),
         }
     }
 }
