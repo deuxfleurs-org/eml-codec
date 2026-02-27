@@ -69,6 +69,30 @@ impl<'a> Arbitrary<'a> for Message<'a> {
         let unstr: Vec<header::Unstructured> = u.arbitrary()?;
         entries.extend(unstr.into_iter().map(MessageEntry::Unstructured));
         arbitrary_shuffle(u, &mut entries);
+        // Reindex `Comments` and `Keywords` entries.
+        // Indeed, the AST is somewhat redundant: the order of `imf.comments` and `imf.keywords`
+        // does not matter, since the `Comments` and `Keywords` entries directly specify an
+        // index in this vector (and it is the order of entries that determines the order of
+        // the headers).
+        // To avoid this redundancy, we reindex entries so that their order match the order
+        // of the vectors in `imf`.
+        {
+            let mut comments_id = 0;
+            let mut keywords_id = 0;
+            for e in entries.iter_mut() {
+                match e {
+                    MessageEntry::Imf(imf::field::Entry::Comments(_)) => {
+                        *e = MessageEntry::Imf(imf::field::Entry::Comments(comments_id));
+                        comments_id += 1
+                    },
+                    MessageEntry::Imf(imf::field::Entry::Keywords(_)) => {
+                        *e = MessageEntry::Imf(imf::field::Entry::Keywords(keywords_id));
+                        keywords_id += 1
+                    },
+                    _ => (),
+                }
+            }
+        }
         Ok(Message { imf, mime_body, entries })
     }
 }
