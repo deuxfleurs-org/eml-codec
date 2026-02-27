@@ -15,7 +15,7 @@ use std::fmt;
 
 #[cfg(feature = "arbitrary")]
 use crate::{
-    arbitrary_utils::arbitrary_vec_where,
+    arbitrary_utils::arbitrary_vec_nonempty_where,
     fuzz_eq::FuzzEq,
 };
 use crate::print::{Print, Formatter};
@@ -45,7 +45,7 @@ impl<'a> Print for FieldName<'a> {
 #[cfg(feature = "arbitrary")]
 impl<'a> Arbitrary<'a> for FieldName<'a> {
     fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<FieldName<'a>> {
-        let bytes: Vec<u8> = arbitrary_vec_where(u, is_ftext)?;
+        let bytes: Vec<u8> = arbitrary_vec_nonempty_where(u, is_ftext, b'X')?;
         Ok(FieldName(Cow::Owned(bytes)))
     }
 }
