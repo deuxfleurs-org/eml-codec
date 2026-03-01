@@ -318,6 +318,7 @@ fn obs_local_part(input: &[u8]) -> IResult<&[u8], LocalPart<'_>> {
 }
 
 #[derive(Clone, Debug, PartialEq, ToStatic)]
+#[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
 pub enum Domain<'a> {
     Atoms(Vec<Atom<'a>>), // non-empty vec
     Literal(Vec<Dtext<'a>>),
@@ -372,28 +373,6 @@ impl<'a> Arbitrary<'a> for Domain<'a> {
         }
     }
 }
-#[cfg(feature = "arbitrary")]
-impl<'a> FuzzEq for Domain<'a> {
-    fn fuzz_eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Domain::Atoms(a1), Domain::Atoms(a2)) =>
-                FuzzEq::fuzz_eq(a1, a2),
-            (Domain::Literal(l1), Domain::Literal(l2)) => {
-                let v1: Vec<u8> = Vec::from_iter(
-                    l1.iter().flat_map(|dt| dt.0.into_iter()).cloned()
-                        .filter(|b| is_strict_dtext(*b))
-                );
-                let v2: Vec<u8> = Vec::from_iter(
-                    l2.iter().flat_map(|dt| dt.0.into_iter()).cloned()
-                        .filter(|b| is_strict_dtext(*b))
-                );
-                v1 == v2
-            },
-            (_, _) =>
-                false,
-        }
-    }
-}
 
 /// Obsolete domain
 ///
@@ -437,9 +416,11 @@ fn inner_domain_litteral(input: &[u8]) -> IResult<&[u8], Domain<'_>> {
     )(input)
 }
 
+// Invariant: must be non-empty
 #[derive(Clone, PartialEq, ToStatic)]
 pub struct Dtext<'a>(Cow<'a, [u8]>);
 
+// TODO: remove?
 impl<'a> ToString for Dtext<'a> {
     fn to_string(&self) -> String {
         encoding_rs::UTF_8
@@ -456,18 +437,31 @@ impl<'a> fmt::Debug for Dtext<'a> {
     }
 }
 
+impl<'a> Dtext<'a> {
+    // Best-effort conversion of any `Dtext` contents into bytes that all
+    // satisfy `is_strict_dtext`.
+    //
+    // - We drop characters which are not part of the strict syntax.
+    // Unfortunately this can drop printable characters, if they were part
+    // of a quote (\X), which is accepted by the obsolete syntax. However,
+    // we have no better option than to drop those since there is no way
+    // to represent them in the strict syntax.
+    // - Dropping obsolete characters may result in an empty string; however
+    // a `Dtext` must always be nonempty; in this case, we return "?", as a
+    // placeholder text.
+    fn to_strict_best_effort(&self) -> Self {
+        let mut strict_dtext: Vec<u8> =
+            self.0.iter().cloned().filter(|b| is_strict_dtext(*b)).collect();
+        if strict_dtext.is_empty() {
+            strict_dtext.push(b'?')
+        }
+        Dtext(strict_dtext.into())
+    }
+}
+
 impl<'a> Print for Dtext<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
-        for &b in self.0.iter() {
-            // NOTE: we drop characters which are not part of the strict syntax.
-            // Unfortunately this can drop printable characters, if they were part
-            // of a quote (\X), which is accepted by the obsolete syntax. However,
-            // we have no better option than to drop those since there is no way
-            // to represent them in the strict syntax.
-            if is_strict_dtext(b) {
-                fmt.write_bytes(&[b]);
-            }
-        }
+        fmt.write_bytes(&self.to_strict_best_effort().0)
     }
 }
 #[cfg(feature = "arbitrary")]
@@ -480,9 +474,7 @@ impl<'a> Arbitrary<'a> for Dtext<'a> {
 #[cfg(feature = "arbitrary")]
 impl<'a> FuzzEq for Dtext<'a> {
     fn fuzz_eq(&self, other: &Self) -> bool {
-        let v1: Vec<u8> = self.0.iter().cloned().filter(|b| is_strict_dtext(*b)).collect();
-        let v2: Vec<u8> = other.0.iter().cloned().filter(|b| is_strict_dtext(*b)).collect();
-        v1 == v2
+        self.to_strict_best_effort() == other.to_strict_best_effort()
     }
 }
 
@@ -627,6 +619,21 @@ mod tests {
                 )))]),
                 domain: Domain::Atoms(vec![Atom(b"example"[..].into()), Atom(b"com"[..].into())]),
             }
+        );
+
+        // edge-case: domain literal part that contains only obsolete bytes -> gets reprinted as '?'
+        let mut addr = b"foobar@[X ".to_vec();
+        addr.extend(&[1, 28, b']']);
+        addr_parsed_printed(
+            &addr,
+            AddrSpec {
+                local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(Atom(b"foobar".into())))]),
+                domain: Domain::Literal(vec![
+                    Dtext(b"X"[..].into()),
+                    Dtext((&[1, 28]).into()),
+                ]),
+            },
+            b"foobar@[X ?]",
         );
     }
 
@@ -881,5 +888,11 @@ mod tests {
             b",foo@bar.com,,boss@nil.test,jdoe@example.org, \r\n ,,",
             br#"foo@bar.com, boss@nil.test, jdoe@example.org"#,
         );
+    }
+
+    #[test]
+    fn test_dtext_strictify() {
+        let s: &[u8] = &Dtext((&[3]).into()).to_strict_best_effort().0;
+        assert_eq!(s, b"?")
     }
 }
