@@ -91,7 +91,7 @@ impl<'a> AnyMIME<'a> {
             },
             FieldEntry::Description => {
                 if let Some(desc) = &self.common().description {
-                    header::print(fmt, b"Content-Description", desc)
+                    header::print_unstructured(fmt, b"Content-Description", desc)
                 }
             },
         }
