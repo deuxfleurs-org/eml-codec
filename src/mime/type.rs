@@ -15,6 +15,7 @@ use crate::fuzz_eq::FuzzEq;
 use crate::print::{Print, Formatter};
 use crate::text::charset::EmailCharset;
 use crate::text::misc_token::{mime_word, MIMEWord};
+use crate::text::quoted::print_quoted;
 use crate::text::words::{mime_atom, MIMEAtom};
 use crate::utils::Deductible;
 
@@ -332,7 +333,13 @@ impl<'a> Print for Text<'a> {
                 fmt.write_bytes(b";");
                 fmt.write_fws();
                 fmt.write_bytes(b"charset=");
-                fmt.write_bytes(chr.as_bytes());
+                match &chr {
+                    EmailCharset::Unknown(s) =>
+                        // print it as quoted just to be safe
+                        print_quoted(fmt, s.iter().cloned()),
+                    _ =>
+                        fmt.write_bytes(chr.as_bytes())
+                }
             }
         }
         for param in &self.params {
