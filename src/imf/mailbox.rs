@@ -297,24 +297,35 @@ impl<'a> Print for LocalPart<'a> {
 ///
 /// Compared to the RFC, we allow multiple dots.
 /// This is found in Enron emails and supported by Gmail.
-/// More generally, we allow an arbitrary interleaving of
-/// dots and words.
+/// We also allow dots at the beginning and end.
 ///
-/// Obsolete local part is a superset of strict_local_part:
-/// anything that is parsed by strict_local_part will be parsed by
-/// obs_local_part.
+/// This "obsolete local part" syntax is a superset of both the RFC's
+/// local-part and obs-local-part.
 ///
 /// ```abnf
-/// obs-local-part  =  1*(word / ".")
+/// our-obs-local-part  =  *"." word *(1*"." word) *"."
 /// ```
 fn obs_local_part(input: &[u8]) -> IResult<&[u8], LocalPart<'_>> {
-    map(
-        many1(alt((
-            map(word, LocalPartToken::Word),
-            map(tag(&[ascii::PERIOD]), |_| LocalPartToken::Dot),
-        ))),
-        LocalPart
-    )(input)
+    let (input, prefix) = many0(local_part_dot)(input)?;
+    let (input, w) = local_part_word(input)?;
+    let (input, ws) = many0(pair(many1(local_part_dot), local_part_word))(input)?;
+    let (input, suffix) = many0(local_part_dot)(input)?;
+
+    let mut v: Vec<LocalPartToken> = vec![];
+    v.extend(prefix);
+    v.push(w);
+    for (dots, w) in ws.into_iter() {
+        v.extend(dots);
+        v.push(w);
+    }
+    v.extend(suffix);
+    Ok((input, LocalPart(v)))
+}
+fn local_part_dot(input: &[u8]) -> IResult<&[u8], LocalPartToken<'_>> {
+    map(tag(&[ascii::PERIOD]), |_| LocalPartToken::Dot)(input)
+}
+fn local_part_word(input: &[u8]) -> IResult<&[u8], LocalPartToken<'_>> {
+    map(word, LocalPartToken::Word)(input)
 }
 
 #[derive(Clone, Debug, PartialEq, ToStatic)]
@@ -556,6 +567,18 @@ mod tests {
             AddrSpec {
                 local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(Atom(b"alice"[..].into())))]),
                 domain: Domain::Atoms(vec![Atom(b"example"[..].into()), Atom(b"com"[..].into())]),
+            }
+        );
+
+        addr_roundtrip_as(
+            b"alice@smtp.example.com",
+            AddrSpec {
+                local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(Atom(b"alice"[..].into())))]),
+                domain: Domain::Atoms(vec![
+                    Atom(b"smtp"[..].into()),
+                    Atom(b"example"[..].into()),
+                    Atom(b"com"[..].into()),
+                ]),
             }
         );
 
