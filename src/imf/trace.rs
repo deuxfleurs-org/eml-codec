@@ -127,7 +127,7 @@ impl<'a> TryFrom<&'a lazy::ReceivedLog<'a>> for ReceivedLog<'a> {
 
 pub fn received_log(input: &[u8]) -> IResult<&[u8], ReceivedLog<'_>> {
     map(
-        tuple((many0(received_tokens), opt(whitespace::cfws), tag(";"), datetime::date_time)),
+        tuple((many0(received_token), opt(whitespace::cfws), tag(";"), datetime::date_time)),
         |(tokens, _, _, dt)| ReceivedLog {
             log: tokens,
             date: dt,
@@ -153,7 +153,7 @@ fn empty_path(input: &[u8]) -> IResult<&[u8], ReturnPath<'_>> {
     Ok((input, ReturnPath(None)))
 }
 
-fn received_tokens(input: &[u8]) -> IResult<&[u8], ReceivedLogToken<'_>> {
+fn received_token(input: &[u8]) -> IResult<&[u8], ReceivedLogToken<'_>> {
     alt((
         terminated(
             map(misc_token::word, ReceivedLogToken::Word),
@@ -190,6 +190,27 @@ mod tests {
                 }
             ))
         )
+    }
+
+    #[test]
+    fn test_received_token() {
+        assert_eq!(
+            received_token(b"from smtp.example.com"),
+            Ok((&b"smtp.example.com"[..],
+                ReceivedLogToken::Word(Word::Atom(Atom(b"from"[..].into())))
+                ))
+        );
+
+        assert_eq!(
+            received_token(b"smtp.example.com"),
+            Ok((&b""[..],
+                ReceivedLogToken::Domain(mailbox::Domain::Atoms(vec![
+                    Atom(b"smtp"[..].into()),
+                    Atom(b"example"[..].into()),
+                    Atom(b"com"[..].into()),
+                ]))
+            ))
+        );
     }
 
     #[test]
@@ -233,6 +254,45 @@ mod tests {
                             )]),
                             domain: mailbox::Domain::Atoms(vec![
                                 Atom(b"example"[..].into()),
+                                Atom(b"com"[..].into()),
+                            ]),
+                        })
+                    ],
+                }
+            ))
+        );
+    }
+
+    #[test]
+    fn test_received_log2() {
+        let hdrs = r#"X.X.X Y foo@bar.com; Tue, 13 Jun 2023 19:01:08 +0000"#
+            .as_bytes();
+
+        assert_eq!(
+            received_log(hdrs),
+            Ok((
+                &b""[..],
+                ReceivedLog {
+                    date:
+                    datetime::DateTime(
+                        FixedOffset::east_opt(0)
+                            .unwrap()
+                            .with_ymd_and_hms(2023, 06, 13, 19, 1, 8)
+                            .unwrap()
+                    ),
+                    log: vec![
+                        ReceivedLogToken::Domain(mailbox::Domain::Atoms(vec![
+                            Atom(b"X"[..].into()),
+                            Atom(b"X"[..].into()),
+                            Atom(b"X"[..].into()),
+                        ])),
+                        ReceivedLogToken::Word(Word::Atom(Atom(b"Y"[..].into()))),
+                        ReceivedLogToken::Addr(mailbox::AddrSpec {
+                            local_part: mailbox::LocalPart(vec![mailbox::LocalPartToken::Word(
+                                Word::Atom(Atom(b"foo"[..].into()))
+                            )]),
+                            domain: mailbox::Domain::Atoms(vec![
+                                Atom(b"bar"[..].into()),
                                 Atom(b"com"[..].into()),
                             ]),
                         })
