@@ -31,11 +31,73 @@ pub struct CommonMIME<'a> {
     pub description: Option<Unstructured<'a>>,
 }
 
+// Invariant: when T is mime::r#type::Multipart or mime::r#type::Message,
+// fields.transfer_encoding must be 7bit, 8bit or binary.
 #[derive(Debug, PartialEq, Clone, ToStatic)]
-#[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
+#[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
 pub struct MIME<'a, T> {
     pub ctype: T,
     pub fields: CommonMIME<'a>,
+}
+
+#[cfg(feature = "arbitrary")]
+impl<'a> Arbitrary<'a> for MIME<'a, r#type::Multipart<'a>> {
+    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
+        let mime = MIME {
+            ctype: u.arbitrary()?,
+            fields: u.arbitrary()?,
+        };
+        match mime.fields.transfer_encoding {
+            Deductible::Inferred |
+            Deductible::Explicit(Mechanism::_7Bit) |
+            Deductible::Explicit(Mechanism::_8Bit) |
+            Deductible::Explicit(Mechanism::Binary) =>
+                (),
+            _ =>
+                return Err(arbitrary::Error::IncorrectFormat),
+        };
+        Ok(mime)
+    }
+}
+
+#[cfg(feature = "arbitrary")]
+impl<'a> Arbitrary<'a> for MIME<'a, r#type::Message<'a>> {
+    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
+        let mime = MIME {
+            ctype: u.arbitrary()?,
+            fields: u.arbitrary()?,
+        };
+        match mime.fields.transfer_encoding {
+            Deductible::Inferred |
+            Deductible::Explicit(Mechanism::_7Bit) |
+            Deductible::Explicit(Mechanism::_8Bit) |
+            Deductible::Explicit(Mechanism::Binary) =>
+                (),
+            _ =>
+                return Err(arbitrary::Error::IncorrectFormat),
+        };
+        Ok(mime)
+    }
+}
+
+#[cfg(feature = "arbitrary")]
+impl<'a> Arbitrary<'a> for MIME<'a, Deductible<r#type::Text<'a>>> {
+    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
+        Ok(MIME {
+            ctype: u.arbitrary()?,
+            fields: u.arbitrary()?,
+        })
+    }
+}
+
+#[cfg(feature = "arbitrary")]
+impl<'a> Arbitrary<'a> for MIME<'a, r#type::Binary<'a>> {
+    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
+        Ok(MIME {
+            ctype: u.arbitrary()?,
+            fields: u.arbitrary()?,
+        })
+    }
 }
 
 impl<'a> Default for MIME<'a, r#type::DeductibleText<'a>> {
@@ -182,7 +244,7 @@ impl<'a> NaiveMIME<'a> {
                 fields.transfer_encoding =
                     match fields.transfer_encoding {
                         t @ Deductible::Inferred => t,
-                        Deductible::Explicit(t) => Deductible::Explicit(t.to_part_encoding()),
+                        Deductible::Explicit(t) => t.to_part_encoding(),
                     };
                 AnyMIME::Mult(MIME { ctype, fields })
             },
@@ -192,7 +254,7 @@ impl<'a> NaiveMIME<'a> {
                 fields.transfer_encoding =
                     match fields.transfer_encoding {
                         t @ Deductible::Inferred => t,
-                        Deductible::Explicit(t) => Deductible::Explicit(t.to_part_encoding()),
+                        Deductible::Explicit(t) => t.to_part_encoding(),
                     };
                 AnyMIME::Msg(MIME { ctype, fields })
             },
