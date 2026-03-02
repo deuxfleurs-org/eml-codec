@@ -17,7 +17,6 @@ use crate::text::charset::EmailCharset;
 use crate::text::misc_token::{mime_word, MIMEWord};
 use crate::text::quoted::print_quoted;
 use crate::text::words::{mime_atom, MIMEAtom};
-use crate::utils::Deductible;
 
 // --------- NAIVE TYPE
 #[derive(Debug, PartialEq, Clone, ToStatic)]
@@ -87,10 +86,10 @@ pub fn parameter_list(input: &[u8]) -> IResult<&[u8], Vec<Parameter<'_>>> {
 pub enum AnyType<'a> {
     // Composite types
     Multipart(Multipart<'a>),         // multipart/*
-    Message(Message<'a>), // message/*
+    Message(Message<'a>),             // message/*
 
     // Discrete types
-    Text(Deductible<Text<'a>>),       // text/*
+    Text(Text<'a>),                   // text/*
     Binary(Binary<'a>),               // everything else
 }
 
@@ -103,7 +102,7 @@ impl<'a> From<&NaiveType<'a>> for AnyType<'a> {
                 .map(Self::Multipart)
                 .unwrap_or(Self::Binary(Binary::from(nt))),
             b"message" => Self::Message(Message::from(nt)),
-            b"text" => Self::Text(DeductibleText::Explicit(Text::from(nt))),
+            b"text" => Self::Text(Text::from(nt)),
             _ => Self::Binary(Binary::from(nt)),
         }
     }
@@ -312,14 +311,13 @@ impl<'a> From<&NaiveType<'a>> for Message<'a> {
     }
 }
 
-pub type DeductibleText<'a> = Deductible<Text<'a>>;
 #[derive(Debug, PartialEq, Default, Clone, ToStatic)]
 #[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
 pub struct Text<'a> {
     // NOTE: an unknown subtype combined with an unknown charset should
     // result in this type be treated as equivalent to the Binary type.
     pub subtype: TextSubtype,
-    pub charset: Deductible<EmailCharset>,
+    pub charset: EmailCharset,
     pub params: Vec<Parameter<'a>>,
 }
 
@@ -327,20 +325,15 @@ impl<'a> Print for Text<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
         fmt.write_bytes(b"text/");
         self.subtype.print(fmt);
+        fmt.write_bytes(b";");
+        fmt.write_fws();
+        fmt.write_bytes(b"charset=");
         match &self.charset {
-            Deductible::Inferred => (),
-            Deductible::Explicit(chr) => {
-                fmt.write_bytes(b";");
-                fmt.write_fws();
-                fmt.write_bytes(b"charset=");
-                match &chr {
-                    EmailCharset::Unknown(s) =>
-                        // print it as quoted just to be safe
-                        print_quoted(fmt, s.iter().cloned()),
-                    _ =>
-                        fmt.write_bytes(chr.as_bytes())
-                }
-            }
+            EmailCharset::Unknown(s) =>
+            // print it as quoted just to be safe
+                print_quoted(fmt, s.iter().cloned()),
+            _ =>
+                fmt.write_bytes(&self.charset.as_bytes())
         }
         for param in &self.params {
             fmt.write_bytes(b";");
@@ -353,12 +346,12 @@ impl<'a> Print for Text<'a> {
 impl<'a> From<&NaiveType<'a>> for Text<'a> {
     fn from(nt: &NaiveType<'a>) -> Self {
         let mut params = vec![];
-        let mut charset = Deductible::Inferred;
+        let mut charset = None;
         for param in &nt.params {
             if param.name.0.to_ascii_lowercase().as_slice() == b"charset" {
-                if charset == Deductible::Inferred {
+                if charset.is_none() {
                     let value: Vec<u8> = param.value.bytes().collect();
-                    charset = Deductible::Explicit(EmailCharset::from(value.as_slice()));
+                    charset = Some(EmailCharset::from(value.as_slice()));
                 }
                 // drop any "charset" parameter that is not the first
             } else {
@@ -366,7 +359,11 @@ impl<'a> From<&NaiveType<'a>> for Text<'a> {
             }
         }
 
-        Self { subtype: TextSubtype::from(nt), charset, params }
+        Self {
+            subtype: TextSubtype::from(nt),
+            charset: charset.unwrap_or_default(),
+            params,
+        }
     }
 }
 
@@ -430,7 +427,6 @@ impl<'a> From<&NaiveType<'a>> for Binary<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::utils::Deductible;
     use crate::text::quoted::QuotedString;
     use crate::text::charset::EmailCharset;
 
@@ -465,14 +461,14 @@ mod tests {
 
         assert_eq!(
             nt.to_type(),
-            AnyType::Text(Deductible::Explicit(Text {
-                charset: Deductible::Explicit(EmailCharset::UTF_8),
+            AnyType::Text(Text {
+                charset: EmailCharset::UTF_8,
                 subtype: TextSubtype::Plain,
                 params: vec![Parameter {
                     name: MIMEAtom(b"hello"[..].into()),
                     value: MIMEWord::Atom(MIMEAtom(b"yolo"[..].into())),
                 }],
-            }))
+            })
         );
     }
 
@@ -514,11 +510,11 @@ mod tests {
 
         assert_eq!(
             nt.to_type(),
-            AnyType::Text(Deductible::Explicit(Text {
+            AnyType::Text(Text {
                 subtype: TextSubtype::Plain,
-                charset: Deductible::Explicit(EmailCharset::US_ASCII),
+                charset: EmailCharset::US_ASCII,
                 params: vec![],
-            }))
+            })
         );
     }
 
