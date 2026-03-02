@@ -11,7 +11,7 @@ use crate::mime;
 #[derive(Clone, PartialEq, ToStatic)]
 #[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
 pub struct Text<'a> {
-    pub mime: mime::MIME<'a, mime::r#type::DeductibleText<'a>>,
+    pub mime: mime::MIME<'a, mime::r#type::Text<'a>>,
     #[cfg_attr(feature = "arbitrary", fuzz_eq(use_eq))]
     pub body: Cow<'a, [u8]>,
 }

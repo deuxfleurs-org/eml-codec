@@ -1,38 +1,3 @@
-#[cfg(feature = "arbitrary")]
-use arbitrary::Arbitrary;
-use bounded_static::ToStatic;
-#[cfg(feature = "arbitrary")]
-use crate::fuzz_eq::FuzzEq;
-use crate::print::{Print, Formatter};
-
-#[derive(Debug, PartialEq, Clone, ToStatic)]
-#[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
-pub enum Deductible<T: Default> {
-    Inferred,
-    Explicit(T),
-}
-impl<T: Default> Default for Deductible<T> {
-    fn default() -> Self {
-        Self::Inferred
-    }
-}
-impl<T: Default + Clone> Deductible<T> {
-    pub fn value(&self) -> T {
-        match self {
-            Deductible::Inferred => T::default(),
-            Deductible::Explicit(x) => x.clone(),
-        }
-    }
-}
-impl<T: Default + Print> Print for Deductible<T> {
-    fn print(&self, fmt: &mut impl Formatter) {
-        match self {
-            Deductible::Inferred => T::default().print(fmt),
-            Deductible::Explicit(x) => x.print(fmt),
-        }
-    }
-}
-
 pub(crate) fn set_opt<T>(o: &mut Option<T>, x: T) -> bool {
     match *o {
         None => { *o = Some(x); true },

@@ -6,7 +6,6 @@ use crate::fuzz_eq::FuzzEq;
 use crate::print::{Print, Formatter};
 use crate::text::whitespace::cfws;
 use crate::text::words::{mime_atom as token, MIMEAtom};
-use crate::utils::Deductible;
 use nom::{
     branch::alt,
     bytes::complete::tag_no_case,
@@ -56,13 +55,13 @@ impl<'a> Mechanism<'a> {
     // This converts a `Mechanism` to ensure it belongs to
     // one of these three encodings, returning the default mechanism
     // in case of an invalid value.
-    pub fn to_part_encoding(&self) -> Deductible<Mechanism<'static>> {
+    pub fn to_part_encoding(&self) -> Mechanism<'static> {
         use bounded_static::ToBoundedStatic;
         match self {
             Mechanism::_7Bit | Mechanism::_8Bit | Mechanism::Binary =>
-                Deductible::Explicit(self.to_static()),
+                self.to_static(),
             _ =>
-                Deductible::Inferred,
+                Mechanism::default(),
         }
     }
 }

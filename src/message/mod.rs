@@ -205,7 +205,6 @@ mod tests {
     use crate::imf::identification::MessageIDRight;
     use crate::imf::mailbox::*;
     use crate::mime::{CommonMIME, MIME};
-    use crate::utils::Deductible;
     use crate::part::composite::Multipart;
     use crate::part::discrete::Text;
     use crate::part::{AnyPart, MimeBody};
@@ -278,7 +277,7 @@ between the header information and the body of the message.";
                 let mime_body = part::MimeBody::Txt(
                     part::discrete::Text {
                         mime: MIME {
-                            ctype: Deductible::Inferred,
+                            ctype: mime::r#type::Text::default(),
                             fields: CommonMIME::default(),
                         },
                         body: b"This is the plain text body of the message. Note the blank line\nbetween the header information and the body of the message."[..].into(),
@@ -471,7 +470,7 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                                 params: vec![],
                             },
                             fields: mime::CommonMIME {
-                                transfer_encoding: Deductible::Explicit(mime::mechanism::Mechanism::_7Bit),
+                                transfer_encoding: mime::mechanism::Mechanism::_7Bit,
                                 ..mime::CommonMIME::default()
                             }
                         },
@@ -485,13 +484,13 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                                 ],
                                 mime_body: MimeBody::Txt(Text {
                                     mime: mime::MIME {
-                                        ctype: Deductible::Explicit(mime::r#type::Text {
+                                        ctype: mime::r#type::Text {
                                             subtype: mime::r#type::TextSubtype::Plain,
-                                            charset: Deductible::Explicit(EmailCharset::UTF_8),
+                                            charset: EmailCharset::UTF_8,
                                             params: vec![],
-                                        }),
+                                        },
                                         fields: mime::CommonMIME {
-                                            transfer_encoding: Deductible::Explicit(mime::mechanism::Mechanism::QuotedPrintable),
+                                            transfer_encoding: mime::mechanism::Mechanism::QuotedPrintable,
                                             ..mime::CommonMIME::default()
                                         }
                                     },
@@ -511,11 +510,11 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                                 ],
                                 mime_body: MimeBody::Txt(Text {
                                     mime: mime::MIME {
-                                        ctype: Deductible::Explicit(mime::r#type::Text {
+                                        ctype: mime::r#type::Text {
                                             subtype: mime::r#type::TextSubtype::Html,
-                                            charset: Deductible::Explicit(EmailCharset::US_ASCII),
+                                            charset: EmailCharset::US_ASCII,
                                             params: vec![],
-                                        }),
+                                        },
 
                                         fields: mime::CommonMIME::default(),
                                     },
@@ -596,7 +595,7 @@ hello??",
                 let mime_body = part::MimeBody::Txt(
                     part::discrete::Text {
                         mime: MIME {
-                            ctype: Deductible::Inferred,
+                            ctype: mime::r#type::Text::default(),
                             fields: CommonMIME::default(),
                         },
                         body: b"hello??"[..].into(),
