@@ -21,7 +21,7 @@ use crate::imf::field::{Field, Entry};
 use crate::imf::identification::MessageID;
 use crate::imf::mailbox::{MailboxRef, MailboxList};
 use crate::imf::mime::Version;
-use crate::imf::trace::{ReceivedLog, ReturnPath, TraceBlock};
+use crate::imf::trace::{ReceivedLog, ReturnPath, Trace, TraceBlock};
 use crate::print::Formatter;
 use crate::text::misc_token::{PhraseList, Unstructured};
 use crate::utils::{append_opt, set_opt};
@@ -52,8 +52,9 @@ pub struct Imf<'a> {
     pub keywords: Vec<PhraseList<'a>>,
 
     // 3.6.6 Not implemented
+
     // 3.6.7 Trace Fields
-    pub trace: Vec<TraceBlock<'a>>,
+    pub trace: Trace<'a>,
 
     // MIME
     pub mime_version: Version,
@@ -106,7 +107,7 @@ impl<'a> Imf<'a> {
             subject: None,
             comments: vec![],
             keywords: vec![],
-            trace: vec![],
+            trace: Trace::default(),
             mime_version: Version::default(),
         }
     }
@@ -446,7 +447,7 @@ impl<'a> PartialImf<'a> {
             subject: self.subject,
             comments: self.comments,
             keywords: self.keywords,
-            trace,
+            trace: Trace(trace),
             // XXX we don't support reading non-MIME compliant emails
             // currently, so we always turn a missing MIME-Version field
             // into the default supported version
