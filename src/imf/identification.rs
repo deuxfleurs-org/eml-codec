@@ -93,7 +93,11 @@ impl<'a> Print for MessageIDRight<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
         match self {
             MessageIDRight::DotAtom(a) => fmt.write_bytes(&a.0),
-            MessageIDRight::Literal(dt) => dt.print(fmt),
+            MessageIDRight::Literal(dt) => {
+                fmt.write_bytes(b"[");
+                dt.print(fmt);
+                fmt.write_bytes(b"]");
+            },
         }
     }
 }
