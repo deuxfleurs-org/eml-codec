@@ -326,10 +326,15 @@ impl<'a> Print for Text<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
         fmt.write_bytes(b"text/");
         self.subtype.print(fmt);
-        fmt.write_bytes(b";");
-        fmt.write_fws();
-        fmt.write_bytes(b"charset=");
-        fmt.write_bytes(self.charset.value().as_bytes());
+        match &self.charset {
+            Deductible::Inferred => (),
+            Deductible::Explicit(chr) => {
+                fmt.write_bytes(b";");
+                fmt.write_fws();
+                fmt.write_bytes(b"charset=");
+                fmt.write_bytes(chr.as_bytes());
+            }
+        }
         for param in &self.params {
             fmt.write_bytes(b";");
             fmt.write_fws();
