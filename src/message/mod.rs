@@ -33,7 +33,7 @@ impl<'a> Print for Message<'a> {
         fmt.begin_line_folding();
         let mime = self.mime_body.mime();
         // always print trace fields first
-        for block in &self.imf.trace {
+        for block in &self.imf.trace.0 {
             if let Some(path) = &block.return_path {
                 header::print(fmt, b"Return-Path", path)
             }
