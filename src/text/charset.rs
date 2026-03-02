@@ -3,7 +3,10 @@ use arbitrary::Arbitrary;
 use bounded_static::ToStatic;
 use encoding_rs::Encoding;
 #[cfg(feature = "arbitrary")]
-use crate::fuzz_eq::FuzzEq;
+use crate::{
+    fuzz_eq::FuzzEq,
+    text::words::is_vchar,
+};
 
 /// Specific implementation of charset
 ///
@@ -85,6 +88,9 @@ impl ToString for EmailCharset {
 }
 
 impl EmailCharset {
+    /// WARNING: in the `Unknown` case, the returned bytes can
+    /// be arbitrary (in particular, they are not necessarily
+    /// printable bytes)!
     pub fn as_bytes(&self) -> &[u8] {
         use EmailCharset::*;
         match self {
@@ -127,7 +133,11 @@ impl EmailCharset {
 #[cfg(feature = "arbitrary")]
 impl FuzzEq for EmailCharset {
     fn fuzz_eq(&self, other: &Self) -> bool {
-        self == other
+        // the `Unknown` case may contain non-displayable chars, but those are
+        // dropped during printing, so we ignore them...
+        let s: Vec<_> = self.as_bytes().iter().filter(|b| is_vchar(**b)).collect();
+        let o: Vec<_> = other.as_bytes().iter().filter(|b| is_vchar(**b)).collect();
+        s == o
     }
 }
 
