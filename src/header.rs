@@ -5,7 +5,7 @@ use nom::{
     branch::alt,
     bytes::complete::{tag, take_while1},
     character::complete::space0,
-    combinator::{all_consuming, eof, map, rest},
+    combinator::{all_consuming, eof, map, rest, verify},
     multi::many0,
     sequence::{pair, terminated, tuple},
     IResult, Parser,
@@ -113,10 +113,7 @@ pub fn header_kv(input: &[u8]) -> (&[u8], Vec<FieldRaw<'_>>) {
 // NOTE: field_raw only recognizes non-empty inputs.
 fn field_raw(input: &[u8]) -> IResult<&[u8], FieldRaw<'_>> {
     map(
-        pair(field_name, alt((
-            foldable_line, // NB: foldable_line does not recognizes empty lines
-            map(obs_crlf, |_| &b""[..]),
-        ))),
+        pair(field_name, foldable_line),
         |(name, body)| FieldRaw { name, body }
     )(input)
 }
@@ -124,15 +121,15 @@ fn field_raw(input: &[u8]) -> IResult<&[u8], FieldRaw<'_>> {
 // A best-effort version of `field_raw` that also recognizes lines that cannot
 // be parsed as a field name and body. (It returns `None` in this case.)
 // NOTE: `field_raw_opt` only recognizes non-empty inputs.
-// NOTE: furthermore, in the "best effort" case, `foldable_line` always
+// NOTE: furthermore, in the "best effort" case, we ensure `foldable_line` only
 // recognizes non-empty lines; this is important so that it does not consume the
 // final empty line (obs_crlf) that terminates `header_kv`.
 fn field_raw_opt(input: &[u8]) -> IResult<&[u8], Option<FieldRaw<'_>>> {
     alt((
         map(field_raw, Some),
-        // best-effort: a foldable line that cannot even be parsed as a field name
-        // and body. We drop it afterwards.
-        map(foldable_line, |_| None),
+        // best-effort: a non-empty foldable line that cannot even be parsed as
+        // a field name and body. We drop it afterwards.
+        map(verify(foldable_line, |b: &[u8]| !b.is_empty()), |_| None),
     ))(input)
 }
 
@@ -215,6 +212,17 @@ mod tests {
             FieldRaw {
                 name: FieldName(b"X-Foo".into()),
                 body: &b""[..],
+            }
+        );
+
+        // with line folding
+        let (rest, f) = field_raw(b"From:\r\n foo@example.com\r\n abcd\r\n").unwrap();
+        assert!(rest.is_empty());
+        assert_eq!(
+            f,
+            FieldRaw {
+                name: FieldName(b"From".into()),
+                body: &b"\r\n foo@example.com\r\n abcd"[..],
             }
         );
     }

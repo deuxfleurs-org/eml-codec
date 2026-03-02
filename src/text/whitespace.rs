@@ -1,9 +1,10 @@
 use crate::text::ascii;
 use crate::text::encoding::encoded_word_plain;
 use crate::text::quoted::quoted_pair;
+use crate::utils::is_not0;
 use nom::{
     branch::alt,
-    bytes::complete::{is_not, tag, take_while1},
+    bytes::complete::{tag, take_while1},
     character::complete::{space0, space1},
     combinator::{opt, recognize},
     multi::{many0, many1},
@@ -40,10 +41,10 @@ pub fn obs_crlf(input: &[u8]) -> IResult<&[u8], &[u8]> {
 /// ```
 pub fn foldable_line(input: &[u8]) -> IResult<&[u8], &[u8]> {
     terminated(
-        recognize(tuple((
-            is_not(ascii::CRLF),
-            many0(pair(many1(pair(obs_crlf, space1)), is_not(ascii::CRLF))),
-        ))),
+        recognize(pair(
+            is_not0(ascii::CRLF),
+            many0(pair(many1(pair(obs_crlf, space1)), is_not0(ascii::CRLF))),
+        )),
         obs_crlf,
     )(input)
 }
@@ -273,6 +274,36 @@ mod tests {
         assert_eq!(
             cfws(b"(=?US-ASCII?Q?Keith_Moore?=)"),
             Ok((&b""[..], &b"(=?US-ASCII?Q?Keith_Moore?=)"[..])),
+        );
+    }
+
+    #[test]
+    fn test_foldable_line() {
+        assert_eq!(
+            foldable_line(b"abc\r\n def\r\n   ghi\r\n"),
+            Ok((&b""[..], &b"abc\r\n def\r\n   ghi"[..])),
+        );
+
+        // a line that starts with FWS
+        assert_eq!(
+            foldable_line(b"\r\n abc\r\n"),
+            Ok((&b""[..], &b"\r\n abc"[..])),
+        );
+
+        // obsolete folding
+        assert_eq!(
+            foldable_line(b"\r\n \r\n abc\r\n   \r\n def\r\n"),
+            Ok((&b""[..], &b"\r\n \r\n abc\r\n   \r\n def"[..])),
+        );
+
+        // empty line
+        assert_eq!(
+            foldable_line(b"\r\n"),
+            Ok((&b""[..], &b""[..])),
+        );
+        assert_eq!(
+            foldable_line(b"\n"),
+            Ok((&b""[..], &b""[..])),
         );
     }
 }

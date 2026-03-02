@@ -55,3 +55,21 @@ pub(crate) fn vec_filter_none_nonempty<T>(v: Vec<Option<T>>) -> Option<Vec<T>> {
         Some(v)
     }
 }
+
+use nom::error::ParseError;
+use nom::IResult;
+use nom::{FindToken, InputTakeAtPosition};
+
+/// Like `nom::bytes::complete::is_not`, but allows the pattern to be
+/// at the beginning of the input...
+pub fn is_not0<T, Input, Error: ParseError<Input>>(
+  arr: T,
+) -> impl Fn(Input) -> IResult<Input, Input, Error>
+where
+  Input: InputTakeAtPosition,
+  T: FindToken<<Input as InputTakeAtPosition>::Item>,
+{
+  move |i: Input| {
+    i.split_at_position_complete(|c| arr.find_token(c))
+  }
+}
