@@ -37,7 +37,7 @@ impl<'a> Arbitrary<'a> for TraceBlock<'a> {
 }
 
 #[derive(Clone, Debug, PartialEq, ToStatic)]
-#[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
+#[cfg_attr(feature = "arbitrary", derive(Arbitrary))]
 pub enum ReceivedLogToken<'a> {
     Addr(mailbox::AddrSpec<'a>),
     Domain(mailbox::Domain<'a>),
@@ -51,6 +51,15 @@ impl<'a> Print for ReceivedLogToken<'a> {
             ReceivedLogToken::Domain(d) => d.print(fmt),
             ReceivedLogToken::Word(w) => w.print(fmt),
         }
+    }
+}
+
+// Domain and Word overlap; implement a somewhat sloppy equality
+#[cfg(feature = "arbitrary")]
+impl<'a> FuzzEq for ReceivedLogToken<'a> {
+    fn fuzz_eq(&self, other: &Self) -> bool {
+        crate::print::with_formatter(None, |fmt| self.print(fmt)) ==
+        crate::print::with_formatter(None, |fmt| other.print(fmt))
     }
 }
 
