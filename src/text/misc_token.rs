@@ -422,6 +422,7 @@ impl<'a> Arbitrary<'a> for UnstrToken<'a> {
 // Invariant:
 // - Encoded and Plain(_, Txt) tokens are always separated by whitespace
 // - There are no consecutive Plain(_, _) tokens with the same k
+// - There must not be whitespace in between two Encoded tokens
 #[derive(Debug, PartialEq, Clone, ToStatic)]
 #[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
 pub struct Unstructured<'a>(pub Vec<UnstrToken<'a>>);
@@ -461,25 +462,27 @@ impl<'a> Print for Unstructured<'a> {
 impl<'a> Arbitrary<'a> for Unstructured<'a> {
     fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Unstructured<'a>> {
         let mut v: Vec<UnstrToken> = Vec::new();
-        let mut prev_kind: Option<UnstrTxtKind> = None;
         for _ in 0..u.arbitrary_len::<UnstrToken>()? {
             let tok: UnstrToken = u.arbitrary()?;
-            match (&prev_kind, tok) {
-                (Some(k1), UnstrToken::Plain(_, k2)) if *k1 == k2 => {
+            let before_last = v.iter().rev().nth(1);
+            let last = v.last();
+            match (before_last, last, tok) {
+                (_, Some(UnstrToken::Plain(_, k1)), UnstrToken::Plain(_, k2)) if *k1 == k2 => {
                     return Err(arbitrary::Error::IncorrectFormat)
                 },
-                (Some(UnstrTxtKind::Fws), tok) |
-                (_, tok @ UnstrToken::Plain(_, UnstrTxtKind::Fws)) => {
+                (Some(UnstrToken::Encoded(_)),
+                 Some(UnstrToken::Plain(_, UnstrTxtKind::Fws)),
+                 UnstrToken::Encoded(_)) => {
+                    return Err(arbitrary::Error::IncorrectFormat)
+                },
+                (_, Some(UnstrToken::Plain(_, UnstrTxtKind::Fws)), tok) |
+                (_, _, tok @ UnstrToken::Plain(_, UnstrTxtKind::Fws)) => {
                     // first case: we know that `tok` is not Fws, this is
                     // excluded by the previous case
                     // second case: fws follows a non-whitespace token
-                    prev_kind = match &tok {
-                        UnstrToken::Plain(_, k) => Some(*k),
-                        UnstrToken::Encoded(_) => None,
-                    };
                     v.push(tok);
                 },
-                (_, _) => {
+                (_, _, _) => {
                     return Err(arbitrary::Error::IncorrectFormat)
                 }
             };
