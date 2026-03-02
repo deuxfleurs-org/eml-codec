@@ -77,7 +77,11 @@ pub struct ReturnPath<'a>(pub Option<mailbox::AddrSpec<'a>>);
 impl<'a> Print for ReturnPath<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
         match &self.0 {
-            Some(a) => a.print(fmt),
+            Some(a) => {
+                fmt.write_bytes(b"<");
+                a.print(fmt);
+                fmt.write_bytes(b">");
+            },
             None => fmt.write_bytes(b"<>"),
         }
     }
