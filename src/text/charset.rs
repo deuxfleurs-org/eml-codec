@@ -48,8 +48,8 @@ pub enum EmailCharset {
 }
 
 impl<T: AsRef<[u8]>> From<T> for EmailCharset {
-    fn from(s: T) -> Self {
-        let s = s.as_ref().to_ascii_lowercase();
+    fn from(bytes: T) -> Self {
+        let s = bytes.as_ref().to_ascii_lowercase();
         match s.as_slice() {
             b"us-ascii" | b"ascii" => EmailCharset::US_ASCII,
             b"iso-8859-1" => EmailCharset::ISO_8859_1,
@@ -76,7 +76,7 @@ impl<T: AsRef<[u8]>> From<T> for EmailCharset {
             b"big5" => EmailCharset::Big5,
             b"koi8-r" => EmailCharset::KOI8_R,
             b"utf-8" | b"utf8" => EmailCharset::UTF_8,
-            _ => EmailCharset::Unknown(s),
+            _ => EmailCharset::Unknown(bytes.as_ref().to_vec()),
         }
     }
 }
