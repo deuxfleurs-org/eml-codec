@@ -421,10 +421,8 @@ impl<'a> Arbitrary<'a> for UnstrToken<'a> {
 
 // Invariant:
 // - Encoded and Plain(_, Txt) tokens are always separated by whitespace
-// - There are no consecutive Plain(_, _) tokens with the same k
 // - There must not be whitespace in between two Encoded tokens
 #[derive(Debug, PartialEq, Clone, ToStatic)]
-#[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
 pub struct Unstructured<'a>(pub Vec<UnstrToken<'a>>);
 
 impl<'a> ToString for Unstructured<'a> {
@@ -458,34 +456,71 @@ impl<'a> Print for Unstructured<'a> {
     }
 }
 
+impl<'a> Unstructured<'a> {
+    // Merges consecutive tokens of the same kind.
+    // Used to define fuzz_eq.
+    #[cfg(feature = "arbitrary")]
+    fn normalize(&self) -> Unstructured<'static> {
+        use bounded_static::ToBoundedStatic;
+        let mut v: Vec<UnstrToken<'static>> = Vec::new();
+        for tok in &self.0 {
+            match (v.last_mut(), tok) {
+                (Some(UnstrToken::Plain(b1, k1)), UnstrToken::Plain(b2, k2)) if k1 == k2 =>
+                    b1.to_mut().extend(b2.iter()),
+                _ =>
+                    v.push(tok.to_static()),
+            }
+        }
+        Unstructured(v)
+    }
+}
+
+#[cfg(feature = "arbitrary")]
+impl<'a> FuzzEq for Unstructured<'a> {
+    fn fuzz_eq(&self, other: &Self) -> bool {
+        self.normalize().0.fuzz_eq(&other.normalize().0)
+    }
+}
+
 #[cfg(feature = "arbitrary")]
 impl<'a> Arbitrary<'a> for Unstructured<'a> {
     fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Unstructured<'a>> {
+        enum Kind {
+            Encoded,
+            Wsp,
+            Txt,
+        }
+        use Kind::*;
+        fn k(tok: &UnstrToken<'_>) -> Kind {
+            match tok {
+                UnstrToken::Encoded(_) => Encoded,
+                UnstrToken::Plain(_, UnstrTxtKind::Fws) => Wsp,
+                UnstrToken::Plain(_, _) => Txt,
+                }
+        }
+
         let mut v: Vec<UnstrToken> = Vec::new();
+        let mut before_last = None;
+        let mut last = None;
         for _ in 0..u.arbitrary_len::<UnstrToken>()? {
             let tok: UnstrToken = u.arbitrary()?;
-            let before_last = v.iter().rev().nth(1);
-            let last = v.last();
-            match (before_last, last, tok) {
-                (_, Some(UnstrToken::Plain(_, k1)), UnstrToken::Plain(_, k2)) if *k1 == k2 => {
+            match (&before_last, &last, k(&tok)) {
+                // invariant: no whitespace between encoded tokens
+                (Some(Encoded), Some(Wsp), Encoded) |
+                // invariant: encoded and text must be separated by whitespace
+                (_, Some(Encoded), Txt) | (_, Some(Txt), Encoded) => {
                     return Err(arbitrary::Error::IncorrectFormat)
                 },
-                (Some(UnstrToken::Encoded(_)),
-                 Some(UnstrToken::Plain(_, UnstrTxtKind::Fws)),
-                 UnstrToken::Encoded(_)) => {
-                    return Err(arbitrary::Error::IncorrectFormat)
-                },
-                (_, Some(UnstrToken::Plain(_, UnstrTxtKind::Fws)), tok) |
-                (_, _, tok @ UnstrToken::Plain(_, UnstrTxtKind::Fws)) => {
-                    // first case: we know that `tok` is not Fws, this is
-                    // excluded by the previous case
-                    // second case: fws follows a non-whitespace token
-                    v.push(tok);
-                },
-                (_, _, _) => {
-                    return Err(arbitrary::Error::IncorrectFormat)
+
+                // consecutive Txt or Wsp nodes should be treated as one
+                (_, Some(Wsp), Wsp) | (_, Some(Txt), Txt) =>
+                    (),
+                (_, _, ktok) => {
+                    before_last = last;
+                    last = Some(ktok);
                 }
             };
+            v.push(tok)
         }
         Ok(Unstructured(v))
     }
