@@ -21,6 +21,27 @@ pub(crate) fn vec_filter_none_nonempty<T>(v: Vec<Option<T>>) -> Option<Vec<T>> {
     }
 }
 
+#[allow(dead_code)]
+pub fn bytes_to_display_string(bs: &[u8]) -> String {
+    let mut s = String::new();
+    s.push('"');
+    for b in bs {
+        match b {
+            b if b.is_ascii_alphanumeric() ||
+                b.is_ascii_graphic() ||
+                *b == b' ' =>
+                s.push(*b as char),
+            b'\"' => s.push_str("\\\""),
+            b'\r' => s.push_str("\\r"),
+            b'\n' => s.push_str("\\n"),
+            b'\t' => s.push_str("\\t"),
+            _ => s.push_str(&format!("\\{}", b)),
+        }
+    }
+    s.push('"');
+    s
+}
+
 use nom::error::ParseError;
 use nom::IResult;
 use nom::{FindToken, InputTakeAtPosition};
