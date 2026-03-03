@@ -4,7 +4,7 @@ use crate::text::quoted::quoted_pair;
 use crate::utils::is_not0;
 use nom::{
     branch::alt,
-    bytes::complete::{tag, take_while1},
+    bytes::complete::{tag, take_while1, is_not},
     character::complete::{space0, space1},
     combinator::{opt, recognize},
     multi::{many0, many1},
@@ -40,6 +40,17 @@ pub fn obs_crlf(input: &[u8]) -> IResult<&[u8], &[u8]> {
 /// fold_line = any *(1*(crlf WS) any) crlf
 /// ```
 pub fn foldable_line(input: &[u8]) -> IResult<&[u8], &[u8]> {
+    terminated(
+        recognize(pair(
+            is_not(ascii::CRLF),
+            many0(pair(many1(pair(obs_crlf, space1)), is_not0(ascii::CRLF))),
+        )),
+        obs_crlf,
+    )(input)
+}
+
+/// Like `foldable_line`, but may start with a folded white space
+pub fn foldable_suffix(input: &[u8]) -> IResult<&[u8], &[u8]> {
     terminated(
         recognize(pair(
             is_not0(ascii::CRLF),
@@ -286,24 +297,28 @@ mod tests {
 
         // a line that starts with FWS
         assert_eq!(
-            foldable_line(b"\r\n abc\r\n"),
+            foldable_suffix(b"\r\n abc\r\n"),
             Ok((&b""[..], &b"\r\n abc"[..])),
         );
+        assert!(foldable_line(b"\r\n abc\r\n").is_err());
+        assert!(foldable_line(b"\n foo\r\n").is_err());
 
         // obsolete folding
         assert_eq!(
-            foldable_line(b"\r\n \r\n abc\r\n   \r\n def\r\n"),
-            Ok((&b""[..], &b"\r\n \r\n abc\r\n   \r\n def"[..])),
+            foldable_line(b"xx\r\n \r\n abc\r\n   \r\n def\r\n"),
+            Ok((&b""[..], &b"xx\r\n \r\n abc\r\n   \r\n def"[..])),
         );
 
         // empty line
         assert_eq!(
-            foldable_line(b"\r\n"),
+            foldable_suffix(b"\r\n"),
             Ok((&b""[..], &b""[..])),
         );
         assert_eq!(
-            foldable_line(b"\n"),
+            foldable_suffix(b"\n"),
             Ok((&b""[..], &b""[..])),
         );
+        assert!(foldable_line(b"\r\n").is_err());
+        assert!(foldable_line(b"\n").is_err());
     }
 }
