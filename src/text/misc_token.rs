@@ -402,7 +402,7 @@ impl<'a> Arbitrary<'a> for UnstrToken<'a> {
         match u.int_in_range(0..=2)? {
             0 => Ok(UnstrToken::Encoded(u.arbitrary()?)),
             1 => {
-                let txt = arbitrary_vec_nonempty_where(u, is_vchar, b'X')?;
+                let txt = arbitrary_vec_nonempty_where(u, |c| is_vchar(*c), b'X')?;
                 // As a coarse-grained measure, reject text that contains '=?' to avoid confusion with
                 // Encoded tokens
                 if txt.windows(2).find(|&s| s == b"=?").is_some() {

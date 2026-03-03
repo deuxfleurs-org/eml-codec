@@ -167,7 +167,7 @@ impl<'a> Base64Word<'a> {
 impl<'a> Arbitrary<'a> for Base64Word<'a> {
     fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Base64Word<'a>> {
         let enc: EmailCharset = u.arbitrary()?;
-        let content = arbitrary_vec_where(u, is_bchar)?;
+        let content = arbitrary_vec_where(u, |c| is_bchar(*c))?;
         Ok(Base64Word { enc, content: Cow::Owned(content) })
     }
 }
@@ -227,7 +227,7 @@ impl<'a> Arbitrary<'a> for QuotedChunk<'a> {
     fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<QuotedChunk<'a>> {
         match u.int_in_range(0..=2)? {
             0 => {
-                let v = arbitrary_vec_where(u, is_safe_char2)?;
+                let v = arbitrary_vec_where(u, |c| is_safe_char2(*c))?;
                 Ok(QuotedChunk::Safe(Cow::Owned(v)))
             },
             1 => {

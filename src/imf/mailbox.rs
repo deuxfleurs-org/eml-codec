@@ -478,7 +478,7 @@ impl<'a> Print for Dtext<'a> {
 #[cfg(feature = "arbitrary")]
 impl<'a> Arbitrary<'a> for Dtext<'a> {
     fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Dtext<'a>> {
-        let bytes: Vec<u8> = arbitrary_vec_nonempty_where(u, is_dtext, b'X')?;
+        let bytes: Vec<u8> = arbitrary_vec_nonempty_where(u, |c| is_dtext(*c), b'X')?;
         Ok(Dtext(Cow::Owned(bytes)))
     }
 }

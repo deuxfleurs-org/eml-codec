@@ -3,17 +3,17 @@ use crate::text::ascii;
 
 pub fn arbitrary_vec_where<'a, F, T>(u: &mut Unstructured<'a>, pred: F) -> Result<Vec<T>>
 where
-    F: Fn(T) -> bool,
-    T: Arbitrary<'a> + Copy
+    F: for<'b> Fn(&'b T) -> bool,
+    T: Arbitrary<'a>
 {
     let len = u.arbitrary_len::<T>()?;
     let mut v = Vec::with_capacity(len);
     for _ in 0..len {
         let x: T = u.arbitrary()?;
-        if pred(x) {
+        if pred(&x) {
             v.push(x)
         } else {
-            break;
+            return Err(arbitrary::Error::IncorrectFormat)
         }
     }
     Ok(v)
@@ -21,8 +21,8 @@ where
 
 pub fn arbitrary_vec_nonempty_where<'a, F, T>(u: &mut Unstructured<'a>, pred: F, default: T) -> Result<Vec<T>>
 where
-    F: Fn(T) -> bool,
-    T: Arbitrary<'a> + Copy
+    F: for<'b> Fn(&'b T) -> bool,
+    T: Arbitrary<'a>
 {
     let mut v = arbitrary_vec_where(u, pred)?;
     if v.is_empty() {
