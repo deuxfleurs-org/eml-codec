@@ -68,7 +68,7 @@ impl<'a> Arbitrary<'a> for QuotedString<'a> {
         let mut chunks = Vec::new();
         u.arbitrary_loop(None, Some(10), |u| {
             let bytes = arbitrary_vec_where(u, |b| {
-                is_vchar(b) || ascii::WS.contains(&b)
+                is_vchar(*b) || ascii::WS.contains(b)
             })?;
             chunks.push(Cow::Owned(bytes));
             Ok(ControlFlow::Continue(()))

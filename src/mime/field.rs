@@ -75,6 +75,16 @@ impl<'a> TryFrom<&header::FieldRaw<'a>> for Content<'a> {
     }
 }
 
+pub fn is_mime_header(name: &header::FieldName) -> bool {
+    match name.bytes().to_ascii_lowercase().as_slice() {
+        b"content-type" |
+        b"content-transfer-encoding" |
+        b"content-id" |
+        b"content-description" => true,
+        _ => false,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

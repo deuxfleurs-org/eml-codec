@@ -45,7 +45,7 @@ impl<'a> Print for FieldName<'a> {
 #[cfg(feature = "arbitrary")]
 impl<'a> Arbitrary<'a> for FieldName<'a> {
     fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<FieldName<'a>> {
-        let bytes: Vec<u8> = arbitrary_vec_nonempty_where(u, is_ftext, b'X')?;
+        let bytes: Vec<u8> = arbitrary_vec_nonempty_where(u, |c| is_ftext(*c), b'X')?;
         Ok(FieldName(Cow::Owned(bytes)))
     }
 }
@@ -156,18 +156,21 @@ fn is_ftext(c: u8) -> bool {
 
 #[derive(Debug, PartialEq, Clone, ToStatic)]
 #[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
-pub struct Unstructured<'a>(pub FieldName<'a>, pub misc_token::Unstructured<'a>);
+pub struct Unstructured<'a> {
+    pub name: FieldName<'a>,
+    pub body: misc_token::Unstructured<'a>,
+}
 
 impl<'a> Unstructured<'a> {
     // TODO: don't throw away the errors
     pub fn from_raw(f: FieldRaw<'a>) -> Option<Unstructured<'a>> {
         let (_, body) = all_consuming(misc_token::unstructured)(f.body).ok()?;
-        Some(Unstructured(f.name, body))
+        Some(Unstructured { name: f.name, body })
     }
 }
 impl<'a> Print for Unstructured<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
-        print_unstructured(fmt, &self.0.0, &self.1)
+        print_unstructured(fmt, &self.name.0, &self.body)
     }
 }
 
@@ -238,15 +241,15 @@ mod tests {
         .unwrap();
         assert_eq!(
             u,
-            Unstructured(
-                FieldName(b"X-Unknown".into()),
-                misc_token::Unstructured(vec![
+            Unstructured {
+                name: FieldName(b"X-Unknown".into()),
+                body: misc_token::Unstructured(vec![
                     UnstrToken::from_plain(b" ", UnstrTxtKind::Fws),
                     UnstrToken::from_plain(b"something", UnstrTxtKind::Txt),
                     UnstrToken::from_plain(b" ", UnstrTxtKind::Fws),
                     UnstrToken::from_plain(b"something", UnstrTxtKind::Txt),
                 ])
-            )
+            }
         )
     }
 

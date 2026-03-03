@@ -4,7 +4,7 @@ use bounded_static::ToStatic;
 
 #[cfg(feature = "arbitrary")]
 use crate::{
-    arbitrary_utils::arbitrary_shuffle,
+    arbitrary_utils::{arbitrary_shuffle, arbitrary_vec_where},
     fuzz_eq::FuzzEq,
     imf::Imf,
     part::MimeBody,
@@ -66,7 +66,9 @@ impl<'a> Arbitrary<'a> for Message<'a> {
                      .map(MessageEntry::MIME)
                      .collect();
         entries.extend(imf.field_entries().into_iter().map(MessageEntry::Imf));
-        let unstr: Vec<header::Unstructured> = u.arbitrary()?;
+        let unstr: Vec<header::Unstructured> = arbitrary_vec_where(u, |f: &header::Unstructured| {
+            !imf::field::is_imf_header(&f.name) && !mime::field::is_mime_header(&f.name)
+        })?;
         entries.extend(unstr.into_iter().map(MessageEntry::Unstructured));
         arbitrary_shuffle(u, &mut entries);
         // Reindex `Comments` and `Keywords` entries.
@@ -128,6 +130,7 @@ pub fn imf<'a>(input: &'a [u8]) -> (&'a [u8], imf::Imf<'a>) {
 pub enum MessageEntry<'a> {
     MIME(mime::field::Entry),
     Imf(imf::field::Entry),
+    // invariant: has a field name that is different from IMF or MIME headers.
     Unstructured(header::Unstructured<'a>),
 }
 
@@ -447,15 +450,15 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                         MessageEntry::Imf(imf::field::Entry::Cc),
                         MessageEntry::Imf(imf::field::Entry::Subject),
                         MessageEntry::Unstructured(
-                            header::Unstructured(
-                                header::FieldName(b"X-Unknown"[..].into()),
-                                Unstructured(vec![
+                            header::Unstructured {
+                                name: header::FieldName(b"X-Unknown"[..].into()),
+                                body: Unstructured(vec![
                                     UnstrToken::from_plain(b" ", UnstrTxtKind::Fws),
                                     UnstrToken::from_plain(b"something", UnstrTxtKind::Txt),
                                     UnstrToken::from_plain(b" ", UnstrTxtKind::Fws),
                                     UnstrToken::from_plain(b"something", UnstrTxtKind::Txt),
                                 ]),
-                            )
+                            }
                         ),
                         MessageEntry::Imf(imf::field::Entry::MessageId),
                         MessageEntry::Imf(imf::field::Entry::MIMEVersion),
@@ -499,13 +502,13 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                             },
                             AnyPart {
                                 entries: vec![
-                                    EntityEntry::Unstructured(header::Unstructured(
-                                        header::FieldName(b"X-Custom".into()),
-                                        Unstructured(vec![
+                                    EntityEntry::Unstructured(header::Unstructured {
+                                        name: header::FieldName(b"X-Custom".into()),
+                                        body: Unstructured(vec![
                                             UnstrToken::from_plain(b" ", UnstrTxtKind::Fws),
                                             UnstrToken::from_plain(b"foobar", UnstrTxtKind::Txt),
-                                        ])
-                                    )),
+                                        ]),
+                                    }),
                                     EntityEntry::MIME(mime::field::Entry::Type),
                                 ],
                                 mime_body: MimeBody::Txt(Text {
@@ -603,13 +606,13 @@ hello??",
                 );
 
                 let entries = vec![
-                    MessageEntry::Unstructured(header::Unstructured(
-                        header::FieldName(b"hello".into()),
-                        Unstructured(vec![
+                    MessageEntry::Unstructured(header::Unstructured {
+                        name: header::FieldName(b"hello".into()),
+                        body: Unstructured(vec![
                             UnstrToken::from_plain(b" ", UnstrTxtKind::Fws),
                             UnstrToken::from_plain(b"yolo", UnstrTxtKind::Txt),
-                        ])
-                    )),
+                        ]),
+                    }),
                     MessageEntry::Imf(imf::field::Entry::Date),
                     MessageEntry::Imf(imf::field::Entry::From),
                     MessageEntry::Imf(imf::field::Entry::MIMEVersion),
