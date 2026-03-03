@@ -1,2 +1,5 @@
 /target
 .*sw*
+fuzz/target
+fuzz/artifacts
+fuzz/corpus

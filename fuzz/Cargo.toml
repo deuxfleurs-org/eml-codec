@@ -1,0 +1,22 @@
+[package]
+name = "eml-codec-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = { version = "0.4", features = ["arbitrary-derive"] }
+eml-codec = { path = "..", features = ["arbitrary"] }
+nom = "7"
+pretty_assertions = "1.4.1"
+
+[[bin]]
+name = "message_print_parse"
+path = "fuzz_targets/message_print_parse.rs"
+test = false
+doc = false
+bench = false
+
