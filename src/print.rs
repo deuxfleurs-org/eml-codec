@@ -380,20 +380,23 @@ impl LineFolder {
             self.prev_fold = None;
         }
         let cut_pos = self.last_cut_candidate.unwrap();
-        // cur_fold  = |aaaaaabbbb|
+        // cur_fold  = |aaaaaa bbb|
         //                    ^ cut_pos
         //   becomes
         // prev_fold = |aaaaaa|
-        // cur_fold  = |bbbb|
+        // cur_fold  = | bbb|
         {
             let mut prev_fold = self.cur_fold.split_off(cut_pos);
             std::mem::swap(&mut self.cur_fold, &mut prev_fold);
             self.prev_fold = Some(prev_fold);
         }
         self.last_cut_candidate = None;
-        // `cur_fold` is not FWS since it is after the
-        // last cut candidate, and it is non-empty.
-        self.cur_fold_is_only_fws = false
+        // - if `cur_fold` is of size one, it only contains the
+        // character on which we folded, which is FWS.
+        // - otherwise, `cur_fold` is of size > 1, and contains
+        // non-FWS characters since `cut_pos` is the *last*
+        // cut candidate
+        self.cur_fold_is_only_fws = self.cur_fold.len() == 1
     }
 
     // terminate the current line, writing its data
@@ -499,32 +502,68 @@ pub(crate) mod tests {
     fn test_folding() {
         let folded = with_formatter(|f| {
             f.begin_line_folding();
-            // 72 chars
-            f.write_bytes(b"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx");
+            f.write_bytes(&[b'x'; 72]);
             f.write_fws();
             f.write_bytes(b"yyyyyyyyy");
         });
-        assert_eq!(folded, b"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\n yyyyyyyyy");
+        assert_eq!(
+            folded,
+            [
+                &[b'x'; 72][..],
+                b"\r\n yyyyyyyyy",
+            ].concat()
+        );
 
         let folded = with_formatter(|f| {
             f.begin_line_folding();
-            // 80 chars
-            f.write_bytes(b"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx");
+            f.write_bytes(&[b'x'; 80]);
             f.write_fws();
             f.write_bytes(b"yyyyyyyyy");
         });
-        assert_eq!(folded, b"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\n yyyyyyyyy");
+        assert_eq!(
+            folded,
+            [
+                &[b'x'; 80][..],
+                b"\r\n yyyyyyyyy",
+            ].concat()
+        );
 
         let folded = with_formatter(|f| {
             f.begin_line_folding();
-            f.write_bytes(b"xxxxxxxxxxxxxxxxx");
-            f.write_fws_bytes(b"   ");
-            f.write_bytes(b"xxxxxxxxxxxxxxxx");
+            f.write_bytes(&[b'x'; 18]);
+            f.write_fws_bytes(&[b' '; 3]);
+            f.write_bytes(&[b'x'; 16]);
             f.write_fws();
-            f.write_bytes(b"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx");
+            f.write_bytes(&[b'x'; 32]);
             f.write_fws();
-            f.write_bytes(b"yyyyyyyyy");
+            f.write_bytes(&[b'y'; 9]);
         });
-        assert_eq!(folded, b"xxxxxxxxxxxxxxxxx   xxxxxxxxxxxxxxxx xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\n yyyyyyyyy");
+        assert_eq!(
+            folded,
+            [
+                &[b'x'; 18][..],
+                &[b' '; 3][..],
+                &[b'x'; 16][..],
+                &b" "[..],
+                &[b'x'; 32][..],
+                &b"\r\n "[..],
+                &[b'y'; 9][..],
+            ].concat()
+        );
+
+        // we must not not fold in this case, because doing so would create a
+        // fold containing only whitespace
+        let folded = with_formatter(|f| {
+            f.begin_line_folding();
+            f.write_bytes(b"X");
+            f.write_fws_bytes(&[b' '; 82]);
+        });
+        assert_eq!(
+            folded,
+            [
+                &b"X"[..],
+                &[b' '; 82],
+            ].concat()
+        );
     }
 }
