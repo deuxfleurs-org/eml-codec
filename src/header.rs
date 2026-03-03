@@ -5,7 +5,7 @@ use nom::{
     branch::alt,
     bytes::complete::{tag, take_while1},
     character::complete::space0,
-    combinator::{all_consuming, eof, map, rest, verify},
+    combinator::{all_consuming, eof, map, rest},
     multi::many0,
     sequence::{pair, terminated, tuple},
     IResult, Parser,
@@ -20,7 +20,7 @@ use crate::{
 };
 use crate::print::{Print, Formatter};
 use crate::text::misc_token;
-use crate::text::whitespace::{foldable_line, obs_crlf};
+use crate::text::whitespace::{foldable_line, foldable_suffix, obs_crlf};
 
 // A valid header field name.
 #[derive(PartialEq, Clone, ToStatic)]
@@ -113,7 +113,7 @@ pub fn header_kv(input: &[u8]) -> (&[u8], Vec<FieldRaw<'_>>) {
 // NOTE: field_raw only recognizes non-empty inputs.
 fn field_raw(input: &[u8]) -> IResult<&[u8], FieldRaw<'_>> {
     map(
-        pair(field_name, foldable_line),
+        pair(field_name, foldable_suffix),
         |(name, body)| FieldRaw { name, body }
     )(input)
 }
@@ -121,15 +121,15 @@ fn field_raw(input: &[u8]) -> IResult<&[u8], FieldRaw<'_>> {
 // A best-effort version of `field_raw` that also recognizes lines that cannot
 // be parsed as a field name and body. (It returns `None` in this case.)
 // NOTE: `field_raw_opt` only recognizes non-empty inputs.
-// NOTE: furthermore, in the "best effort" case, we ensure `foldable_line` only
+// NOTE: furthermore, in the "best effort" case, `foldable_line` only
 // recognizes non-empty lines; this is important so that it does not consume the
 // final empty line (obs_crlf) that terminates `header_kv`.
 fn field_raw_opt(input: &[u8]) -> IResult<&[u8], Option<FieldRaw<'_>>> {
     alt((
         map(field_raw, Some),
-        // best-effort: a non-empty foldable line that cannot even be parsed as
+        // best-effort: a (non-empty) foldable line that cannot even be parsed as
         // a field name and body. We drop it afterwards.
-        map(verify(foldable_line, |b: &[u8]| !b.is_empty()), |_| None),
+        map(foldable_line, |_| None),
     ))(input)
 }
 
@@ -264,6 +264,25 @@ mod tests {
                 FieldRaw { name: FieldName(b"X-Bar".into()), body: b" something else" },
             ]
         )
+    }
+
+    #[test]
+    fn test_no_headers() {
+        let (rest, fields) = header_kv(b"\r\nthe rest");
+        assert_eq!(rest, b"the rest");
+        assert_eq!(fields, vec![]);
+
+        let (rest, fields) = header_kv(b"\nthe rest");
+        assert_eq!(rest, b"the rest");
+        assert_eq!(fields, vec![]);
+
+        let (rest, fields) = header_kv(b"\n\t\t\t");
+        assert_eq!(rest, b"\t\t\t");
+        assert_eq!(fields, vec![]);
+
+        let (rest, fields) = header_kv(b"\n\t\t\t\r\n");
+        assert_eq!(rest, b"\t\t\t\r\n");
+        assert_eq!(fields, vec![]);
     }
 
     #[test]
