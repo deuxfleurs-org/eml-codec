@@ -1,14 +1,13 @@
 use crate::text::ascii;
 use crate::text::encoding::{Context, encoded_word_plain};
 use crate::text::quoted::quoted_pair;
-use crate::utils::is_not0;
 use nom::{
     branch::alt,
-    bytes::complete::{tag, take_while1, is_not},
+    bytes::complete::{tag, take_while1},
     character::complete::{space0, space1},
     combinator::{opt, recognize},
-    multi::{many0, many1},
-    sequence::{pair, terminated, tuple},
+    multi::many1,
+    sequence::{pair, tuple},
     IResult,
     Parser,
 };
@@ -39,25 +38,36 @@ pub fn obs_crlf(input: &[u8]) -> IResult<&[u8], &[u8]> {
 /// ```abnf
 /// fold_line = any *(1*(crlf WS) any) crlf
 /// ```
-pub fn foldable_line(input: &[u8]) -> IResult<&[u8], &[u8]> {
-    terminated(
-        recognize(pair(
-            is_not(ascii::CRLF),
-            many0(pair(many1(pair(obs_crlf, space1)), is_not0(ascii::CRLF))),
-        )),
-        obs_crlf,
-    )(input)
-}
+/// If `full_line` equals false, assumes this is a suffix of a line and
+/// allows the input to start with a folded white space or to be immediately
+/// terminated by a newline.
+pub fn foldable_line(full_line: bool) -> impl Fn(&[u8]) -> IResult<&[u8], &[u8]> {
+    move |input| {
+        use memchr::memchr2_iter;
+        // best-effort: we prefer to parse \r\n to represent a newline,
+        // but we also allow a single \r or \n to represent a newline
+        let mut it = memchr2_iter(b'\r', b'\n', input);
+        while let Some(i) = it.next() {
+            if i == 0 && full_line {
+                break // reject input
+            }
 
-/// Like `foldable_line`, but may start with a folded white space
-pub fn foldable_suffix(input: &[u8]) -> IResult<&[u8], &[u8]> {
-    terminated(
-        recognize(pair(
-            is_not0(ascii::CRLF),
-            many0(pair(many1(pair(obs_crlf, space1)), is_not0(ascii::CRLF))),
-        )),
-        obs_crlf,
-    )(input)
+            match (input[i], input.get(i+1), input.get(i+2)) {
+                (b'\r', Some(b'\n'), Some(b' ' | b'\t')) => {
+                    let _ = it.next();
+                    continue;
+                },
+                (b'\r', Some(b'\n'), _) => {
+                    return Ok((&input[i+2..], &input[0..i]))
+                },
+                (_, Some(b' ' | b'\t'), _) =>
+                    continue,
+                _ =>
+                    return Ok((&input[i+1..], &input[0..i])),
+            }
+        }
+        Err(nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::Fail)))
+    }
 }
 
 // XXX if we want to do spec-compliant line framing later
@@ -291,34 +301,34 @@ mod tests {
     #[test]
     fn test_foldable_line() {
         assert_eq!(
-            foldable_line(b"abc\r\n def\r\n   ghi\r\n"),
+            foldable_line(true)(b"abc\r\n def\r\n   ghi\r\n"),
             Ok((&b""[..], &b"abc\r\n def\r\n   ghi"[..])),
         );
 
         // a line that starts with FWS
         assert_eq!(
-            foldable_suffix(b"\r\n abc\r\n"),
+            foldable_line(false)(b"\r\n abc\r\n"),
             Ok((&b""[..], &b"\r\n abc"[..])),
         );
-        assert!(foldable_line(b"\r\n abc\r\n").is_err());
-        assert!(foldable_line(b"\n foo\r\n").is_err());
+        assert!(foldable_line(true)(b"\r\n abc\r\n").is_err());
+        assert!(foldable_line(true)(b"\n foo\r\n").is_err());
 
         // obsolete folding
         assert_eq!(
-            foldable_line(b"xx\r\n \r\n abc\r\n   \r\n def\r\n"),
+            foldable_line(true)(b"xx\r\n \r\n abc\r\n   \r\n def\r\n"),
             Ok((&b""[..], &b"xx\r\n \r\n abc\r\n   \r\n def"[..])),
         );
 
         // empty line
         assert_eq!(
-            foldable_suffix(b"\r\n"),
+            foldable_line(false)(b"\r\n"),
             Ok((&b""[..], &b""[..])),
         );
         assert_eq!(
-            foldable_suffix(b"\n"),
+            foldable_line(false)(b"\n"),
             Ok((&b""[..], &b""[..])),
         );
-        assert!(foldable_line(b"\r\n").is_err());
-        assert!(foldable_line(b"\n").is_err());
+        assert!(foldable_line(true)(b"\r\n").is_err());
+        assert!(foldable_line(true)(b"\n").is_err());
     }
 }
