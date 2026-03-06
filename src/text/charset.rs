@@ -135,6 +135,9 @@ impl FuzzEq for EmailCharset {
     fn fuzz_eq(&self, other: &Self) -> bool {
         // the `Unknown` case may contain non-displayable chars, but those are
         // dropped during printing, so we ignore them...
+        // XXX should this sanitization be done instead at parsing time,
+        // to be consistent with the rest of the codebase, so that we have
+        // a cleaner AST?
         let s: Vec<_> = self.as_bytes().iter().filter(|b| is_vchar(**b)).collect();
         let o: Vec<_> = other.as_bytes().iter().filter(|b| is_vchar(**b)).collect();
         s == o
