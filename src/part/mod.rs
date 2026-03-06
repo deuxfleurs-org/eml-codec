@@ -65,7 +65,7 @@ impl<'a> Arbitrary<'a> for AnyPart<'a> {
             !mime::field::is_mime_header(&f.name)
         })?;
         entries.extend(unstr.into_iter().map(field::EntityEntry::Unstructured));
-        arbitrary_shuffle(u, &mut entries);
+        arbitrary_shuffle(u, &mut entries)?;
         Ok(AnyPart { entries, mime_body })
     }
 }

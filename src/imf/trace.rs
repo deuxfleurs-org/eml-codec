@@ -12,47 +12,11 @@ use nom::{
 
 #[cfg(feature = "arbitrary")]
 use crate::{
-    arbitrary_utils::arbitrary_vec_nonempty,
     fuzz_eq::FuzzEq,
 };
 use crate::print::{print_seq, Print, Formatter};
 use crate::imf::{datetime, mailbox};
 use crate::text::{ascii, misc_token, whitespace};
-
-// Invariant: only the first block may have `return_path` set to `None`.
-#[derive(Clone, Debug, Default, PartialEq, ToStatic)]
-#[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
-pub struct Trace<'a>(pub Vec<TraceBlock<'a>>);
-
-#[cfg(feature = "arbitrary")]
-impl<'a> Arbitrary<'a> for Trace<'a> {
-    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
-        let blocks: Vec<TraceBlock> = u.arbitrary()?;
-        if blocks.len() > 0 {
-            if blocks[1..].iter().any(|b| b.return_path.is_none()) {
-                return Err(arbitrary::Error::IncorrectFormat)
-            }
-        }
-        Ok(Trace(blocks))
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, ToStatic)]
-#[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
-pub struct TraceBlock<'a> {
-    pub return_path: Option<ReturnPath<'a>>,
-    pub received: Vec<ReceivedLog<'a>>, // non-empty
-}
-
-#[cfg(feature = "arbitrary")]
-impl<'a> Arbitrary<'a> for TraceBlock<'a> {
-    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
-        Ok(TraceBlock{
-            return_path: u.arbitrary()?,
-            received: arbitrary_vec_nonempty(u)?,
-        })
-    }
-}
 
 #[derive(Clone, Debug, PartialEq, ToStatic)]
 #[cfg_attr(feature = "arbitrary", derive(Arbitrary))]
