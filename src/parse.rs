@@ -7,7 +7,14 @@ fn main() {
     io::stdin().lock().read_to_end(&mut rawmail).unwrap();
 
     let eml = eml_codec::parse_message(&rawmail);
-    eprintln!("--- message structure ---\n{:#?}\n--- message structure end ---", eml);
+
+    match &std::env::args().collect::<Vec<_>>().as_slice() {
+        &[_, arg, ..] if arg == "--show-ast" => {
+            eprintln!("--- message structure ---\n{:#?}\n--- message structure end ---", eml)
+        },
+        _ => ()
+    };
+
     let bytes = eml_codec::print_message(eml, None);
     print!("{}", String::from_utf8_lossy(&bytes));
 }
