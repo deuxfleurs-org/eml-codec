@@ -460,6 +460,9 @@ impl<'a> Dtext<'a> {
     // - Dropping obsolete characters may result in an empty string; however
     // a `Dtext` must always be nonempty; in this case, we return "?", as a
     // placeholder text.
+    // XXX it would be more consistent with the rest of the codebase if this
+    // sanitization was done at parsing time, resulting in an AST which is
+    // always "clean" as an invariant and can be printed directly.
     fn to_strict_best_effort(&self) -> Self {
         let mut strict_dtext: Vec<u8> =
             self.0.iter().cloned().filter(|b| is_strict_dtext(*b)).collect();
