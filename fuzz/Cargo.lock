@@ -137,6 +137,7 @@ dependencies = [
  "chrono",
  "eml_codec_derives",
  "encoding_rs",
+ "memchr",
  "nom",
  "rand",
  "rand_chacha",
