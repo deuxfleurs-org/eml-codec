@@ -12,8 +12,6 @@ use crate::imf::mime::{version, Version};
 use crate::imf::trace::{received_log, return_path, ReceivedLog, ReturnPath};
 use crate::text::misc_token::{phrase_list, unstructured, PhraseList, Unstructured};
 
-// NOTE: we don't need `Entry` constructors for trace fields
-// because they are already stored in-order in the Imf struct.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, ToStatic)]
 #[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
 pub enum Entry {
@@ -32,6 +30,8 @@ pub enum Entry {
     Comments(usize),
     #[cfg_attr(feature = "arbitrary", fuzz_eq(use_eq))]
     Keywords(usize),
+    #[cfg_attr(feature = "arbitrary", fuzz_eq(use_eq))]
+    Trace(usize),
     MIMEVersion,
 }
 

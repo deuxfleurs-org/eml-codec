@@ -22,7 +22,11 @@ use crate::print::{Print, Formatter};
 pub struct Message<'a> {
     // Invariant: `all_fields` must contain an entry for every piece of information
     // contained in `imf` and `mime_body`'s mime headers that is mandatory or is
-    // not the default value.
+    // not the default value..
+    // Invariant: IMF trace fields must occur before any other IMF or MIME fields.
+    // Invariant: the indices of Trace, Comments and Keywords entries occur in-order
+    // (0, 1, ...). In other words, it is the respective Vec in `imf` that contain
+    // the referenced data that define the order).
     pub imf: imf::Imf<'a>,
     pub mime_body: part::MimeBody<'a>,
     pub entries: Vec<MessageEntry<'a>>,
@@ -32,15 +36,6 @@ impl<'a> Print for Message<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
         fmt.begin_line_folding();
         let mime = self.mime_body.mime();
-        // always print trace fields first
-        for block in &self.imf.trace.0 {
-            if let Some(path) = &block.return_path {
-                header::print(fmt, b"Return-Path", path)
-            }
-            for rec in &block.received {
-                header::print(fmt, b"Received", rec)
-            }
-        }
         for entry in &self.entries {
             match entry {
                 MessageEntry::Unstructured(u) => u.print(fmt),
@@ -58,43 +53,60 @@ impl<'a> Print for Message<'a> {
 impl<'a> Arbitrary<'a> for Message<'a> {
     fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
         let imf: Imf = u.arbitrary()?;
+        let (trace_entries, imf_entries) = imf.field_entries();
         let mime_body: MimeBody = u.arbitrary()?;
-        let mut entries: Vec<MessageEntry> =
+
+        fn arbitrary_unstructured<'a>(u: &mut arbitrary::Unstructured<'a>) ->
+            arbitrary::Result<Vec<header::Unstructured<'a>>>
+        {
+            arbitrary_vec_where(u, |f: &header::Unstructured| {
+                !imf::field::is_imf_header(&f.name) && !mime::field::is_mime_header(&f.name)
+            })
+        }
+
+        // compute the trace section (which includes unstructured headers)
+        let mut entries: Vec<_> = trace_entries.into_iter().map(MessageEntry::Imf).collect();
+        entries.extend(arbitrary_unstructured(u)?.into_iter().map(MessageEntry::Unstructured));
+        arbitrary_shuffle(u, &mut entries)?;
+        // Renumber Trace entries so that their index is in order.
+        {
+            let mut id = 0;
+            for e in entries.iter_mut() {
+                if let MessageEntry::Imf(imf::field::Entry::Trace(_)) = e {
+                    *e = MessageEntry::Imf(imf::field::Entry::Trace(id));
+                    id += 1
+                }
+            }
+        }
+
+        // compute the rest
+        let mut rest: Vec<MessageEntry> =
             mime_body.mime()
                      .field_entries()
                      .into_iter()
                      .map(MessageEntry::MIME)
                      .collect();
-        entries.extend(imf.field_entries().into_iter().map(MessageEntry::Imf));
-        let unstr: Vec<header::Unstructured> = arbitrary_vec_where(u, |f: &header::Unstructured| {
-            !imf::field::is_imf_header(&f.name) && !mime::field::is_mime_header(&f.name)
-        })?;
-        entries.extend(unstr.into_iter().map(MessageEntry::Unstructured));
-        arbitrary_shuffle(u, &mut entries);
-        // Reindex `Comments` and `Keywords` entries.
-        // Indeed, the AST is somewhat redundant: the order of `imf.comments` and `imf.keywords`
-        // does not matter, since the `Comments` and `Keywords` entries directly specify an
-        // index in this vector (and it is the order of entries that determines the order of
-        // the headers).
-        // To avoid this redundancy, we reindex entries so that their order match the order
-        // of the vectors in `imf`.
+        rest.extend(imf_entries.into_iter().map(MessageEntry::Imf));
+        rest.extend(arbitrary_unstructured(u)?.into_iter().map(MessageEntry::Unstructured));
+        arbitrary_shuffle(u, &mut rest)?;
+        // Renumber `Comments` and `Keywords` entries.
         {
             let mut comments_id = 0;
             let mut keywords_id = 0;
-            for e in entries.iter_mut() {
-                match e {
-                    MessageEntry::Imf(imf::field::Entry::Comments(_)) => {
-                        *e = MessageEntry::Imf(imf::field::Entry::Comments(comments_id));
-                        comments_id += 1
-                    },
-                    MessageEntry::Imf(imf::field::Entry::Keywords(_)) => {
-                        *e = MessageEntry::Imf(imf::field::Entry::Keywords(keywords_id));
-                        keywords_id += 1
-                    },
-                    _ => (),
+            for e in rest.iter_mut() {
+                if let MessageEntry::Imf(imf::field::Entry::Comments(_)) = e {
+                    *e = MessageEntry::Imf(imf::field::Entry::Comments(comments_id));
+                    comments_id += 1
+                } else if let MessageEntry::Imf(imf::field::Entry::Keywords(_)) = e {
+                    *e = MessageEntry::Imf(imf::field::Entry::Keywords(keywords_id));
+                    keywords_id += 1
                 }
             }
         }
+
+        // concatenate both sections
+        entries.extend(rest.into_iter());
+
         Ok(Message { imf, mime_body, entries })
     }
 }
@@ -228,6 +240,12 @@ mod tests {
 
     fn test_message_parse_print<'a>(txt: &[u8], parsed: Message<'a>, printed: &[u8]) {
         assert_eq!(message(txt), parsed.clone());
+        let reprinted = with_formatter(|fmt| parsed.print(fmt));
+        assert_eq!(String::from_utf8_lossy(&reprinted), String::from_utf8_lossy(printed))
+    }
+
+    fn test_message_reprint<'a>(txt: &[u8], printed: &[u8]) {
+        let parsed = message(txt);
         let reprinted = with_formatter(|fmt| parsed.print(fmt));
         assert_eq!(String::from_utf8_lossy(&reprinted), String::from_utf8_lossy(printed))
     }
@@ -630,6 +648,45 @@ From: unknown@unknown\r
 MIME-Version: 1.0\r
 \r
 hello??",
+        );
+    }
+
+    #[test]
+    fn test_trace_unstructured() {
+        test_message_reprint(
+            b"X-Mozilla-Status: 0001
+X-Mozilla-Status2: 00000000
+Return-Path: <hello@sympa.lmf.cnrs.fr>
+Received: from mx.lmf.cnrs.fr ([127.0.0.1])
+        by mx.lmf.cnrs.fr with LMTP
+        id oFAUKCuwpWmTPRAAFSOJEQ
+        (envelope-from <infos-gs-owner@sympa.lmf.cnrs.fr>); Mon, 02 Mar 2026 15:43:39 +0000
+X-Spam-Checker-Version: SpamAssassin 3.4.6 (2021-04-09) on mx.lmf.cnrs.fr
+Received-SPF: Pass (mailfrom) identity=mailfrom; client-ip=10.0.0.2; helo=sympa.lmf.cnrs.fr; envelope-from=hello@sympa.lmf.cnrs.fr; receiver=<UNKNOWN>
+Received: from sympa.lmf.cnrs.fr (sympa.lmf.cnrs.fr [10.0.0.2])
+        (using TLSv1.3 with cipher TLS_AES_256_GCM_SHA384 (256/256 bits)
+         key-exchange X25519 server-signature RSA-PSS (2048 bits))
+        (No client certificate requested)
+        by mx.lmf.cnrs.fr (Postfix) with ESMTPS id DC88D214EA;
+        Mon,  2 Mar 2026 15:43:37 +0000 (UTC)
+Received: by sympa.lmf.cnrs.fr (Postfix, from userid 106)
+        id ACE8B4A03ED; Mon,  2 Mar 2026 16:43:37 +0100 (CET)
+",
+            b"X-Mozilla-Status: 0001\r
+X-Mozilla-Status2: 00000000\r
+Return-Path: <hello@sympa.lmf.cnrs.fr>\r
+Received: from mx.lmf.cnrs.fr by mx.lmf.cnrs.fr with LMTP id\r
+ oFAUKCuwpWmTPRAAFSOJEQ; 2 Mar 2026 15:43:39 +0000\r
+X-Spam-Checker-Version: SpamAssassin 3.4.6 (2021-04-09) on mx.lmf.cnrs.fr\r
+Received-SPF: Pass (mailfrom) identity=mailfrom; client-ip=10.0.0.2;\r
+ helo=sympa.lmf.cnrs.fr; envelope-from=hello@sympa.lmf.cnrs.fr;\r
+ receiver=<UNKNOWN>\r
+Received: by sympa.lmf.cnrs.fr id ACE8B4A03ED; 2 Mar 2026 16:43:37 +0100\r
+Date: 1 Jan 1970 00:00:00 +0000\r
+From: unknown@unknown\r
+MIME-Version: 1.0\r
+\r
+"
         );
     }
 }
