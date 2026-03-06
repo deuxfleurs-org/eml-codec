@@ -20,3 +20,9 @@ test = false
 doc = false
 bench = false
 
+[[bin]]
+name = "message_parse"
+path = "fuzz_targets/message_parse.rs"
+test = false
+doc = false
+bench = false
