@@ -103,13 +103,14 @@ High-level overview of the datastructures (inspired by the UML class diagram con
 
 ## Testing strategy
 
-Currently this crate has some unit tests on most of its parsing functions.
+Currently this crate has some unit tests on most of its parsing and printing functions.
+
 It is also tested as part of Aerogramme, its parent project where it handles email parsing.
 In this project,  `eml-codec` parsing capabilities are compared to Dovecot, Cyrus, Maddy and other IMAP servers.
 
+This library has also been fuzz tested, both for crashes and serialization/deserialization roundtrip properties. See [the `fuzz` directory](fuzz/README.md) for more information on fuzzing targets.
+
 It is planned to test it on large email datasets (like Enron, jpbush, mailing lists, etc.) but it's not done yet.
-Fuzzing the library would also be interesting, probably to detect crashing due to stack overflow for example
-due to the infinite recursivity of MIME.
 
 ## RFC and IANA references
 
