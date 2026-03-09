@@ -31,7 +31,7 @@ use crate::text::words;
 // XXX: the parser below does not implement the spec stricty.
 // Specifically, it is more lenient than the spec in what it accepts
 // inside of an encoded word. In particular:
-// - it allows characters that are always explicitly forbidden (e.g. space);
+// - it allows more characters that are allowed;
 // - it is not aware of the context in which the encoded word
 //   appears, which can cause more characters to be forbidden (e.g.
 //   "(" and ")" are forbidden inside of a comment).
@@ -253,7 +253,6 @@ impl<'a> Arbitrary<'a> for QuotedChunk<'a> {
 }
 
 //quoted_printable
-// XXX safe_char2 includes SPACE; is this really OK?
 pub fn ptext(input: &[u8]) -> IResult<&[u8], Vec<QuotedChunk<'_>>> {
     many0(alt((safe_char2, encoded_space, many_hex_octet)))(input)
 }
@@ -269,7 +268,7 @@ fn safe_char2(input: &[u8]) -> IResult<&[u8], QuotedChunk<'_>> {
 /// than "=", "?", and "_" (underscore), MAY be represented as those
 /// characters.
 fn is_safe_char2(c: u8) -> bool {
-    c >= ascii::SP && c != ascii::UNDERSCORE && c != ascii::QUESTION && c != ascii::EQ
+    words::is_vchar(c) && c != ascii::UNDERSCORE && c != ascii::QUESTION && c != ascii::EQ
 }
 
 fn encoded_space(input: &[u8]) -> IResult<&[u8], QuotedChunk<'_>> {
@@ -406,6 +405,11 @@ mod tests {
                 ]
             ))
         );
+    }
+
+    #[test]
+    fn test_invalid_space() {
+        assert!(encoded_word(b"=?iso8859-1?Q?Accus=E9 de r=E9ception?=").is_err());
     }
 
     #[test]
