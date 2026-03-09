@@ -162,8 +162,10 @@ pub fn word(input: &[u8]) -> IResult<&[u8], Word<'_>> {
 }
 
 #[derive(Clone, Debug, PartialEq, ToStatic, ToStringFromPrint)]
-#[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
+#[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
 pub enum PhraseToken<'a> {
+    // Word MUST NOT be a Word::Atom that represents an encoded
+    // word, ie of the form =?..?..?..?=
     Word(Word<'a>),
     Encoded(encoding::EncodedWord<'a>),
 }
@@ -172,6 +174,24 @@ impl<'a> Print for PhraseToken<'a> {
         match self {
             PhraseToken::Word(w) => w.print(fmt),
             PhraseToken::Encoded(e) => e.print(fmt),
+        }
+    }
+}
+#[cfg(feature = "arbitrary")]
+impl<'a> Arbitrary<'a> for PhraseToken<'a> {
+    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<PhraseToken<'a>> {
+        if u.arbitrary()? {
+            let w: Word<'_> = u.arbitrary()?;
+            // As a coarse-grained measure, reject any atom that contains '=?'
+            // to avoid confusion with Encoded tokens
+            if let Word::Atom(a) = &w {
+                if a.0.windows(2).find(|&s| s == b"=?").is_some() {
+                    return Err(arbitrary::Error::IncorrectFormat)
+                }
+            }
+            Ok(PhraseToken::Word(w))
+        } else {
+            Ok(PhraseToken::Encoded(u.arbitrary()?))
         }
     }
 }
