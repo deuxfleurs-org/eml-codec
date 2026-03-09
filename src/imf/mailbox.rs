@@ -210,15 +210,15 @@ pub fn addr_spec(input: &[u8]) -> IResult<&[u8], AddrSpec<'_>> {
     )(input)
 }
 
+#[derive(Clone, Debug, PartialEq, ToStatic, ToStringFromPrint)]
+pub struct LocalPart<'a>(pub Vec<LocalPartToken<'a>>); // non-empty vec
+
 #[derive(Clone, Debug, PartialEq, ToStatic)]
 #[cfg_attr(feature = "arbitrary", derive(Arbitrary))]
 pub enum LocalPartToken<'a> {
     Dot,
     Word(Word<'a>),
 }
-
-#[derive(Clone, Debug, PartialEq, ToStatic, ToStringFromPrint)]
-pub struct LocalPart<'a>(pub Vec<LocalPartToken<'a>>); // non-empty vec
 
 impl<'a> LocalPart<'a> {
     pub fn to_bytes(&self) -> Vec<u8> {

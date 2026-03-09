@@ -32,15 +32,14 @@ use crate::text::{
     words::{atom, is_vchar, mime_atom, Atom, MIMEAtom},
 };
 
-// A non-empty list of phrases.
 #[derive(Clone, Debug, PartialEq, Default, ToStatic)]
 #[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
-pub struct PhraseList<'a>(pub Vec<Phrase<'a>>);
+pub struct PhraseList<'a>(pub Vec<Phrase<'a>>); // must be nonempty
 
 #[cfg(feature = "arbitrary")]
 impl<'a> Arbitrary<'a> for PhraseList<'a> {
-    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<PhraseList<'a>> {
-        Ok(PhraseList(arbitrary_vec_nonempty(u)?))
+    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
+        Ok(Self(arbitrary_vec_nonempty(u)?))
     }
 }
 
@@ -199,10 +198,7 @@ pub fn phrase_token(input: &[u8]) -> IResult<&[u8], PhraseToken<'_>> {
 }
 
 // Must be a non-empty list.
-// MUST NOT contain consecutive `PhraseToken::Encoded` tokens (instead these
-// must be merged together as a single `PhraseToken::Encoded` token).
 #[derive(Clone, Debug, PartialEq, ToStatic, ToStringFromPrint)]
-#[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
 pub struct Phrase<'a>(pub Vec<PhraseToken<'a>>);
 
 impl<'a> Print for Phrase<'a> {
@@ -210,25 +206,32 @@ impl<'a> Print for Phrase<'a> {
         print_seq(fmt, &self.0, Formatter::write_fws)
     }
 }
+
+impl<'a> Phrase<'a> {
+    // Merges consecutive Encoded tokens
+    #[cfg(feature = "arbitrary")]
+    fn normalize(&self) -> Self {
+        let mut v = Vec::new();
+        for tok in &self.0 {
+            match (v.last_mut(), tok) {
+                (Some(PhraseToken::Encoded(ref mut e1)), PhraseToken::Encoded(e2)) =>
+                    e1.0.extend(e2.0.clone().into_iter()),
+                (_, tok) => v.push(tok.clone()),
+            }
+        }
+        Self(v)
+    }
+}
 #[cfg(feature = "arbitrary")]
 impl<'a> Arbitrary<'a> for Phrase<'a> {
     fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
-        let mut tokens = Vec::new();
-        let mut tok0: PhraseToken = u.arbitrary()?;
-        for _ in 0..u.arbitrary_len::<PhraseToken>()? {
-            let tok: PhraseToken = u.arbitrary()?;
-            match (&mut tok0, tok) {
-                (PhraseToken::Encoded(ref mut e0), PhraseToken::Encoded(e)) => {
-                    e0.0.extend(e.0.into_iter())
-                },
-                (_, tok) => {
-                    tokens.push(tok0);
-                    tok0 = tok
-                }
-            }
-        }
-        tokens.push(tok0);
-        Ok(Phrase(tokens))
+        Ok(Self(arbitrary_vec_nonempty(u)?))
+    }
+}
+#[cfg(feature = "arbitrary")]
+impl<'a> FuzzEq for Phrase<'a> {
+    fn fuzz_eq(&self, other: &Self) -> bool {
+        self.normalize().0.fuzz_eq(&other.normalize().0)
     }
 }
 
@@ -366,7 +369,9 @@ impl<'a> Arbitrary<'a> for UnstrToken<'a> {
 
 // Invariant:
 // - Encoded and Plain(_, Txt) tokens are always separated by whitespace
+//   (encoded words must be separated from other words by whitespace)
 // - There must not be whitespace in between two Encoded tokens
+//   (whitespace in between encoded words is meaningless and is ignored during parsing)
 #[derive(Debug, PartialEq, Clone, ToStatic, ToStringFromPrint)]
 pub struct Unstructured<'a>(pub Vec<UnstrToken<'a>>);
 
@@ -434,7 +439,8 @@ impl<'a> Arbitrary<'a> for Unstructured<'a> {
                     return Err(arbitrary::Error::IncorrectFormat)
                 },
 
-                // consecutive Txt or Wsp nodes should be treated as one
+                // consecutive Txt or Wsp nodes should be treated as one when
+                // tracking "the" previous token kind
                 (_, Some(Wsp), Wsp) | (_, Some(Txt), Txt) =>
                     (),
                 (_, _, ktok) => {
