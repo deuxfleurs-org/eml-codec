@@ -12,7 +12,7 @@ use std::fmt;
 
 #[cfg(feature = "arbitrary")]
 use crate::fuzz_eq::FuzzEq;
-use crate::print::{Print, Formatter};
+use crate::print::{Print, Formatter, ToStringFromPrint};
 use crate::text::charset::EmailCharset;
 use crate::text::misc_token::{mime_word, MIMEWord};
 use crate::text::quoted::print_quoted;
@@ -194,7 +194,7 @@ impl<'a> TryFrom<&NaiveType<'a>> for Multipart<'a> {
     }
 }
 
-#[derive(Debug, PartialEq, Clone, ToStatic)]
+#[derive(Debug, PartialEq, Clone, ToStatic, ToStringFromPrint)]
 #[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
 pub enum MultipartSubtype {
     Alternative,
@@ -214,11 +214,6 @@ impl MultipartSubtype {
             Self::Report => b"report",
             Self::Unknown(v) => &v.0,
         }
-    }
-}
-impl ToString for MultipartSubtype {
-    fn to_string(&self) -> String {
-        String::from_utf8_lossy(self.as_bytes()).to_string()
     }
 }
 impl Print for MultipartSubtype {
@@ -241,7 +236,7 @@ impl<'a> From<&NaiveType<'a>> for MultipartSubtype {
     }
 }
 
-#[derive(Debug, PartialEq, Default, Clone, ToStatic)]
+#[derive(Debug, PartialEq, Default, Clone, ToStatic, ToStringFromPrint)]
 #[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
 pub enum MessageSubtype {
     #[default]
@@ -258,11 +253,6 @@ impl MessageSubtype {
             Self::External => b"external",
             Self::Unknown(b) => &b.0,
         }
-    }
-}
-impl ToString for MessageSubtype {
-    fn to_string(&self) -> String {
-        String::from_utf8_lossy(self.as_bytes()).to_string()
     }
 }
 impl Print for MessageSubtype {
@@ -367,7 +357,7 @@ impl<'a> From<&NaiveType<'a>> for Text<'a> {
     }
 }
 
-#[derive(Debug, PartialEq, Default, Clone, ToStatic)]
+#[derive(Debug, PartialEq, Default, Clone, ToStatic, ToStringFromPrint)]
 #[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
 pub enum TextSubtype {
     #[default]
@@ -383,11 +373,6 @@ impl TextSubtype {
             Html => b"html",
             Unknown(b) => &b.0,
         }
-    }
-}
-impl ToString for TextSubtype {
-    fn to_string(&self) -> String {
-        String::from_utf8_lossy(self.as_bytes()).to_string()
     }
 }
 impl Print for TextSubtype {
@@ -553,7 +538,7 @@ mod tests {
         assert_eq!(rest, &[]);
         let t: AnyType = nt.to_type();
         assert!(matches!(t, AnyType::Binary(_)));
-        let printed = crate::print::tests::with_formatter(|f| t.print(f));
+        let printed = crate::print::tests::print_to_vec(t);
         assert_eq!(String::from_utf8_lossy(raw), String::from_utf8_lossy(&printed))
     }
 }

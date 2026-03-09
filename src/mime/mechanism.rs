@@ -3,7 +3,7 @@ use arbitrary::Arbitrary;
 use bounded_static::ToStatic;
 #[cfg(feature = "arbitrary")]
 use crate::fuzz_eq::FuzzEq;
-use crate::print::{Print, Formatter};
+use crate::print::{Print, Formatter, ToStringFromPrint};
 use crate::text::whitespace::cfws;
 use crate::text::words::{mime_atom as token, MIMEAtom};
 use nom::{
@@ -14,7 +14,7 @@ use nom::{
     IResult,
 };
 
-#[derive(Debug, Clone, PartialEq, Default, ToStatic)]
+#[derive(Debug, Clone, PartialEq, Default, ToStatic, ToStringFromPrint)]
 #[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
 pub enum Mechanism<'a> {
     #[default]
@@ -39,11 +39,6 @@ impl<'a> Mechanism<'a> {
     }
 }
 
-impl<'a> ToString for Mechanism<'a> {
-    fn to_string(&self) -> String {
-        String::from_utf8_lossy(self.as_bytes()).to_string()
-    }
-}
 impl<'a> Print for Mechanism<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
         fmt.write_bytes(self.as_bytes())

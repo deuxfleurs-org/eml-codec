@@ -440,11 +440,11 @@ fn obs_zone(input: &[u8]) -> IResult<&[u8], FixedOffset> {
 mod tests {
     use super::*;
     use chrono::TimeZone;
-    use crate::print::tests::with_formatter;
+    use crate::print::tests::print_to_vec;
 
     fn date_parsed_printed(date: &[u8], printed: &[u8], parsed: DateTime) {
         assert_eq!(date_time(date).unwrap(), (&b""[..], parsed.clone()));
-        let reprinted = with_formatter(|f| parsed.print(f));
+        let reprinted = print_to_vec(parsed);
         assert_eq!(String::from_utf8_lossy(&reprinted), String::from_utf8_lossy(printed));
     }
 

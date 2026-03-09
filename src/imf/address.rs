@@ -144,20 +144,20 @@ mod tests {
     use super::*;
     use crate::text::charset::EmailCharset;
     use crate::imf::mailbox::{AddrSpec, Domain, LocalPart, LocalPartToken};
-    use crate::print::tests::with_formatter;
+    use crate::print::tests::print_to_vec;
     use crate::text::misc_token::{Phrase, PhraseToken, Word};
     use crate::text::words::Atom;
 
     fn address_list_parsed_printed(addrlist: &[u8], printed: &[u8], parsed: AddressList<'_>) {
         assert_eq!(address_list(addrlist).unwrap(), (&b""[..], parsed.clone()));
-        let reprinted = with_formatter(|f| parsed.print(f));
+        let reprinted = print_to_vec(parsed);
         assert_eq!(String::from_utf8_lossy(&reprinted), String::from_utf8_lossy(printed));
     }
 
     fn address_list_reprinted(addrlist: &[u8], printed: &[u8]) {
         let (input, parsed) = address_list(addrlist).unwrap();
         assert!(input.is_empty());
-        let reprinted = with_formatter(|f| parsed.print(f));
+        let reprinted = print_to_vec(parsed);
         assert_eq!(String::from_utf8_lossy(&reprinted), String::from_utf8_lossy(printed));
     }
 

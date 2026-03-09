@@ -22,7 +22,7 @@ use crate::{
     arbitrary_utils::{arbitrary_vec_nonempty, arbitrary_vec_where},
     fuzz_eq::FuzzEq,
 };
-use crate::print::{print_seq, Print, Formatter};
+use crate::print::{print_seq, Print, Formatter, ToStringFromPrint};
 use crate::text::ascii;
 use crate::text::charset::EmailCharset;
 use crate::text::whitespace::{cfws, fws};
@@ -92,13 +92,17 @@ pub fn encoded_word_token_base64(input: &[u8]) -> IResult<&[u8], EncodedWordToke
     Ok((rest, parsed))
 }
 
-#[derive(PartialEq, Debug, Clone, ToStatic)]
-// a non-empty list of tokens
-pub struct EncodedWord<'a>(pub Vec<EncodedWordToken<'a>>);
+// Represents an encoded word.
+//
+// Is always printed back as UTF-8 text (using, for now, the quoted encoding in
+// all cases).
+#[derive(PartialEq, Debug, Clone, ToStatic, ToStringFromPrint)]
+pub struct EncodedWord<'a>(pub Vec<EncodedWordToken<'a>>); // must be non-empty
 
 impl<'a> EncodedWord<'a> {
-    pub fn to_string(&self) -> String {
-        self.0.iter().map(|tok| tok.to_string()).collect::<Vec<_>>().join("")
+    /// Returns the data represented by this `EncodedWord`, encoded into UTF8
+    pub fn data(&self) -> String {
+        self.0.iter().map(|tok| tok.data()).collect::<Vec<_>>().join("")
     }
 }
 impl<'a> Print for EncodedWord<'a> {
@@ -113,10 +117,15 @@ impl<'a> Arbitrary<'a> for EncodedWord<'a> {
         Ok(EncodedWord(arbitrary_vec_nonempty(u)?))
     }
 }
+
+// The `Arbitrary` instance for `EncodedWord` generates tokens with random
+// encodings and bytes, but the printer for `EncodedWord` always prints using
+// the UTF-8 encoding (after converting to utf-8).
+// To check for roundtrip we thus can't check for equal AST, only equal contents.
 #[cfg(feature = "arbitrary")]
 impl<'a> FuzzEq for EncodedWord<'a> {
     fn fuzz_eq(&self, other: &Self) -> bool {
-        self.to_string() == other.to_string()
+        self.data() == other.data()
     }
 }
 
@@ -127,22 +136,24 @@ pub enum EncodedWordToken<'a> {
     Base64(Base64Word<'a>),
 }
 impl<'a> EncodedWordToken<'a> {
-    pub fn to_string(&self) -> String {
+    pub fn data(&self) -> String {
         match self {
-            EncodedWordToken::Quoted(v) => v.to_string(),
-            EncodedWordToken::Base64(v) => v.to_string(),
+            EncodedWordToken::Quoted(v) => v.data(),
+            EncodedWordToken::Base64(v) => v.data(),
         }
     }
 }
 impl<'a> Print for EncodedWordToken<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
-        print_utf8_encoded(fmt, self.to_string().chars())
+        print_utf8_encoded(fmt, self.data().chars())
     }
 }
 
 #[derive(PartialEq, Clone, ToStatic)]
 pub struct Base64Word<'a> {
     pub enc: EmailCharset,
+    // `content` must represent base64-encoded data. In particular,
+    // all bytes in `content` must satisfy `is_bchar`.
     pub content: Cow<'a, [u8]>,
 }
 impl<'a> fmt::Debug for Base64Word<'a> {
@@ -155,7 +166,7 @@ impl<'a> fmt::Debug for Base64Word<'a> {
 }
 
 impl<'a> Base64Word<'a> {
-    pub fn to_string(&self) -> String {
+    pub fn data(&self) -> String {
         general_purpose::STANDARD_NO_PAD
             .decode(&self.content)
             .map(|d| self.enc.as_encoding().decode(d.as_slice()).0.to_string())
@@ -180,7 +191,7 @@ pub struct QuotedWord<'a> {
 }
 
 impl<'a> QuotedWord<'a> {
-    pub fn to_string(&self) -> String {
+    pub fn data(&self) -> String {
         self.chunks.iter().fold(String::new(), |mut acc, c| {
             match c {
                 QuotedChunk::Safe(v) => {
@@ -200,7 +211,7 @@ impl<'a> QuotedWord<'a> {
 
 #[derive(PartialEq, Clone, ToStatic)]
 pub enum QuotedChunk<'a> {
-    Safe(Cow<'a, [u8]>),
+    Safe(Cow<'a, [u8]>), // must satisfy `is_safe_char2`
     Encoded(Vec<u8>),
     Space,
 }
@@ -310,7 +321,7 @@ fn is_qchar_safe_strict(b: u8) -> bool {
 
 // XXX: how can we enforce that encoded words are always preceded with linear
 // space (or beginning of header body)?
-pub fn print_utf8_encoded<I>(fmt: &mut impl Formatter, data: I)
+fn print_utf8_encoded<I>(fmt: &mut impl Formatter, data: I)
 where
     I: IntoIterator<Item = char>
 {
@@ -370,7 +381,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::print::tests::with_formatter;
+    use crate::print::tests::print_to_vec_with;
 
     // =?iso8859-1?Q?Accus=E9_de_r=E9ception_(affich=E9)?=
     #[test]
@@ -403,7 +414,7 @@ mod tests {
             encoded_word(b"=?iso8859-1?Q?Accus=E9_de_r=E9ception_(affich=E9)?=")
                 .unwrap()
                 .1
-                .to_string(),
+                .data(),
             "Accusé de réception (affiché)".to_string(),
         );
     }
@@ -430,7 +441,7 @@ mod tests {
             encoded_word(b"=?ISO-8859-1?B?SWYgeW91IGNhbiByZWFkIHRoaXMgeW8=?=")
                 .unwrap()
                 .1
-                .to_string(),
+                .data(),
             "If you can read this yo".to_string(),
         );
     }
@@ -441,7 +452,7 @@ mod tests {
             encoded_word(b"=?UTF-8?Q?John_Sm=C3=AEth?=")
                 .unwrap()
                 .1
-                .to_string(),
+                .data(),
             "John Smîth".to_string(),
         );
     }
@@ -453,7 +464,7 @@ mod tests {
             encoded_word(b"=?ISO-8859-1?Q?a?= =?ISO-8859-1?Q?b?=")
                 .unwrap()
                 .1
-                .to_string(),
+                .data(),
             "ab".to_string(),
         );
 
@@ -461,14 +472,14 @@ mod tests {
             encoded_word(b"=?ISO-8859-1?Q?a?=  \r\n   =?ISO-8859-1?Q?b?=")
                 .unwrap()
                 .1
-                .to_string(),
+                .data(),
             "ab".to_string(),
         );
     }
 
     #[test]
     fn test_encode() {
-        let out = with_formatter(|f| {
+        let out = print_to_vec_with(|f| {
             print_utf8_encoded(f, "Accusé de réception (affiché)".chars());
         });
         assert_eq!(
@@ -476,7 +487,7 @@ mod tests {
             b"=?UTF-8?Q?Accus=C3=A9_de_r=C3=A9ception_=28affich=C3=A9=29?="
         );
 
-        let out = with_formatter(|f| {
+        let out = print_to_vec_with(|f| {
             print_utf8_encoded(f, "John Smîth".chars());
         });
         assert_eq!(
@@ -487,7 +498,7 @@ mod tests {
 
     #[test]
     fn test_encode_folding() {
-        let out = with_formatter(|f| {
+        let out = print_to_vec_with(|f| {
             f.begin_line_folding();
             print_utf8_encoded(f, "Accusé de réception (affiché) Accusé de réception (affiché)".chars());
         });
@@ -499,7 +510,7 @@ mod tests {
 
     #[test]
     fn test_encode_empty() {
-        let out = with_formatter(|f| {
+        let out = print_to_vec_with(|f| {
             print_utf8_encoded(f, "".chars());
         });
         assert_eq!(

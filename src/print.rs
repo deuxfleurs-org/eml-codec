@@ -3,6 +3,7 @@ use rand::{Rng, SeedableRng};
 // to be stable across platforms). Chacha20 provides such a RNG.
 use rand_chacha::ChaCha20Rng as RNG;
 use crate::text::ascii;
+pub use eml_codec_derives::ToStringFromPrint;
 
 // TODO: provide streaming printing
 
@@ -157,20 +158,59 @@ enum FormatterMode {
 
 /// `Fmt` implements `Formatter`.
 pub struct Fmt {
+    line_limit: Option<usize>,
     mode: FormatterMode,
     boundaries: Boundaries,
     buf: Vec<u8>,
 }
 
-impl Fmt {
-    /// `seed` is used to seed the internal RNG which generates multipart
-    /// boundaries. If set to `None`, the RNG is seeded using randomness from
-    /// the operating system.
-    pub fn new(seed: Option<u64>) -> Self {
-        let rand =
-            seed.map(RNG::seed_from_u64)
-                .unwrap_or_else(RNG::from_os_rng);
+/// Configuration passed when initializing a `Fmt`.
+///
+/// `line_limit` defines the maximum line length allowed before trying to split.
+/// If set to `None`, there is no maximum line limit.
+///
+/// `seed` is used to seed the internal RNG which generates multipart
+/// boundaries. If set to `None`, the RNG is seeded using randomness from
+/// the operating system.
+pub struct FmtConfig {
+    seed: Option<u64>,
+    line_limit: Option<usize>,
+}
+
+pub const FMT_DEFAULT: FmtConfig = FmtConfig {
+    seed: None,
+    line_limit: Some(78), // RFC recommended line limit for emails
+};
+
+pub const FMT_NOFOLD: FmtConfig = FMT_DEFAULT.with_line_limit(None);
+
+impl FmtConfig {
+    pub const fn with_seed(self, seed: Option<u64>) -> FmtConfig {
+        FmtConfig { seed, ..self }
+    }
+
+    pub const fn with_line_limit(self, line_limit: Option<usize>) -> FmtConfig {
+        FmtConfig { line_limit, ..self }
+    }
+}
+
+impl Default for FmtConfig {
+    fn default() -> Self {
         Self {
+            seed: None, // defaults to system RNG
+            line_limit: Some(78), // RFC recommended line limit for emails
+        }
+    }
+}
+
+impl Fmt {
+    pub fn new(cfg: FmtConfig) -> Self {
+        let rand =
+            cfg.seed
+               .map(RNG::seed_from_u64)
+               .unwrap_or_else(RNG::from_os_rng);
+        Self {
+            line_limit: cfg.line_limit,
             mode: FormatterMode::Direct,
             boundaries: Boundaries::new(rand),
             buf: Vec::new(),
@@ -182,7 +222,7 @@ impl Formatter for Fmt {
     fn begin_line_folding(&mut self) {
         match self.mode {
             FormatterMode::Direct => {
-                self.mode = FormatterMode::Folding(LineFolder::new())
+                self.mode = FormatterMode::Folding(LineFolder::new(self.line_limit))
             },
             FormatterMode::Folding(_) =>
                 panic!("Formatter::begin_line_folding: already in folding mode")
@@ -256,14 +296,15 @@ impl Formatter for Fmt {
     }
 }
 
+// Line folding ----------------------------------------------------------------
+
 /// `LineFolder` holds buffers and state used to perform line folding.
-///
-/// The line limit is 80 chars (including CRLF) as per RFC5322.
 ///
 /// The owner of `LineFolder` MUST call its `flush` method after it is done
 /// writing. Flushing must only happen after all writing has been done; once
 /// a `LineFolder` has been flushed it cannot be written to again.
 struct LineFolder {
+    line_limit: LineLimit,
     // Edge case: at the end of the file, if the remaining data of the final
     // fold is only spaces, we must not put it on its own fold (as per the RFC).
     // Instead, we should add it to the previous fold.
@@ -279,11 +320,12 @@ struct LineFolder {
     is_flushed: bool,
 }
 
-const LINE_LIMIT: usize = 78;
-
 impl LineFolder {
-    fn new() -> LineFolder {
+    /// The line limit must not include the final CRLF and must not be zero.
+    /// For emails, this means line_limit=78.
+    fn new(line_limit: Option<usize>) -> LineFolder {
         Self {
+            line_limit: LineLimit::from(line_limit),
             prev_fold: None,
             cur_fold: Vec::new(),
             cur_fold_is_only_fws: true,
@@ -315,7 +357,7 @@ impl LineFolder {
             assert!(!ascii::WS.contains(&buf[0]))
         }
 
-        if self.cur_fold.len() + buf.len() <= LINE_LIMIT
+        if self.cur_fold.len() + buf.len() <= self.line_limit
             || self.last_cut_candidate.is_none()
         {
             // write `buf`
@@ -350,7 +392,7 @@ impl LineFolder {
 
         // if we are past the line limit, we should fold if we can
         // (possibly on the character we just added)
-        if self.cur_fold.len() > LINE_LIMIT
+        if self.cur_fold.len() > self.line_limit
             && self.last_cut_candidate.is_some()
         {
             self.fold(inner)
@@ -421,6 +463,42 @@ impl LineFolder {
     }
 }
 
+// Internal type used by the implementation of LineFolder, representing the
+// maximum allowed line length: either an integer or infinity (no line limit).
+enum LineLimit {
+    NoLimit,
+    Limit(usize),
+}
+
+// Convenience impls allowing to write comparisons of the form `n <= line_limit`.
+impl std::cmp::PartialEq<LineLimit> for usize {
+    fn eq(&self, limit: &LineLimit) -> bool {
+        match limit {
+            LineLimit::Limit(m) => self == m,
+            LineLimit::NoLimit => false,
+        }
+    }
+}
+impl std::cmp::PartialOrd<LineLimit> for usize {
+    fn partial_cmp(&self, limit: &LineLimit) -> Option<std::cmp::Ordering> {
+        match limit {
+            LineLimit::Limit(m) => self.partial_cmp(m),
+            LineLimit::NoLimit => Some(std::cmp::Ordering::Less),
+        }
+    }
+}
+
+impl From<Option<usize>> for LineLimit {
+    fn from(o: Option<usize>) -> LineLimit {
+        match o {
+            None => LineLimit::NoLimit,
+            Some(n) => LineLimit::Limit(n),
+        }
+    }
+}
+
+// Boundary handling for multiparts --------------------------------------------
+
 struct Boundaries {
     active_boundaries: Vec<Vec<u8>>, // behaves as a stack
     rand: RNG,
@@ -473,13 +551,22 @@ impl Boundaries {
     }
 }
 
-pub fn with_formatter<F>(seed: Option<u64>, f: F) -> Vec<u8>
+// Public formatting functions -------------------------------------------------
+
+/// Creates a formatter, passes it to `f`, and returns the corresponding output
+/// as a Vec.
+pub fn print_to_vec_with<F>(cfg: FmtConfig, f: F) -> Vec<u8>
 where
     F: for <'a> Fn(&'a mut Fmt)
 {
-    let mut fmt = Fmt::new(seed);
+    let mut fmt = Fmt::new(cfg);
     f(&mut fmt);
     fmt.flush()
+}
+
+/// Prints a printable value as a Vec.
+pub fn print_to_vec<T: Print>(cfg: FmtConfig, x: T) -> Vec<u8> {
+    print_to_vec_with(cfg, |fmt| x.print(fmt))
 }
 
 // Cow<'a, [u8]> is our base bytes type
@@ -493,14 +580,19 @@ impl<'a> Print for std::borrow::Cow<'a, [u8]> {
 pub(crate) mod tests {
     use super::*;
 
-    // in tests, fix the formatter seed
-    pub fn with_formatter(f: impl Fn(&mut Fmt)) -> Vec<u8> {
-        super::with_formatter(Some(0), f)
+    // in tests, fix the formatter seed and use line folding
+    pub fn print_to_vec_with(f: impl Fn(&mut Fmt)) -> Vec<u8> {
+        let cfg = FmtConfig { seed: Some(0), ..FMT_DEFAULT };
+        super::print_to_vec_with(cfg, f)
+    }
+    pub fn print_to_vec<T: Print>(x: T) -> Vec<u8> {
+        let cfg = FmtConfig { seed: Some(0), ..FMT_DEFAULT };
+        super::print_to_vec(cfg, x)
     }
 
     #[test]
     fn test_folding() {
-        let folded = with_formatter(|f| {
+        let folded = print_to_vec_with(|f| {
             f.begin_line_folding();
             f.write_bytes(&[b'x'; 72]);
             f.write_fws();
@@ -514,7 +606,7 @@ pub(crate) mod tests {
             ].concat()
         );
 
-        let folded = with_formatter(|f| {
+        let folded = print_to_vec_with(|f| {
             f.begin_line_folding();
             f.write_bytes(&[b'x'; 80]);
             f.write_fws();
@@ -528,7 +620,7 @@ pub(crate) mod tests {
             ].concat()
         );
 
-        let folded = with_formatter(|f| {
+        let folded = print_to_vec_with(|f| {
             f.begin_line_folding();
             f.write_bytes(&[b'x'; 18]);
             f.write_fws_bytes(&[b' '; 3]);
@@ -553,7 +645,7 @@ pub(crate) mod tests {
 
         // we must not not fold in this case, because doing so would create a
         // fold containing only whitespace
-        let folded = with_formatter(|f| {
+        let folded = print_to_vec_with(|f| {
             f.begin_line_folding();
             f.write_bytes(b"X");
             f.write_fws_bytes(&[b' '; 82]);

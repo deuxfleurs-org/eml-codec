@@ -224,7 +224,7 @@ mod tests {
     use crate::part::discrete::Text;
     use crate::part::{AnyPart, MimeBody};
     use crate::part::field::EntityEntry;
-    use crate::print::tests::with_formatter;
+    use crate::print::tests::print_to_vec;
     use crate::text::charset::EmailCharset;
     use crate::text::encoding::{Base64Word, EncodedWord, EncodedWordToken, QuotedChunk, QuotedWord};
     use crate::text::misc_token::*;
@@ -234,19 +234,19 @@ mod tests {
 
     fn test_message_roundtrip<'a>(txt: &[u8], parsed: Message<'a>) {
         assert_eq!(message(txt), parsed.clone());
-        let printed = with_formatter(|fmt| parsed.print(fmt));
+        let printed = print_to_vec(parsed);
         assert_eq!(String::from_utf8_lossy(&printed), String::from_utf8_lossy(txt))
     }
 
     fn test_message_parse_print<'a>(txt: &[u8], parsed: Message<'a>, printed: &[u8]) {
         assert_eq!(message(txt), parsed.clone());
-        let reprinted = with_formatter(|fmt| parsed.print(fmt));
+        let reprinted = print_to_vec(parsed);
         assert_eq!(String::from_utf8_lossy(&reprinted), String::from_utf8_lossy(printed))
     }
 
     fn test_message_reprint<'a>(txt: &[u8], printed: &[u8]) {
         let parsed = message(txt);
-        let reprinted = with_formatter(|fmt| parsed.print(fmt));
+        let reprinted = print_to_vec(parsed);
         assert_eq!(String::from_utf8_lossy(&reprinted), String::from_utf8_lossy(printed))
     }
 

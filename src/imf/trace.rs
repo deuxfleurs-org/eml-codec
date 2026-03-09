@@ -14,11 +14,11 @@ use nom::{
 use crate::{
     fuzz_eq::FuzzEq,
 };
-use crate::print::{print_seq, Print, Formatter};
+use crate::print::{print_seq, Print, Formatter, ToStringFromPrint};
 use crate::imf::{datetime, mailbox};
 use crate::text::{ascii, misc_token, whitespace};
 
-#[derive(Clone, Debug, PartialEq, ToStatic)]
+#[derive(Clone, Debug, PartialEq, ToStatic, ToStringFromPrint)]
 #[cfg_attr(feature = "arbitrary", derive(Arbitrary))]
 pub enum ReceivedLogToken<'a> {
     Addr(mailbox::AddrSpec<'a>),
@@ -40,8 +40,7 @@ impl<'a> Print for ReceivedLogToken<'a> {
 #[cfg(feature = "arbitrary")]
 impl<'a> FuzzEq for ReceivedLogToken<'a> {
     fn fuzz_eq(&self, other: &Self) -> bool {
-        crate::print::with_formatter(None, |fmt| self.print(fmt)) ==
-        crate::print::with_formatter(None, |fmt| other.print(fmt))
+        self.to_string() == other.to_string()
     }
 }
 

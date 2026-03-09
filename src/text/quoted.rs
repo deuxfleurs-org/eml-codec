@@ -19,13 +19,13 @@ use crate::{
     arbitrary_utils::arbitrary_vec_where,
     fuzz_eq::FuzzEq,
 };
-use crate::print::Formatter;
+use crate::print::{Print, Formatter, ToStringFromPrint};
 use crate::text::ascii;
 use crate::text::whitespace::{cfws, fws, is_obs_no_ws_ctl};
 use crate::text::words::is_vchar;
 
 // A quoted string contains bytes that satisfy `is_vchar` or are in `ascii::WS`.
-#[derive(PartialEq, Default, Clone, ToStatic)]
+#[derive(PartialEq, Default, Clone, ToStatic, ToStringFromPrint)]
 pub struct QuotedString<'a>(pub Vec<Cow<'a, [u8]>>);
 
 impl<'a> fmt::Debug for QuotedString<'a> {
@@ -43,22 +43,13 @@ impl<'a> QuotedString<'a> {
         self.0.push(Cow::Borrowed(e))
     }
 
-    // XXX remove?
-    pub fn to_string(&self) -> String {
-        let enc = encoding_rs::UTF_8;
-        let size = self.0.iter().fold(0, |acc, v| acc + v.len());
-
-        self.0
-            .iter()
-            .fold(String::with_capacity(size), |mut acc, v| {
-                let (content, _) = enc.decode_without_bom_handling(v);
-                acc.push_str(content.as_ref());
-                acc
-            })
-    }
-
     pub fn bytes<'b>(&'b self) -> QuotedStringBytes<'a, 'b> {
         QuotedStringBytes { q: self, outer: 0, inner: 0 }
+    }
+}
+impl<'a> Print for QuotedString<'a> {
+    fn print(&self, fmt: &mut impl Formatter) {
+        print_quoted(fmt, self.bytes())
     }
 }
 
@@ -235,7 +226,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::print::tests::with_formatter;
+    use crate::print::tests::print_to_vec_with;
 
     #[test]
     fn test_quoted_string_parser() {
@@ -273,7 +264,7 @@ mod tests {
 
     #[test]
     fn test_quoted_string_printer() {
-        let out = with_formatter(|f| {
+        let out = print_to_vec_with(|f| {
             print_quoted(
                 f,
                 QuotedString(vec![
@@ -297,7 +288,7 @@ mod tests {
                 b"world".into(),
             ])
             .to_string(),
-            "hello world".to_string(),
+            "\"hello world\"".to_string(),
         );
     }
 }

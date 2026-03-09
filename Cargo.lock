@@ -116,15 +116,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "derive_fuzz_eq"
-version = "0.1.0"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
 name = "diff"
 version = "0.1.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -138,13 +129,22 @@ dependencies = [
  "base64",
  "bounded-static",
  "chrono",
- "derive_fuzz_eq",
+ "eml_codec_derives",
  "encoding_rs",
  "nom",
  "pretty_assertions",
  "rand",
  "rand_chacha",
  "walkdir",
+]
+
+[[package]]
+name = "eml_codec_derives"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]

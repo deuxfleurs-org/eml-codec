@@ -11,10 +11,10 @@ use nom::{
 
 #[cfg(feature = "arbitrary")]
 use crate::fuzz_eq::FuzzEq;
-use crate::print::{Print, Formatter};
+use crate::print::{Print, Formatter, ToStringFromPrint};
 use crate::text::whitespace::cfws;
 
-#[derive(Clone, Debug, PartialEq, ToStatic)]
+#[derive(Clone, Debug, PartialEq, ToStatic, ToStringFromPrint)]
 #[cfg_attr(feature = "arbitrary", derive(Arbitrary))]
 pub struct Version {
     pub major: u64,

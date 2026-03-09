@@ -2,6 +2,33 @@ use proc_macro::TokenStream;
 use quote::quote;
 use syn::{parse_macro_input, Data, DeriveInput, Fields};
 
+// derive(ToStringFromPrint) ---------------------------------------------------
+
+#[proc_macro_derive(ToStringFromPrint)]
+pub fn derive_to_string_from_print(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as DeriveInput);
+    let name = input.ident;
+    let (impl_generics, ty_generics, where_clauses) =
+        input.generics.split_for_impl();
+
+    let expanded = quote! {
+        impl #impl_generics ToString for #name #ty_generics #where_clauses {
+            fn to_string(&self) -> String {
+                String::from_utf8_lossy(
+                    &crate::print::print_to_vec(
+                        crate::print::FMT_NOFOLD,
+                        self,
+                    )
+                ).to_string()
+            }
+        }
+    };
+
+    expanded.into()
+}
+
+// derive(FuzzEq) --------------------------------------------------------------
+
 #[proc_macro_derive(FuzzEq, attributes(fuzz_eq))]
 pub fn derive_fuzz_eq(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);

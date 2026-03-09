@@ -17,27 +17,18 @@ use crate::{
     arbitrary_utils::{arbitrary_vec_nonempty, arbitrary_vec_nonempty_where},
     fuzz_eq::FuzzEq,
 };
-use crate::print::{print_seq, Print, Formatter};
+use crate::print::{print_seq, Print, Formatter, ToStringFromPrint};
 use crate::text::ascii;
 use crate::text::misc_token::{phrase, word, Phrase, Word};
 use crate::text::quoted::print_quoted;
 use crate::text::whitespace::{cfws, fws, is_obs_no_ws_ctl};
 use crate::text::words::{dot_atom_text, atom, Atom};
 
-#[derive(Clone, Debug, PartialEq, ToStatic)]
+#[derive(Clone, Debug, PartialEq, ToStatic, ToStringFromPrint)]
 #[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
 pub struct AddrSpec<'a> {
     pub local_part: LocalPart<'a>,
     pub domain: Domain<'a>,
-}
-impl<'a> ToString for AddrSpec<'a> {
-    fn to_string(&self) -> String {
-        format!(
-            "{}@{}",
-            self.local_part.to_string(),
-            self.domain.to_string()
-        )
-    }
 }
 impl<'a> Print for AddrSpec<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
@@ -47,7 +38,7 @@ impl<'a> Print for AddrSpec<'a> {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, ToStatic)]
+#[derive(Clone, Debug, PartialEq, ToStatic, ToStringFromPrint)]
 #[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
 pub struct MailboxRef<'a> {
     // The actual "email address" like hello@example.com
@@ -66,14 +57,6 @@ impl MailboxRef<'static> {
                 domain: Domain::Atoms(vec![Atom(b"unknown".into())]),
             },
             name: None,
-        }
-    }
-}
-impl<'a> ToString for MailboxRef<'a> {
-    fn to_string(&self) -> String {
-        match &self.name {
-            Some(n) => format!("{} <{}>", n.to_string(), self.addrspec.to_string()),
-            None => self.addrspec.to_string(),
         }
     }
 }
@@ -102,7 +85,7 @@ impl<'a> Print for MailboxRef<'a> {
 }
 
 /// A non-empty list of mailboxes.
-#[derive(Clone, Debug, PartialEq, ToStatic)]
+#[derive(Clone, Debug, PartialEq, ToStatic, ToStringFromPrint)]
 #[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
 pub struct MailboxList<'a>(pub Vec<MailboxRef<'a>>);
 
@@ -234,20 +217,10 @@ pub enum LocalPartToken<'a> {
     Word(Word<'a>),
 }
 
-#[derive(Clone, Debug, PartialEq, ToStatic)]
+#[derive(Clone, Debug, PartialEq, ToStatic, ToStringFromPrint)]
 pub struct LocalPart<'a>(pub Vec<LocalPartToken<'a>>); // non-empty vec
 
 impl<'a> LocalPart<'a> {
-    pub fn to_string(&self) -> String {
-        self.0.iter().fold(String::new(), |mut acc, token| {
-            match token {
-                LocalPartToken::Dot => acc.push('.'),
-                LocalPartToken::Word(v) => acc.push_str(v.to_string().as_ref()),
-            }
-            acc
-        })
-    }
-
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut v = Vec::new();
         for tok in &self.0 {
@@ -328,36 +301,11 @@ fn local_part_word(input: &[u8]) -> IResult<&[u8], LocalPartToken<'_>> {
     map(word, LocalPartToken::Word)(input)
 }
 
-#[derive(Clone, Debug, PartialEq, ToStatic)]
+#[derive(Clone, Debug, PartialEq, ToStatic, ToStringFromPrint)]
 #[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
 pub enum Domain<'a> {
     Atoms(Vec<Atom<'a>>), // non-empty vec
     Literal(Vec<Dtext<'a>>),
-}
-
-impl<'a> ToString for Domain<'a> {
-    fn to_string(&self) -> String {
-        match self {
-            Domain::Atoms(v) => v
-                .iter()
-                .map(|a| {
-                    encoding_rs::UTF_8
-                        .decode_without_bom_handling(&a.0)
-                        .0
-                        .to_string()
-                })
-                .collect::<Vec<String>>()
-                .join("."),
-            Domain::Literal(v) => {
-                let inner = v
-                    .iter()
-                    .map(|dt| dt.to_string())
-                    .collect::<Vec<String>>()
-                    .join(" ");
-                format!("[{}]", inner)
-            }
-        }
-    }
 }
 
 impl<'a> Print for Domain<'a> {
@@ -428,18 +376,9 @@ fn inner_domain_litteral(input: &[u8]) -> IResult<&[u8], Domain<'_>> {
 }
 
 // Invariant: must be non-empty
-#[derive(Clone, PartialEq, ToStatic)]
+#[derive(Clone, PartialEq, ToStatic, ToStringFromPrint)]
 pub struct Dtext<'a>(Cow<'a, [u8]>);
 
-// TODO: remove?
-impl<'a> ToString for Dtext<'a> {
-    fn to_string(&self) -> String {
-        encoding_rs::UTF_8
-            .decode_without_bom_handling(&self.0)
-            .0
-            .to_string()
-    }
-}
 impl<'a> fmt::Debug for Dtext<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt.debug_tuple("Dtext")
@@ -518,7 +457,7 @@ pub fn dtext<'a>(input: &'a [u8]) -> IResult<&'a [u8], Dtext<'a>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::print::tests::with_formatter;
+    use crate::print::tests::print_to_vec;
     use crate::text::misc_token::PhraseToken;
     use crate::text::quoted::QuotedString;
 
@@ -528,18 +467,18 @@ mod tests {
     // back as 'a').
     fn addr_roundtrip_as(addr: &[u8], parsed: AddrSpec<'_>) {
         assert_eq!(addr_spec(addr), Ok((&b""[..], parsed.clone())));
-        let printed = with_formatter(|f| parsed.print(f));
+        let printed = print_to_vec(parsed);
         assert_eq!(String::from_utf8_lossy(addr), String::from_utf8_lossy(&printed));
     }
     fn addr_roundtrip(addr: &[u8]) {
         let (input, parsed) = addr_spec(addr).unwrap();
         assert!(input.is_empty());
-        let printed = with_formatter(|f| parsed.print(f));
+        let printed = print_to_vec(parsed);
         assert_eq!(String::from_utf8_lossy(addr), String::from_utf8_lossy(&printed));
     }
     fn addr_parsed_printed(addr: &[u8], parsed: AddrSpec<'_>, printed: &[u8]) {
         assert_eq!(addr_spec(addr), Ok((&b""[..], parsed.clone())));
-        let reprinted = with_formatter(|f| parsed.print(f));
+        let reprinted = print_to_vec(parsed);
         assert_eq!(String::from_utf8_lossy(printed), String::from_utf8_lossy(&reprinted));
     }
 
@@ -547,19 +486,19 @@ mod tests {
     // in general.
     fn mailbox_roundtrip_as(mbox: &[u8], parsed: MailboxRef<'_>) {
         assert_eq!(mailbox(mbox), Ok((&b""[..], parsed.clone())));
-        let printed = with_formatter(|f| parsed.print(f));
+        let printed = print_to_vec(parsed);
         assert_eq!(String::from_utf8_lossy(mbox), String::from_utf8_lossy(&printed));
     }
     fn mailbox_parsed_printed(mbox: &[u8], parsed: MailboxRef<'_>, printed: &[u8]) {
         assert_eq!(mailbox(mbox), Ok((&b""[..], parsed.clone())));
-        let reprinted = with_formatter(|f| parsed.print(f));
+        let reprinted = print_to_vec(parsed);
         assert_eq!(String::from_utf8_lossy(printed), String::from_utf8_lossy(&reprinted));
     }
 
     fn mailbox_list_reprint(mboxlist: &[u8], printed: &[u8]) {
         let (input, parsed) = mailbox_list(mboxlist).unwrap();
         assert!(input.is_empty());
-        let reprinted = with_formatter(|f| parsed.print(f));
+        let reprinted = print_to_vec(parsed);
         assert_eq!(String::from_utf8_lossy(&reprinted), String::from_utf8_lossy(printed));
     }
 

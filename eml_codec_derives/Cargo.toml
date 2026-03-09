@@ -1,5 +1,5 @@
 [package]
-name = "derive_fuzz_eq"
+name = "eml_codec_derives"
 version = "0.1.0"
 edition = "2021"
 
