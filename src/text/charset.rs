@@ -2,10 +2,11 @@
 use arbitrary::Arbitrary;
 use bounded_static::ToStatic;
 use encoding_rs::Encoding;
+use crate::text::words::is_vchar;
 #[cfg(feature = "arbitrary")]
 use crate::{
+    arbitrary_utils::arbitrary_vec_nonempty_where,
     fuzz_eq::FuzzEq,
-    text::words::is_vchar,
 };
 
 /// Specific implementation of charset
@@ -16,7 +17,6 @@ use crate::{
 /// <https://www.iana.org/assignments/character-sets/character-sets.xhtml>
 #[allow(non_camel_case_types)]
 #[derive(Debug, PartialEq, Default, Clone, ToStatic)]
-#[cfg_attr(feature = "arbitrary", derive(Arbitrary))]
 pub enum EmailCharset {
     #[default]
     US_ASCII,
@@ -44,6 +44,8 @@ pub enum EmailCharset {
     Big5,
     KOI8_R,
     UTF_8,
+    // Must contain only printable characters (text::words::is_vchar).
+    // Must be nonempty.
     Unknown(Vec<u8>),
 }
 
@@ -76,7 +78,11 @@ impl<T: AsRef<[u8]>> From<T> for EmailCharset {
             b"big5" => EmailCharset::Big5,
             b"koi8-r" => EmailCharset::KOI8_R,
             b"utf-8" | b"utf8" => EmailCharset::UTF_8,
-            _ => EmailCharset::Unknown(bytes.as_ref().to_vec()),
+            _ => {
+                // Filter out bytes that are not printable, in case there are some…
+                let sanitized = bytes.as_ref().iter().cloned().filter(|b| is_vchar(*b));
+                EmailCharset::Unknown(sanitized.collect())
+            }
         }
     }
 }
@@ -88,9 +94,6 @@ impl ToString for EmailCharset {
 }
 
 impl EmailCharset {
-    /// WARNING: in the `Unknown` case, the returned bytes can
-    /// be arbitrary (in particular, they are not necessarily
-    /// printable bytes)!
     pub fn as_bytes(&self) -> &[u8] {
         use EmailCharset::*;
         match self {
@@ -131,16 +134,48 @@ impl EmailCharset {
 }
 
 #[cfg(feature = "arbitrary")]
+impl<'a> Arbitrary<'a> for EmailCharset {
+    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
+        Ok(
+            match u.int_in_range(0..=25)? {
+                0 => EmailCharset::US_ASCII,
+                1 => EmailCharset::ISO_8859_1,
+                2 => EmailCharset::ISO_8859_2,
+                3 => EmailCharset::ISO_8859_3,
+                4 => EmailCharset::ISO_8859_4,
+                5 => EmailCharset::ISO_8859_5,
+                6 => EmailCharset::ISO_8859_6,
+                7 => EmailCharset::ISO_8859_7,
+                8 => EmailCharset::ISO_8859_8,
+                9 => EmailCharset::ISO_8859_9,
+                10 => EmailCharset::ISO_8859_10,
+                11 => EmailCharset::Shift_JIS,
+                12 => EmailCharset::EUC_JP,
+                13 => EmailCharset::ISO_2022_KR,
+                14 => EmailCharset::EUC_KR,
+                15 => EmailCharset::ISO_2022_JP,
+                16 => EmailCharset::ISO_2022_JP_2,
+                17 => EmailCharset::ISO_8859_6_E,
+                18 => EmailCharset::ISO_8859_6_I,
+                19 => EmailCharset::ISO_8859_8_E,
+                20 => EmailCharset::ISO_8859_8_I,
+                21 => EmailCharset::GB2312,
+                22 => EmailCharset::Big5,
+                23 => EmailCharset::KOI8_R,
+                24 => EmailCharset::UTF_8,
+                25 => {
+                    let v = arbitrary_vec_nonempty_where(u, |b| is_vchar(*b), b'X')?;
+                    EmailCharset::Unknown(v)
+                }
+                _ => unreachable!(),
+            }
+        )
+    }
+}
+#[cfg(feature = "arbitrary")]
 impl FuzzEq for EmailCharset {
     fn fuzz_eq(&self, other: &Self) -> bool {
-        // the `Unknown` case may contain non-displayable chars, but those are
-        // dropped during printing, so we ignore them...
-        // XXX should this sanitization be done instead at parsing time,
-        // to be consistent with the rest of the codebase, so that we have
-        // a cleaner AST?
-        let s: Vec<_> = self.as_bytes().iter().filter(|b| is_vchar(**b)).collect();
-        let o: Vec<_> = other.as_bytes().iter().filter(|b| is_vchar(**b)).collect();
-        s == o
+        self == other
     }
 }
 
@@ -169,6 +204,11 @@ mod tests {
         assert_eq!(
             EmailCharset::from(&b"utf8"[..]).as_encoding(),
             encoding_rs::UTF_8,
+        );
+
+        assert_eq!(
+            EmailCharset::from(&b"!*\x00\x01abc"[..]),
+            EmailCharset::Unknown(b"!*abc".to_vec()),
         );
     }
 }
