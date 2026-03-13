@@ -199,9 +199,8 @@ impl<'a> Arbitrary<'a> for PhraseToken<'a> {
 /// A part of a phrase or obs-phrase
 pub fn phrase_token(input: &[u8]) -> IResult<&[u8], PhraseToken<'_>> {
     alt((
-        // NOTE: we must try `encoded_word` first because encoded words
-        // are also valid atoms
-        map(encoded_word, PhraseToken::Encoded),
+        // NOTE: try encoded words first because they can also be parsed as words.
+        map(encoded_word(encoding::Context::Phrase), PhraseToken::Encoded),
         map(word, PhraseToken::Word),
         // "obs-phrase" allows periods while "phrase" does not.
         // We could have a dedicated `Dot` constructor to `PhraseToken`
@@ -492,7 +491,7 @@ pub fn unstructured(input: &[u8]) -> IResult<&[u8], Unstructured<'_>> {
     let (input, r) = many0(pair(
         opt(fws),
         alt((
-            map(encoded_word_plain, |w| vec![UnstrToken::Encoded(w)]),
+            map(encoded_word_plain(encoding::Context::Unstructured), |w| vec![UnstrToken::Encoded(w)]),
             many1(map(obs_utext_token, UnstrToken::from_utext)),
         )),
     ))(input)?;

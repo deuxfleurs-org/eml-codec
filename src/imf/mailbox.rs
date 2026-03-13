@@ -714,6 +714,27 @@ mod tests {
                 }
             }
         );
+
+        // Tricky example illustrating a subtility of parsing encoded words.
+        // A mailbox can start with a phrase, which allows encoded words.
+        // However, "=?X?q?@[?=" *IS NOT* a valid encoded word in a phrase (because of '@' and '['),
+        // even though it is a valid encoded word in other contexts.
+        // This means that the correct way to parse this input is as an addr-spec...
+        mailbox_roundtrip_as(
+            r#"=?X?q?@[?= <?@?>]"#.as_bytes(),
+            MailboxRef {
+                name: None,
+                addrspec: AddrSpec {
+                    local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(
+                        Atom(b"=?X?q?"[..].into())
+                    ))]),
+                    domain: Domain::Literal(vec![
+                        Dtext(b"?="[..].into()),
+                        Dtext(b"<?@?>"[..].into()),
+                    ]),
+                },
+            },
+        );
     }
 
     #[test]

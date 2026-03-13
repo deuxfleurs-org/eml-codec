@@ -8,7 +8,7 @@ use nom::{
     bytes::complete::{tag, take, take_while, take_while1},
     character::complete::one_of,
     character::is_alphanumeric,
-    combinator::{map, opt},
+    combinator::{all_consuming, map, map_parser, opt},
     multi::{many0, many1, separated_list1},
     sequence::{delimited, preceded, terminated, tuple},
     IResult,
@@ -25,35 +25,56 @@ use crate::{
 use crate::print::{print_seq, Print, Formatter, ToStringFromPrint};
 use crate::text::ascii;
 use crate::text::charset::EmailCharset;
-use crate::text::whitespace::{cfws, fws};
+use crate::text::whitespace::{cfws, fws, is_ctext};
 use crate::text::words;
 
-// XXX: the parser below does not implement the spec stricty.
-// Specifically, it is more lenient than the spec in what it accepts
-// inside of an encoded word. In particular:
-// - it allows more characters that are allowed;
-// - it is not aware of the context in which the encoded word
-//   appears, which can cause more characters to be forbidden (e.g.
-//   "(" and ")" are forbidden inside of a comment).
+// Context in which an encoded word is parsed.
 //
-// At this point it is not clear whether strictly implementing the spec
-// in the parser is a good or bad thing (since we also want to be resilient
-// to incorrect input, on a best-effort basis).
-//
-// The printer is, in any case, strictly spec compliant.
+// `Phrase` is more strict than `Comment`, which is more strict than `Unstructured`.
+// ("more strict" == "allows less inputs")
+#[derive(Clone, Copy)]
+pub enum Context {
+    Phrase,
+    Comment,
+    Unstructured,
+}
 
-pub fn encoded_word(input: &[u8]) -> IResult<&[u8], EncodedWord<'_>> {
-    delimited(opt(cfws), encoded_word_plain, opt(cfws))(input)
+pub fn encoded_word(ctx: Context) -> impl FnMut(&[u8]) -> IResult<&[u8], EncodedWord<'_>> {
+    move |input| {
+        delimited(opt(cfws), encoded_word_plain(ctx), opt(cfws))(input)
+    }
 }
 
 // NOTE: this is used in the comment syntax, so should not
 // recurse and call CFWS itself, for parsing efficiency reasons.
-pub fn encoded_word_plain(input: &[u8]) -> IResult<&[u8], EncodedWord<'_>> {
-    map(separated_list1(fws, encoded_word_token), EncodedWord)(input)
+pub fn encoded_word_plain(ctx: Context) -> impl FnMut(&[u8]) -> IResult<&[u8], EncodedWord<'_>> {
+    move |input| {
+        map(separated_list1(fws, encoded_word_token(ctx)), EncodedWord)(input)
+    }
 }
 
-pub fn encoded_word_token(input: &[u8]) -> IResult<&[u8], EncodedWordToken<'_>> {
-    alt((encoded_word_token_quoted, encoded_word_token_base64))(input)
+pub fn encoded_word_token(ctx: Context) -> impl FnMut(&[u8]) -> IResult<&[u8], EncodedWordToken<'_>> {
+    move |input| {
+        // An encoded word is always a special case of an atom-like token. Which characters are
+        // allowed in this atom token depends on the context, so we first read the atom, then try to
+        // parse it fully as an encoded word.
+        map_parser(
+            // read an atom-like token
+            encoded_word_token_atom(ctx),
+            // ...which must fully represent an encoded word
+            all_consuming(alt((encoded_word_token_quoted, encoded_word_token_base64))),
+        )(input)
+    }
+}
+
+fn encoded_word_token_atom(ctx: Context) -> impl FnMut(&[u8]) -> IResult<&[u8], &[u8]> {
+    move |input| {
+        match ctx {
+            Context::Phrase => take_while1(words::is_atext)(input),
+            Context::Comment => take_while1(is_ctext)(input),
+            Context::Unstructured => take_while1(words::is_vchar)(input),
+        }
+    }
 }
 
 pub fn encoded_word_token_quoted(input: &[u8]) -> IResult<&[u8], EncodedWordToken<'_>> {
@@ -409,24 +430,31 @@ mod tests {
 
     #[test]
     fn test_invalid_space() {
-        assert!(encoded_word(b"=?iso8859-1?Q?Accus=E9 de r=E9ception?=").is_err());
+        // Context::Unstructured is the most lenient
+        assert!(encoded_word(Context::Unstructured)(b"=?iso8859-1?Q?Accus=E9 de r=E9ception?=").is_err());
     }
 
     #[test]
     fn test_decode_word() {
+        // This is only parsable in the Unstructured context, because of the naked parenthesis
         assert_eq!(
-            encoded_word(b"=?iso8859-1?Q?Accus=E9_de_r=E9ception_(affich=E9)?=")
+            encoded_word(Context::Unstructured)(b"=?iso8859-1?Q?Accus=E9_de_r=E9ception_(affich=E9)?=")
                 .unwrap()
                 .1
                 .data(),
             "Accusé de réception (affiché)".to_string(),
+        );
+
+        assert!(
+            encoded_word(Context::Phrase)(b"=?iso8859-1?Q?Accus=E9_de_r=E9ception_(affich=E9)?=")
+                .is_err()
         );
     }
 
     #[test]
     fn test_decode_word_ast() {
         assert_eq!(
-            encoded_word(b"=?ISO-8859-1?B?SWYgeW91IGNhbiByZWFkIHRoaXMgeW8=?=")
+            encoded_word(Context::Phrase)(b"=?ISO-8859-1?B?SWYgeW91IGNhbiByZWFkIHRoaXMgeW8=?=")
                 .unwrap()
                 .1,
             EncodedWord(vec![
@@ -442,7 +470,7 @@ mod tests {
     #[test]
     fn test_decode_word_b64() {
         assert_eq!(
-            encoded_word(b"=?ISO-8859-1?B?SWYgeW91IGNhbiByZWFkIHRoaXMgeW8=?=")
+            encoded_word(Context::Phrase)(b"=?ISO-8859-1?B?SWYgeW91IGNhbiByZWFkIHRoaXMgeW8=?=")
                 .unwrap()
                 .1
                 .data(),
@@ -453,7 +481,7 @@ mod tests {
     #[test]
     fn test_strange_quoted() {
         assert_eq!(
-            encoded_word(b"=?UTF-8?Q?John_Sm=C3=AEth?=")
+            encoded_word(Context::Phrase)(b"=?UTF-8?Q?John_Sm=C3=AEth?=")
                 .unwrap()
                 .1
                 .data(),
@@ -465,7 +493,7 @@ mod tests {
     fn test_multiple() {
         // white space between adjacent encoded word is not displayed
         assert_eq!(
-            encoded_word(b"=?ISO-8859-1?Q?a?= =?ISO-8859-1?Q?b?=")
+            encoded_word(Context::Phrase)(b"=?ISO-8859-1?Q?a?= =?ISO-8859-1?Q?b?=")
                 .unwrap()
                 .1
                 .data(),
@@ -473,7 +501,7 @@ mod tests {
         );
 
         assert_eq!(
-            encoded_word(b"=?ISO-8859-1?Q?a?=  \r\n   =?ISO-8859-1?Q?b?=")
+            encoded_word(Context::Phrase)(b"=?ISO-8859-1?Q?a?=  \r\n   =?ISO-8859-1?Q?b?=")
                 .unwrap()
                 .1
                 .data(),

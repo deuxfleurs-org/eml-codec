@@ -1,5 +1,5 @@
 use crate::text::ascii;
-use crate::text::encoding::encoded_word_plain;
+use crate::text::encoding::{Context, encoded_word_plain};
 use crate::text::quoted::quoted_pair;
 use crate::utils::is_not0;
 use nom::{
@@ -185,7 +185,7 @@ pub fn comment_body(input: &[u8]) -> IResult<&[u8], ()> {
             tag("(").map(|_| true),
             alt((
                 recognize(quoted_pair),
-                recognize(encoded_word_plain),
+                recognize(encoded_word_plain(Context::Comment)),
                 ctext,
             )).map(|_| false)
         ))(input)?;
