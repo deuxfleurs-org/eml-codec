@@ -3,6 +3,8 @@ use arbitrary::Arbitrary;
 use bounded_static::ToStatic;
 use std::borrow::Cow;
 use std::fmt;
+#[cfg(feature = "tracing")]
+use tracing::{Level, span};
 
 #[cfg(feature = "arbitrary")]
 use crate::fuzz_eq::FuzzEq;
@@ -53,6 +55,11 @@ pub fn multipart<'a>(
     let m = m.clone();
 
     move |input| {
+        #[cfg(feature = "tracing")]
+        let span = span!(Level::TRACE, "part::composite::multipart", ?m);
+        #[cfg(feature = "tracing")]
+        let _enter = span.enter();
+
         // init
         // NOTE: the `.unwrap()` cannot fail as long as `m` is produced by
         // the parser, which always specifies a `boundary` (the boundary
@@ -170,6 +177,11 @@ pub fn message<'a>(
     m: mime::MIME<'a, mime::r#type::Message<'a>>,
 ) -> impl Fn(&'a [u8]) -> Message<'a> {
     move |input: &[u8]| {
+        #[cfg(feature = "tracing")]
+        let span = span!(Level::TRACE, "part::composite::message", ?m);
+        #[cfg(feature = "tracing")]
+        let _enter = span.enter();
+
         // parse header fields
         let (input, headers) = header::header_kv(input);
         // detect UTF-8 use in headers

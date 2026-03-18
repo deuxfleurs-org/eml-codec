@@ -8,6 +8,8 @@ use nom::{
     sequence::{preceded, terminated, tuple},
     IResult,
 };
+#[cfg(feature = "tracing")]
+use tracing::warn;
 
 #[cfg(feature = "arbitrary")]
 use crate::fuzz_eq::FuzzEq;
@@ -163,15 +165,23 @@ impl<'a> Print for Multipart<'a> {
 impl<'a> TryFrom<&NaiveType<'a>> for Multipart<'a> {
     type Error = ();
 
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "trace", name = "type::Multipart::try_from")
+    )]
     fn try_from(nt: &NaiveType<'a>) -> Result<Self, Self::Error> {
         let mut params = vec![];
         let mut boundary = None;
         for param in &nt.params {
             if param.name.0.to_ascii_lowercase().as_slice() == b"boundary" {
+                let s = param.value.chars().collect::<String>();
                 if boundary.is_none() {
-                    boundary = Some(param.value.chars().collect::<String>());
+                    boundary = Some(s);
+                } else {
+                    // drop any redundant "boundary" parameter that is not the first
+                    #[cfg(feature = "tracing")]
+                    warn!(boundary = s, "dropping redundant boundary parameter")
                 }
-                // drop any redundant "boundary" parameter that is not the first
             } else {
                 params.push(param.clone())
             }
@@ -377,16 +387,23 @@ impl<'a> Print for Text<'a> {
 }
 
 impl<'a> From<&NaiveType<'a>> for Text<'a> {
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "trace")
+    )]
     fn from(nt: &NaiveType<'a>) -> Self {
         let mut params = vec![];
         let mut charset = None;
         for param in &nt.params {
             if param.name.0.to_ascii_lowercase().as_slice() == b"charset" {
+                let value: String = param.value.chars().collect();
                 if charset.is_none() {
-                    let value: String = param.value.chars().collect();
                     charset = Some(EmailCharset::from(&value));
+                } else {
+                    // drop any "charset" parameter that is not the first
+                    #[cfg(feature = "tracing")]
+                    warn!(param = value, "dropping redundant charset parameter");
                 }
-                // drop any "charset" parameter that is not the first
             } else {
                 params.push(param.clone())
             }

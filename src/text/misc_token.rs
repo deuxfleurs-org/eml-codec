@@ -4,13 +4,15 @@ use bounded_static::ToStatic;
 use nom::{
     branch::alt,
     bytes::complete::{tag, take_while1},
-    combinator::{map, opt},
+    combinator::{consumed, map, opt},
     multi::{many0, many1, separated_list0},
     sequence::{delimited, pair},
     IResult,
     Parser,
 };
 use std::borrow::Cow;
+#[cfg(feature = "tracing")]
+use tracing::warn;
 
 #[cfg(feature = "arbitrary")]
 use crate::{
@@ -21,6 +23,8 @@ use crate::{
     },
     fuzz_eq::FuzzEq,
 };
+#[cfg(feature = "tracing")]
+use crate::utils::bytes_to_display_string;
 use crate::i18n::ContainsUtf8;
 use crate::print::{print_seq, Print, Formatter, ToStringFromPrint};
 use crate::text::{
@@ -53,13 +57,27 @@ impl<'a> Arbitrary<'a> for PhraseList<'a> {
 ///
 /// We return an option to represent the empty-list case of the obsolete syntax;
 /// and in turn, a `PhraseList` is always non-empty.
+#[cfg_attr(
+    feature = "tracing",
+    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+)]
 pub fn phrase_list(input: &[u8]) -> IResult<&[u8], Option<PhraseList<'_>>> {
     let (input, phrases_opt) = separated_list0(
         tag(","),
-        alt((map(phrase, Some), map(opt(cfws), |_| None))),
+        alt((
+            map(phrase, Some),
+            map(consumed(opt(cfws)), |(_i, _)| {
+                #[cfg(feature = "tracing")]
+                warn!(input = bytes_to_display_string(_i),
+                      "obsolete empty phrase in phrase-list");
+                None
+            })
+        )),
     )(input)?;
     let phrases: Vec<Phrase> = phrases_opt.into_iter().flatten().collect();
     if phrases.is_empty() {
+        #[cfg(feature = "tracing")]
+        warn!("obsolete empty phrase-list");
         Ok((input, None))
     } else {
         Ok((input, Some(PhraseList(phrases))))
@@ -85,6 +103,10 @@ impl Default for MIMEWord<'static> {
         Self::Atom(MIMEAtom::default())
     }
 }
+#[cfg_attr(
+    feature = "tracing",
+    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+)]
 pub fn mime_word(input: &[u8]) -> IResult<&[u8], MIMEWord<'_>> {
     alt((
         map(quoted_string, MIMEWord::Quoted),
@@ -171,6 +193,10 @@ impl<'a, 'b> Iterator for WordChars<'a, 'b> {
 /// ```abnf
 ///    word            =   atom / quoted-string
 /// ```
+#[cfg_attr(
+    feature = "tracing",
+    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+)]
 pub fn word(input: &[u8]) -> IResult<&[u8], Word<'_>> {
     alt((
         map(quoted_string, Word::Quoted),
@@ -214,6 +240,10 @@ impl<'a> Arbitrary<'a> for PhraseToken<'a> {
 }
 
 /// A part of a phrase or obs-phrase
+#[cfg_attr(
+    feature = "tracing",
+    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+)]
 pub fn phrase_token(input: &[u8]) -> IResult<&[u8], PhraseToken<'_>> {
     alt((
         // NOTE: try encoded words first because they can also be parsed as words.
@@ -227,7 +257,9 @@ pub fn phrase_token(input: &[u8]) -> IResult<&[u8], PhraseToken<'_>> {
         // as the AST for `"."` (note the quotes), which is allowed in the
         // non-obs- syntax, thus ensuring that this AST can be safely
         // printed as-is.
-        map(delimited(opt(cfws), tag(&[ascii::PERIOD]), opt(cfws)), |_| {
+        map(delimited(opt(cfws), tag(&[ascii::PERIOD][..]), opt(cfws)), |_| {
+            #[cfg(feature = "tracing")]
+            warn!("obsolete dot in phrase");
             PhraseToken::Word(Word::Quoted(QuotedString(vec![
                 Cow::Owned(".".to_string())
             ])))
@@ -289,6 +321,10 @@ impl<'a> FuzzEq for Phrase<'a> {
 ///   phrase       =  1*phrase_token
 ///   phrase_token =  encoded-word / word / ([CFWS] "." [CFWS])
 /// ```
+#[cfg_attr(
+    feature = "tracing",
+    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+)]
 pub fn phrase(input: &[u8]) -> IResult<&[u8], Phrase<'_>> {
     let (input, phrase) = map(many1(phrase_token), Phrase)(input)?;
     Ok((input, phrase))
@@ -320,7 +356,11 @@ fn obs_utext_token<'a>(input: &'a [u8]) -> IResult<&'a [u8], UtextToken<'a>> {
             // SAFETY: from the line above we know that `s` contains ASCII bytes
             // (they satisfy either is_obs_no_ws_ctl or are NULL).
             .map(|s| unsafe { str::from_utf8_unchecked(s) })
-            .map(|s| UtextToken { txt: Cow::Borrowed(s), obs: true }),
+            .map(|s| {
+                #[cfg(feature = "tracing")]
+                warn!(input = s, "obsolete unstructured bytes");
+                UtextToken { txt: Cow::Borrowed(s), obs: true }
+            }),
     ))(input)
 }
 
@@ -522,6 +562,10 @@ impl<'a> Arbitrary<'a> for Unstructured<'a> {
 // - perform pre-framing of headers first, cutting on CRLF (skipping CRLF WSP)
 // - parse obs_unstruct (needs framing first, otherwise the greedy *CR at the
 //   end would eat the final CRLF, erroring out when parsing a full header line
+#[cfg_attr(
+    feature = "tracing",
+    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+)]
 pub fn unstructured(input: &[u8]) -> IResult<&[u8], Unstructured<'_>> {
     let (input, r) = many0(pair(
         opt(fws),

@@ -1,11 +1,14 @@
 #[cfg(feature = "arbitrary")]
-use arbitrary::Arbitrary;
+use {
+    arbitrary::Arbitrary,
+    crate::fuzz_eq::FuzzEq,
+};
+#[cfg(feature = "tracing")]
+use tracing::warn;
 use bounded_static::ToStatic;
 use encoding_rs::Encoding;
 use crate::i18n::ContainsUtf8;
 use crate::text::words::is_vchar;
-#[cfg(feature = "arbitrary")]
-use crate::fuzz_eq::FuzzEq;
 
 /// Specific implementation of charset
 ///
@@ -50,8 +53,8 @@ pub enum EmailCharset {
 
 impl<T: AsRef<[u8]>> From<T> for EmailCharset {
     fn from(bytes: T) -> Self {
-        let s = bytes.as_ref().to_ascii_lowercase();
-        match s.as_slice() {
+        let bs = bytes.as_ref();
+        match bs.to_ascii_lowercase().as_slice() {
             b"us-ascii" | b"ascii" => EmailCharset::US_ASCII,
             b"iso-8859-1" => EmailCharset::ISO_8859_1,
             b"iso-8859-2" => EmailCharset::ISO_8859_2,
@@ -81,8 +84,10 @@ impl<T: AsRef<[u8]>> From<T> for EmailCharset {
                 // Filter out bytes that are not ASCII printable, in case there are some…
                 let sanitized = bytes.as_ref().iter().cloned().filter_map(|b| {
                     (b.is_ascii() && is_vchar(b as char)).then_some(b as char)
-                });
-                EmailCharset::Unknown(sanitized.collect())
+                }).collect();
+                #[cfg(feature = "tracing")]
+                warn!(value = sanitized, "unknown charset");
+                EmailCharset::Unknown(sanitized)
             }
         }
     }

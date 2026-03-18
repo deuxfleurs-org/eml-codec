@@ -14,6 +14,8 @@ use nom::{
 use crate::{
     fuzz_eq::FuzzEq,
 };
+#[cfg(feature = "tracing")]
+use crate::utils::bytes_to_display_string;
 use crate::print::{print_seq, Print, Formatter, ToStringFromPrint};
 use crate::imf::{datetime, mailbox};
 use crate::text::{ascii, misc_token, whitespace};
@@ -77,17 +79,10 @@ impl<'a> Print for ReturnPath<'a> {
     }
 }
 
-/*
-impl<'a> TryFrom<&'a lazy::ReceivedLog<'a>> for ReceivedLog<'a> {
-    type Error = IMFError<'a>;
-
-    fn try_from(input: &'a lazy::ReceivedLog<'a>) -> Result<Self, Self::Error> {
-        received_body(input.0)
-            .map_err(|e| IMFError::ReceivedLog(e))
-            .map(|(_, v)| ReceivedLog(v))
-    }
-}*/
-
+#[cfg_attr(
+    feature = "tracing",
+    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+)]
 pub fn received_log(input: &[u8]) -> IResult<&[u8], ReceivedLog<'_>> {
     map(
         tuple((many0(received_token), opt(whitespace::cfws), tag(";"), datetime::date_time)),
@@ -98,6 +93,10 @@ pub fn received_log(input: &[u8]) -> IResult<&[u8], ReceivedLog<'_>> {
     )(input)
 }
 
+#[cfg_attr(
+    feature = "tracing",
+    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+)]
 pub fn return_path(input: &[u8]) -> IResult<&[u8], ReturnPath<'_>> {
     alt((
         map(mailbox::angle_addr, |a| ReturnPath(Some(a))),
@@ -105,6 +104,10 @@ pub fn return_path(input: &[u8]) -> IResult<&[u8], ReturnPath<'_>> {
     ))(input)
 }
 
+#[cfg_attr(
+    feature = "tracing",
+    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+)]
 fn empty_path(input: &[u8]) -> IResult<&[u8], ReturnPath<'_>> {
     let (input, _) = tuple((
         opt(whitespace::cfws),
@@ -116,6 +119,10 @@ fn empty_path(input: &[u8]) -> IResult<&[u8], ReturnPath<'_>> {
     Ok((input, ReturnPath(None)))
 }
 
+#[cfg_attr(
+    feature = "tracing",
+    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+)]
 fn received_token(input: &[u8]) -> IResult<&[u8], ReceivedLogToken<'_>> {
     alt((
         terminated(

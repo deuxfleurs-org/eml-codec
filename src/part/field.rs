@@ -1,4 +1,6 @@
 use bounded_static::ToStatic;
+#[cfg(feature = "tracing")]
+use tracing::warn;
 
 #[cfg(feature = "arbitrary")]
 use crate::fuzz_eq::FuzzEq;
@@ -22,6 +24,10 @@ pub enum EntityEntry<'a> {
 }
 
 impl<'a> FromIterator<header::FieldRaw<'a>> for EntityFields<'a> {
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "trace", name = "EntityFields::from_iter", skip(it))
+    )]
     fn from_iter<I: IntoIterator<Item = header::FieldRaw<'a>>>(it: I) -> Self {
         let mut e: EntityFields<'a> = Default::default();
         for f in it {
@@ -29,11 +35,17 @@ impl<'a> FromIterator<header::FieldRaw<'a>> for EntityFields<'a> {
                 Ok(mimef) => {
                     if let Some(entry) = e.mime.add_field(mimef) {
                         e.entries.push(EntityEntry::MIME(entry))
-                    }; // otherwise drop the field
+                    } else {
+                        // otherwise drop the field
+                        #[cfg(feature = "tracing")]
+                        warn!(field = ?f, "dropping redundant MIME field");
+                    }
                     continue;
                 },
                 Err(mime::field::InvalidField::Body) => {
                     // this is a MIME field but its body is invalid; drop it.
+                    #[cfg(feature = "tracing")]
+                    warn!(field = ?f, "dropping invalid MIME field");
                     continue;
                 },
                 Err(mime::field::InvalidField::Name) => {
@@ -42,9 +54,13 @@ impl<'a> FromIterator<header::FieldRaw<'a>> for EntityFields<'a> {
                 }
             };
 
-            if let Some(u) = header::Unstructured::from_raw(f) {
+            if let Some(u) = header::Unstructured::from_raw(&f) {
                 e.entries.push(EntityEntry::Unstructured(u));
-            } // otherwise drop the field
+            } else {
+                // otherwise drop the field
+                #[cfg(feature = "tracing")]
+                warn!(field = ?f, "dropping field which cannot be parsed as unstructured");
+            }
         }
         e
     }

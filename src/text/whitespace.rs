@@ -2,15 +2,19 @@ use crate::text::ascii;
 use crate::text::encoding::{Context, encoded_word_plain};
 use crate::text::quoted::quoted_pair;
 use crate::text::utf8::{is_nonascii_or, space0_str, space1_str, take_utf8_while1};
+#[cfg(feature = "tracing")]
+use crate::utils::bytes_to_display_string;
 use nom::{
     branch::alt,
     bytes::complete::tag,
-    combinator::{map, opt, recognize},
+    combinator::{consumed, map, opt, recognize},
     multi::many1,
     sequence::{pair, tuple},
     IResult,
     Parser,
 };
+#[cfg(feature = "tracing")]
+use tracing::{info, warn};
 
 /// Whitespace (space, new line, tab) content and
 /// delimited content (eg. comment, line, sections, etc.)
@@ -30,9 +34,19 @@ pub fn obs_crlf(input: &[u8]) -> IResult<&[u8], &str> {
     map(
         alt((
             tag(ascii::CRLF),
-            tag(ascii::CRCRLF),
-            tag(&[ascii::CR]),
-            tag(&[ascii::LF]),
+            map(
+                alt((
+                    tag(ascii::CRCRLF),
+                    tag(&[ascii::CR]),
+                    tag(&[ascii::LF]),
+                )),
+                |input: &[u8]| {
+                    #[cfg(feature = "tracing")]
+                    warn!(input = unsafe { str::from_utf8_unchecked(input) },
+                          "best-effort line ending");
+                    input
+                }
+            )
         )),
         |b: &[u8]|
         // SAFETY: CR and LF are ASCII characters
@@ -65,8 +79,11 @@ pub fn foldable_line(full_line: bool) -> impl Fn(&[u8]) -> IResult<&[u8], &[u8]>
                 (b'\r', Some(b'\n'), _) => {
                     return Ok((&input[i+2..], &input[0..i]))
                 },
-                (_, Some(b' ' | b'\t'), _) =>
-                    continue,
+                (_b /* \r | \n */, Some(b' ' | b'\t'), _) => {
+                    #[cfg(feature = "tracing")]
+                    warn!(input = bytes_to_display_string(&[_b]), "best-effort line ending");
+                    continue;
+                },
                 _ =>
                     return Ok((&input[i+1..], &input[0..i])),
             }
@@ -123,12 +140,26 @@ pub fn foldable_line(full_line: bool) -> impl Fn(&[u8]) -> IResult<&[u8], &[u8]>
 // pub fn fws(input: &[u8]) -> IResult<&[u8], Vec<&[u8]>> {
 //     many1(alt((space1, preceded(tag(ascii::CRLF), space1))))(input)
 // }
+#[cfg_attr(
+    feature = "tracing",
+    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+)]
 pub fn fws(input: &[u8]) -> IResult<&[u8], Vec<&str>> {
     alt((
-        many1(fold_marker).map(|v| v.into_iter().flatten().collect()),
-        space1_str.map(|wsp| vec![wsp])
+        consumed(many1(fold_marker)).map(|(_i, v)| {
+            #[cfg(feature = "tracing")]
+            if v.len() > 1 {
+                info!(input = bytes_to_display_string(_i), "obsolete FWS")
+            }
+            v.into_iter().flatten().collect()
+        }),
+        space1_str.map(|wsp| vec![wsp]),
     ))(input)
 }
+#[cfg_attr(
+    feature = "tracing",
+    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+)]
 fn fold_marker(input: &[u8]) -> IResult<&[u8], Vec<&str>> {
     let (input, wsp0) = space0_str(input)?;
     let (input, _) = obs_crlf(input)?;
@@ -168,22 +199,38 @@ fn fold_marker(input: &[u8]) -> IResult<&[u8], Vec<&str>> {
 ///
 /// This is why we resort to the the low-level iterative implementation
 /// of `comment` and `comment_body` below.
-pub fn cfws(input: &[u8]) -> IResult<&[u8], ()> {
-    alt((comments, fws.map(|_| ())))(input)
+#[cfg_attr(
+    feature = "tracing",
+    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+)]
+ pub fn cfws(input: &[u8]) -> IResult<&[u8], ()> {
+     alt((comments, fws.map(|_| ())))(input)
 }
 
+#[cfg_attr(
+    feature = "tracing",
+    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+)]
 pub fn comments(input: &[u8]) -> IResult<&[u8], ()> {
     let (input, _) = many1(tuple((opt(fws), comment)))(input)?;
     let (input, _) = opt(fws)(input)?;
     Ok((input, ()))
 }
 
+#[cfg_attr(
+    feature = "tracing",
+    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+)]
 pub fn comment(input: &[u8]) -> IResult<&[u8], ()> {
     let (input, _) = tag("(")(input)?;
     let (input, ()) = comment_body(input)?;
     Ok((input, ()))
 }
 
+#[cfg_attr(
+    feature = "tracing",
+    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+)]
 pub fn comment_body(input: &[u8]) -> IResult<&[u8], ()> {
     let mut nesting = 1;
     let mut cursor: &[u8] = input;
@@ -214,13 +261,25 @@ pub fn comment_body(input: &[u8]) -> IResult<&[u8], ()> {
     }
 }
 
-pub fn ctext(input: &[u8]) -> IResult<&[u8], &str> {
-    take_utf8_while1(is_ctext)(input)
+#[cfg_attr(
+    feature = "tracing",
+    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+)]
+ pub fn ctext(input: &[u8]) -> IResult<&[u8], &str> {
+     take_utf8_while1(is_ctext)(input)
 }
 
 /// RFC6532: ctext includes non-ascii UTF-8
 pub fn is_ctext(c: char) -> bool {
-    is_nonascii_or(|c| is_restr_ctext(c) || is_obs_no_ws_ctl(c))(c)
+    is_nonascii_or(|c| {
+        let is_obs_ctext = is_obs_no_ws_ctl(c);
+        if is_obs_ctext {
+            #[cfg(feature = "tracing")]
+            info!(c = bytes_to_display_string(&[c]),
+                  "obsolete ctext character");
+        }
+        is_restr_ctext(c) || is_obs_ctext
+    })(c)
 }
 
 /// Check if it's a comment text character

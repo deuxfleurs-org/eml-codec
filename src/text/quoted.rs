@@ -13,12 +13,16 @@ use nom::{
 };
 use std::borrow::Cow;
 use std::fmt;
+#[cfg(feature = "tracing")]
+use tracing::{info, warn};
 
 #[cfg(feature = "arbitrary")]
 use crate::{
     arbitrary_utils::arbitrary_string_where,
     fuzz_eq::FuzzEq,
 };
+#[cfg(feature = "tracing")]
+use crate::utils::bytes_to_display_string;
 use crate::i18n::ContainsUtf8;
 use crate::print::{Print, Formatter, ToStringFromPrint};
 use crate::text::ascii;
@@ -123,19 +127,31 @@ impl<'a, 'b> Iterator for QuotedStringChars<'a, 'b> {
 ///
 /// However, we only return `Some(_)` for quoted pairs that are valid
 /// according to the strict syntax; other quoted pairs cannot be printed
-/// back and wee chose to ignore them.
+/// back and we chose to ignore them.
 pub fn quoted_pair(input: &[u8]) -> IResult<&[u8], Option<&str>> {
     preceded(
         tag(&[ascii::BACKSLASH]),
         map(
             verify(take(1usize), |b: &[u8]| b[0].is_ascii()),
-            |b: &[u8]|
-            if is_strict_quoted_pair(b[0].into()) {
-                // SAFETY: from the combinators above (take and verify), we know
-                // that `b` contains a single ASCII character.
-                Some(unsafe { str::from_utf8_unchecked(b) })
-            } else {
-                None
+            |s: &[u8]| {
+                let b = s[0];
+                if is_strict_quoted_pair(b.into()) {
+                    // SAFETY: from the combinators above (take and verify), we
+                    // know that `b` contains a single ASCII character.
+                    Some(unsafe { str::from_utf8_unchecked(s) })
+                } else {
+                    if b == ascii::NULL || is_obs_no_ws_ctl(b)
+                        || b == ascii::LF || b == ascii::CR {
+                            #[cfg(feature = "tracing")]
+                            info!(byte = bytes_to_display_string(&[b]),
+                                  "obsolete quoted pair")
+                        } else {
+                            #[cfg(feature = "tracing")]
+                            warn!(byte = bytes_to_display_string(&[b]),
+                                  "invalid quoted pair")
+                        }
+                    None
+                }
             }
         )
     )(input)
@@ -174,10 +190,18 @@ fn is_obs_qtext(c: u8) -> bool {
 ///
 /// Like for `quoted_pair`, this supports the obsolete syntax but
 /// returns `None` in this case.
+#[cfg_attr(
+    feature = "tracing",
+    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+)]
 fn qcontent(input: &[u8]) -> IResult<&[u8], Option<&str>> {
     alt((
         map(take_utf8_while1(is_strict_qtext), Some),
-        map(take_while1(is_obs_qtext), |_| None),
+        map(take_while1(is_obs_qtext), |_input| {
+            #[cfg(feature = "tracing")]
+            info!(input = bytes_to_display_string(_input), "obsolete qcontent");
+            None
+        }),
         quoted_pair,
     ))(input)
 }
@@ -189,6 +213,10 @@ fn qcontent(input: &[u8]) -> IResult<&[u8], Option<&str>> {
 ///                     DQUOTE *([FWS] qcontent) [FWS] DQUOTE
 ///                     [CFWS]
 /// ```
+#[cfg_attr(
+    feature = "tracing",
+    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+)]
 pub fn quoted_string(input: &[u8]) -> IResult<&[u8], QuotedString<'_>> {
     let (input, _) = opt(cfws)(input)?;
     let (input, _) = tag("\"")(input)?;

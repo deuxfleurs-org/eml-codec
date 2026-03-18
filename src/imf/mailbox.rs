@@ -3,19 +3,23 @@ use arbitrary::Arbitrary;
 use bounded_static::ToStatic;
 use nom::{
     branch::alt,
+    combinator::{all_consuming, consumed, into, map, map_opt, opt},
     bytes::complete::tag,
-    combinator::{all_consuming, into, map, map_opt, opt},
     multi::{many0, many1, separated_list1},
     sequence::{delimited, pair, preceded, terminated, tuple},
     IResult,
 };
 use std::borrow::Cow;
+#[cfg(feature = "tracing")]
+use tracing::{info, warn};
 
 #[cfg(feature = "arbitrary")]
 use crate::{
     arbitrary_utils::{arbitrary_vec_nonempty, arbitrary_string_nonempty_where},
     fuzz_eq::FuzzEq,
 };
+#[cfg(feature = "tracing")]
+use crate::utils::bytes_to_display_string;
 use crate::i18n::ContainsUtf8;
 use crate::print::{print_seq, Print, Formatter, ToStringFromPrint};
 use crate::text::ascii;
@@ -110,6 +114,10 @@ impl<'a> Arbitrary<'a> for MailboxList<'a> {
 /// ```abnf
 ///    mailbox         =   name-addr / addr-spec
 /// ```
+#[cfg_attr(
+    feature = "tracing",
+    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+)]
 pub fn mailbox(input: &[u8]) -> IResult<&[u8], MailboxRef<'_>> {
     alt((name_addr, into(addr_spec)))(input)
 }
@@ -120,18 +128,31 @@ pub fn mailbox(input: &[u8]) -> IResult<&[u8], MailboxRef<'_>> {
 ///    mailbox-list    =   (mailbox *("," mailbox)) / obs-mbox-list
 ///    obs-mbox-list   =   *([CFWS] ",") mailbox *("," [mailbox / CFWS])
 /// ```
+#[cfg_attr(
+    feature = "tracing",
+    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+)]
 pub fn mailbox_list(input: &[u8]) -> IResult<&[u8], MailboxList<'_>> {
     map_opt(mailbox_list_nullable, |mlist| mlist)(input)
 }
 
 // mailbox-list but allows the list to only contain "null" elements
+#[cfg_attr(
+    feature = "tracing",
+    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+)]
 pub(crate) fn mailbox_list_nullable(input: &[u8]) -> IResult<&[u8], Option<MailboxList<'_>>> {
     map(
         separated_list1(
             tag(","),
             alt((
                 map(mailbox, Some),
-                map(opt(cfws), |_| None),
+                map(consumed(opt(cfws)), |(_input, _)| {
+                    #[cfg(feature = "tracing")]
+                    info!(input = bytes_to_display_string(_input),
+                          "obsolete empty mailbox in mailbox list");
+                    None
+                }),
             ))
         ),
         |v: Vec<Option<_>>| {
@@ -150,6 +171,10 @@ pub(crate) fn mailbox_list_nullable(input: &[u8]) -> IResult<&[u8], Option<Mailb
 /// ```abnf
 ///    name-addr       =   [display-name] angle-addr
 /// ```
+#[cfg_attr(
+    feature = "tracing",
+    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+)]
 fn name_addr(input: &[u8]) -> IResult<&[u8], MailboxRef<'_>> {
     let (input, name) = opt(phrase)(input)?;
     let (input, addrspec) = angle_addr(input)?;
@@ -162,15 +187,32 @@ fn name_addr(input: &[u8]) -> IResult<&[u8], MailboxRef<'_>> {
 /// angle-addr      =   [CFWS] "<" addr-spec ">" [CFWS] /
 ///                     obs-angle-addr
 /// ```
+#[cfg_attr(
+    feature = "tracing",
+    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+)]
 pub fn angle_addr(input: &[u8]) -> IResult<&[u8], AddrSpec<'_>> {
     delimited(
-        tuple((opt(cfws), tag(&[ascii::LT]), opt(obs_route))),
+        tuple((
+            opt(cfws),
+            tag(&[ascii::LT]),
+            opt(map(consumed(obs_route), |(_input, route)| {
+                #[cfg(feature = "tracing")]
+                info!(input = bytes_to_display_string(_input),
+                      "obsolete obs-route in angle-addr");
+                route
+            }))
+        )),
         addr_spec,
         pair(tag(&[ascii::GT]), opt(cfws)),
     )(input)
 }
 
 ///    obs-route       =   obs-domain-list ":"
+#[cfg_attr(
+    feature = "tracing",
+    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+)]
 fn obs_route(input: &[u8]) -> IResult<&[u8], Vec<Option<Domain<'_>>>> {
     terminated(obs_domain_list, tag(&[ascii::COL]))(input)
 }
@@ -181,6 +223,10 @@ fn obs_route(input: &[u8]) -> IResult<&[u8], Vec<Option<Domain<'_>>>> {
 /// ```
 /// The parser below is slightly more lenient as it allows domains list that
 /// contain no real domains (e.g. only commas).
+#[cfg_attr(
+    feature = "tracing",
+    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+)]
 fn obs_domain_list(input: &[u8]) -> IResult<&[u8], Vec<Option<Domain<'_>>>> {
     preceded(
         opt(cfws),
@@ -199,6 +245,10 @@ fn obs_domain_list(input: &[u8]) -> IResult<&[u8], Vec<Option<Domain<'_>>>> {
 /// ```abnf
 ///    addr-spec       =   local-part "@" domain
 /// ```
+#[cfg_attr(
+    feature = "tracing",
+    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+)]
 pub fn addr_spec(input: &[u8]) -> IResult<&[u8], AddrSpec<'_>> {
     map(
         tuple((
@@ -310,18 +360,39 @@ impl<'a> Print for LocalPart<'a> {
 /// local-part and obs-local-part.
 ///
 /// ```abnf
+/// local-part          = dot-atom / quoted-string / obs-local-part
+/// obs-local-part      = word *("." word)
 /// our-obs-local-part  =  *"." word *(1*"." word) *"."
 /// ```
+#[cfg_attr(
+    feature = "tracing",
+    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+)]
 fn obs_local_part(input: &[u8]) -> IResult<&[u8], LocalPart<'_>> {
+    // TODO: detect obsolete obs-local-part and emit corresponding info!()
+    // events
     let (input, prefix) = many0(local_part_dot)(input)?;
     let (input, w) = local_part_word(input)?;
     let (input, ws) = many0(pair(many1(local_part_dot), local_part_word))(input)?;
     let (input, suffix) = many0(local_part_dot)(input)?;
 
+    if !prefix.is_empty() {
+        #[cfg(feature = "tracing")]
+        warn!("best-effort local-part (leading dots)");
+    }
+    if !suffix.is_empty() {
+        #[cfg(feature = "tracing")]
+        warn!("best-effort local part (trailing dots)");
+    }
+
     let mut v: Vec<LocalPartToken> = vec![];
     v.extend(prefix);
     v.push(w);
     for (dots, w) in ws.into_iter() {
+        if dots.len() > 1 {
+            #[cfg(feature = "tracing")]
+            warn!("best-effort local part (consecutive dots)");
+        }
         v.extend(dots);
         v.push(w);
     }
@@ -382,7 +453,12 @@ impl<'a> Arbitrary<'a> for Domain<'a> {
 /// ```abnf
 ///  obs-domain      = atom *("." atom) / domain-literal
 /// ```
+#[cfg_attr(
+    feature = "tracing",
+    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+)]
 pub fn obs_domain(input: &[u8]) -> IResult<&[u8], Domain<'_>> {
+    // TODO: detect obs-domain to emit info!() events
     alt((
         map(separated_list1(tag("."), atom), Domain::Atoms),
         domain_litteral,
@@ -394,6 +470,10 @@ pub fn obs_domain(input: &[u8]) -> IResult<&[u8], Domain<'_>> {
 /// ```abnf
 ///    domain-literal  =   [CFWS] "[" *([FWS] dtext) [FWS] "]" [CFWS]
 /// ```
+#[cfg_attr(
+    feature = "tracing",
+    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+)]
 fn domain_litteral(input: &[u8]) -> IResult<&[u8], Domain<'_>> {
     delimited(
         pair(opt(cfws), tag(&[ascii::LEFT_BRACKET])),
@@ -402,6 +482,10 @@ fn domain_litteral(input: &[u8]) -> IResult<&[u8], Domain<'_>> {
     )(input)
 }
 
+#[cfg_attr(
+    feature = "tracing",
+    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+)]
 fn inner_domain_litteral(input: &[u8]) -> IResult<&[u8], Domain<'_>> {
     map(
         terminated(many0(preceded(opt(fws), dtext)), opt(fws)),
@@ -467,7 +551,12 @@ impl<'a> FuzzEq for Dtext<'a> {
 /// ```
 /// following RFC6532, also allows non-ascii UTF-8 text
 fn is_dtext(c: char) -> bool {
-    is_strict_dtext(c) || is_obs_dtext(c)
+    let is_obs = is_obs_dtext(c);
+    if is_obs {
+        #[cfg(feature = "tracing")]
+        info!(c = c.to_string(), "obsolete dtext char");
+    }
+    is_strict_dtext(c) || is_obs
 }
 fn is_strict_dtext(c: char) -> bool {
     is_nonascii_or(|c| {
@@ -479,6 +568,10 @@ fn is_obs_dtext(c: char) -> bool {
     //@FIXME does not support quoted pair yet while RFC requires it
 }
 
+#[cfg_attr(
+    feature = "tracing",
+    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+)]
 pub fn dtext<'a>(input: &'a [u8]) -> IResult<&'a [u8], Dtext<'a>> {
     map(take_utf8_while1(is_dtext), |b| Dtext(Cow::Borrowed(b)))(input)
 }

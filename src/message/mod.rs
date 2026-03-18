@@ -1,6 +1,8 @@
 #[cfg(feature = "arbitrary")]
 use arbitrary::Arbitrary;
 use bounded_static::ToStatic;
+#[cfg(feature = "tracing")]
+use tracing::warn;
 
 #[cfg(feature = "arbitrary")]
 use crate::{
@@ -154,6 +156,10 @@ struct MessageFields<'a> {
 }
 
 impl<'a> FromIterator<header::FieldRaw<'a>> for MessageFields<'a> {
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "trace", name = "MessageFields::from_iter", skip(it))
+    )]
     fn from_iter<I: IntoIterator<Item = header::FieldRaw<'a>>>(it: I) -> Self {
         let mut mime = mime::NaiveMIME::default();
         let mut imf = imf::PartialImf::default();
@@ -163,11 +169,17 @@ impl<'a> FromIterator<header::FieldRaw<'a>> for MessageFields<'a> {
                 Ok(mimef) => {
                     if let Some(entry) = mime.add_field(mimef) {
                         entries.push(MessageEntry::MIME(entry))
-                    }; // otherwise drop the field
+                    } else {
+                        // otherwise drop the field
+                        #[cfg(feature = "tracing")]
+                        warn!(field = ?f, "dropping redundant MIME field")
+                    }
                     continue;
                 },
                 Err(mime::field::InvalidField::Body) => {
                     // this is a MIME field but its body is invalid; drop it.
+                    #[cfg(feature = "tracing")]
+                    warn!(field = ?f, "dropping MIME field with an invalid body");
                     continue;
                 },
                 Err(mime::field::InvalidField::Name) => {
@@ -180,11 +192,17 @@ impl<'a> FromIterator<header::FieldRaw<'a>> for MessageFields<'a> {
                 Ok(imff) => {
                     if let Some(entry) = imf.add_field(imff) {
                         entries.push(MessageEntry::Imf(entry))
-                    }; // otherwise drop the field
+                    } else {
+                        // otherwise drop the field
+                        #[cfg(feature = "tracing")]
+                        warn!(field = ?f, "dropping redundant IMF field")
+                    }
                     continue;
                 },
                 Err(imf::field::InvalidField::Body) => {
                     // this is an IMF field but its body is invalid; drop it.
+                    #[cfg(feature = "tracing")]
+                    warn!(field = ?f, "dropping IMF field with an invalid body");
                     continue;
                 }
                 Err(imf::field::InvalidField::Name) => {
@@ -193,9 +211,13 @@ impl<'a> FromIterator<header::FieldRaw<'a>> for MessageFields<'a> {
                 }
             }
 
-            if let Some(u) = header::Unstructured::from_raw(f) {
+            if let Some(u) = header::Unstructured::from_raw(&f) {
                 entries.push(MessageEntry::Unstructured(u));
-            } // otherwise drop the field
+            } else {
+                // otherwise drop the field
+                #[cfg(feature = "tracing")]
+                warn!(field = ?f, "dropping field that cannot be parsed as unstructured")
+            }
         }
         entries.extend(
             imf.missing_mandatory_fields()

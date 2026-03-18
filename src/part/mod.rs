@@ -11,7 +11,6 @@ pub mod field;
 use arbitrary::Arbitrary;
 use bounded_static::ToStatic;
 use std::borrow::Cow;
-
 #[cfg(feature = "arbitrary")]
 use crate::{
     header,

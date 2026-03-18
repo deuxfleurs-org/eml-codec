@@ -1,8 +1,12 @@
 use bounded_static::ToStatic;
 use nom::combinator::map;
+#[cfg(feature = "tracing")]
+use tracing::warn;
 
 #[cfg(feature = "arbitrary")]
 use crate::fuzz_eq::FuzzEq;
+#[cfg(feature = "tracing")]
+use crate::utils::bytes_to_display_string;
 use crate::header;
 use crate::imf::address::{address_list, nullable_address_list, AddressList};
 use crate::imf::datetime::{date_time, DateTime};
@@ -77,6 +81,11 @@ pub enum InvalidField {
 
 impl<'a> TryFrom<&header::FieldRaw<'a>> for Field<'a> {
     type Error = InvalidField;
+
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "trace", name = "imf::field::Field::try_from")
+    )]
     fn try_from(f: &header::FieldRaw<'a>) -> Result<Self, Self::Error> {
         let content = match f.name.bytes().to_ascii_lowercase().as_slice() {
             b"date" => map(date_time, Field::Date)(f.body),
@@ -100,8 +109,17 @@ impl<'a> TryFrom<&header::FieldRaw<'a>> for Field<'a> {
             _ => return Err(InvalidField::Name),
         };
 
-        // TODO: check that the parser consumed the entire body?
-        content.map(|(_, content)| content).or(Err(InvalidField::Body))
+        match content {
+            Ok((b"", content)) => Ok(content),
+            Ok((_rest, _)) => {
+                // return an error if we haven't parsed the full value
+                #[cfg(feature = "tracing")]
+                warn!(rest = bytes_to_display_string(_rest),
+                      "leftover input after parsing");
+                Err(InvalidField::Body)
+            },
+            Err(_) => Err(InvalidField::Body)
+        }
     }
 }
 

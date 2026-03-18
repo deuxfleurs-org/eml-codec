@@ -16,15 +16,24 @@ exclude = [
 
 [features]
 arbitrary = ["dep:arbitrary", "chrono/arbitrary", "chrono/std"]
+tracing = ["dep:tracing"]
 
 [lib]
 name = "eml_codec"
 path = "src/lib.rs"
 
+[[example]]
+name = "simple"
+path = "examples/simple.rs"
 
-[[bin]]
+[[example]]
 name = "eml_parse"
-path = "src/parse.rs"
+path = "examples/parse.rs"
+
+[[example]]
+name = "trace"
+path = "examples/trace.rs"
+required-features = ["tracing"]
 
 [dependencies]
 nom = "7"
@@ -38,7 +47,12 @@ arbitrary = { version = "1.4.2", optional = true, default-features = false, feat
 eml_codec_derives = { path = "eml_codec_derives" }
 memchr = "2"
 utf8_iter = "1.0.4"
+tracing = { version = "0.1.44", optional = true }
 
 [dev-dependencies]
 walkdir = "2"
 pretty_assertions = "1.4.1"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+serde_json = "1.0.149"
+serde = { version = "1.0.228", features = ["derive"] }
+rayon = "1.11.0"

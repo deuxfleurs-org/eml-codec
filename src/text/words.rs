@@ -22,6 +22,8 @@ use nom::{
     sequence::{delimited, pair},
     IResult,
 };
+#[cfg(feature = "tracing")]
+use crate::utils::bytes_to_display_string;
 use std::borrow::Cow;
 use std::fmt;
 
@@ -113,6 +115,10 @@ pub fn is_mime_atom_text(c: u8) -> bool {
 /// MIME Token
 ///
 /// `[CFWS] 1*token_text [CFWS]`
+#[cfg_attr(
+    feature = "tracing",
+    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+)]
 pub fn mime_atom(input: &[u8]) -> IResult<&[u8], MIMEAtom<'_>> {
     delimited(opt(cfws), mime_atom_plain, opt(cfws))(input)
 }
@@ -179,6 +185,10 @@ pub fn is_atext(c: char) -> bool {
 /// Atom
 ///
 /// `[CFWS] 1*atext [CFWS]`
+#[cfg_attr(
+    feature = "tracing",
+    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+)]
 pub fn atom(input: &[u8]) -> IResult<&[u8], Atom<'_>> {
     map(
         delimited(opt(cfws), take_utf8_while1(is_atext), opt(cfws)),
@@ -236,7 +246,10 @@ pub fn dot_atom_text(input: &[u8]) -> IResult<&[u8], DotAtom<'_>> {
 /// dot-atom
 ///
 /// `[CFWS] dot-atom-text [CFWS]`
-#[allow(dead_code)]
+#[cfg_attr(
+    feature = "tracing",
+    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+)]
 pub fn dot_atom(input: &[u8]) -> IResult<&[u8], DotAtom<'_>> {
     delimited(opt(cfws), dot_atom_text, opt(cfws))(input)
 }

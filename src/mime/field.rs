@@ -1,5 +1,7 @@
 use bounded_static::ToStatic;
 use nom::combinator::map;
+#[cfg(feature = "tracing")]
+use tracing::warn;
 
 #[cfg(feature = "arbitrary")]
 use crate::fuzz_eq::FuzzEq;
@@ -8,6 +10,8 @@ use crate::imf::identification::{msg_id, MessageID};
 use crate::mime::mechanism::{mechanism, Mechanism};
 use crate::mime::r#type::{naive_type, NaiveType};
 use crate::text::misc_token::{unstructured, Unstructured};
+#[cfg(feature = "tracing")]
+use crate::utils::bytes_to_display_string;
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, ToStatic)]
 #[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
@@ -61,6 +65,11 @@ pub enum InvalidField {
 
 impl<'a> TryFrom<&header::FieldRaw<'a>> for Content<'a> {
     type Error = InvalidField;
+
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "trace", name = "mime::field::Content::try_from")
+    )]
     fn try_from(f: &header::FieldRaw<'a>) -> Result<Self, Self::Error> {
         let content = match f.name.bytes().to_ascii_lowercase().as_slice() {
             b"content-type" => map(naive_type, Content::Type)(f.body),
@@ -70,8 +79,17 @@ impl<'a> TryFrom<&header::FieldRaw<'a>> for Content<'a> {
             _ => return Err(InvalidField::Name),
         };
 
-        //@TODO check that the full value is parsed, otherwise maybe log an error ?!
-        content.map(|(_, content)| content).or(Err(InvalidField::Body))
+        match content {
+            Ok((b"", content)) => Ok(content),
+            Ok((_rest, _)) => {
+                // return an error if we haven't parsed the full value
+                #[cfg(feature = "tracing")]
+                warn!(rest = bytes_to_display_string(_rest),
+                      "leftover input after parsing");
+                Err(InvalidField::Body)
+            },
+            Err(_) => Err(InvalidField::Body),
+        }
     }
 }
 
