@@ -5,13 +5,15 @@ use nom::{
     branch::alt,
     bytes::complete::{tag, take_while1},
     character::complete::space0,
-    combinator::{all_consuming, eof, map, rest},
+    combinator::{all_consuming, consumed, eof, map, rest},
     multi::many0,
     sequence::{pair, terminated, tuple},
     IResult, Parser,
 };
 use std::borrow::Cow;
 use std::fmt;
+#[cfg(feature = "tracing")]
+use tracing::warn;
 
 #[cfg(feature = "arbitrary")]
 use crate::{
@@ -22,6 +24,8 @@ use crate::i18n::ContainsUtf8;
 use crate::print::{Print, Formatter};
 use crate::text::misc_token;
 use crate::text::whitespace::{foldable_line, obs_crlf};
+#[cfg(feature = "tracing-recover")]
+use crate::utils::bytes_to_trace_string;
 
 // A valid header field name.
 #[derive(PartialEq, Clone, ContainsUtf8, ToStatic)]
@@ -93,6 +97,7 @@ impl<'a> ContainsUtf8 for FieldRaw<'a> {
 
 /// Parse headers as raw key/values.
 /// Stop at an empty line or at EOF.
+#[cfg_attr(feature = "tracing", tracing::instrument(skip_all))]
 pub fn header_kv(input: &[u8]) -> (&[u8], Vec<FieldRaw<'_>>) {
     // SAFETY: `field_raw_opt` only accepts non-empty inputs
     let (input, mut fields) = many0(field_raw_opt)(input).unwrap();
@@ -105,8 +110,16 @@ pub fn header_kv(input: &[u8]) -> (&[u8], Vec<FieldRaw<'_>>) {
         map(eof, |_| None),
         // For best-effort parsing, we also try to parse any remaining bytes before
         // EOF (as if EOF was a CRLF).
-        map(pair(field_name, rest), |(name, body)| Some(FieldRaw { name, body })),
-        map(rest, |_| None),
+        map(consumed(pair(field_name, rest)), |(_i, (name, body))| {
+            #[cfg(feature = "tracing-recover")]
+            warn!(input = %bytes_to_trace_string(_i), "raw field before EOF");
+            Some(FieldRaw { name, body })
+        }),
+        map(rest, |_i: &[u8]| {
+            #[cfg(feature = "tracing-recover")]
+            warn!(input = %bytes_to_trace_string(_i), "raw bytes before EOF");
+            None
+        }),
     ))(input).unwrap();
 
     fields.push(terminator);
@@ -170,9 +183,9 @@ pub struct Unstructured<'a> {
 
 impl<'a> Unstructured<'a> {
     // TODO: don't throw away the errors
-    pub fn from_raw(f: FieldRaw<'a>) -> Option<Unstructured<'a>> {
+    pub fn from_raw(f: &FieldRaw<'a>) -> Option<Unstructured<'a>> {
         let (_, body) = all_consuming(misc_token::unstructured)(f.body).ok()?;
-        Some(Unstructured { name: f.name, body })
+        Some(Unstructured { name: f.name.clone(), body })
     }
 }
 impl<'a> Print for Unstructured<'a> {
@@ -240,7 +253,7 @@ mod tests {
     #[test]
     fn test_unstructured() {
         let u = Unstructured::from_raw(
-            FieldRaw {
+            &FieldRaw {
                 name: FieldName(b"X-Unknown".into()),
                 body: &b" something something"[..],
             }

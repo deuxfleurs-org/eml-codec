@@ -2,6 +2,14 @@ use crate::text::ascii;
 use crate::text::encoding::{Context, encoded_word_plain};
 use crate::text::quoted::quoted_pair;
 use crate::text::utf8::{is_nonascii_or, space0_str, space1_str, take_utf8_while1};
+// NOTE: the spans emitted from this file are only enabled with
+// "tracing-recover" instead of the more general "tracing" feature like other
+// spans. This is a performance optimization: the combinators in this file are
+// called very often, AND do not (transitively) call functions that emit
+// non-"tracing-recover" events. So it is both correct and faster to only emit
+// these spans when they are used, i.e. with "tracing-recover".
+#[cfg(feature = "tracing-recover")]
+use crate::utils::bytes_to_trace_string;
 use nom::{
     branch::alt,
     bytes::complete::tag,
@@ -11,6 +19,8 @@ use nom::{
     IResult,
     Parser,
 };
+#[cfg(feature = "tracing-recover")]
+use tracing::warn;
 
 /// Whitespace (space, new line, tab) content and
 /// delimited content (eg. comment, line, sections, etc.)
@@ -25,14 +35,23 @@ use nom::{
 /// obs-unstruct (obsolete unstructured fields).
 /// This means that using obs_crlf instead of CRLF (as done currently)
 /// may parse unstructured inputs in a way that contradicts the spec.
-
 pub fn obs_crlf(input: &[u8]) -> IResult<&[u8], &str> {
     map(
         alt((
             tag(ascii::CRLF),
-            tag(ascii::CRCRLF),
-            tag(&[ascii::CR]),
-            tag(&[ascii::LF]),
+            map(
+                alt((
+                    tag(&[ascii::LF]),
+                    tag(ascii::CRCRLF),
+                    tag(&[ascii::CR]),
+                )),
+                |input: &[u8]| {
+                    #[cfg(feature = "tracing-recover")]
+                    warn!(input = unsafe { str::from_utf8_unchecked(input) },
+                          "best-effort line ending");
+                    input
+                }
+            )
         )),
         |b: &[u8]|
         // SAFETY: CR and LF are ASCII characters
@@ -65,8 +84,11 @@ pub fn foldable_line(full_line: bool) -> impl Fn(&[u8]) -> IResult<&[u8], &[u8]>
                 (b'\r', Some(b'\n'), _) => {
                     return Ok((&input[i+2..], &input[0..i]))
                 },
-                (_, Some(b' ' | b'\t'), _) =>
-                    continue,
+                (_b /* \r | \n */, Some(b' ' | b'\t'), _) => {
+                    #[cfg(feature = "tracing-recover")]
+                    warn!(input = %bytes_to_trace_string(&[_b]), "foldable: best-effort line ending");
+                    continue;
+                },
                 _ =>
                     return Ok((&input[i+1..], &input[0..i])),
             }
@@ -123,12 +145,20 @@ pub fn foldable_line(full_line: bool) -> impl Fn(&[u8]) -> IResult<&[u8], &[u8]>
 // pub fn fws(input: &[u8]) -> IResult<&[u8], Vec<&[u8]>> {
 //     many1(alt((space1, preceded(tag(ascii::CRLF), space1))))(input)
 // }
+#[cfg_attr(
+    feature = "tracing-recover",
+    tracing::instrument(fields(input = %bytes_to_trace_string(input)))
+)]
 pub fn fws(input: &[u8]) -> IResult<&[u8], Vec<&str>> {
     alt((
         many1(fold_marker).map(|v| v.into_iter().flatten().collect()),
-        space1_str.map(|wsp| vec![wsp])
+        space1_str.map(|wsp| vec![wsp]),
     ))(input)
 }
+#[cfg_attr(
+    feature = "tracing-recover",
+    tracing::instrument(fields(input = %bytes_to_trace_string(input)))
+)]
 fn fold_marker(input: &[u8]) -> IResult<&[u8], Vec<&str>> {
     let (input, wsp0) = space0_str(input)?;
     let (input, _) = obs_crlf(input)?;
@@ -168,22 +198,38 @@ fn fold_marker(input: &[u8]) -> IResult<&[u8], Vec<&str>> {
 ///
 /// This is why we resort to the the low-level iterative implementation
 /// of `comment` and `comment_body` below.
-pub fn cfws(input: &[u8]) -> IResult<&[u8], ()> {
-    alt((comments, fws.map(|_| ())))(input)
+#[cfg_attr(
+    feature = "tracing-recover",
+    tracing::instrument(fields(input = %bytes_to_trace_string(input)))
+)]
+ pub fn cfws(input: &[u8]) -> IResult<&[u8], ()> {
+     alt((comments, fws.map(|_| ())))(input)
 }
 
+#[cfg_attr(
+    feature = "tracing-recover",
+    tracing::instrument(fields(input = %bytes_to_trace_string(input)))
+)]
 pub fn comments(input: &[u8]) -> IResult<&[u8], ()> {
     let (input, _) = many1(tuple((opt(fws), comment)))(input)?;
     let (input, _) = opt(fws)(input)?;
     Ok((input, ()))
 }
 
+#[cfg_attr(
+    feature = "tracing-recover",
+    tracing::instrument(fields(input = %bytes_to_trace_string(input)))
+)]
 pub fn comment(input: &[u8]) -> IResult<&[u8], ()> {
     let (input, _) = tag("(")(input)?;
     let (input, ()) = comment_body(input)?;
     Ok((input, ()))
 }
 
+#[cfg_attr(
+    feature = "tracing-recover",
+    tracing::instrument(fields(input = %bytes_to_trace_string(input)))
+)]
 pub fn comment_body(input: &[u8]) -> IResult<&[u8], ()> {
     let mut nesting = 1;
     let mut cursor: &[u8] = input;
@@ -214,8 +260,12 @@ pub fn comment_body(input: &[u8]) -> IResult<&[u8], ()> {
     }
 }
 
-pub fn ctext(input: &[u8]) -> IResult<&[u8], &str> {
-    take_utf8_while1(is_ctext)(input)
+#[cfg_attr(
+    feature = "tracing-recover",
+    tracing::instrument(fields(input = %bytes_to_trace_string(input)))
+)]
+ pub fn ctext(input: &[u8]) -> IResult<&[u8], &str> {
+     take_utf8_while1(is_ctext)(input)
 }
 
 /// RFC6532: ctext includes non-ascii UTF-8
