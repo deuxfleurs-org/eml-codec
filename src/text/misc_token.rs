@@ -389,14 +389,26 @@ impl<'a> Arbitrary<'a> for UnstrToken<'a> {
 // Invariant:
 // - Encoded and Plain(_, Txt) tokens are always separated by whitespace
 //   (encoded words must be separated from other words by whitespace)
-// - There must not be whitespace in between two Encoded tokens
+// - There must not be whitespace token in between two Encoded tokens
 //   (whitespace in between encoded words is meaningless and is ignored during parsing)
 #[derive(Debug, PartialEq, Clone, ToStatic, ToStringFromPrint)]
 pub struct Unstructured<'a>(pub Vec<UnstrToken<'a>>);
 
 impl<'a> Print for Unstructured<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
-        for tok in &self.0 {
+        for i in 0..self.0.len() {
+            let tok = &self.0[i];
+
+            // consecutive encoded tokens must be separated by whitespace
+            if i > 0 {
+                match (&self.0[i-1], tok) {
+                    (UnstrToken::Encoded(_), UnstrToken::Encoded(_)) => {
+                        fmt.write_fws()
+                    }
+                    _ => ()
+                }
+            }
+
             tok.print(fmt)
         }
     }
