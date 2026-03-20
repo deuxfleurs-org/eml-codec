@@ -4,10 +4,7 @@ use bounded_static::ToStatic;
 use encoding_rs::Encoding;
 use crate::text::words::is_vchar;
 #[cfg(feature = "arbitrary")]
-use crate::{
-    arbitrary_utils::arbitrary_vec_nonempty_where,
-    fuzz_eq::FuzzEq,
-};
+use crate::fuzz_eq::FuzzEq;
 
 /// Specific implementation of charset
 ///
@@ -45,7 +42,7 @@ pub enum EmailCharset {
     KOI8_R,
     UTF_8,
     // Must contain only printable characters (text::words::is_vchar).
-    // Must be nonempty.
+    // Must be nonempty, and must not represent any of the known charsets.
     Unknown(Vec<u8>),
 }
 
@@ -164,8 +161,8 @@ impl<'a> Arbitrary<'a> for EmailCharset {
                 23 => EmailCharset::KOI8_R,
                 24 => EmailCharset::UTF_8,
                 25 => {
-                    let v = arbitrary_vec_nonempty_where(u, |b| is_vchar(*b), b'X')?;
-                    EmailCharset::Unknown(v)
+                    // don't bother generating unknown charsets, use a dummy
+                    EmailCharset::Unknown(b"unk".to_vec())
                 }
                 _ => unreachable!(),
             }
