@@ -393,8 +393,9 @@ impl<'a> From<&NaiveType<'a>> for TextSubtype {
 }
 
 #[derive(Debug, PartialEq, Clone, ToStatic)]
-#[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
+#[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
 pub struct Binary<'a> {
+    // invariant: ctype.main is neither "multipart", "message" or "text"
     ctype: NaiveType<'a>,
 }
 
@@ -406,6 +407,18 @@ impl<'a> Print for Binary<'a> {
 impl<'a> From<&NaiveType<'a>> for Binary<'a> {
     fn from(nt: &NaiveType<'a>) -> Self {
         Self { ctype: nt.clone() }
+    }
+}
+
+#[cfg(feature = "arbitrary")]
+impl<'a> Arbitrary<'a> for Binary<'a> {
+    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
+        let ctype: NaiveType = u.arbitrary()?;
+        if matches!(ctype.main.0.to_ascii_lowercase().as_slice(),
+                    b"multipart" | b"message" | b"text") {
+            return Err(arbitrary::Error::IncorrectFormat)
+        }
+        Ok(Self { ctype })
     }
 }
 
