@@ -164,7 +164,7 @@ impl<'a> Arbitrary<'a> for EmailCharset {
                 24 => EmailCharset::UTF_8,
                 25 => {
                     // don't bother generating unknown charsets, use a dummy
-                    EmailCharset::Unknown(b"unk".to_vec())
+                    EmailCharset::Unknown("unk".to_string())
                 }
                 _ => unreachable!(),
             }

@@ -15,9 +15,9 @@ use std::borrow::Cow;
 #[cfg(feature = "arbitrary")]
 use crate::{
     arbitrary_utils::{
-        arbitrary_whitespace_nonempty,
+        arbitrary_string_nonempty_where,
         arbitrary_vec_nonempty,
-        arbitrary_vec_nonempty_where,
+        arbitrary_whitespace_nonempty,
     },
     fuzz_eq::FuzzEq,
 };
@@ -201,7 +201,7 @@ impl<'a> Arbitrary<'a> for PhraseToken<'a> {
             // As a coarse-grained measure, reject any atom that contains '=?'
             // to avoid confusion with Encoded tokens
             if let Word::Atom(a) = &w {
-                if a.0.windows(2).find(|&s| s == b"=?").is_some() {
+                if a.0.find("=?").is_some() {
                     return Err(arbitrary::Error::IncorrectFormat)
                 }
             }
@@ -373,10 +373,10 @@ impl<'a> Arbitrary<'a> for UnstrToken<'a> {
         match u.int_in_range(0..=2)? {
             0 => Ok(UnstrToken::Encoded(u.arbitrary()?)),
             1 => {
-                let txt = arbitrary_vec_nonempty_where(u, |c| is_vchar(*c), b'X')?;
+                let txt = arbitrary_string_nonempty_where(u, is_vchar, 'X')?;
                 // As a coarse-grained measure, reject text that contains '=?' to avoid confusion with
                 // Encoded tokens
-                if txt.windows(2).find(|&s| s == b"=?").is_some() {
+                if txt.find("=?").is_some() {
                     return Err(arbitrary::Error::IncorrectFormat)
                 }
                 Ok(UnstrToken::Plain(txt.into(), UnstrTxtKind::Txt))
@@ -427,8 +427,8 @@ impl<'a> Unstructured<'a> {
         let mut v: Vec<UnstrToken<'static>> = Vec::new();
         for tok in &self.0 {
             match (v.last_mut(), tok) {
-                (Some(UnstrToken::Plain(b1, k1)), UnstrToken::Plain(b2, k2)) if k1 == k2 =>
-                    b1.to_mut().extend(b2.iter()),
+                (Some(UnstrToken::Plain(s1, k1)), UnstrToken::Plain(s2, k2)) if k1 == k2 =>
+                    s1.to_mut().push_str(&s2),
                 (Some(UnstrToken::Encoded(e1)), UnstrToken::Encoded(e2)) =>
                     e1.0.extend(e2.to_static().0.into_iter()),
                 _ =>

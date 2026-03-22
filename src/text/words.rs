@@ -3,7 +3,10 @@ use arbitrary::Arbitrary;
 use bounded_static::ToStatic;
 #[cfg(feature = "arbitrary")]
 use crate::{
-    arbitrary_utils::arbitrary_vec_nonempty_where,
+    arbitrary_utils::{
+        arbitrary_vec_nonempty_where,
+        arbitrary_string_nonempty_where,
+    },
     fuzz_eq::FuzzEq,
 };
 use crate::print::{Print, Formatter};
@@ -128,7 +131,7 @@ impl<'a> Print for Atom<'a> {
 #[cfg(feature = "arbitrary")]
 impl<'a> Arbitrary<'a> for Atom<'a> {
     fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Atom<'a>> {
-        let bytes = arbitrary_vec_nonempty_where(u, |c| is_atext(*c), b'X')?;
+        let bytes = arbitrary_string_nonempty_where(u, is_atext, 'X')?;
         Ok(Atom(Cow::Owned(bytes)))
     }
 }
@@ -190,12 +193,12 @@ impl<'a> Print for DotAtom<'a> {
 #[cfg(feature = "arbitrary")]
 impl<'a> Arbitrary<'a> for DotAtom<'a> {
     fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<DotAtom<'a>> {
-        let mut bytes = arbitrary_vec_nonempty_where(u, |c| is_atext(*c), b'X')?;
+        let mut s = arbitrary_string_nonempty_where(u, is_atext, 'X')?;
         for _ in 0..u.int_in_range(0..=3)? {
-            bytes.push(b'.');
-            bytes.extend(arbitrary_vec_nonempty_where(u, |c| is_atext(*c), b'X')?.into_iter());
+            s.push('.');
+            s.push_str(&arbitrary_string_nonempty_where(u, is_atext, 'X')?);
         }
-        Ok(DotAtom(Cow::Owned(bytes)))
+        Ok(DotAtom(Cow::Owned(s)))
     }
 }
 #[cfg(feature = "arbitrary")]

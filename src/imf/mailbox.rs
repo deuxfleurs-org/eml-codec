@@ -13,7 +13,7 @@ use std::borrow::Cow;
 
 #[cfg(feature = "arbitrary")]
 use crate::{
-    arbitrary_utils::{arbitrary_vec_nonempty, arbitrary_vec_nonempty_where},
+    arbitrary_utils::{arbitrary_vec_nonempty, arbitrary_string_nonempty_where},
     fuzz_eq::FuzzEq,
 };
 use crate::print::{print_seq, Print, Formatter, ToStringFromPrint};
@@ -445,8 +445,8 @@ impl<'a> Print for Dtext<'a> {
 #[cfg(feature = "arbitrary")]
 impl<'a> Arbitrary<'a> for Dtext<'a> {
     fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Dtext<'a>> {
-        let bytes: Vec<u8> = arbitrary_vec_nonempty_where(u, |c| is_dtext(*c), b'X')?;
-        Ok(Dtext(Cow::Owned(bytes)))
+        let s: String = arbitrary_string_nonempty_where(u, is_dtext, 'X')?;
+        Ok(Dtext(Cow::Owned(s)))
     }
 }
 #[cfg(feature = "arbitrary")]

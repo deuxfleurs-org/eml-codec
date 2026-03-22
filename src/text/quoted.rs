@@ -16,7 +16,7 @@ use std::fmt;
 
 #[cfg(feature = "arbitrary")]
 use crate::{
-    arbitrary_utils::arbitrary_vec_where,
+    arbitrary_utils::arbitrary_string_where,
     fuzz_eq::FuzzEq,
 };
 use crate::print::{Print, Formatter, ToStringFromPrint};
@@ -57,8 +57,8 @@ impl<'a> Arbitrary<'a> for QuotedString<'a> {
     fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<QuotedString<'a>> {
         let mut chunks = Vec::new();
         u.arbitrary_loop(None, Some(10), |u| {
-            let bytes = arbitrary_vec_where(u, |b| {
-                is_vchar(*b) || ascii::WS.contains(b)
+            let bytes = arbitrary_string_where(u, |c| {
+                is_vchar(c) || ascii::WS_CHAR.contains(&c)
             })?;
             chunks.push(Cow::Owned(bytes));
             Ok(ControlFlow::Continue(()))
@@ -70,7 +70,7 @@ impl<'a> Arbitrary<'a> for QuotedString<'a> {
 #[cfg(feature = "arbitrary")]
 impl<'a> FuzzEq for QuotedString<'a> {
     fn fuzz_eq(&self, other: &Self) -> bool {
-        self.bytes().collect::<Vec<_>>() == other.bytes().collect::<Vec<_>>()
+        self.chars().collect::<String>() == other.chars().collect::<String>()
     }
 }
 
