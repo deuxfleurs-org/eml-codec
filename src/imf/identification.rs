@@ -75,7 +75,7 @@ pub enum MessageIDRight<'a> {
 impl<'a> Print for MessageIDRight<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
         match self {
-            MessageIDRight::DotAtom(a) => fmt.write_bytes(&a.0),
+            MessageIDRight::DotAtom(a) => a.print(fmt),
             MessageIDRight::Literal(dt) => {
                 fmt.write_bytes(b"[");
                 dt.print(fmt);
@@ -109,8 +109,8 @@ mod tests {
             Ok((
                 &b""[..],
                 MessageID {
-                    left: DotAtom(b"5678.21-Nov-1997"[..].into()),
-                    right: MessageIDRight::DotAtom(DotAtom(b"example.com"[..].into())),
+                    left: DotAtom("5678.21-Nov-1997"[..].into()),
+                    right: MessageIDRight::DotAtom(DotAtom("example.com"[..].into())),
                 }
             )),
         );

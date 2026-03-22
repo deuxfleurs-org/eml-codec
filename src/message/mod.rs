@@ -267,8 +267,8 @@ between the header information and the body of the message.";
                 let from = MailboxRef {
                     name: None,
                     addrspec: AddrSpec {
-                        local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(Atom(b"someone"[..].into())))]),
-                        domain: Domain::Atoms(vec![Atom(b"example"[..].into()), Atom(b"com"[..].into())]),
+                        local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(Atom("someone"[..].into())))]),
+                        domain: Domain::Atoms(vec![Atom("example"[..].into()), Atom("com"[..].into())]),
                     }
                 };
                 let mut imf = Imf::new(
@@ -278,21 +278,21 @@ between the header information and the body of the message.";
                 imf.to = vec![AddressRef::Single(MailboxRef {
                     name: None,
                     addrspec: AddrSpec {
-                        local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(Atom(b"someone_else"[..].into())))]),
-                        domain: Domain::Atoms(vec![Atom(b"example"[..].into()), Atom(b"com"[..].into())]),
+                        local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(Atom("someone_else"[..].into())))]),
+                        domain: Domain::Atoms(vec![Atom("example"[..].into()), Atom("com"[..].into())]),
                     }
                 })];
                 imf.subject = Some(Unstructured(vec![
-                    UnstrToken::from_plain(b" ", UnstrTxtKind::Fws),
-                    UnstrToken::from_plain(b"An", UnstrTxtKind::Txt),
-                    UnstrToken::from_plain(b"  ", UnstrTxtKind::Fws),
-                    UnstrToken::from_plain(b"RFC", UnstrTxtKind::Txt),
-                    UnstrToken::from_plain(b" ", UnstrTxtKind::Fws),
-                    UnstrToken::from_plain(b"822", UnstrTxtKind::Txt),
-                    UnstrToken::from_plain(b"  ", UnstrTxtKind::Fws),
-                    UnstrToken::from_plain(b"formatted", UnstrTxtKind::Txt),
-                    UnstrToken::from_plain(b" ", UnstrTxtKind::Fws),
-                    UnstrToken::from_plain(b"message", UnstrTxtKind::Txt),
+                    UnstrToken::from_plain(" ", UnstrTxtKind::Fws),
+                    UnstrToken::from_plain("An", UnstrTxtKind::Txt),
+                    UnstrToken::from_plain("  ", UnstrTxtKind::Fws),
+                    UnstrToken::from_plain("RFC", UnstrTxtKind::Txt),
+                    UnstrToken::from_plain(" ", UnstrTxtKind::Fws),
+                    UnstrToken::from_plain("822", UnstrTxtKind::Txt),
+                    UnstrToken::from_plain("  ", UnstrTxtKind::Fws),
+                    UnstrToken::from_plain("formatted", UnstrTxtKind::Txt),
+                    UnstrToken::from_plain(" ", UnstrTxtKind::Fws),
+                    UnstrToken::from_plain("message", UnstrTxtKind::Txt),
                 ]));
 
                 let mime_body = part::MimeBody::Txt(
@@ -378,16 +378,16 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                     imf: {
                         let from = imf::mailbox::MailboxRef {
                                 name: Some(Phrase(vec![
-                                    PhraseToken::Word(Word::Atom(Atom(b"Grrrnd"[..].into()))),
-                                    PhraseToken::Word(Word::Atom(Atom(b"Zero"[..].into()))),
+                                    PhraseToken::Word(Word::Atom(Atom("Grrrnd"[..].into()))),
+                                    PhraseToken::Word(Word::Atom(Atom("Zero"[..].into()))),
                                 ])),
                                 addrspec: imf::mailbox::AddrSpec {
                                     local_part: imf::mailbox::LocalPart(vec![
-                                        imf::mailbox::LocalPartToken::Word(Word::Atom(Atom(b"grrrndzero"[..].into())))
+                                        imf::mailbox::LocalPartToken::Word(Word::Atom(Atom("grrrndzero"[..].into())))
                                     ]),
                                     domain: imf::mailbox::Domain::Atoms(vec![
-                                        Atom(b"example"[..].into()),
-                                        Atom(b"org"[..].into()),
+                                        Atom("example"[..].into()),
+                                        Atom("org"[..].into()),
                                     ]),
                                 }
                             };
@@ -400,16 +400,16 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
 
                         imf.to = vec![imf::address::AddressRef::Single(imf::mailbox::MailboxRef {
                                 name: Some(Phrase(vec![
-                                    PhraseToken::Word(Word::Atom(Atom(b"John"[..].into()))),
-                                    PhraseToken::Word(Word::Atom(Atom(b"Doe"[..].into()))),
+                                    PhraseToken::Word(Word::Atom(Atom("John"[..].into()))),
+                                    PhraseToken::Word(Word::Atom(Atom("Doe"[..].into()))),
                                 ])),
                                 addrspec: imf::mailbox::AddrSpec {
                                     local_part: imf::mailbox::LocalPart(vec![
-                                        imf::mailbox::LocalPartToken::Word(Word::Atom(Atom(b"jdoe"[..].into())))
+                                        imf::mailbox::LocalPartToken::Word(Word::Atom(Atom("jdoe"[..].into())))
                                     ]),
                                     domain: imf::mailbox::Domain::Atoms(vec![
-                                        Atom(b"machine"[..].into()),
-                                        Atom(b"example"[..].into()),
+                                        Atom("machine"[..].into()),
+                                        Atom("example"[..].into()),
                                     ]),
                                 }
                          })];
@@ -425,23 +425,23 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                                         ],
                                     })
                                 ])),
-                                PhraseToken::Word(Word::Atom(Atom(b"Pirard"[..].into()))),
+                                PhraseToken::Word(Word::Atom(Atom("Pirard"[..].into()))),
                             ])),
                             addrspec: imf::mailbox::AddrSpec {
                                 local_part: imf::mailbox::LocalPart(vec![
-                                    imf::mailbox::LocalPartToken::Word(Word::Atom(Atom(b"PIRARD"[..].into())))
+                                    imf::mailbox::LocalPartToken::Word(Word::Atom(Atom("PIRARD"[..].into())))
                                 ]),
                                 domain: imf::mailbox::Domain::Atoms(vec![
-                                    Atom(b"vm1"[..].into()),
-                                    Atom(b"ulg"[..].into()),
-                                    Atom(b"ac"[..].into()),
-                                    Atom(b"be"[..].into()),
+                                    Atom("vm1"[..].into()),
+                                    Atom("ulg"[..].into()),
+                                    Atom("ac"[..].into()),
+                                    Atom("be"[..].into()),
                                 ]),
                             }
                         })];
 
                         imf.subject = Some(Unstructured(vec![
-                            UnstrToken::from_plain(b" ", UnstrTxtKind::Fws),
+                            UnstrToken::from_plain(" ", UnstrTxtKind::Fws),
                             UnstrToken::Encoded(EncodedWord(vec![
                                 EncodedWordToken::Base64(Base64Word{
                                     enc: EmailCharset::ISO_8859_1,
@@ -455,8 +455,8 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                         ]));
 
                         imf.msg_id = Some(imf::identification::MessageID {
-                            left: DotAtom(b"NTAxNzA2AC47634Y366BAMTY4ODc5MzQyODY0ODY5"[..].into()),
-                            right: MessageIDRight::DotAtom(DotAtom(b"www.grrrndzero.org"[..].into())),
+                            left: DotAtom("NTAxNzA2AC47634Y366BAMTY4ODc5MzQyODY0ODY5"[..].into()),
+                            right: MessageIDRight::DotAtom(DotAtom("www.grrrndzero.org"[..].into())),
                         });
 
                         imf
@@ -471,10 +471,10 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                             header::Unstructured {
                                 name: header::FieldName(b"X-Unknown"[..].into()),
                                 body: Unstructured(vec![
-                                    UnstrToken::from_plain(b" ", UnstrTxtKind::Fws),
-                                    UnstrToken::from_plain(b"something", UnstrTxtKind::Txt),
-                                    UnstrToken::from_plain(b" ", UnstrTxtKind::Fws),
-                                    UnstrToken::from_plain(b"something", UnstrTxtKind::Txt),
+                                    UnstrToken::from_plain(" ", UnstrTxtKind::Fws),
+                                    UnstrToken::from_plain("something", UnstrTxtKind::Txt),
+                                    UnstrToken::from_plain(" ", UnstrTxtKind::Fws),
+                                    UnstrToken::from_plain("something", UnstrTxtKind::Txt),
                                 ]),
                             }
                         ),
@@ -487,7 +487,7 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                         mime: mime::MIME {
                             ctype: mime::r#type::Multipart {
                                 subtype: mime::r#type::MultipartSubtype::Alternative,
-                                boundary: Some(b"b1_e376dc71bafc953c0b0fdeb9983a9956".to_vec()),
+                                boundary: Some("b1_e376dc71bafc953c0b0fdeb9983a9956".to_string()),
                                 params: vec![],
                             },
                             fields: mime::CommonMIME {
@@ -523,8 +523,8 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                                     EntityEntry::Unstructured(header::Unstructured {
                                         name: header::FieldName(b"X-Custom".into()),
                                         body: Unstructured(vec![
-                                            UnstrToken::from_plain(b" ", UnstrTxtKind::Fws),
-                                            UnstrToken::from_plain(b"foobar", UnstrTxtKind::Txt),
+                                            UnstrToken::from_plain(" ", UnstrTxtKind::Fws),
+                                            UnstrToken::from_plain("foobar", UnstrTxtKind::Txt),
                                         ]),
                                     }),
                                     EntityEntry::MIME(mime::field::Entry::Type),
@@ -627,8 +627,8 @@ hello??",
                     MessageEntry::Unstructured(header::Unstructured {
                         name: header::FieldName(b"hello".into()),
                         body: Unstructured(vec![
-                            UnstrToken::from_plain(b" ", UnstrTxtKind::Fws),
-                            UnstrToken::from_plain(b"yolo", UnstrTxtKind::Txt),
+                            UnstrToken::from_plain(" ", UnstrTxtKind::Fws),
+                            UnstrToken::from_plain("yolo", UnstrTxtKind::Txt),
                         ]),
                     }),
                     MessageEntry::Imf(imf::field::Entry::Date),

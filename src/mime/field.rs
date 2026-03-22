@@ -89,31 +89,10 @@ pub fn is_mime_header(name: &header::FieldName) -> bool {
 mod tests {
     use super::*;
     use crate::header;
-    //use crate::mime::charset::EmailCharset;
     use crate::mime::r#type::*;
     use crate::text::misc_token::MIMEWord;
     use crate::text::quoted::QuotedString;
     use crate::text::words::MIMEAtom;
-
-    /*
-    #[test]
-    fn test_content_type() {
-        let (rest, content) =
-            content(b"Content-Type: text/plain; charset=UTF-8; format=flowed\r\n").unwrap();
-        assert_eq!(&b""[..], rest);
-
-        if let Content::Type(nt) = content {
-            assert_eq!(
-                nt.to_type(),
-                AnyType::Text(Deductible::Explicit(Text {
-                    charset: Deductible::Explicit(EmailCharset::UTF_8),
-                    subtype: TextSubtype::Plain,
-                })),
-            );
-        } else {
-            panic!("Expected Content::Type, got {:?}", content);
-        }
-    }*/
 
     #[test]
     fn test_header() {
@@ -145,7 +124,7 @@ This is a multipart message.
                         params: vec![Parameter {
                             name: MIMEAtom(b"boundary"[..].into()),
                             value: MIMEWord::Quoted(QuotedString(vec![
-                                b"b1_e376dc71bafc953c0b0fdeb9983a9956"[..].into()
+                                "b1_e376dc71bafc953c0b0fdeb9983a9956"[..].into()
                             ])),
                         }]
                     }),

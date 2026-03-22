@@ -41,9 +41,9 @@ pub enum EmailCharset {
     Big5,
     KOI8_R,
     UTF_8,
-    // Must contain only printable characters (text::words::is_vchar).
+    // Must contain only ASCII printable characters.
     // Must be nonempty, and must not represent any of the known charsets.
-    Unknown(Vec<u8>),
+    Unknown(String),
 }
 
 impl<T: AsRef<[u8]>> From<T> for EmailCharset {
@@ -76,8 +76,10 @@ impl<T: AsRef<[u8]>> From<T> for EmailCharset {
             b"koi8-r" => EmailCharset::KOI8_R,
             b"utf-8" | b"utf8" => EmailCharset::UTF_8,
             _ => {
-                // Filter out bytes that are not printable, in case there are some…
-                let sanitized = bytes.as_ref().iter().cloned().filter(|b| is_vchar(*b));
+                // Filter out bytes that are not ASCII printable, in case there are some…
+                let sanitized = bytes.as_ref().iter().cloned().filter_map(|b| {
+                    (b.is_ascii() && is_vchar(b as char)).then_some(b as char)
+                });
                 EmailCharset::Unknown(sanitized.collect())
             }
         }
@@ -119,7 +121,7 @@ impl EmailCharset {
             Big5 => b"Big5",
             KOI8_R => b"KOI8-R",
             UTF_8 => b"UTF-8",
-            Unknown(s) => &s,
+            Unknown(s) => s.as_bytes(),
         }
     }
 
@@ -205,7 +207,7 @@ mod tests {
 
         assert_eq!(
             EmailCharset::from(&b"!*\x00\x01abc"[..]),
-            EmailCharset::Unknown(b"!*abc".to_vec()),
+            EmailCharset::Unknown("!*abc".to_string()),
         );
     }
 }

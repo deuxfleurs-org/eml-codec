@@ -144,6 +144,7 @@ pub const CRCRLF: &[u8] = &[CR, CR, LF];
 
 // -- WHITESPACE
 pub const WS: &[u8] = &[HT, SP];
+pub const WS_CHAR: &[char] = &[' ', '\t'];
 
 pub const GRAPHIC_BEGIN: u8 = SP;
 pub const GRAPHIC_END: u8 = TILDE;

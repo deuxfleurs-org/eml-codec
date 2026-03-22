@@ -56,7 +56,7 @@ pub fn multipart<'a>(
         // NOTE: the `.unwrap()` cannot fail as long as `m` is produced by
         // the parser, which always specifies a `boundary` (the boundary
         // used by the input).
-        let bound = m.ctype.boundary.as_ref().unwrap();
+        let bound = m.ctype.boundary.as_ref().unwrap().as_bytes();
         let part_raw = part::part_raw(bound);
         let mut mparts: Vec<AnyPart> = vec![];
 
@@ -184,7 +184,7 @@ mod tests {
         let base_mime = mime::MIME {
             ctype: mime::r#type::Multipart {
                 subtype: mime::r#type::MultipartSubtype::Alternative,
-                boundary: Some(b"simple boundary".to_vec()),
+                boundary: Some("simple boundary".to_string()),
                 params: vec![],
             },
             fields: mime::CommonMIME::default(),
@@ -264,7 +264,7 @@ This is the epilogue. It is also to be ignored.
         let base_mime = mime::MIME {
             ctype: mime::r#type::Multipart {
                 subtype: mime::r#type::MultipartSubtype::Mixed,
-                boundary: Some(b"outer boundary".to_vec()),
+                boundary: Some("outer boundary".to_string()),
                 params: vec![],
             },
             fields: mime::CommonMIME::default(),
@@ -296,7 +296,7 @@ This is implicitly typed plain US-ASCII text.
                              mime: mime::MIME {
                                  ctype: mime::r#type::Multipart {
                                      subtype: mime::r#type::MultipartSubtype::Mixed,
-                                     boundary: Some(b"inner boundary".to_vec()),
+                                     boundary: Some("inner boundary".to_string()),
                                      params: vec![],
                                  },
                                  fields: mime::CommonMIME::default(),
@@ -338,7 +338,7 @@ This is implicitly typed plain US-ASCII text.
         let base_mime = mime::MIME {
             ctype: mime::r#type::Multipart {
                 subtype: mime::r#type::MultipartSubtype::Alternative,
-                boundary: Some(b"boundary".to_vec()),
+                boundary: Some("boundary".to_string()),
                 params: vec![],
             },
             fields: mime::CommonMIME::default(),

@@ -244,10 +244,10 @@ mod tests {
             Unstructured {
                 name: FieldName(b"X-Unknown".into()),
                 body: misc_token::Unstructured(vec![
-                    UnstrToken::from_plain(b" ", UnstrTxtKind::Fws),
-                    UnstrToken::from_plain(b"something", UnstrTxtKind::Txt),
-                    UnstrToken::from_plain(b" ", UnstrTxtKind::Fws),
-                    UnstrToken::from_plain(b"something", UnstrTxtKind::Txt),
+                    UnstrToken::from_plain(" ", UnstrTxtKind::Fws),
+                    UnstrToken::from_plain("something", UnstrTxtKind::Txt),
+                    UnstrToken::from_plain(" ", UnstrTxtKind::Fws),
+                    UnstrToken::from_plain("something", UnstrTxtKind::Txt),
                 ])
             }
         )

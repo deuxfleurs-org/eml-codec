@@ -8,7 +8,6 @@ use nom::{
     sequence::{preceded, terminated, tuple},
     IResult,
 };
-use std::fmt;
 
 #[cfg(feature = "arbitrary")]
 use crate::fuzz_eq::FuzzEq;
@@ -121,26 +120,17 @@ impl<'a> Print for AnyType<'a> {
 
 // REAL PARTS
 
-#[derive(PartialEq, Clone, ToStatic)]
+#[derive(PartialEq, Clone, Debug, ToStatic)]
 #[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
 pub struct Multipart<'a> {
     pub subtype: MultipartSubtype,
     // XXX: this is a hack, it is used to propagate information during parsing,
     // but is ignored by the printer.
     #[cfg_attr(feature = "arbitrary", fuzz_eq(ignore))]
-    pub boundary: Option<Vec<u8>>,
+    pub boundary: Option<String>,
     pub params: Vec<Parameter<'a>>,
 }
 
-impl<'a> fmt::Debug for Multipart<'a> {
-    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt.debug_struct("mime::r#type::Multipart")
-            .field("subtype", &self.subtype)
-            .field("boundary", &self.boundary.as_deref().map(String::from_utf8_lossy))
-            .field("params", &self.params)
-            .finish()
-    }
-}
 #[cfg(feature = "arbitrary")]
 impl<'a> Arbitrary<'a> for Multipart<'a> {
     fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Multipart<'a>> {
@@ -176,7 +166,7 @@ impl<'a> TryFrom<&NaiveType<'a>> for Multipart<'a> {
         for param in &nt.params {
             if param.name.0.to_ascii_lowercase().as_slice() == b"boundary" {
                 if boundary.is_none() {
-                    boundary = Some(param.value.bytes().collect::<Vec<_>>());
+                    boundary = Some(param.value.chars().collect::<String>());
                 }
                 // drop any redundant "boundary" parameter that is not the first
             } else {
@@ -366,8 +356,8 @@ impl<'a> Print for Text<'a> {
         fmt.write_bytes(b"charset=");
         match &self.charset {
             EmailCharset::Unknown(s) =>
-            // print it as quoted just to be safe
-                print_quoted(fmt, s.iter().cloned()),
+                // print it as quoted just to be safe
+                print_quoted(fmt, s.chars()),
             _ =>
                 fmt.write_bytes(&self.charset.as_bytes())
         }
@@ -386,8 +376,8 @@ impl<'a> From<&NaiveType<'a>> for Text<'a> {
         for param in &nt.params {
             if param.name.0.to_ascii_lowercase().as_slice() == b"charset" {
                 if charset.is_none() {
-                    let value: Vec<u8> = param.value.bytes().collect();
-                    charset = Some(EmailCharset::from(value.as_slice()));
+                    let value: String = param.value.chars().collect();
+                    charset = Some(EmailCharset::from(&value));
                 }
                 // drop any "charset" parameter that is not the first
             } else {
@@ -511,7 +501,7 @@ mod tests {
                 &b""[..],
                 Parameter {
                     name: MIMEAtom(b"charset"[..].into()),
-                    value: MIMEWord::Quoted(QuotedString(vec![b"utf-8"[..].into()])),
+                    value: MIMEWord::Quoted(QuotedString(vec!["utf-8"[..].into()])),
                 }
             )),
         );
@@ -603,7 +593,7 @@ mod tests {
                 &b""[..],
                 vec![Parameter {
                     name: MIMEAtom(b"boundary"[..].into()),
-                    value: MIMEWord::Quoted(QuotedString(vec![b"festivus"[..].into()])),
+                    value: MIMEWord::Quoted(QuotedString(vec!["festivus"[..].into()])),
                 }],
             ))
         );
