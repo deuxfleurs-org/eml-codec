@@ -692,4 +692,119 @@ MIME-Version: 1.0\r
 "
         );
     }
+
+    // tests for UTF8 from https://github.com/arnt/eai-test-messages
+
+    #[test]
+    fn test_utf8_addresses() {
+        test_message_reprint(
+            "From: Jøran Øygårdvær <jøran@example.com>
+Cc: Jøran Øygårdvær <jøran@example.com>
+Signed-Off-By: Jøran Øygårdvær <jøran@example.com>
+To: Arnt Gulbrandsen <arnt@example.com>
+Date: Thu, 20 May 2004 14:28:51 +0200
+
+".as_bytes(),
+
+            "From: Jøran Øygårdvær <jøran@example.com>\r
+Cc: Jøran Øygårdvær <jøran@example.com>\r
+Signed-Off-By: Jøran Øygårdvær <jøran@example.com>\r
+To: Arnt Gulbrandsen <arnt@example.com>\r
+Date: Thu, 20 May 2004 14:28:51 +0200\r
+MIME-Version: 1.0\r
+\r
+".as_bytes()
+        );
+    }
+
+    #[test]
+    fn test_utf8_attachment() {
+        test_message_reprint(
+            r#"From: Arnt Gulbrandsen <arnt@example.com>
+To: Arnt Gulbrandsen <arnt@example.com>
+Date: Thu, 20 May 2004 14:28:51 +0200
+Content-Type: multipart/mixed; boundary=-
+Mime-Version: 1.0
+
+---
+Content-Type: text/plain; format=flowed; x-eai-please-do-not="abstürzen"
+
+There's nothing to do about this bodypart, except not crash. The attachment
+has a somewhat challenging filename.
+
+---
+Content-Disposition: attachment; filename="blåbærsyltetøy"
+Content-Type: image/jpeg
+Content-Transfer-Encoding: base64
+
+snip
+-----
+"#.as_bytes(),
+
+            "From: Arnt Gulbrandsen <arnt@example.com>\r
+To: Arnt Gulbrandsen <arnt@example.com>\r
+Date: Thu, 20 May 2004 14:28:51 +0200\r
+Content-Type: multipart/mixed;\r
+ boundary=\"V1Qy0rpB5tWE76WF3UelfGW5K9LZpjHjZ3PKE26vpVNnvofq7BLuYTWxzQB3HrYu7\"\r
+MIME-Version: 1.0\r
+\r
+--V1Qy0rpB5tWE76WF3UelfGW5K9LZpjHjZ3PKE26vpVNnvofq7BLuYTWxzQB3HrYu7\r
+Content-Type: text/plain; charset=US-ASCII; format=flowed;\r
+ x-eai-please-do-not=\"abstürzen\"\r
+\r
+There's nothing to do about this bodypart, except not crash. The attachment
+has a somewhat challenging filename.
+\r
+--V1Qy0rpB5tWE76WF3UelfGW5K9LZpjHjZ3PKE26vpVNnvofq7BLuYTWxzQB3HrYu7\r
+Content-Disposition: attachment; filename=\"blåbærsyltetøy\"\r
+Content-Type: image/jpeg\r
+Content-Transfer-Encoding: base64\r
+\r
+snip\r
+--V1Qy0rpB5tWE76WF3UelfGW5K9LZpjHjZ3PKE26vpVNnvofq7BLuYTWxzQB3HrYu7--\r
+".as_bytes()
+        );
+    }
+
+    #[test]
+    fn test_utf8_from() {
+        test_message_reprint(
+            "From: Jøran Øygårdvær <jøran@example.com>
+To: Arnt Gulbrandsen <arnt@example.com>
+Date: Thu, 20 May 2004 14:28:51 +0200
+
+asdf".as_bytes(),
+            "From: Jøran Øygårdvær <jøran@example.com>\r
+To: Arnt Gulbrandsen <arnt@example.com>\r
+Date: Thu, 20 May 2004 14:28:51 +0200\r
+MIME-Version: 1.0\r
+\r
+asdf".as_bytes(),
+        );
+    }
+
+    #[test]
+    fn test_utf8_mimefield() {
+        test_message_reprint(
+            "From: Arnt Gulbrandsen <arnt@example.com>\r
+To: Arnt Gulbrandsen <arnt@example.com>\r
+Date: Thu, 20 May 2004 14:28:51 +0200\r
+Content-Disposition: attachment; filename=\"blåbærsyltetøy\"\r
+Content-Type: text/plain; format=flowed\r
+Mime-Version: 1.0\r
+\r
+It's a bit odd that a single-part message is an attachment with a
+filename. But perfectly legal.".as_bytes(),
+
+            "From: Arnt Gulbrandsen <arnt@example.com>\r
+To: Arnt Gulbrandsen <arnt@example.com>\r
+Date: Thu, 20 May 2004 14:28:51 +0200\r
+Content-Disposition: attachment; filename=\"blåbærsyltetøy\"\r
+Content-Type: text/plain; charset=US-ASCII; format=flowed\r
+MIME-Version: 1.0\r
+\r
+It's a bit odd that a single-part message is an attachment with a
+filename. But perfectly legal.".as_bytes()
+        );
+    }
 }
