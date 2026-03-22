@@ -252,7 +252,7 @@ mod tests {
 
     #[test]
     fn test_simple() {
-        let fullmail = b"Date: 7 Mar 2023 08:00:00 +0200\r
+        let fullmail = b"Date: Tue, 7 Mar 2023 08:00:00 +0200\r
 From: someone@example.com\r
 To: someone_else@example.com\r
 Subject: An  RFC 822  formatted message\r
@@ -554,7 +554,7 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                     })
                 };
 
-        let reprinted: &[u8] = "Date: 8 Jul 2023 07:14:29 +0200\r
+        let reprinted: &[u8] = "Date: Sat, 8 Jul 2023 07:14:29 +0200\r
 From: Grrrnd Zero <grrrndzero@example.org>\r
 To: John Doe <jdoe@machine.example>\r
 Cc: =?UTF-8?Q?Andr=C3=A9?= Pirard <PIRARD@vm1.ulg.ac.be>\r
@@ -643,7 +643,7 @@ hello??",
                 }
             },
             b"hello: yolo\r
-Date: 1 Jan 1970 00:00:00 +0000\r
+Date: Thu, 1 Jan 1970 00:00:00 +0000\r
 From: unknown@unknown\r
 MIME-Version: 1.0\r
 \r
@@ -651,6 +651,7 @@ hello??",
         );
     }
 
+    // FIXME: the received header before last got dropped
     #[test]
     fn test_trace_unstructured() {
         test_message_reprint(
@@ -676,15 +677,15 @@ Received: by sympa.lmf.cnrs.fr (Postfix, from userid 106)
 X-Mozilla-Status2: 00000000\r
 Return-Path: <hello@sympa.lmf.cnrs.fr>\r
 Received: from mx.lmf.cnrs.fr by mx.lmf.cnrs.fr with LMTP id\r
- oFAUKCuwpWmTPRAAFSOJEQ; 2 Mar 2026 15:43:39 +0000\r
+ oFAUKCuwpWmTPRAAFSOJEQ; Mon, 2 Mar 2026 15:43:39 +0000\r
 X-Spam-Checker-Version: SpamAssassin 3.4.6 (2021-04-09) on mx.lmf.cnrs.fr\r
 Received-SPF: Pass (mailfrom) identity=mailfrom; client-ip=10.0.0.2;\r
  helo=sympa.lmf.cnrs.fr; envelope-from=hello@sympa.lmf.cnrs.fr;\r
  receiver=<UNKNOWN>\r
 Received: from sympa.lmf.cnrs.fr by mx.lmf.cnrs.fr with ESMTPS id DC88D214EA;\r
- 2 Mar 2026 15:43:37 +0000\r
-Received: by sympa.lmf.cnrs.fr id ACE8B4A03ED; 2 Mar 2026 16:43:37 +0100\r
-Date: 1 Jan 1970 00:00:00 +0000\r
+ Mon, 2 Mar 2026 15:43:37 +0000\r
+Received: by sympa.lmf.cnrs.fr id ACE8B4A03ED; Mon, 2 Mar 2026 16:43:37 +0100\r
+Date: Thu, 1 Jan 1970 00:00:00 +0000\r
 From: unknown@unknown\r
 MIME-Version: 1.0\r
 \r
