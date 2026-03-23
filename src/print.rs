@@ -5,6 +5,24 @@ use rand_chacha::ChaCha20Rng as RNG;
 use crate::text::ascii;
 pub use eml_codec_derives::ToStringFromPrint;
 
+// NOTE regarding line-folding and UTF-8 (RFC6532).
+//
+// Line folding (and more generally printing) implemented in this file occurs at
+// the byte level and is unaware of UTF-8 text introduced by RFC6532. This works
+// for the following reasons:
+//
+// - line folding (inserting newlines) only occurs at ASCII whitespace
+// characters, which are identified with a specific `write_fws_bytes` method;
+// line folding never happens in the middle of non-whitespace text (which can
+// contain non-ascii UTF-8), so there is no need to e.g. perform unicode
+// segmentation.
+//
+// - RFC6532 specifies that line limits should be counted in "characters" and
+// not bytes (however, "character" is not a well-defined unicode concept). The
+// current implementation *does* enforce line limits in bytes, because this is
+// always correct (albeit sub-obtimal) wrt any interpretation of "character",
+// and is easier than performing unicode segmentation.
+
 // TODO: provide streaming printing
 
 pub trait Print {

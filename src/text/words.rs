@@ -24,7 +24,9 @@ use nom::{
 use std::borrow::Cow;
 use std::fmt;
 
-/// ASCII printable characters
+/// Printable characters
+///
+/// following RFC6532, this includes non-ascii UTF8 text
 pub fn is_vchar(c: char) -> bool {
     is_nonascii_or(|c| (ascii::EXCLAMATION..=ascii::TILDE).contains(&c))(c)
 }
@@ -145,6 +147,8 @@ impl<'a> FuzzEq for Atom<'a> {
 /// Atom allowed characters
 ///
 /// authorized: !#$%&'*+-/=?^_`{|}~
+///
+/// following RFC6532, atext also allows non-ascii UTF8 characters
 pub fn is_atext(c: char) -> bool {
     is_nonascii_or(|c| {
         is_alphanumeric(c)

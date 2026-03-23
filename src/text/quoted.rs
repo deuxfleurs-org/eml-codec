@@ -150,6 +150,7 @@ fn is_strict_quoted_pair(c: char) -> bool {
 ///                       %d93-126 /         ;  "\" or the quote character
 ///                       obs-qtext
 /// ```
+/// following RFC6532, also allows non-ascii UTF-8
 fn is_strict_qtext(c: char) -> bool {
     is_nonascii_or(|c| {
         c == ascii::EXCLAMATION

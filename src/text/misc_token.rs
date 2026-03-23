@@ -304,6 +304,7 @@ pub struct UtextToken<'a> {
 /// ```abnf
 /// obs-utext       =   %d0 / obs-NO-WS-CTL / VCHAR
 /// ```
+/// and also non-ascii UTF-8 text, following RFC6532.
 ///
 /// The parser result records which parts of the input
 /// were using the obsolete syntax (i.e. not VCHAR).

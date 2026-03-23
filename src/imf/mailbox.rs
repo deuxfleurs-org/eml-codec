@@ -464,6 +464,7 @@ impl<'a> FuzzEq for Dtext<'a> {
 ///                       obs-dtext          ;  "[", "]", or "\"
 ///   obs-dtext       =   obs-NO-WS-CTL / quoted-pair
 /// ```
+/// following RFC6532, also allows non-ascii UTF-8 text
 fn is_dtext(c: char) -> bool {
     is_strict_dtext(c) || is_obs_dtext(c)
 }

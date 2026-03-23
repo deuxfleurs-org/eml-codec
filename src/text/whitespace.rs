@@ -216,6 +216,7 @@ pub fn ctext(input: &[u8]) -> IResult<&[u8], &str> {
     take_utf8_while1(is_ctext)(input)
 }
 
+/// RFC6532: ctext includes non-ascii UTF-8
 pub fn is_ctext(c: char) -> bool {
     is_nonascii_or(|c| is_restr_ctext(c) || is_obs_no_ws_ctl(c))(c)
 }
