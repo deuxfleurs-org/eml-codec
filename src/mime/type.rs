@@ -255,6 +255,7 @@ impl<'a> Arbitrary<'a> for MultipartSubtype {
 pub enum MessageSubtype {
     #[default]
     RFC822,
+    Global, // RFC6532 subtype (message containing UTF-8 headers)
     Partial,
     External,
     // neither of the above (ignoring capitalization).
@@ -265,6 +266,7 @@ impl MessageSubtype {
     fn as_bytes(&self) -> &[u8] {
         match self {
             Self::RFC822 => b"rfc822",
+            Self::Global => b"global",
             Self::Partial => b"partial",
             Self::External => b"external",
             Self::Unknown(b) => &b.0,
@@ -282,6 +284,7 @@ impl<'a> From<&NaiveType<'a>> for MessageSubtype {
         let sub = nt.sub.0.to_ascii_lowercase();
         match sub.as_slice() {
             b"rfc822" => MessageSubtype::RFC822,
+            b"global" => MessageSubtype::Global,
             b"partial" => MessageSubtype::Partial,
             b"external" => MessageSubtype::External,
             _ => MessageSubtype::Unknown(nt.sub.to_static()),
@@ -292,14 +295,15 @@ impl<'a> From<&NaiveType<'a>> for MessageSubtype {
 #[cfg(feature = "arbitrary")]
 impl<'a> Arbitrary<'a> for MessageSubtype {
     fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
-        match u.int_in_range(0..=3)? {
+        match u.int_in_range(0..=4)? {
             0 => Ok(MessageSubtype::RFC822),
-            1 => Ok(MessageSubtype::Partial),
-            2 => Ok(MessageSubtype::External),
-            3 => {
+            1 => Ok(MessageSubtype::Global),
+            2 => Ok(MessageSubtype::Partial),
+            3 => Ok(MessageSubtype::External),
+            4 => {
                 let a: MIMEAtom = u.arbitrary()?;
                 if matches!(a.0.to_ascii_lowercase().as_slice(),
-                            b"rfc822" | b"partial" | b"external") {
+                            b"rfc822" | b"global" | b"partial" | b"external") {
                     return Err(arbitrary::Error::IncorrectFormat)
                 }
                 Ok(MessageSubtype::Unknown(a))
