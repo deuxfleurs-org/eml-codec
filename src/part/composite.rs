@@ -10,6 +10,7 @@ use crate::header;
 use crate::mime;
 use crate::part::{self, AnyPart, field::EntityFields};
 use crate::text::boundary::{boundary, Delimiter};
+use crate::utils::ContainsUtf8;
 
 //--- Multipart
 #[derive(Clone, PartialEq, ToStatic)]
@@ -96,10 +97,10 @@ pub fn multipart<'a>(
 
             // interpret mime according to context
             let mime = match m.ctype.subtype {
-                mime::r#type::MultipartSubtype::Digest => {
-                    mime.to_interpreted(mime::DefaultType::Digest).into()
-                }
-                _ => mime.to_interpreted(mime::DefaultType::Generic).into(),
+                mime::r#type::MultipartSubtype::Digest =>
+                    mime.to_interpreted(mime::DefaultType::Digest).into(),
+                _ =>
+                    mime.to_interpreted(mime::DefaultType::Generic).into(),
             };
 
             // parse raw part
@@ -120,8 +121,10 @@ pub fn multipart<'a>(
 
 //--- Message
 
+// Invariant: if message headers use non-ascii UTF-8, message subtype RFC822
+// must not be used and subtype Global must be used instead.
 #[derive(Clone, Debug, PartialEq, ToStatic)]
-#[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
+#[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
 pub struct Message<'a> {
     pub mime: mime::MIME<'a, mime::r#type::Message<'a>>,
 
@@ -144,6 +147,22 @@ pub struct Message<'a> {
     pub child: Box<AnyPart<'a>>,
 }
 
+#[cfg(feature = "arbitrary")]
+impl<'a> Arbitrary<'a> for Message<'a> {
+    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
+        let mut mime: mime::MIME<'a, mime::r#type::Message<'a>> = u.arbitrary()?;
+        let child: Box<AnyPart<'a>> = u.arbitrary()?;
+        // TODO: clarify whether we should take the body into account as well, and
+        // not just the headers (for later when we start interpreting bodies?)
+        if matches!(mime.ctype.subtype, mime::r#type::MessageSubtype::RFC822) &&
+            child.contains_utf8_headers()
+        {
+            mime.ctype.subtype = mime::r#type::MessageSubtype::Global
+        }
+        Ok(Message { mime, child })
+    }
+}
+
 /// Parse an embedded message.
 ///
 /// This function always consumes its entire input.
@@ -153,7 +172,18 @@ pub fn message<'a>(
     move |input: &[u8]| {
         // parse header fields
         let (input, headers) = header::header_kv(input);
+        // detect UTF-8 use in headers
+        let has_utf8 = headers.iter().any(|f| f.contains_utf8());
         let fields: EntityFields = headers.into_iter().collect();
+
+        let mut msg_mime = m.clone();
+        // If the headers contain non-ascii UTF8 and if this is a
+        // message/RFC822, promote the message outer MIME to message/global
+        if has_utf8 &&
+            matches!(msg_mime.ctype.subtype, mime::r#type::MessageSubtype::RFC822)
+        {
+            msg_mime.ctype.subtype = mime::r#type::MessageSubtype::Global;
+        }
 
         // interpret headers to choose the child mime type
         let in_mime = fields.mime.to_interpreted(mime::DefaultType::Generic).into();
@@ -163,7 +193,7 @@ pub fn message<'a>(
         let mime_body = part::part_body(in_mime)(input);
 
         Message {
-            mime: m.clone(),
+            mime: msg_mime,
             child: Box::new(AnyPart { entries: fields.entries, mime_body }),
         }
     }

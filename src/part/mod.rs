@@ -25,6 +25,7 @@ use crate::part::{
     discrete::{Binary, Text},
 };
 use crate::print::{Print, Formatter};
+use crate::utils::ContainsUtf8;
 
 #[derive(Clone, Debug, PartialEq, ToStatic)]
 #[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
@@ -39,6 +40,19 @@ pub struct AnyPart<'a> {
     // Invariant: `fields` must contain no duplicates.
     pub entries: Vec<field::EntityEntry<'a>>,
     pub mime_body: MimeBody<'a>,
+}
+
+impl<'a> AnyPart<'a> {
+    pub fn contains_utf8_headers(&self) -> bool {
+        self.entries.iter().find(|f| {
+            match f {
+                field::EntityEntry::Unstructured(u) => u.contains_utf8(),
+                _ => false,
+            }
+        }).is_some()
+        ||
+        self.mime_body.mime().contains_utf8()
+    }
 }
 
 #[cfg(feature = "arbitrary")]

@@ -116,9 +116,9 @@ pub fn message<'a>(input: &'a [u8]) -> Message<'a> {
     // parse headers
     let (input_body, headers) = header::header_kv(input);
     let fields: MessageFields = headers.into_iter().collect::<MessageFields>();
-
-    let mime_body =
-        part::part_body(fields.mime.to_interpreted(mime::DefaultType::Generic))(input_body);
+    let mime = fields.mime.to_interpreted(mime::DefaultType::Generic);
+    // parse body
+    let mime_body = part::part_body(mime)(input_body);
     Message {
         imf: fields.imf,
         mime_body,
@@ -805,6 +805,39 @@ MIME-Version: 1.0\r
 \r
 It's a bit odd that a single-part message is an attachment with a
 filename. But perfectly legal.".as_bytes()
+        );
+    }
+
+    #[test]
+    fn test_message_global_recover() {
+        // If an embedded message contains UTF8, ensure its content type is
+        // message/global. (message/rfc822 is not supposed to contain UTF-8
+        // headers but we parse those nevertheless...)
+        test_message_reprint(
+            "From: admin@example.com
+To: user@example.com
+Date: Thu, 20 May 2004 14:28:51 +0200
+Content-Type: message/rfc822
+
+From: \"Armaël\" <armaël@example.com>
+To: \"Müller\" <müller@example.test>
+Subject: Café? ☕
+Content-Type: text/plain; charset=\"utf-8\"
+
+☕?".as_bytes(),
+
+            "From: admin@example.com\r
+To: user@example.com\r
+Date: Thu, 20 May 2004 14:28:51 +0200\r
+Content-Type: message/global\r
+MIME-Version: 1.0\r
+\r
+From: \"Armaël\" <armaël@example.com>\r
+To: \"Müller\" <müller@example.test>\r
+Subject: Café? ☕\r
+Content-Type: text/plain; charset=UTF-8\r
+\r
+☕?".as_bytes()
         );
     }
 }

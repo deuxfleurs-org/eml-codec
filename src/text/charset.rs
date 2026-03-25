@@ -3,6 +3,7 @@ use arbitrary::Arbitrary;
 use bounded_static::ToStatic;
 use encoding_rs::Encoding;
 use crate::text::words::is_vchar;
+use crate::utils::ContainsUtf8;
 #[cfg(feature = "arbitrary")]
 use crate::fuzz_eq::FuzzEq;
 
@@ -13,7 +14,8 @@ use crate::fuzz_eq::FuzzEq;
 /// using encoding_rs datastructures directly would lead to a loss of information.
 /// <https://www.iana.org/assignments/character-sets/character-sets.xhtml>
 #[allow(non_camel_case_types)]
-#[derive(Debug, PartialEq, Default, Clone, ToStatic)]
+#[derive(Clone, ContainsUtf8, Debug, Default, PartialEq, ToStatic)]
+#[contains_utf8(false)]
 pub enum EmailCharset {
     #[default]
     US_ASCII,

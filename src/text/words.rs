@@ -12,7 +12,7 @@ use crate::{
 use crate::print::{Print, Formatter};
 use crate::text::ascii;
 use crate::text::whitespace::cfws;
-use crate::utils::{is_nonascii_or, take_utf8_while1};
+use crate::utils::{is_nonascii_or, take_utf8_while1, ContainsUtf8};
 use nom::{
     bytes::complete::{tag, take_while1},
     character::is_alphanumeric,
@@ -33,7 +33,8 @@ pub fn is_vchar(c: char) -> bool {
 
 /// A MIME atom.
 // Contains a non-zero amount of bytes that satisfy `is_mime_atom_text`.
-#[derive(Clone, PartialEq, Default, ToStatic)]
+#[derive(Clone, ContainsUtf8, PartialEq, Default, ToStatic)]
+#[contains_utf8(false)]
 pub struct MIMEAtom<'a>(pub Cow<'a, [u8]>);
 
 impl<'a> fmt::Debug for MIMEAtom<'a> {
@@ -186,7 +187,7 @@ pub fn atom(input: &[u8]) -> IResult<&[u8], Atom<'_>> {
 
 /// An IMF dot-atom.
 // Only contains bytes that satisfy is_atext or are '.'.
-#[derive(Clone, Debug, PartialEq, ToStatic)]
+#[derive(Clone, ContainsUtf8, Debug, PartialEq, ToStatic)]
 pub struct DotAtom<'a>(pub Cow<'a, str>);
 
 impl<'a> Print for DotAtom<'a> {

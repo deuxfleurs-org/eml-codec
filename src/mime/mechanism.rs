@@ -6,6 +6,7 @@ use crate::fuzz_eq::FuzzEq;
 use crate::print::{Print, Formatter, ToStringFromPrint};
 use crate::text::whitespace::cfws;
 use crate::text::words::{mime_atom as token, MIMEAtom};
+use crate::utils::ContainsUtf8;
 use nom::{
     branch::alt,
     bytes::complete::tag_no_case,
@@ -42,6 +43,11 @@ impl<'a> Mechanism<'a> {
 impl<'a> Print for Mechanism<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
         fmt.write_bytes(self.as_bytes())
+    }
+}
+impl<'a> ContainsUtf8 for Mechanism<'a> {
+    fn contains_utf8(&self) -> bool {
+        false
     }
 }
 impl<'a> Mechanism<'a> {

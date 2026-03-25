@@ -21,7 +21,7 @@ use crate::mime::mechanism::Mechanism;
 use crate::mime::r#type::{AnyType, NaiveType};
 use crate::print::Formatter;
 use crate::text::misc_token::Unstructured;
-use crate::utils::set_opt;
+use crate::utils::{set_opt, ContainsUtf8};
 
 #[derive(Debug, Default, PartialEq, Clone, ToStatic)]
 #[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
@@ -31,9 +31,17 @@ pub struct CommonMIME<'a> {
     pub description: Option<Unstructured<'a>>,
 }
 
+impl<'a> ContainsUtf8 for CommonMIME<'a> {
+    fn contains_utf8(&self) -> bool {
+        self.transfer_encoding.contains_utf8() ||
+        self.id.contains_utf8() ||
+        self.description.contains_utf8()
+    }
+}
+
 // Invariant: when T is mime::r#type::Multipart or mime::r#type::Message,
 // fields.transfer_encoding must be 7bit, 8bit or binary.
-#[derive(Debug, PartialEq, Clone, ToStatic)]
+#[derive(Clone, ContainsUtf8, Debug, PartialEq, ToStatic)]
 #[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
 pub struct MIME<'a, T> {
     pub ctype: T,
@@ -155,6 +163,16 @@ impl<'a> AnyMIME<'a> {
             fs.insert(field::Entry::Description);
         }
         fs
+    }
+}
+impl<'a> ContainsUtf8 for AnyMIME<'a> {
+    fn contains_utf8(&self) -> bool {
+        match self {
+            Self::Mult(v) => v.contains_utf8(),
+            Self::Msg(v) => v.contains_utf8(),
+            Self::Txt(v) => v.contains_utf8(),
+            Self::Bin(v) => v.contains_utf8(),
+        }
     }
 }
 

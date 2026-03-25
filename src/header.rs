@@ -21,9 +21,11 @@ use crate::{
 use crate::print::{Print, Formatter};
 use crate::text::misc_token;
 use crate::text::whitespace::{foldable_line, obs_crlf};
+use crate::utils::ContainsUtf8;
 
 // A valid header field name.
-#[derive(PartialEq, Clone, ToStatic)]
+#[derive(PartialEq, Clone, ContainsUtf8, ToStatic)]
+#[contains_utf8(false)]
 pub struct FieldName<'a>(pub Cow<'a, [u8]>);
 impl<'a> FieldName<'a> {
     pub fn bytes(&'a self) -> &'a [u8] {
@@ -81,6 +83,11 @@ impl<'a> fmt::Debug for FieldRaw<'a> {
             .field("name", &self.name)
             .field("body", &String::from_utf8_lossy(&self.body))
             .finish()
+    }
+}
+impl<'a> ContainsUtf8 for FieldRaw<'a> {
+    fn contains_utf8(&self) -> bool {
+        self.body.iter().any(|c| !c.is_ascii())
     }
 }
 
@@ -154,7 +161,7 @@ fn is_ftext(c: u8) -> bool {
 
 // Parse a raw header field as an unstructured header
 
-#[derive(Debug, PartialEq, Clone, ToStatic)]
+#[derive(Debug, PartialEq, Clone, ContainsUtf8, ToStatic)]
 #[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
 pub struct Unstructured<'a> {
     pub name: FieldName<'a>,

@@ -16,9 +16,10 @@ use crate::text::charset::EmailCharset;
 use crate::text::misc_token::{mime_word, MIMEWord};
 use crate::text::quoted::print_quoted;
 use crate::text::words::{mime_atom, MIMEAtom};
+use crate::utils::ContainsUtf8;
 
 // --------- NAIVE TYPE
-#[derive(Debug, PartialEq, Clone, ToStatic)]
+#[derive(Clone, ContainsUtf8, Debug, PartialEq, ToStatic)]
 #[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
 pub struct NaiveType<'a> {
     pub main: MIMEAtom<'a>,
@@ -53,7 +54,7 @@ impl<'a> Print for NaiveType<'a> {
     }
 }
 
-#[derive(Debug, PartialEq, Clone, ToStatic)]
+#[derive(Clone, ContainsUtf8, Debug, PartialEq, ToStatic)]
 #[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
 pub struct Parameter<'a> {
     pub name: MIMEAtom<'a>,
@@ -120,13 +121,15 @@ impl<'a> Print for AnyType<'a> {
 
 // REAL PARTS
 
-#[derive(PartialEq, Clone, Debug, ToStatic)]
+#[derive(Clone, ContainsUtf8, Debug, PartialEq, ToStatic)]
 #[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
 pub struct Multipart<'a> {
     pub subtype: MultipartSubtype,
     // XXX: this is a hack, it is used to propagate information during parsing,
     // but is ignored by the printer.
     #[cfg_attr(feature = "arbitrary", fuzz_eq(ignore))]
+    // boundary is always ascii
+    #[contains_utf8(ignore)]
     pub boundary: Option<String>,
     pub params: Vec<Parameter<'a>>,
 }
@@ -184,7 +187,7 @@ impl<'a> TryFrom<&NaiveType<'a>> for Multipart<'a> {
     }
 }
 
-#[derive(Debug, PartialEq, Clone, ToStatic, ToStringFromPrint)]
+#[derive(Clone, ContainsUtf8, Debug, PartialEq, ToStatic, ToStringFromPrint)]
 #[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
 pub enum MultipartSubtype {
     Alternative,
@@ -250,7 +253,7 @@ impl<'a> Arbitrary<'a> for MultipartSubtype {
     }
 }
 
-#[derive(Debug, PartialEq, Default, Clone, ToStatic, ToStringFromPrint)]
+#[derive(Clone, ContainsUtf8, Debug, Default, PartialEq, ToStatic, ToStringFromPrint)]
 #[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
 pub enum MessageSubtype {
     #[default]
@@ -313,7 +316,7 @@ impl<'a> Arbitrary<'a> for MessageSubtype {
     }
 }
 
-#[derive(Debug, PartialEq, Default, Clone, ToStatic)]
+#[derive(Clone, ContainsUtf8, Debug, Default, PartialEq, ToStatic)]
 #[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
 pub struct Message<'a> {
     pub subtype: MessageSubtype,
@@ -341,7 +344,7 @@ impl<'a> From<&NaiveType<'a>> for Message<'a> {
     }
 }
 
-#[derive(Debug, PartialEq, Default, Clone, ToStatic)]
+#[derive(Clone, ContainsUtf8, Debug, PartialEq, Default, ToStatic)]
 #[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
 pub struct Text<'a> {
     // NOTE: an unknown subtype combined with an unknown charset should
@@ -397,7 +400,7 @@ impl<'a> From<&NaiveType<'a>> for Text<'a> {
     }
 }
 
-#[derive(Debug, PartialEq, Default, Clone, ToStatic, ToStringFromPrint)]
+#[derive(Clone, ContainsUtf8, Debug, PartialEq, Default, ToStatic, ToStringFromPrint)]
 #[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
 pub enum TextSubtype {
     #[default]
@@ -451,7 +454,7 @@ impl<'a> Arbitrary<'a> for TextSubtype {
     }
 }
 
-#[derive(Debug, PartialEq, Clone, ToStatic)]
+#[derive(Clone, ContainsUtf8, Debug, PartialEq, ToStatic)]
 #[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
 pub struct Binary<'a> {
     // invariant: ctype.main is neither "multipart", "message" or "text"

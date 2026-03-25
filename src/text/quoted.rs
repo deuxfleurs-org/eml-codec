@@ -23,10 +23,10 @@ use crate::print::{Print, Formatter, ToStringFromPrint};
 use crate::text::ascii;
 use crate::text::whitespace::{cfws, fws, is_obs_no_ws_ctl};
 use crate::text::words::is_vchar;
-use crate::utils::{is_nonascii_or, take_utf8_while1};
+use crate::utils::{is_nonascii_or, take_utf8_while1, ContainsUtf8};
 
 // A quoted string contains bytes that satisfy `is_vchar` or are in `ascii::WS`.
-#[derive(PartialEq, Default, Clone, ToStatic, ToStringFromPrint)]
+#[derive(Clone, ContainsUtf8, PartialEq, Default, ToStatic, ToStringFromPrint)]
 pub struct QuotedString<'a>(pub Vec<Cow<'a, str>>);
 
 impl<'a> fmt::Debug for QuotedString<'a> {

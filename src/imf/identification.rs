@@ -16,8 +16,9 @@ use crate::print::{print_seq, Print, Formatter, ToStringFromPrint};
 use crate::imf::mailbox::{dtext, Dtext};
 use crate::text::whitespace::cfws;
 use crate::text::words::{dot_atom_text, DotAtom};
+use crate::utils::ContainsUtf8;
 
-#[derive(Clone, Debug, PartialEq, ToStatic, ToStringFromPrint)]
+#[derive(Clone, ContainsUtf8, Debug, PartialEq, ToStatic, ToStringFromPrint)]
 #[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
 pub struct MessageID<'a> {
     pub left: DotAtom<'a>,
@@ -66,7 +67,7 @@ fn id_left(input: &[u8]) -> IResult<&[u8], DotAtom<'_>> {
     dot_atom_text(input)
 }
 
-#[derive(Clone, Debug, PartialEq, ToStatic, ToStringFromPrint)]
+#[derive(Clone, ContainsUtf8, Debug, PartialEq, ToStatic, ToStringFromPrint)]
 #[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
 pub enum MessageIDRight<'a> {
     DotAtom(DotAtom<'a>),

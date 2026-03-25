@@ -29,7 +29,7 @@ use crate::text::{
     whitespace::{cfws, fws, is_obs_no_ws_ctl},
     words::{atom, is_vchar, mime_atom, Atom, MIMEAtom, MIMEAtomChars},
 };
-use crate::utils::{space0_str, take_utf8_while1};
+use crate::utils::{space0_str, take_utf8_while1, ContainsUtf8};
 
 #[derive(Clone, Debug, PartialEq, Default, ToStatic)]
 #[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
@@ -73,7 +73,7 @@ impl<'a> Print for PhraseList<'a> {
     }
 }
 
-#[derive(Debug, PartialEq, Clone, ToStatic, ToStringFromPrint)]
+#[derive(Clone, ContainsUtf8, Debug, PartialEq, ToStatic, ToStringFromPrint)]
 #[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
 pub enum MIMEWord<'a> {
     Quoted(QuotedString<'a>),
@@ -351,6 +351,14 @@ impl<'a> UnstrToken<'a> {
         }
     }
 }
+impl<'a> ContainsUtf8 for UnstrToken<'a> {
+    fn contains_utf8(&self) -> bool {
+        match self {
+            UnstrToken::Encoded(_) => false,
+            UnstrToken::Plain(s, _) => s.contains_utf8(),
+        }
+    }
+}
 impl<'a> Print for UnstrToken<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
         match self {
@@ -437,6 +445,11 @@ impl<'a> Unstructured<'a> {
             }
         }
         Unstructured(v)
+    }
+}
+impl<'a> ContainsUtf8 for Unstructured<'a> {
+    fn contains_utf8(&self) -> bool {
+        self.0.contains_utf8()
     }
 }
 
