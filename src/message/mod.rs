@@ -681,6 +681,8 @@ X-Spam-Checker-Version: SpamAssassin 3.4.6 (2021-04-09) on mx.lmf.cnrs.fr\r
 Received-SPF: Pass (mailfrom) identity=mailfrom; client-ip=10.0.0.2;\r
  helo=sympa.lmf.cnrs.fr; envelope-from=hello@sympa.lmf.cnrs.fr;\r
  receiver=<UNKNOWN>\r
+Received: from sympa.lmf.cnrs.fr by mx.lmf.cnrs.fr with ESMTPS id DC88D214EA;\r
+ 2 Mar 2026 15:43:37 +0000\r
 Received: by sympa.lmf.cnrs.fr id ACE8B4A03ED; 2 Mar 2026 16:43:37 +0100\r
 Date: 1 Jan 1970 00:00:00 +0000\r
 From: unknown@unknown\r

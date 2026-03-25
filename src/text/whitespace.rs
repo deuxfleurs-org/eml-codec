@@ -189,6 +189,7 @@ pub fn comment_body(input: &[u8]) -> IResult<&[u8], ()> {
                 return Ok((input, ()))
             }
             cursor = input;
+            continue;
         }
         let (input, _) = opt(fws)(cursor)?;
         let (input, enter_subcomment) = alt((
@@ -288,6 +289,10 @@ mod tests {
         //     cfws(b"(unbalanced ( parens) wouch"),
         //     Ok((&b"wouch"[..], &b"(double (comment) is fun) "[..]))
         // );
+        assert_eq!(
+            cfws(b"(using (256/256 bits) (2048 bits))"),
+            Ok((&b""[..], &b"(using (256/256 bits) (2048 bits))"[..]))
+        );
     }
 
     #[test]
