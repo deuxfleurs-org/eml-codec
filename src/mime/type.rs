@@ -179,7 +179,7 @@ impl<'a> TryFrom<&NaiveType<'a>> for Multipart<'a> {
                     boundary = Some(s);
                 } else {
                     // drop any redundant "boundary" parameter that is not the first
-                    #[cfg(feature = "tracing")]
+                    #[cfg(feature = "tracing-discard")]
                     warn!(boundary = s, "dropping redundant boundary parameter")
                 }
             } else {
@@ -401,7 +401,7 @@ impl<'a> From<&NaiveType<'a>> for Text<'a> {
                     charset = Some(EmailCharset::from(&value));
                 } else {
                     // drop any "charset" parameter that is not the first
-                    #[cfg(feature = "tracing")]
+                    #[cfg(feature = "tracing-discard")]
                     warn!(param = value, "dropping redundant charset parameter");
                 }
             } else {

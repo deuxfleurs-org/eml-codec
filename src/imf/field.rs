@@ -5,7 +5,7 @@ use tracing::warn;
 
 #[cfg(feature = "arbitrary")]
 use crate::fuzz_eq::FuzzEq;
-#[cfg(feature = "tracing")]
+#[cfg(feature = "tracing-discard")]
 use crate::utils::bytes_to_display_string;
 use crate::header;
 use crate::imf::address::{address_list, nullable_address_list, AddressList};
@@ -113,7 +113,7 @@ impl<'a> TryFrom<&header::FieldRaw<'a>> for Field<'a> {
             Ok((b"", content)) => Ok(content),
             Ok((_rest, _)) => {
                 // return an error if we haven't parsed the full value
-                #[cfg(feature = "tracing")]
+                #[cfg(feature = "tracing-discard")]
                 warn!(rest = bytes_to_display_string(_rest),
                       "leftover input after parsing");
                 Err(InvalidField::Body)

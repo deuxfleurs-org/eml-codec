@@ -3,11 +3,11 @@ use {
     arbitrary::Arbitrary,
     crate::fuzz_eq::FuzzEq,
 };
-#[cfg(feature = "tracing")]
-use tracing::warn;
 use bounded_static::ToStatic;
 use encoding_rs::Encoding;
 use crate::i18n::ContainsUtf8;
+#[cfg(feature = "tracing-recover")]
+use tracing::warn;
 use crate::text::words::is_vchar;
 
 /// Specific implementation of charset
@@ -85,7 +85,7 @@ impl<T: AsRef<[u8]>> From<T> for EmailCharset {
                 let sanitized = bytes.as_ref().iter().cloned().filter_map(|b| {
                     (b.is_ascii() && is_vchar(b as char)).then_some(b as char)
                 }).collect();
-                #[cfg(feature = "tracing")]
+                #[cfg(feature = "tracing-recover")]
                 warn!(value = sanitized, "unknown charset");
                 EmailCharset::Unknown(sanitized)
             }

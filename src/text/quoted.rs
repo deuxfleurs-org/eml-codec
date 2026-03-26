@@ -14,7 +14,7 @@ use nom::{
 use std::borrow::Cow;
 use std::fmt;
 #[cfg(feature = "tracing")]
-use tracing::{info, warn};
+use tracing::warn;
 
 #[cfg(feature = "arbitrary")]
 use crate::{
@@ -140,13 +140,9 @@ pub fn quoted_pair(input: &[u8]) -> IResult<&[u8], Option<&str>> {
                     // know that `b` contains a single ASCII character.
                     Some(unsafe { str::from_utf8_unchecked(s) })
                 } else {
-                    if b == ascii::NULL || is_obs_no_ws_ctl(b)
-                        || b == ascii::LF || b == ascii::CR {
-                            #[cfg(feature = "tracing")]
-                            info!(byte = bytes_to_display_string(&[b]),
-                                  "obsolete quoted pair")
-                        } else {
-                            #[cfg(feature = "tracing")]
+                    if !(b == ascii::NULL || is_obs_no_ws_ctl(b)
+                         || b == ascii::LF || b == ascii::CR) {
+                            #[cfg(feature = "tracing-recover")]
                             warn!(byte = bytes_to_display_string(&[b]),
                                   "invalid quoted pair")
                         }
@@ -197,11 +193,7 @@ fn is_obs_qtext(c: u8) -> bool {
 fn qcontent(input: &[u8]) -> IResult<&[u8], Option<&str>> {
     alt((
         map(take_utf8_while1(is_strict_qtext), Some),
-        map(take_while1(is_obs_qtext), |_input| {
-            #[cfg(feature = "tracing")]
-            info!(input = bytes_to_display_string(_input), "obsolete qcontent");
-            None
-        }),
+        map(take_while1(is_obs_qtext), |_| None),
         quoted_pair,
     ))(input)
 }

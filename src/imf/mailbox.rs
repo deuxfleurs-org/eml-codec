@@ -3,7 +3,7 @@ use arbitrary::Arbitrary;
 use bounded_static::ToStatic;
 use nom::{
     branch::alt,
-    combinator::{all_consuming, consumed, into, map, map_opt, opt},
+    combinator::{all_consuming, into, map, map_opt, opt},
     bytes::complete::tag,
     multi::{many0, many1, separated_list1},
     sequence::{delimited, pair, preceded, terminated, tuple},
@@ -11,7 +11,7 @@ use nom::{
 };
 use std::borrow::Cow;
 #[cfg(feature = "tracing")]
-use tracing::{info, warn};
+use tracing::warn;
 
 #[cfg(feature = "arbitrary")]
 use crate::{
@@ -147,12 +147,7 @@ pub(crate) fn mailbox_list_nullable(input: &[u8]) -> IResult<&[u8], Option<Mailb
             tag(","),
             alt((
                 map(mailbox, Some),
-                map(consumed(opt(cfws)), |(_input, _)| {
-                    #[cfg(feature = "tracing")]
-                    info!(input = bytes_to_display_string(_input),
-                          "obsolete empty mailbox in mailbox list");
-                    None
-                }),
+                map(opt(cfws), |_| None),
             ))
         ),
         |v: Vec<Option<_>>| {
@@ -196,12 +191,7 @@ pub fn angle_addr(input: &[u8]) -> IResult<&[u8], AddrSpec<'_>> {
         tuple((
             opt(cfws),
             tag(&[ascii::LT]),
-            opt(map(consumed(obs_route), |(_input, route)| {
-                #[cfg(feature = "tracing")]
-                info!(input = bytes_to_display_string(_input),
-                      "obsolete obs-route in angle-addr");
-                route
-            }))
+            opt(obs_route),
         )),
         addr_spec,
         pair(tag(&[ascii::GT]), opt(cfws)),
@@ -369,19 +359,17 @@ impl<'a> Print for LocalPart<'a> {
     tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
 )]
 fn obs_local_part(input: &[u8]) -> IResult<&[u8], LocalPart<'_>> {
-    // TODO: detect obsolete obs-local-part and emit corresponding info!()
-    // events
     let (input, prefix) = many0(local_part_dot)(input)?;
     let (input, w) = local_part_word(input)?;
     let (input, ws) = many0(pair(many1(local_part_dot), local_part_word))(input)?;
     let (input, suffix) = many0(local_part_dot)(input)?;
 
     if !prefix.is_empty() {
-        #[cfg(feature = "tracing")]
+        #[cfg(feature = "tracing-recover")]
         warn!("best-effort local-part (leading dots)");
     }
     if !suffix.is_empty() {
-        #[cfg(feature = "tracing")]
+        #[cfg(feature = "tracing-recover")]
         warn!("best-effort local part (trailing dots)");
     }
 
@@ -390,7 +378,7 @@ fn obs_local_part(input: &[u8]) -> IResult<&[u8], LocalPart<'_>> {
     v.push(w);
     for (dots, w) in ws.into_iter() {
         if dots.len() > 1 {
-            #[cfg(feature = "tracing")]
+            #[cfg(feature = "tracing-recover")]
             warn!("best-effort local part (consecutive dots)");
         }
         v.extend(dots);
@@ -458,7 +446,6 @@ impl<'a> Arbitrary<'a> for Domain<'a> {
     tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
 )]
 pub fn obs_domain(input: &[u8]) -> IResult<&[u8], Domain<'_>> {
-    // TODO: detect obs-domain to emit info!() events
     alt((
         map(separated_list1(tag("."), atom), Domain::Atoms),
         domain_litteral,
@@ -551,12 +538,7 @@ impl<'a> FuzzEq for Dtext<'a> {
 /// ```
 /// following RFC6532, also allows non-ascii UTF-8 text
 fn is_dtext(c: char) -> bool {
-    let is_obs = is_obs_dtext(c);
-    if is_obs {
-        #[cfg(feature = "tracing")]
-        info!(c = c.to_string(), "obsolete dtext char");
-    }
-    is_strict_dtext(c) || is_obs
+    is_strict_dtext(c) || is_obs_dtext(c)
 }
 fn is_strict_dtext(c: char) -> bool {
     is_nonascii_or(|c| {

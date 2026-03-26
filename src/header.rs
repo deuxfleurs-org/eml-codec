@@ -20,12 +20,12 @@ use crate::{
     arbitrary_utils::arbitrary_vec_nonempty_where,
     fuzz_eq::FuzzEq,
 };
-#[cfg(feature = "tracing")]
-use crate::utils::bytes_to_display_string;
 use crate::i18n::ContainsUtf8;
 use crate::print::{Print, Formatter};
 use crate::text::misc_token;
 use crate::text::whitespace::{foldable_line, obs_crlf};
+#[cfg(feature = "tracing-recover")]
+use crate::utils::bytes_to_display_string;
 
 // A valid header field name.
 #[derive(PartialEq, Clone, ContainsUtf8, ToStatic)]
@@ -114,12 +114,12 @@ pub fn header_kv(input: &[u8]) -> (&[u8], Vec<FieldRaw<'_>>) {
         // For best-effort parsing, we also try to parse any remaining bytes before
         // EOF (as if EOF was a CRLF).
         map(consumed(pair(field_name, rest)), |(_i, (name, body))| {
-            #[cfg(feature = "tracing")]
+            #[cfg(feature = "tracing-recover")]
             warn!(input = bytes_to_display_string(_i), "raw field before EOF");
             Some(FieldRaw { name, body })
         }),
         map(rest, |_i: &[u8]| {
-            #[cfg(feature = "tracing")]
+            #[cfg(feature = "tracing-recover")]
             warn!(input = bytes_to_display_string(_i), "raw bytes before EOF");
             None
         }),

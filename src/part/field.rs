@@ -37,14 +37,14 @@ impl<'a> FromIterator<header::FieldRaw<'a>> for EntityFields<'a> {
                         e.entries.push(EntityEntry::MIME(entry))
                     } else {
                         // otherwise drop the field
-                        #[cfg(feature = "tracing")]
+                        #[cfg(feature = "tracing-discard")]
                         warn!(field = ?f, "dropping redundant MIME field");
                     }
                     continue;
                 },
                 Err(mime::field::InvalidField::Body) => {
                     // this is a MIME field but its body is invalid; drop it.
-                    #[cfg(feature = "tracing")]
+                    #[cfg(feature = "tracing-discard")]
                     warn!(field = ?f, "dropping invalid MIME field");
                     continue;
                 },
@@ -58,7 +58,7 @@ impl<'a> FromIterator<header::FieldRaw<'a>> for EntityFields<'a> {
                 e.entries.push(EntityEntry::Unstructured(u));
             } else {
                 // otherwise drop the field
-                #[cfg(feature = "tracing")]
+                #[cfg(feature = "tracing-discard")]
                 warn!(field = ?f, "dropping field which cannot be parsed as unstructured");
             }
         }

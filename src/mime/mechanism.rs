@@ -70,7 +70,7 @@ impl<'a> Mechanism<'a> {
             Mechanism::_7Bit | Mechanism::_8Bit | Mechanism::Binary =>
                 self.to_static(),
             _ => {
-                #[cfg(feature = "tracing")]
+                #[cfg(feature = "tracing-discard")]
                 warn!(mechanism = ?self, "invalid mechanism");
                 Mechanism::default()
             }
@@ -98,7 +98,7 @@ pub fn mechanism(input: &[u8]) -> IResult<&[u8], Mechanism<'_>> {
             opt(cfws),
         ),
         map(consumed(mime_atom), |(_i, tok)| {
-            #[cfg(feature = "tracing")]
+            #[cfg(feature = "tracing-recover")]
             warn!(input = bytes_to_display_string(_i), "unknown mechanism");
             Other(tok)
         }),

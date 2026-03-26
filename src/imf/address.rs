@@ -4,13 +4,11 @@ use bounded_static::ToStatic;
 use nom::{
     branch::alt,
     bytes::complete::tag,
-    combinator::{consumed, into, map, map_opt, opt},
+    combinator::{into, map, map_opt, opt},
     multi::separated_list1,
     sequence::tuple,
     IResult,
 };
-#[cfg(feature = "tracing")]
-use tracing::info;
 
 #[cfg(feature = "arbitrary")]
 use crate::fuzz_eq::FuzzEq;
@@ -122,16 +120,7 @@ pub fn group(input: &[u8]) -> IResult<&[u8], GroupRef<'_>> {
     tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
 )]
 pub fn group_list(input: &[u8]) -> IResult<&[u8], Option<MailboxList<'_>>> {
-    map(
-        mailbox_list_nullable,
-        |opt| {
-            if opt.is_none() {
-                #[cfg(feature = "tracing")]
-                info!("obsolete empty group-list")
-            }
-            opt
-        }
-    )(input)
+    mailbox_list_nullable(input)
 }
 
 /// Address list
@@ -150,12 +139,7 @@ pub fn address_list(input: &[u8]) -> IResult<&[u8], Vec<AddressRef<'_>>> {
             tag(","),
             alt((
                 map(address, Some),
-                map(consumed(opt(cfws)), |(_input, _)| {
-                    #[cfg(feature = "tracing")]
-                    info!(input = bytes_to_display_string(_input),
-                          "obsolete empty address in address list");
-                    None
-                }),
+                map(opt(cfws), |_| None),
             ))
         ),
         vec_filter_none_nonempty

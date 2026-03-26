@@ -7,14 +7,14 @@ use crate::utils::bytes_to_display_string;
 use nom::{
     branch::alt,
     bytes::complete::tag,
-    combinator::{consumed, map, opt, recognize},
+    combinator::{map, opt, recognize},
     multi::many1,
     sequence::{pair, tuple},
     IResult,
     Parser,
 };
-#[cfg(feature = "tracing")]
-use tracing::{info, warn};
+#[cfg(feature = "tracing-recover")]
+use tracing::warn;
 
 /// Whitespace (space, new line, tab) content and
 /// delimited content (eg. comment, line, sections, etc.)
@@ -36,12 +36,12 @@ pub fn obs_crlf(input: &[u8]) -> IResult<&[u8], &str> {
             tag(ascii::CRLF),
             map(
                 alt((
+                    tag(&[ascii::LF]),
                     tag(ascii::CRCRLF),
                     tag(&[ascii::CR]),
-                    tag(&[ascii::LF]),
                 )),
                 |input: &[u8]| {
-                    #[cfg(feature = "tracing")]
+                    #[cfg(feature = "tracing-recover")]
                     warn!(input = unsafe { str::from_utf8_unchecked(input) },
                           "best-effort line ending");
                     input
@@ -80,8 +80,8 @@ pub fn foldable_line(full_line: bool) -> impl Fn(&[u8]) -> IResult<&[u8], &[u8]>
                     return Ok((&input[i+2..], &input[0..i]))
                 },
                 (_b /* \r | \n */, Some(b' ' | b'\t'), _) => {
-                    #[cfg(feature = "tracing")]
-                    warn!(input = bytes_to_display_string(&[_b]), "best-effort line ending");
+                    #[cfg(feature = "tracing-recover")]
+                    warn!(input = bytes_to_display_string(&[_b]), "foldable: best-effort line ending");
                     continue;
                 },
                 _ =>
@@ -146,13 +146,7 @@ pub fn foldable_line(full_line: bool) -> impl Fn(&[u8]) -> IResult<&[u8], &[u8]>
 )]
 pub fn fws(input: &[u8]) -> IResult<&[u8], Vec<&str>> {
     alt((
-        consumed(many1(fold_marker)).map(|(_i, v)| {
-            #[cfg(feature = "tracing")]
-            if v.len() > 1 {
-                info!(input = bytes_to_display_string(_i), "obsolete FWS")
-            }
-            v.into_iter().flatten().collect()
-        }),
+        many1(fold_marker).map(|v| v.into_iter().flatten().collect()),
         space1_str.map(|wsp| vec![wsp]),
     ))(input)
 }
@@ -271,15 +265,7 @@ pub fn comment_body(input: &[u8]) -> IResult<&[u8], ()> {
 
 /// RFC6532: ctext includes non-ascii UTF-8
 pub fn is_ctext(c: char) -> bool {
-    is_nonascii_or(|c| {
-        let is_obs_ctext = is_obs_no_ws_ctl(c);
-        if is_obs_ctext {
-            #[cfg(feature = "tracing")]
-            info!(c = bytes_to_display_string(&[c]),
-                  "obsolete ctext character");
-        }
-        is_restr_ctext(c) || is_obs_ctext
-    })(c)
+    is_nonascii_or(|c| is_restr_ctext(c) || is_obs_no_ws_ctl(c))(c)
 }
 
 /// Check if it's a comment text character

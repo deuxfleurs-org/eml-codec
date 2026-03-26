@@ -4,7 +4,7 @@ use bounded_static::ToStatic;
 use nom::{
     branch::alt,
     bytes::complete::{tag, take_while1},
-    combinator::{consumed, map, opt},
+    combinator::{map, opt},
     multi::{many0, many1, separated_list0},
     sequence::{delimited, pair},
     IResult,
@@ -66,18 +66,11 @@ pub fn phrase_list(input: &[u8]) -> IResult<&[u8], Option<PhraseList<'_>>> {
         tag(","),
         alt((
             map(phrase, Some),
-            map(consumed(opt(cfws)), |(_i, _)| {
-                #[cfg(feature = "tracing")]
-                warn!(input = bytes_to_display_string(_i),
-                      "obsolete empty phrase in phrase-list");
-                None
-            })
+            map(opt(cfws), |_| None),
         )),
     )(input)?;
     let phrases: Vec<Phrase> = phrases_opt.into_iter().flatten().collect();
     if phrases.is_empty() {
-        #[cfg(feature = "tracing")]
-        warn!("obsolete empty phrase-list");
         Ok((input, None))
     } else {
         Ok((input, Some(PhraseList(phrases))))
@@ -258,8 +251,6 @@ pub fn phrase_token(input: &[u8]) -> IResult<&[u8], PhraseToken<'_>> {
         // non-obs- syntax, thus ensuring that this AST can be safely
         // printed as-is.
         map(delimited(opt(cfws), tag(&[ascii::PERIOD][..]), opt(cfws)), |_| {
-            #[cfg(feature = "tracing")]
-            warn!("obsolete dot in phrase");
             PhraseToken::Word(Word::Quoted(QuotedString(vec![
                 Cow::Owned(".".to_string())
             ])))
@@ -356,11 +347,7 @@ fn obs_utext_token<'a>(input: &'a [u8]) -> IResult<&'a [u8], UtextToken<'a>> {
             // SAFETY: from the line above we know that `s` contains ASCII bytes
             // (they satisfy either is_obs_no_ws_ctl or are NULL).
             .map(|s| unsafe { str::from_utf8_unchecked(s) })
-            .map(|s| {
-                #[cfg(feature = "tracing")]
-                warn!(input = s, "obsolete unstructured bytes");
-                UtextToken { txt: Cow::Borrowed(s), obs: true }
-            }),
+            .map(|s| UtextToken { txt: Cow::Borrowed(s), obs: true }),
     ))(input)
 }
 

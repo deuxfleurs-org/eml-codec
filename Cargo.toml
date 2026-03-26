@@ -17,6 +17,8 @@ exclude = [
 [features]
 arbitrary = ["dep:arbitrary", "chrono/arbitrary", "chrono/std"]
 tracing = ["dep:tracing"]
+tracing-recover = ["tracing"]
+tracing-discard = ["tracing"]
 
 [lib]
 name = "eml_codec"

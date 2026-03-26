@@ -171,14 +171,14 @@ impl<'a> FromIterator<header::FieldRaw<'a>> for MessageFields<'a> {
                         entries.push(MessageEntry::MIME(entry))
                     } else {
                         // otherwise drop the field
-                        #[cfg(feature = "tracing")]
+                        #[cfg(feature = "tracing-discard")]
                         warn!(field = ?f, "dropping redundant MIME field")
                     }
                     continue;
                 },
                 Err(mime::field::InvalidField::Body) => {
                     // this is a MIME field but its body is invalid; drop it.
-                    #[cfg(feature = "tracing")]
+                    #[cfg(feature = "tracing-discard")]
                     warn!(field = ?f, "dropping MIME field with an invalid body");
                     continue;
                 },
@@ -194,14 +194,14 @@ impl<'a> FromIterator<header::FieldRaw<'a>> for MessageFields<'a> {
                         entries.push(MessageEntry::Imf(entry))
                     } else {
                         // otherwise drop the field
-                        #[cfg(feature = "tracing")]
+                        #[cfg(feature = "tracing-discard")]
                         warn!(field = ?f, "dropping redundant IMF field")
                     }
                     continue;
                 },
                 Err(imf::field::InvalidField::Body) => {
                     // this is an IMF field but its body is invalid; drop it.
-                    #[cfg(feature = "tracing")]
+                    #[cfg(feature = "tracing-discard")]
                     warn!(field = ?f, "dropping IMF field with an invalid body");
                     continue;
                 }
@@ -215,7 +215,7 @@ impl<'a> FromIterator<header::FieldRaw<'a>> for MessageFields<'a> {
                 entries.push(MessageEntry::Unstructured(u));
             } else {
                 // otherwise drop the field
-                #[cfg(feature = "tracing")]
+                #[cfg(feature = "tracing-discard")]
                 warn!(field = ?f, "dropping field that cannot be parsed as unstructured")
             }
         }

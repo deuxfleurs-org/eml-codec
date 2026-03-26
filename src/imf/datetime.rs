@@ -12,8 +12,6 @@ use nom::{
     IResult,
 };
 use std::fmt::{Debug, Formatter};
-#[cfg(feature = "tracing")]
-use tracing::info;
 
 #[cfg(feature = "arbitrary")]
 use crate::fuzz_eq::FuzzEq;
@@ -189,8 +187,6 @@ fn strict_day_of_week(input: &[u8]) -> IResult<&[u8], &[u8]> {
     tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
 )]
 fn obs_day_of_week(input: &[u8]) -> IResult<&[u8], &[u8]> {
-    #[cfg(feature = "tracing")]
-    info!(input = bytes_to_display_string(input), "obs-day-of-week");
     delimited(opt(cfws), day_name, opt(cfws))(input)
 }
 
@@ -245,8 +241,6 @@ fn strict_day(input: &[u8]) -> IResult<&[u8], u32> {
     tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
 )]
 fn obs_day(input: &[u8]) -> IResult<&[u8], u32> {
-    #[cfg(feature = "tracing")]
-    info!(input = bytes_to_display_string(input), "obs-day");
     delimited(opt(cfws), character::complete::u32, opt(cfws))(input)
 }
 
@@ -301,8 +295,6 @@ fn strict_year(input: &[u8]) -> IResult<&[u8], i32> {
     tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
 )]
 fn obs_year(input: &[u8]) -> IResult<&[u8], i32> {
-    #[cfg(feature = "tracing")]
-    info!(input = bytes_to_display_string(input), "obs-year");
     map(
         delimited(
             opt(cfws),
@@ -348,8 +340,6 @@ fn strict_time_of_day(input: &[u8]) -> IResult<&[u8], NaiveTime> {
     tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
 )]
 fn obs_time_of_day(input: &[u8]) -> IResult<&[u8], NaiveTime> {
-    #[cfg(feature = "tracing")]
-    info!(input = bytes_to_display_string(input), "obs-time-of-day");
     map_opt(
         tuple((
             obs_time_digit,
@@ -372,8 +362,6 @@ fn strict_time_digit(input: &[u8]) -> IResult<&[u8], u32> {
     tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
 )]
 fn obs_time_digit(input: &[u8]) -> IResult<&[u8], u32> {
-    #[cfg(feature = "tracing")]
-    info!(input = bytes_to_display_string(input), "obs-time-digit");
     delimited(opt(cfws), character::complete::u32, opt(cfws))(input)
 }
 
@@ -429,8 +417,6 @@ fn strict_zone(input: &[u8]) -> IResult<&[u8], FixedOffset> {
     tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
 )]
 fn obs_zone(input: &[u8]) -> IResult<&[u8], FixedOffset> {
-    #[cfg(feature = "tracing")]
-    info!(input = bytes_to_display_string(input), "obs-zone");
     // The writing of this function is volontarily verbose
     // to keep it straightforward to understand.
     map_opt(
