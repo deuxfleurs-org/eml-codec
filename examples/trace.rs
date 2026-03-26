@@ -176,6 +176,21 @@ fn parse_mbox(input: &[u8]) -> Vec<Vec<u8>> {
     res
 }
 
+fn dir_entries(path: &std::path::Path, v: &mut Vec<std::path::PathBuf>) -> std::io::Result<()> {
+    if path.is_dir() {
+        for entry in std::fs::read_dir(path)? {
+            let entry: std::fs::DirEntry = entry?;
+            let path = entry.path();
+            if path.is_dir() {
+                dir_entries(&path, v)?;
+            } else {
+                v.push(path);
+            }
+        }
+    }
+    Ok(())
+}
+
 fn main() {
     let (layer, _guard) = PruningLayer::new("trace.json");
     tracing_subscriber::registry()
@@ -183,27 +198,42 @@ fn main() {
         .init();
 
     for path in std::env::args().skip(1) {
-        let mut input = Vec::new();
-        File::open(&path).unwrap().read_to_end(&mut input).unwrap();
-
-        if path.ends_with(".mbox") {
-            let span = span!(Level::TRACE, "mailbox", path);
-            let _enter = span.enter();
-            eprintln!("parsing mailbox: {}", path);
-            let raw_emails = parse_mbox(&input);
-            eprintln!("{} emails found", raw_emails.len());
-
-            raw_emails.par_iter().enumerate().for_each(|(idx, raw_email)| {
-                let span = span!(Level::TRACE, "mailbox email", idx);
+        let attr = std::fs::metadata(&path).expect(&format!("error reading {}", path));
+        if attr.is_dir() {
+            let mut entries = Vec::new();
+            dir_entries(&std::path::PathBuf::from(path.clone()), &mut entries)
+                .expect(&format!("failed listing files in {}", path));
+            entries.par_iter().for_each(|path| {
+                let span = span!(Level::TRACE, "file email", path = format!("{}", path.display()));
                 let _enter = span.enter();
-                eprintln!("parsing mbox email {}", idx);
-                let _eml = eml_codec::parse_message(&raw_email);
-            })
+                eprintln!("parsing email {}", path.display());
+                let mut input = Vec::new();
+                File::open(&path).unwrap().read_to_end(&mut input).unwrap();
+                let _eml = eml_codec::parse_message(&input);
+            });
         } else {
-            let span = span!(Level::TRACE, "eml", path);
-            let _enter = span.enter();
-            eprintln!("parsing single email: {}", path);
-            let _eml = eml_codec::parse_message(&input);
+            let mut input = Vec::new();
+            File::open(&path).unwrap().read_to_end(&mut input).unwrap();
+
+            if path.ends_with(".mbox") {
+                let span = span!(Level::TRACE, "mailbox", path);
+                let _enter = span.enter();
+                eprintln!("parsing mailbox: {}", path);
+                let raw_emails = parse_mbox(&input);
+                eprintln!("{} emails found", raw_emails.len());
+
+                raw_emails.par_iter().enumerate().for_each(|(idx, raw_email)| {
+                    let span = span!(Level::TRACE, "mailbox email", idx);
+                    let _enter = span.enter();
+                    eprintln!("parsing mbox email {}", idx);
+                    let _eml = eml_codec::parse_message(&raw_email);
+                })
+            } else {
+                let span = span!(Level::TRACE, "eml", path);
+                let _enter = span.enter();
+                eprintln!("parsing single email: {}", path);
+                let _eml = eml_codec::parse_message(&input);
+            }
         }
     }
 }
