@@ -50,6 +50,7 @@ eml_codec_derives = { path = "eml_codec_derives" }
 memchr = "2"
 utf8_iter = "1.0.4"
 tracing = { version = "0.1.44", optional = true }
+charset = "0.1.5"
 
 [dev-dependencies]
 walkdir = "2"

@@ -197,7 +197,7 @@ impl<'a> Base64Word<'a> {
     pub fn data(&self) -> String {
         general_purpose::STANDARD_NO_PAD
             .decode(&self.content)
-            .map(|d| self.enc.as_encoding().decode(d.as_slice()).0.to_string())
+            .map(|d| self.enc.decode(d.as_slice()).to_string())
             .unwrap_or("".into())
     }
 }
@@ -228,7 +228,7 @@ impl<'a> QuotedWord<'a> {
                 }
                 QuotedChunk::Space => acc.push(' '),
                 QuotedChunk::Encoded(v) => {
-                    let (d, _) = self.enc.as_encoding().decode_without_bom_handling(v.as_slice());
+                    let d = self.enc.decode(v.as_slice());
                     acc.push_str(d.as_ref());
                 }
             };
@@ -466,7 +466,7 @@ mod tests {
                 .1,
             EncodedWord(vec![
                 EncodedWordToken::Base64(Base64Word{
-                    enc: EmailCharset::ISO_8859_1,
+                    enc: EmailCharset::from(b"iso-8859-1"),
                     content: b"SWYgeW91IGNhbiByZWFkIHRoaXMgeW8"[..].into(),
                 })
             ])

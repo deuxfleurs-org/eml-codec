@@ -539,7 +539,7 @@ mod tests {
         assert_eq!(
             nt.to_type(),
             AnyType::Text(Text {
-                charset: EmailCharset::UTF_8,
+                charset: EmailCharset::utf8(),
                 subtype: TextSubtype::Plain,
                 params: vec![Parameter {
                     name: MIMEAtom(b"hello"[..].into()),
@@ -589,7 +589,7 @@ mod tests {
             nt.to_type(),
             AnyType::Text(Text {
                 subtype: TextSubtype::Plain,
-                charset: EmailCharset::US_ASCII,
+                charset: EmailCharset::from(b"us-ascii"),
                 params: vec![],
             })
         );

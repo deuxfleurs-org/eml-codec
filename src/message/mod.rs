@@ -440,7 +440,7 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                             name: Some(Phrase(vec![
                                 PhraseToken::Encoded(EncodedWord(vec![
                                     EncodedWordToken::Quoted(QuotedWord {
-                                        enc: EmailCharset::ISO_8859_1,
+                                        enc: EmailCharset::from(b"iso-8859-1"),
                                         chunks: vec![
                                             QuotedChunk::Safe(b"Andr"[..].into()),
                                             QuotedChunk::Encoded(vec![0xE9]),
@@ -466,11 +466,11 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                             UnstrToken::from_plain(" ", UnstrTxtKind::Fws),
                             UnstrToken::Encoded(EncodedWord(vec![
                                 EncodedWordToken::Base64(Base64Word{
-                                    enc: EmailCharset::ISO_8859_1,
+                                    enc: EmailCharset::from(b"iso-8859-1"),
                                     content: b"SWYgeW91IGNhbiByZWFkIHRoaXMgeW8"[..].into(),
                                 }),
                                 EncodedWordToken::Base64(Base64Word{
-                                    enc: EmailCharset::ISO_8859_2,
+                                    enc: EmailCharset::from(b"iso-8859-2"),
                                     content: b"dSB1bmRlcnN0YW5kIHRoZSBleGFtcGxlLg"[..].into(),
                                 })
                             ])),
@@ -529,7 +529,7 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                                     mime: mime::MIME {
                                         ctype: mime::r#type::Text {
                                             subtype: mime::r#type::TextSubtype::Plain,
-                                            charset: EmailCharset::UTF_8,
+                                            charset: EmailCharset::utf8(),
                                             params: vec![],
                                         },
                                         fields: mime::CommonMIME {
@@ -603,7 +603,7 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO
 \r
 --V1Qy0rpB5tWE76WF3UelfGW5K9LZpjHjZ3PKE26vpVNnvofq7BLuYTWxzQB3HrYu7\r
 X-Custom: foobar\r
-Content-Type: text/html; charset=US-ASCII\r
+Content-Type: text/html; charset=us-ascii\r
 \r
 <div style=\"text-align: center;\"><strong>GZ</strong><br />
 OoOoO<br />
@@ -771,7 +771,7 @@ Content-Type: multipart/mixed;\r
 MIME-Version: 1.0\r
 \r
 --V1Qy0rpB5tWE76WF3UelfGW5K9LZpjHjZ3PKE26vpVNnvofq7BLuYTWxzQB3HrYu7\r
-Content-Type: text/plain; charset=US-ASCII; format=flowed;\r
+Content-Type: text/plain; charset=us-ascii; format=flowed;\r
  x-eai-please-do-not=\"abstürzen\"\r
 \r
 There's nothing to do about this bodypart, except not crash. The attachment
@@ -822,7 +822,7 @@ filename. But perfectly legal.".as_bytes(),
 To: Arnt Gulbrandsen <arnt@example.com>\r
 Date: Thu, 20 May 2004 14:28:51 +0200\r
 Content-Disposition: attachment; filename=\"blåbærsyltetøy\"\r
-Content-Type: text/plain; charset=US-ASCII; format=flowed\r
+Content-Type: text/plain; charset=us-ascii; format=flowed\r
 MIME-Version: 1.0\r
 \r
 It's a bit odd that a single-part message is an attachment with a

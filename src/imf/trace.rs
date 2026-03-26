@@ -271,4 +271,14 @@ mod tests {
             ))
         );
     }
+
+    // Return-Path: foo@example.com
+    // Return-Path: redundant IMF field
+    // - 20150304-What will you be able to say you learned this week-2426.eml
+
+    // Received: by filter0237p1iad2.sendgrid.net with SMTP id filter0237p1iad2-16618-5C145383-3B\r\n        2018-12-15 01:06:11.453484092 +0000 UTC m=+95790.695923185
+    // Received: from NTQ3Njk (35.52.148.146.bc.googleusercontent.com [146.148.52.35])\r\n\tby ismtpd0026p1iad2.sendgrid.net (SG) with HTTP id LjpG4NJ9R5ySPVYIUeq6fQ\r\n\tSat, 15 Dec 2018 01:06:11.387 +0000 (UTC)
+    // Received: redundant IMF field
+    // - 20150304-What will you be able to say you learned this week-2426.eml
+
 }

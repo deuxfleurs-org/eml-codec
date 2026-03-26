@@ -294,7 +294,7 @@ mod tests {
                             name: Some(Phrase(vec![PhraseToken::Encoded(EncodedWord(vec![
                                 EncodedWordToken::Quoted(
                                     QuotedWord {
-                                        enc: EmailCharset::UTF_8,
+                                        enc: EmailCharset::utf8(),
                                         chunks: vec![
                                             QuotedChunk::Safe(b"John"[..].into()),
                                             QuotedChunk::Space,

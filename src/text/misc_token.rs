@@ -632,7 +632,7 @@ mod tests {
             UnstrToken::Plain(" "[..].into(), UnstrTxtKind::Fws),
             UnstrToken::Encoded(EncodedWord(vec![EncodedWordToken::Quoted(
                 QuotedWord {
-                    enc: EmailCharset::UTF_8,
+                    enc: EmailCharset::utf8(),
                     chunks: vec![QuotedChunk::Safe(b"foo"[..].into())],
                 }
             )]))
