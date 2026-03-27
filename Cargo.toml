@@ -47,7 +47,7 @@ rand = "0.9.2"
 rand_chacha = "0.9.0"
 arbitrary = { version = "1.4.2", optional = true, default-features = false, features = ["derive"] }
 eml_codec_derives = { path = "eml_codec_derives" }
-memchr = "2"
+memchr = "2.8"
 utf8_iter = "1.0.4"
 tracing = { version = "0.1.44", optional = true }
 charset = "0.1.5"
