@@ -32,11 +32,11 @@ struct SpanData {
 struct PruningLayer {
     spans: Mutex<HashMap<Id, SpanData>>,
     relevant_spans: Mutex<HashSet<Id>>,
-    file: Arc<Mutex<File>>,
+    file: Arc<Mutex<Box<dyn Write + Send>>>,
 }
 
 struct PruningGuard {
-    file: Arc<Mutex<File>>,
+    file: Arc<Mutex<Box<dyn Write + Send>>>,
 }
 
 impl Drop for PruningGuard {
@@ -48,8 +48,12 @@ impl Drop for PruningGuard {
 }
 
 impl PruningLayer {
-    fn new(path: &str) -> (Self, PruningGuard) {
-        let file = Arc::new(Mutex::new(File::create(path).unwrap()));
+    fn new(path: Option<&str>) -> (Self, PruningGuard) {
+        let writer = match path {
+            Some(p) => Box::new(File::create(p).unwrap()) as Box<dyn Write + Send>,
+            None => Box::new(std::io::stdout()) as Box<dyn Write + Send>,
+        };
+        let file = Arc::new(Mutex::new(writer));
         let layer = Self {
             spans: Mutex::new(HashMap::new()),
             relevant_spans: Mutex::new(HashSet::new()),
@@ -192,7 +196,7 @@ fn dir_entries(path: &std::path::Path, v: &mut Vec<std::path::PathBuf>) -> std::
 }
 
 fn main() {
-    let (layer, _guard) = PruningLayer::new("trace.json");
+    let (layer, _guard) = PruningLayer::new(None);
     tracing_subscriber::registry()
         .with(layer)
         .init();
@@ -212,13 +216,13 @@ fn main() {
                 let _eml = eml_codec::parse_message(&input);
             });
         } else {
-            let mut input = Vec::new();
-            File::open(&path).unwrap().read_to_end(&mut input).unwrap();
 
             if path.ends_with(".mbox") {
                 let span = span!(Level::TRACE, "mailbox", path);
                 let _enter = span.enter();
                 eprintln!("parsing mailbox: {}", path);
+                let mut input = Vec::new();
+                File::open(&path).unwrap().read_to_end(&mut input).unwrap();
                 let raw_emails = parse_mbox(&input);
                 eprintln!("{} emails found", raw_emails.len());
 
@@ -228,10 +232,34 @@ fn main() {
                     eprintln!("parsing mbox email {}", idx);
                     let _eml = eml_codec::parse_message(&raw_email);
                 })
+            } else if path.ends_with(".zip") {
+                let span = span!(Level::TRACE, "zip", path);
+                let _enter = span.enter();
+                eprintln!("parsing zip file: {}", path);
+                let archive = zip::ZipArchive::new(File::open(&path).unwrap()).unwrap();
+                let nb_items = archive.len();
+                let archive_lck = Mutex::new(archive);
+                (0..nb_items).into_par_iter().for_each(|i| {
+                    let mut input = Vec::new();
+                    #[allow(unused_assignments)]
+                    let mut path = None;
+                    {
+                        let mut archive = archive_lck.lock().unwrap();
+                        let mut file = archive.by_index(i).unwrap();
+                        eprintln!("parsing email {}", file.name());
+                        path = Some(file.name().to_string());
+                        file.read_to_end(&mut input).unwrap();
+                    }
+                    let span = span!(Level::TRACE, "zip email", path = path.unwrap());
+                    let _enter = span.enter();
+                    let _eml = eml_codec::parse_message(&input);
+                })
             } else {
                 let span = span!(Level::TRACE, "eml", path);
                 let _enter = span.enter();
                 eprintln!("parsing single email: {}", path);
+                let mut input = Vec::new();
+                File::open(&path).unwrap().read_to_end(&mut input).unwrap();
                 let _eml = eml_codec::parse_message(&input);
             }
         }
