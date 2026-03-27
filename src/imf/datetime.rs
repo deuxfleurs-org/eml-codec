@@ -384,12 +384,17 @@ fn strict_zone(input: &[u8]) -> IResult<&[u8], FixedOffset> {
         )),
         |(_, op, dig_zone_hour, dig_zone_min)| {
             let zone_hour: i32 =
-                ((dig_zone_hour[0] - 0x30) * 10 + (dig_zone_hour[1] - 0x30)) as i32 * HOUR;
+                ((dig_zone_hour[0] - 0x30) * 10 + (dig_zone_hour[1] - 0x30)) as i32;
             let zone_min: i32 =
-                ((dig_zone_min[0] - 0x30) * 10 + (dig_zone_min[1] - 0x30)) as i32 * MIN;
+                ((dig_zone_min[0] - 0x30) * 10 + (dig_zone_min[1] - 0x30)) as i32;
+            // consider zone_hour is to be taken modulo 24h...
+            let zone_hour: i32 = zone_hour.rem_euclid(24);
+            // RFC5322 mandates that zone_min is between 00 and 59; reject the
+            // input if not
+            if zone_min >= 60 { return None }
             match op {
-                b"+" => FixedOffset::east_opt(zone_hour + zone_min),
-                b"-" => FixedOffset::west_opt(zone_hour + zone_min),
+                b"+" => FixedOffset::east_opt(zone_hour * HOUR + zone_min * MIN),
+                b"-" => FixedOffset::west_opt(zone_hour * HOUR + zone_min * MIN),
                 _ => unreachable!(),
             }
         },
@@ -717,5 +722,24 @@ mod tests {
                     .unwrap()
             )
         );
+    }
+
+    #[test]
+    fn test_date_time_oob_zone_hours() {
+        date_parsed_printed(
+            b"26 Aug 2316 09:06:21 -4508",
+            b"Sat, 26 Aug 2316 09:06:21 -2108",
+            DateTime(
+                FixedOffset::west_opt(21 * HOUR + 08 * MIN)
+                    .unwrap()
+                    .with_ymd_and_hms(2316, 08, 26, 9, 6, 21)
+                    .unwrap()
+            )
+        );
+    }
+
+    #[test]
+    fn test_date_time_oob_zone_mins() {
+        assert!(date_time(b"26 Aug 2316 09:06:21 -2160").is_err());
     }
 }
