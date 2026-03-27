@@ -154,28 +154,23 @@ struct LogSpan {
     meta: HashMap<&'static str, String>,
 }
 
-fn parse_mbox(input: &[u8]) -> Vec<Vec<u8>> {
+fn parse_mbox(input: &[u8]) -> Vec<&[u8]> {
     let mut res = Vec::new();
-    let mut cur: Option<Vec<u8>> = None;
+    let mut start = 0usize;
+    let mut pos = 0usize;
+
     for line in input.split(|b| *b == b'\n') {
+        let line_len = line.len() + 1;
         if line.starts_with(b"From ") {
-            if let Some(cur) = cur {
-                res.push(cur)
+            if start < pos {
+                res.push(&input[start..pos]);
             }
-            cur = None
-        } else {
-            if let Some(ref mut cur) = cur {
-                cur.extend(line);
-                cur.push(b'\n');
-            } else {
-                let mut line = line.to_vec();
-                line.extend(b"\n");
-                cur = Some(line)
-            }
+            start = pos + line_len;
         }
+        pos += line_len;
     }
-    if let Some(cur) = cur {
-        res.push(cur)
+    if start < pos {
+        res.push(&input[start..std::cmp::min(pos, input.len())]);
     }
     res
 }
@@ -230,7 +225,7 @@ fn main() {
                     let span = span!(Level::TRACE, "mailbox email", idx);
                     let _enter = span.enter();
                     eprintln!("parsing mbox email {}", idx);
-                    let _eml = eml_codec::parse_message(&raw_email);
+                    let _eml = eml_codec::parse_message(raw_email);
                 })
             } else if path.ends_with(".zip") {
                 let span = span!(Level::TRACE, "zip", path);
