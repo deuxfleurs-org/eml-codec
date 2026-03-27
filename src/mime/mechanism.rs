@@ -71,7 +71,7 @@ impl<'a> Mechanism<'a> {
                 self.to_static(),
             _ => {
                 #[cfg(feature = "tracing-discard")]
-                warn!(mechanism = ?self, "invalid mechanism");
+                warn!(mechanism = ?self, "to_part_encoding: invalid mechanism");
                 Mechanism::default()
             }
         }
