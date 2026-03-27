@@ -115,3 +115,14 @@ pub fn print_message(msg: message::Message<'_>, seed: Option<u64>) -> Vec<u8> {
 pub fn parse_imf(input: &[u8]) -> (&[u8], imf::Imf<'_>) {
     message::imf(input)
 }
+
+/// Get the raw subslice of the input that corresponds to the header section.
+///
+/// It can be later parsed using `parse_imf` or `parse_message` (resulting in an
+/// empty body). This is equivalent to directly parsing the full input, but
+/// allows the header section to e.g. be stored separately without storing the
+/// body.
+pub fn raw_headers(input: &[u8]) -> &[u8] {
+    let (rest, _) = header::header_kv(input);
+    &input[0..input.len() - rest.len()]
+}
