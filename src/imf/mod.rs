@@ -398,15 +398,9 @@ impl<'a> PartialImf<'a> {
                 Ok(Entry::Comments(idx))
             },
             Field::Keywords(kwds) => {
-                // the obs syntax allows empty phrase lists, but not
-                // the normal syntax. we drop them.
-                if let Some(kwds) = kwds {
-                    let idx = self.keywords.len();
-                    self.keywords.push(kwds);
-                    Ok(Entry::Keywords(idx))
-                } else {
-                    Err(AddFieldErr::NoEntry)
-                }
+                let idx = self.keywords.len();
+                self.keywords.push(kwds);
+                Ok(Entry::Keywords(idx))
             },
             Field::Received(received) => {
                 let idx = self.trace.len();
