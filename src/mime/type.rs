@@ -3,9 +3,9 @@ use arbitrary::Arbitrary;
 use bounded_static::{ToBoundedStatic, ToStatic};
 use nom::{
     bytes::complete::tag,
-    combinator::{map, opt},
+    combinator::{map, opt, recognize},
     multi::many0,
-    sequence::{preceded, terminated, tuple},
+    sequence::{pair, preceded, terminated, tuple},
     IResult,
 };
 #[cfg(feature = "tracing")]
@@ -18,6 +18,7 @@ use crate::print::{Print, Formatter, ToStringFromPrint};
 use crate::text::charset::EmailCharset;
 use crate::text::misc_token::{mime_word, MIMEWord};
 use crate::text::quoted::print_quoted;
+use crate::text::whitespace::cfws;
 use crate::text::words::{mime_atom, MIMEAtom};
 
 // --------- NAIVE TYPE
@@ -76,9 +77,13 @@ pub fn parameter(input: &[u8]) -> IResult<&[u8], Parameter<'_>> {
         |(name, _, value)| Parameter { name, value },
     )(input)
 }
-// XXX the final optional ; is not specified in RFC2045
 pub fn parameter_list(input: &[u8]) -> IResult<&[u8], Vec<Parameter<'_>>> {
-    terminated(many0(preceded(tag(";"), parameter)), opt(tag(";")))(input)
+    terminated(
+        many0(preceded(tag(";"), parameter)),
+        // the final optional ; is not specified in RFC2045 but happens in
+        // practice
+        pair(opt(tag(";")), opt(recognize(cfws))),
+    )(input)
 }
 
 // MIME TYPES TRANSLATED TO RUST TYPING SYSTEM
@@ -619,6 +624,23 @@ mod tests {
                     name: MIMEAtom(b"boundary"[..].into()),
                     value: MIMEWord::Quoted(QuotedString(vec!["festivus"[..].into()])),
                 }],
+            ))
+        );
+
+        assert_eq!(
+            parameter_list(b"; charset=UTF-8; format=flowed; "),
+            Ok((
+                &b""[..],
+                vec![
+                    Parameter {
+                        name: MIMEAtom(b"charset"[..].into()),
+                        value: MIMEWord::Atom(MIMEAtom(b"UTF-8"[..].into())),
+                    },
+                    Parameter {
+                        name: MIMEAtom(b"format"[..].into()),
+                        value: MIMEWord::Atom(MIMEAtom(b"flowed"[..].into())),
+                    },
+                ],
             ))
         );
     }
