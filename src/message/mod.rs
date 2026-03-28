@@ -204,6 +204,13 @@ impl<'a> FromIterator<header::FieldRaw<'a>> for MessageFields<'a> {
                     }
                     continue;
                 },
+                Err(imf::field::InvalidField::NeedsDiscard) => {
+                    // this is an IMF field for which we recognized the body, but the
+                    // body isn't RFC compliant and the fields needs to be dropped.
+                    #[cfg(feature = "tracing-recover")]
+                    warn!(field = ?f, "dropping IMF field with a body to be discarded");
+                    continue;
+                }
                 Err(imf::field::InvalidField::Body) => {
                     // this is an IMF field but its body is invalid; drop it.
                     #[cfg(feature = "tracing-discard")]

@@ -1,5 +1,4 @@
 use bounded_static::ToStatic;
-use nom::combinator::map;
 #[cfg(feature = "tracing")]
 use tracing::warn;
 
@@ -77,6 +76,7 @@ pub enum Field<'a> {
 pub enum InvalidField {
     Name,
     Body,
+    NeedsDiscard,
 }
 
 impl<'a> TryFrom<&header::FieldRaw<'a>> for Field<'a> {
@@ -87,38 +87,59 @@ impl<'a> TryFrom<&header::FieldRaw<'a>> for Field<'a> {
         tracing::instrument(level = "trace", name = "imf::field::Field::try_from")
     )]
     fn try_from(f: &header::FieldRaw<'a>) -> Result<Self, Self::Error> {
-        let content = match f.name.bytes().to_ascii_lowercase().as_slice() {
-            b"date" => map(date_time, Field::Date)(f.body),
-            b"from" => map(mailbox_list, Field::From)(f.body),
-            b"sender" => map(mailbox, Field::Sender)(f.body),
-            b"reply-to" => map(address_list, Field::ReplyTo)(f.body),
-            b"to" => map(address_list, Field::To)(f.body),
-            b"cc" => map(address_list, Field::Cc)(f.body),
-            b"bcc" => map(nullable_address_list, Field::Bcc)(f.body),
-            b"message-id" => map(msg_id, Field::MessageID)(f.body),
-            // TODO: obs-in-reply-to
-            b"in-reply-to" => map(msg_list, Field::InReplyTo)(f.body),
-            // TODO: obs-references
-            b"references" => map(msg_list, Field::References)(f.body),
-            b"subject" => map(unstructured, Field::Subject)(f.body),
-            b"comments" => map(unstructured, Field::Comments)(f.body),
-            b"keywords" => map(phrase_list, Field::Keywords)(f.body),
-            b"return-path" => map(return_path, Field::ReturnPath)(f.body),
-            b"received" => map(received_log, Field::Received)(f.body),
-            b"mime-version" => map(version, Field::MIMEVersion)(f.body),
-            _ => return Err(InvalidField::Name),
-        };
+        fn bind_res<T, U, F>(res: nom::IResult<&[u8], T>, f: F) -> Result<U, InvalidField>
+            where F: Fn(T) -> Result<U, InvalidField>
+        {
+            match res {
+                Ok((b"", content)) => f(content),
+                Ok((_rest, _)) => {
+                    // return an error if we haven't parsed the full value
+                    #[cfg(feature = "tracing-discard")]
+                    warn!(rest = bytes_to_display_string(_rest),
+                          "leftover input after parsing");
+                    Err(InvalidField::Body)
+                },
+                Err(_) => Err(InvalidField::Body)
+            }
+        }
+        fn map_res<T, U, F>(res: nom::IResult<&[u8], T>, f: F) -> Result<U, InvalidField>
+            where F: Fn(T) -> U
+        {
+            bind_res(res, |x| Ok(f(x)))
+        }
 
-        match content {
-            Ok((b"", content)) => Ok(content),
-            Ok((_rest, _)) => {
-                // return an error if we haven't parsed the full value
-                #[cfg(feature = "tracing-discard")]
-                warn!(rest = bytes_to_display_string(_rest),
-                      "leftover input after parsing");
-                Err(InvalidField::Body)
-            },
-            Err(_) => Err(InvalidField::Body)
+        match f.name.bytes().to_ascii_lowercase().as_slice() {
+            b"date" => map_res(date_time(f.body), Field::Date),
+            b"from" => map_res(mailbox_list(f.body), Field::From),
+            b"sender" => map_res(mailbox(f.body), Field::Sender),
+            b"reply-to" => bind_res(nullable_address_list(f.body), |addrs| {
+                if addrs.is_empty() {
+                    Err(InvalidField::NeedsDiscard)
+                } else {
+                    Ok(Field::ReplyTo(addrs))
+                }
+            }),
+            b"to" => map_res(address_list(f.body), Field::To),
+            b"cc" => bind_res(nullable_address_list(f.body), |addrs| {
+                if addrs.is_empty() {
+                    Err(InvalidField::NeedsDiscard)
+                } else {
+                    Ok(Field::Cc(addrs))
+                }
+            }),
+            b"bcc" => map_res(nullable_address_list(f.body), Field::Bcc),
+            b"message-id" => map_res(msg_id(f.body), Field::MessageID),
+            // TODO: obs-in-reply-to
+            b"in-reply-to" => map_res(msg_list(f.body), Field::InReplyTo),
+            // TODO: obs-references
+            b"references" => map_res(msg_list(f.body), Field::References),
+            b"subject" => map_res(unstructured(f.body), Field::Subject),
+            b"comments" => map_res(unstructured(f.body), Field::Comments),
+            b"keywords" => map_res(phrase_list(f.body), Field::Keywords),
+            b"return-path" => map_res(return_path(f.body), Field::ReturnPath),
+            b"received" => map_res(received_log(f.body), Field::Received),
+            b"mime-version" => map_res(version(f.body), Field::MIMEVersion),
+            _ => return Err(InvalidField::Name),
         }
     }
 }
