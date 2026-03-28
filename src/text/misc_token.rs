@@ -6,7 +6,7 @@ use nom::{
     bytes::complete::{tag, take_while1},
     combinator::{map, opt},
     multi::{many0, many1, separated_list0},
-    sequence::{delimited, pair},
+    sequence::delimited,
     IResult,
     Parser,
 };
@@ -31,7 +31,7 @@ use crate::text::{
     ascii,
     encoding::{self, encoded_word, encoded_word_plain},
     quoted::{quoted_string, QuotedString, QuotedStringChars},
-    utf8::{space0_str, take_utf8_while1},
+    utf8::take_utf8_while1,
     whitespace::{cfws, fws, is_obs_no_ws_ctl},
     words::{atom, is_vchar, mime_atom, Atom, MIMEAtom, MIMEAtomChars},
 };
@@ -537,45 +537,35 @@ impl<'a> Arbitrary<'a> for Unstructured<'a> {
 
 /// Unstructured header field body
 ///
+/// Grammar from the RFC:
 /// ```abnf
 /// unstructured    =   (*([FWS] VCHAR_SEQ) *WSP) / obs-unstruct
-/// obs_unstruct    =   *((*CR 1*(obs_utext / FWS)) / 1*LF) *CR   (cf errata)
+/// obs-unstruct    =   *((*CR 1*(obs_utext / FWS)) / 1*LF) *CR   (cf errata)
 /// ```
 /// + RFC 2047 (MIME pt3) encoded words
 ///
-/// We parse obs_unstruct, explicitly marking which part belong to the
-/// obsolete syntax in the output AST.
-// XXX the implementation below does not look spec compliant; idea below
-// - perform pre-framing of headers first, cutting on CRLF (skipping CRLF WSP)
-// - parse obs_unstruct (needs framing first, otherwise the greedy *CR at the
-//   end would eat the final CRLF, erroring out when parsing a full header line
+/// However, in our relaxed parsing of line endings in whitespace::obs_crlf,
+/// bare CR or LF are treated as line endings and thus cannot also be part of
+/// the obs-unstruct syntax.
+///
+/// We thus choose to parse obs-unstruct minus the bare CR and LF, which
+/// corresponds to (also adding RFC2047 encoded words):
+///
+/// our-obs-unstruct    =   *(encoded-words / obs_utext / FWS)
+///
+/// This does not match the RFC but seems to better match real-world practices.
 #[cfg_attr(
     feature = "tracing",
     tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
 )]
 pub fn unstructured(input: &[u8]) -> IResult<&[u8], Unstructured<'_>> {
-    let (input, r) = many0(pair(
-        opt(fws),
-        alt((
-            map(encoded_word_plain(encoding::Context::Unstructured), |w| vec![UnstrToken::Encoded(w)]),
-            many1(map(obs_utext_token, UnstrToken::from_utext)),
-        )),
-    ))(input)?;
-    let (input, wsp0) = space0_str(input)?;
+    let (input, r) = many0(alt((
+        map(encoded_word_plain(encoding::Context::Unstructured), |w| vec![UnstrToken::Encoded(w)]),
+        map(obs_utext_token, |tok| vec![UnstrToken::from_utext(tok)]),
+        map(fws, |v| v.into_iter().map(|s|UnstrToken::from_plain(s, UnstrTxtKind::Fws)).collect()),
+    )))(input)?;
 
-    // construct UnstrToken tokens
-    let mut tokens = vec![];
-    for (fws_opt, toks) in r {
-        if let Some(fws) = fws_opt {
-            tokens.extend(fws.into_iter().map(|s| UnstrToken::from_plain(s, UnstrTxtKind::Fws)));
-        }
-        tokens.extend(toks);
-    }
-    if !wsp0.is_empty() {
-        tokens.push(UnstrToken::from_plain(wsp0, UnstrTxtKind::Fws))
-    }
-
-    Ok((input, Unstructured(tokens)))
+    Ok((input, Unstructured(r.into_iter().flatten().collect())))
 }
 
 #[cfg(test)]
@@ -644,6 +634,14 @@ mod tests {
         assert_eq!(rest, &b""[..]);
         assert_eq!(parsed, Unstructured(vec![
             UnstrToken::Plain("foo=?UTF-8?q?foo?="[..].into(), UnstrTxtKind::Txt),
+        ]));
+
+        // trailing FWS is allowed
+        let (rest, parsed) = unstructured(b"foo\r\n\t").unwrap();
+        assert_eq!(rest, &b""[..]);
+        assert_eq!(parsed, Unstructured(vec![
+            UnstrToken::Plain("foo"[..].into(), UnstrTxtKind::Txt),
+            UnstrToken::Plain("\t"[..].into(), UnstrTxtKind::Fws),
         ]));
     }
 }
