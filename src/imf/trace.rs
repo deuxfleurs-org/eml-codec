@@ -1,19 +1,21 @@
 #[cfg(feature = "arbitrary")]
 use arbitrary::Arbitrary;
+#[cfg(feature = "tracing")]
+use tracing::warn;
 use bounded_static::ToStatic;
 use nom::{
     branch::alt,
     bytes::complete::{is_a, tag},
-    combinator::{map, not, opt},
+    combinator::{consumed, map, not, opt},
     multi::many0,
     sequence::{terminated, tuple},
     IResult,
 };
 
 #[cfg(feature = "arbitrary")]
-use crate::{
-    fuzz_eq::FuzzEq,
-};
+use crate::fuzz_eq::FuzzEq;
+#[cfg(feature = "tracing-recover")]
+use crate::utils::bytes_to_trace_string;
 use eml_codec_derives::instrument_input;
 use crate::print::{print_seq, Print, Formatter, ToStringFromPrint};
 use crate::imf::{datetime, mailbox};
@@ -93,6 +95,12 @@ pub fn received_log(input: &[u8]) -> IResult<&[u8], ReceivedLog<'_>> {
 pub fn return_path(input: &[u8]) -> IResult<&[u8], ReturnPath<'_>> {
     alt((
         map(mailbox::angle_addr, |a| ReturnPath(Some(a))),
+        map(consumed(mailbox::addr_spec), |(_i, a)| {
+            // This is not allowed by the RFC but happens in real-world emails
+            #[cfg(feature = "tracing-recover")]
+            warn!(input = %bytes_to_trace_string(_i), "bare addr-spec in return-path");
+            ReturnPath(Some(a))
+        }),
         empty_path
     ))(input)
 }
