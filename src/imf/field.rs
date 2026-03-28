@@ -9,7 +9,7 @@ use crate::utils::bytes_to_display_string;
 use crate::header;
 use crate::imf::address::{address_list, nullable_address_list, AddressList};
 use crate::imf::datetime::{date_time, DateTime};
-use crate::imf::identification::{msg_id, msg_list, MessageID, MessageIDList};
+use crate::imf::identification::{msg_id, nullable_msg_list, MessageID, MessageIDList};
 use crate::imf::mailbox::{mailbox, mailbox_list, MailboxList, MailboxRef};
 use crate::imf::mime::{version, Version};
 use crate::imf::trace::{received_log, return_path, ReceivedLog, ReturnPath};
@@ -61,7 +61,7 @@ pub enum Field<'a> {
     // 3.6.5.  Informational Fields
     Subject(Unstructured<'a>),
     Comments(Unstructured<'a>),
-    Keywords(Option<PhraseList<'a>>),
+    Keywords(PhraseList<'a>),
 
     // 3.6.6   Resent Fields (not implemented)
     // 3.6.7   Trace Fields
@@ -74,8 +74,13 @@ pub enum Field<'a> {
 
 #[derive(Debug, Clone, Copy)]
 pub enum InvalidField {
+    /// The field name is not a known IMF field
     Name,
+    /// The field body could not be parsed
     Body,
+    /// The field could be parsed but represents a dummy value that is not part
+    /// of the RFC-strict syntax. It must be discarded (no meaningful data is
+    /// lost).
     NeedsDiscard,
 }
 
@@ -88,7 +93,7 @@ impl<'a> TryFrom<&header::FieldRaw<'a>> for Field<'a> {
     )]
     fn try_from(f: &header::FieldRaw<'a>) -> Result<Self, Self::Error> {
         fn bind_res<T, U, F>(res: nom::IResult<&[u8], T>, f: F) -> Result<U, InvalidField>
-            where F: Fn(T) -> Result<U, InvalidField>
+        where F: Fn(T) -> Result<U, InvalidField>
         {
             match res {
                 Ok((b"", content)) => f(content),
@@ -103,7 +108,7 @@ impl<'a> TryFrom<&header::FieldRaw<'a>> for Field<'a> {
             }
         }
         fn map_res<T, U, F>(res: nom::IResult<&[u8], T>, f: F) -> Result<U, InvalidField>
-            where F: Fn(T) -> U
+        where F: Fn(T) -> U
         {
             bind_res(res, |x| Ok(f(x)))
         }
@@ -129,13 +134,34 @@ impl<'a> TryFrom<&header::FieldRaw<'a>> for Field<'a> {
             }),
             b"bcc" => map_res(nullable_address_list(f.body), Field::Bcc),
             b"message-id" => map_res(msg_id(f.body), Field::MessageID),
-            // TODO: obs-in-reply-to
-            b"in-reply-to" => map_res(msg_list(f.body), Field::InReplyTo),
-            // TODO: obs-references
-            b"references" => map_res(msg_list(f.body), Field::References),
+            b"in-reply-to" => bind_res(nullable_msg_list(f.body), |msgl| {
+                // the obs syntax allows empty message lists, but not the normal
+                // syntax. we drop them.
+                if msgl.is_empty() {
+                    Err(InvalidField::NeedsDiscard)
+                } else {
+                    Ok(Field::InReplyTo(msgl))
+                }
+            }),
+            b"references" => bind_res(nullable_msg_list(f.body), |msgl| {
+                // the obs syntax allows empty message lists, but not the normal
+                // syntax. we drop them.
+                if msgl.is_empty() {
+                    Err(InvalidField::NeedsDiscard)
+                } else {
+                    Ok(Field::References(msgl))
+                }
+            }),
             b"subject" => map_res(unstructured(f.body), Field::Subject),
             b"comments" => map_res(unstructured(f.body), Field::Comments),
-            b"keywords" => map_res(phrase_list(f.body), Field::Keywords),
+            b"keywords" => bind_res(phrase_list(f.body), |opt| {
+                // the obs syntax allows empty phrase lists, but not the normal
+                // syntax. we drop them.
+                match opt {
+                    None => Err(InvalidField::NeedsDiscard),
+                    Some(kwds) => Ok(Field::Keywords(kwds)),
+                }
+            }),
             b"return-path" => map_res(return_path(f.body), Field::ReturnPath),
             b"received" => map_res(received_log(f.body), Field::Received),
             b"mime-version" => map_res(version(f.body), Field::MIMEVersion),

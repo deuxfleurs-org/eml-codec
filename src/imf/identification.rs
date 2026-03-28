@@ -71,7 +71,19 @@ pub fn msg_id(input: &[u8]) -> IResult<&[u8], MessageID<'_>> {
 pub fn msg_list(input: &[u8]) -> IResult<&[u8], MessageIDList<'_>> {
     // The "," separator is not specified in the RFC but some real-world emails
     // use it.
+    // TODO: obs-references and obs-in-reply-to
     many1(terminated(msg_id, opt(tag(","))))(input)
+}
+
+#[cfg_attr(
+    feature = "tracing",
+    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+)]
+pub fn nullable_msg_list(input: &[u8]) -> IResult<&[u8], MessageIDList<'_>> {
+    alt((
+        msg_list,
+        map(opt(cfws), |_| vec![]),
+    ))(input)
 }
 
 // @FIXME Missing obsolete
