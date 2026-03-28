@@ -190,12 +190,21 @@ impl<'a> FromIterator<header::FieldRaw<'a>> for MessageFields<'a> {
 
             match imf::field::Field::try_from(&f) {
                 Ok(imff) => {
-                    if let Some(entry) = imf.add_field(imff) {
-                        entries.push(MessageEntry::Imf(entry))
-                    } else {
-                        // otherwise drop the field
-                        #[cfg(feature = "tracing-discard")]
-                        warn!(field = ?f, "dropping redundant IMF field")
+                    match imf.add_field(imff) {
+                        Ok(entry) =>
+                            entries.push(MessageEntry::Imf(entry)),
+                        Err(imf::AddFieldErr::NoEntry) => {
+                            #[cfg(feature = "tracing-recover")]
+                            warn!(field = ?f, "no new entry for IMF field");
+                        },
+                        Err(imf::AddFieldErr::Conflict) => {
+                            #[cfg(feature = "tracing-discard")]
+                            warn!(field = ?f, "dropping conflicting IMF field");
+                        },
+                        Err(imf::AddFieldErr::NotAllowed) => {
+                            #[cfg(feature = "tracing-discard")]
+                            warn!(field = ?f, "IMF field not allowed in this position");
+                        },
                     }
                     continue;
                 },

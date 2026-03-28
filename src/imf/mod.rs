@@ -24,7 +24,6 @@ use crate::imf::mime::Version;
 use crate::imf::trace::{ReceivedLog, ReturnPath};
 use crate::print::Formatter;
 use crate::text::misc_token::{PhraseList, Unstructured};
-use crate::utils::{append_opt, set_opt};
 
 #[derive(Clone, Debug, PartialEq, ToStatic)]
 #[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
@@ -292,15 +291,28 @@ pub struct PartialImf<'a> {
     mime_version: Option<Version>,
 }
 
+#[derive(Clone, Copy, Debug,)]
+pub enum AddFieldErr {
+    // This field results in no entry, but its contents have been taken into
+    // account and there is no loss of data.
+    NoEntry,
+    // This field is conflicting with an earlier field and must be dropped, its
+    // data will be lost
+    Conflict,
+    // This field is not allowed in this position, it must be dropped and its
+    // data will be lost
+    NotAllowed,
+}
+
 impl<'a> PartialImf<'a> {
-    pub fn add_field(&mut self, f: Field<'a>) -> Option<Entry> {
+    pub fn add_field(&mut self, f: Field<'a>) -> Result<Entry, AddFieldErr> {
         match &f {
             // trace fields
             Field::ReturnPath(_) |
             Field::Received(_) => {
                 if self.trace_complete {
                     // drop trace fields that are not at the beginning
-                    return None
+                    return Err(AddFieldErr::NotAllowed)
                 }
             },
             // non-trace fields
@@ -311,65 +323,32 @@ impl<'a> PartialImf<'a> {
             }
         }
         match f {
-            Field::Date(date) => {
-                if set_opt(&mut self.date, date) {
-                    return Some(Entry::Date)
-                }
-            },
-            Field::From(from) => {
-                if set_opt(&mut self.from, from) {
-                    return Some(Entry::From)
-                }
-            },
-            Field::Sender(sender) => {
-                if set_opt(&mut self.sender, sender) {
-                    return Some(Entry::Sender)
-                }
-            },
-            Field::ReplyTo(reply_to) => {
-                if set_opt(&mut self.reply_to, reply_to) {
-                    return Some(Entry::ReplyTo)
-                }
-            },
-            Field::To(to) => {
-                if append_opt(&mut self.to, to) {
-                    return Some(Entry::To)
-                }
-            },
-            Field::Cc(cc) => {
-                if append_opt(&mut self.cc, cc) {
-                    return Some(Entry::Cc)
-                }
-            },
-            Field::Bcc(bcc) => {
-                if append_opt(&mut self.bcc, bcc) {
-                    return Some(Entry::Bcc)
-                }
-            },
-            Field::MessageID(id) => {
-                if set_opt(&mut self.msg_id, id) {
-                    return Some(Entry::MessageId)
-                }
-            },
-            Field::InReplyTo(in_reply_to) => {
-                if set_opt(&mut self.in_reply_to, in_reply_to) {
-                    return Some(Entry::InReplyTo)
-                }
-            },
-            Field::References(refs) => {
-                if set_opt(&mut self.references, refs) {
-                    return Some(Entry::References)
-                }
-            },
-            Field::Subject(subject) => {
-                if set_opt(&mut self.subject, subject) {
-                    return Some(Entry::Subject)
-                }
-            },
+            Field::Date(date) =>
+                set_if_new(&mut self.date, date, Entry::Date),
+            Field::From(from) =>
+                set_if_new(&mut self.from, from, Entry::From),
+            Field::Sender(sender) =>
+                set_if_new(&mut self.sender, sender, Entry::Sender),
+            Field::ReplyTo(reply_to) =>
+                set_if_new(&mut self.reply_to, reply_to, Entry::ReplyTo),
+            Field::To(to) =>
+                set_or_extend(&mut self.to, to, Entry::To),
+            Field::Cc(cc) =>
+                set_or_extend(&mut self.cc, cc, Entry::Cc),
+            Field::Bcc(bcc) =>
+                set_or_extend(&mut self.bcc, bcc, Entry::Bcc),
+            Field::MessageID(id) =>
+                set_if_new(&mut self.msg_id, id, Entry::MessageId),
+            Field::InReplyTo(in_reply_to) =>
+                set_if_new(&mut self.in_reply_to, in_reply_to, Entry::InReplyTo),
+            Field::References(refs) =>
+                set_if_new(&mut self.references, refs, Entry::References),
+            Field::Subject(subject) =>
+                set_if_new(&mut self.subject, subject, Entry::Subject),
             Field::Comments(comments) => {
                 let idx = self.comments.len();
                 self.comments.push(comments);
-                return Some(Entry::Comments(idx))
+                Ok(Entry::Comments(idx))
             },
             Field::Keywords(kwds) => {
                 // the obs syntax allows empty phrase lists, but not
@@ -377,26 +356,24 @@ impl<'a> PartialImf<'a> {
                 if let Some(kwds) = kwds {
                     let idx = self.keywords.len();
                     self.keywords.push(kwds);
-                    return Some(Entry::Keywords(idx))
+                    Ok(Entry::Keywords(idx))
+                } else {
+                    Err(AddFieldErr::NoEntry)
                 }
             },
             Field::Received(received) => {
                 let idx = self.trace.len();
                 self.trace.push(TraceField::Received(received));
-                return Some(Entry::Trace(idx))
+                Ok(Entry::Trace(idx))
             },
             Field::ReturnPath(path) => {
                 let idx = self.trace.len();
                 self.trace.push(TraceField::ReturnPath(path));
-                return Some(Entry::Trace(idx))
+                Ok(Entry::Trace(idx))
             },
-            Field::MIMEVersion(version) => {
-                if set_opt(&mut self.mime_version, version) {
-                    return Some(Entry::MIMEVersion)
-                }
-            }
-        };
-        None
+            Field::MIMEVersion(version) =>
+                set_if_new(&mut self.mime_version, version, Entry::MIMEVersion),
+        }
     }
 
     pub fn missing_mandatory_fields(&self) -> Vec<Entry> {
@@ -458,5 +435,19 @@ impl<'a> PartialImf<'a> {
             // into the default supported version
             mime_version: self.mime_version.unwrap_or_default()
         }
+    }
+}
+
+fn set_if_new<T: PartialEq, U>(o: &mut Option<T>, x: T, y: U) -> Result<U, AddFieldErr> {
+    match *o {
+        None => { *o = Some(x); Ok(y) },
+        Some(_) => Err(AddFieldErr::Conflict),
+    }
+}
+
+fn set_or_extend<T, U>(o: &mut Option<Vec<T>>, x: Vec<T>, y: U) -> Result<U, AddFieldErr> {
+    match o {
+        None => { *o = Some(x); Ok(y) },
+        Some(v) => { v.extend(x); Err(AddFieldErr::NoEntry) },
     }
 }
