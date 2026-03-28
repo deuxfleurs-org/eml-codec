@@ -1,10 +1,12 @@
 #[cfg(feature = "arbitrary")]
 use arbitrary::Arbitrary;
+#[cfg(feature = "tracing")]
+use tracing::warn;
 use bounded_static::ToStatic;
 use nom::{
     branch::alt,
     bytes::complete::{is_a, tag},
-    combinator::{map, not, opt},
+    combinator::{consumed, map, not, opt},
     multi::many0,
     sequence::{terminated, tuple},
     IResult,
@@ -100,6 +102,12 @@ pub fn received_log(input: &[u8]) -> IResult<&[u8], ReceivedLog<'_>> {
 pub fn return_path(input: &[u8]) -> IResult<&[u8], ReturnPath<'_>> {
     alt((
         map(mailbox::angle_addr, |a| ReturnPath(Some(a))),
+        map(consumed(mailbox::addr_spec), |(_i, a)| {
+            // This is not allowed by the RFC but happens in real-world emails
+            #[cfg(feature = "tracing-recover")]
+            warn!(input = bytes_to_display_string(_i), "bare addr-spec in return-path");
+            ReturnPath(Some(a))
+        }),
         empty_path
     ))(input)
 }
