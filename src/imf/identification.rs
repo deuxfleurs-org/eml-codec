@@ -6,7 +6,7 @@ use nom::{
     bytes::complete::tag,
     combinator::{map, opt},
     multi::many1,
-    sequence::{delimited, pair, tuple},
+    sequence::{delimited, pair, terminated, tuple},
     IResult,
 };
 
@@ -69,7 +69,9 @@ pub fn msg_id(input: &[u8]) -> IResult<&[u8], MessageID<'_>> {
     tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
 )]
 pub fn msg_list(input: &[u8]) -> IResult<&[u8], MessageIDList<'_>> {
-    many1(msg_id)(input)
+    // The "," separator is not specified in the RFC but some real-world emails
+    // use it.
+    many1(terminated(msg_id, opt(tag(","))))(input)
 }
 
 // @FIXME Missing obsolete
@@ -141,4 +143,25 @@ mod tests {
 
     // TODO: non-compliant but found in aero100
     // <523C50DA-160C-4550-A44E-7E192513CF91>
+
+    #[test]
+    fn test_comma_separated_msg_list() {
+        // This is not RFC-valid syntax but was encountered in real-world emails
+        assert_eq!(
+            msg_list(b" <8d9bb189354d4804bcc2fd1d1a5398b5@cnrs.fr>,<ef8fac8b36834864bae895571064565c@cnrs.fr>"),
+            Ok((
+                &b""[..],
+                vec![
+                    MessageID {
+                        left: DotAtom("8d9bb189354d4804bcc2fd1d1a5398b5"[..].into()),
+                        right: MessageIDRight::DotAtom(DotAtom("cnrs.fr"[..].into())),
+                    },
+                    MessageID {
+                        left: DotAtom("ef8fac8b36834864bae895571064565c"[..].into()),
+                        right: MessageIDRight::DotAtom(DotAtom("cnrs.fr"[..].into())),
+                    },
+                ]
+            ))
+        );
+    }
 }
