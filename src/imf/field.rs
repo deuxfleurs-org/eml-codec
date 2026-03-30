@@ -12,7 +12,7 @@ use crate::imf::datetime::{date_time, DateTime};
 use crate::imf::identification::{msg_id, nullable_msg_list, MessageID, MessageIDList};
 use crate::imf::mailbox::{mailbox, mailbox_list, MailboxList, MailboxRef};
 use crate::imf::mime::{version, Version};
-use crate::imf::trace::{received_log, return_path, ReceivedLog, ReturnPath};
+use crate::imf::trace::{return_path, ReturnPath};
 use crate::text::misc_token::{phrase_list, unstructured, PhraseList, Unstructured};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, ToStatic)]
@@ -65,7 +65,7 @@ pub enum Field<'a> {
 
     // 3.6.6   Resent Fields (not implemented)
     // 3.6.7   Trace Fields
-    Received(ReceivedLog<'a>),
+    Received(Unstructured<'a>),
     ReturnPath(ReturnPath<'a>),
 
     // MIME
@@ -163,7 +163,7 @@ impl<'a> TryFrom<&header::FieldRaw<'a>> for Field<'a> {
                 }
             }),
             b"return-path" => map_res(return_path(f.body), Field::ReturnPath),
-            b"received" => map_res(received_log(f.body), Field::Received),
+            b"received" => map_res(unstructured(f.body), Field::Received),
             b"mime-version" => map_res(version(f.body), Field::MIMEVersion),
             _ => return Err(InvalidField::Name),
         }

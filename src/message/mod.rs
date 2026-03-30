@@ -697,7 +697,6 @@ hello??",
         );
     }
 
-    // FIXME: the received header before last got dropped
     #[test]
     fn test_trace_unstructured() {
         test_message_reprint(
@@ -722,15 +721,20 @@ Received: by sympa.lmf.cnrs.fr (Postfix, from userid 106)
             b"X-Mozilla-Status: 0001\r
 X-Mozilla-Status2: 00000000\r
 Return-Path: <hello@sympa.lmf.cnrs.fr>\r
-Received: from mx.lmf.cnrs.fr by mx.lmf.cnrs.fr with LMTP id\r
- oFAUKCuwpWmTPRAAFSOJEQ; Mon, 2 Mar 2026 15:43:39 +0000\r
+Received: from mx.lmf.cnrs.fr ([127.0.0.1])        by mx.lmf.cnrs.fr with LMTP\r
+        id oFAUKCuwpWmTPRAAFSOJEQ        (envelope-from\r
+ <infos-gs-owner@sympa.lmf.cnrs.fr>); Mon, 02 Mar 2026 15:43:39 +0000\r
 X-Spam-Checker-Version: SpamAssassin 3.4.6 (2021-04-09) on mx.lmf.cnrs.fr\r
 Received-SPF: Pass (mailfrom) identity=mailfrom; client-ip=10.0.0.2;\r
  helo=sympa.lmf.cnrs.fr; envelope-from=hello@sympa.lmf.cnrs.fr;\r
  receiver=<UNKNOWN>\r
-Received: from sympa.lmf.cnrs.fr by mx.lmf.cnrs.fr with ESMTPS id DC88D214EA;\r
- Mon, 2 Mar 2026 15:43:37 +0000\r
-Received: by sympa.lmf.cnrs.fr id ACE8B4A03ED; Mon, 2 Mar 2026 16:43:37 +0100\r
+Received: from sympa.lmf.cnrs.fr (sympa.lmf.cnrs.fr [10.0.0.2])        (using\r
+ TLSv1.3 with cipher TLS_AES_256_GCM_SHA384 (256/256 bits)        \r
+ key-exchange X25519 server-signature RSA-PSS (2048 bits))        (No client\r
+ certificate requested)        by mx.lmf.cnrs.fr (Postfix) with ESMTPS id\r
+ DC88D214EA;        Mon,  2 Mar 2026 15:43:37 +0000 (UTC)\r
+Received: by sympa.lmf.cnrs.fr (Postfix, from userid 106)        id\r
+ ACE8B4A03ED; Mon,  2 Mar 2026 16:43:37 +0100 (CET)\r
 Date: Thu, 1 Jan 1970 00:00:00 +0000\r
 From: unknown@unknown\r
 MIME-Version: 1.0\r
