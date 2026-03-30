@@ -5,10 +5,9 @@ use tracing::warn;
 use bounded_static::ToStatic;
 use nom::{
     branch::alt,
-    bytes::complete::{is_a, tag},
-    combinator::{consumed, map, not, opt},
-    multi::many0,
-    sequence::{terminated, tuple},
+    bytes::complete::tag,
+    combinator::{consumed, map, opt},
+    sequence::tuple,
     IResult,
 };
 
@@ -17,53 +16,11 @@ use crate::fuzz_eq::FuzzEq;
 #[cfg(feature = "tracing-recover")]
 use crate::utils::bytes_to_trace_string;
 use eml_codec_derives::instrument_input;
-use crate::print::{print_seq, Print, Formatter, ToStringFromPrint};
-use crate::imf::{datetime, mailbox};
-use crate::text::{ascii, misc_token, whitespace};
+use crate::print::{Print, Formatter, ToStringFromPrint};
+use crate::imf::mailbox;
+use crate::text::{ascii, whitespace};
 
-#[derive(Clone, Debug, PartialEq, ToStatic, ToStringFromPrint)]
-#[cfg_attr(feature = "arbitrary", derive(Arbitrary))]
-pub enum ReceivedLogToken<'a> {
-    Addr(mailbox::AddrSpec<'a>),
-    Domain(mailbox::Domain<'a>),
-    Word(misc_token::Word<'a>),
-}
-
-impl<'a> Print for ReceivedLogToken<'a> {
-    fn print(&self, fmt: &mut impl Formatter) {
-        match self {
-            ReceivedLogToken::Addr(a) => a.print(fmt),
-            ReceivedLogToken::Domain(d) => d.print(fmt),
-            ReceivedLogToken::Word(w) => w.print(fmt),
-        }
-    }
-}
-
-// Domain and Word overlap; implement a somewhat sloppy equality
-#[cfg(feature = "arbitrary")]
-impl<'a> FuzzEq for ReceivedLogToken<'a> {
-    fn fuzz_eq(&self, other: &Self) -> bool {
-        self.to_string() == other.to_string()
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, ToStatic)]
-#[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
-pub struct ReceivedLog<'a> {
-    pub log: Vec<ReceivedLogToken<'a>>,
-    pub date: datetime::DateTime,
-}
-
-impl<'a> Print for ReceivedLog<'a> {
-    fn print(&self, fmt: &mut impl Formatter) {
-        print_seq(fmt, &self.log, Formatter::write_fws);
-        fmt.write_bytes(b";");
-        fmt.write_fws();
-        self.date.print(fmt)
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, ToStatic)]
+#[derive(Debug, Clone, PartialEq, ToStatic, ToStringFromPrint)]
 #[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
 pub struct ReturnPath<'a>(pub Option<mailbox::AddrSpec<'a>>);
 
@@ -78,17 +35,6 @@ impl<'a> Print for ReturnPath<'a> {
             None => fmt.write_bytes(b"<>"),
         }
     }
-}
-
-#[instrument_input("tracing")]
-pub fn received_log(input: &[u8]) -> IResult<&[u8], ReceivedLog<'_>> {
-    map(
-        tuple((many0(received_token), opt(whitespace::cfws), tag(";"), datetime::date_time)),
-        |(tokens, _, _, dt)| ReceivedLog {
-            log: tokens,
-            date: dt,
-        },
-    )(input)
 }
 
 #[instrument_input("tracing")]
@@ -115,155 +61,4 @@ fn empty_path(input: &[u8]) -> IResult<&[u8], ReturnPath<'_>> {
         opt(whitespace::cfws),
     ))(input)?;
     Ok((input, ReturnPath(None)))
-}
-
-#[instrument_input("tracing")]
-fn received_token(input: &[u8]) -> IResult<&[u8], ReceivedLogToken<'_>> {
-    alt((
-        terminated(
-            map(misc_token::word, ReceivedLogToken::Word),
-            not(is_a([ascii::PERIOD, ascii::AT])),
-        ),
-        map(mailbox::angle_addr, ReceivedLogToken::Addr),
-        map(mailbox::addr_spec, ReceivedLogToken::Addr),
-        map(mailbox::obs_domain, ReceivedLogToken::Domain),
-    ))(input)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::imf::trace::misc_token::Word;
-    use crate::text::words::Atom;
-    use chrono::{FixedOffset, TimeZone};
-
-    #[test]
-    fn test_received_body_no_log() {
-        assert_eq!(
-            received_log(b" ; 31 Dec 1969 00:01:00 +0000"),
-            Ok((
-                &b""[..],
-                ReceivedLog {
-                    date:
-                    datetime::DateTime(
-                        FixedOffset::east_opt(0)
-                            .unwrap()
-                            .with_ymd_and_hms(1969, 12, 31, 0, 1, 0)
-                            .unwrap()
-                    ),
-                    log: vec![],
-                }
-            ))
-        )
-    }
-
-    #[test]
-    fn test_received_token() {
-        assert_eq!(
-            received_token(b"from smtp.example.com"),
-            Ok((&b"smtp.example.com"[..],
-                ReceivedLogToken::Word(Word::Atom(Atom("from"[..].into())))
-                ))
-        );
-
-        assert_eq!(
-            received_token(b"smtp.example.com"),
-            Ok((&b""[..],
-                ReceivedLogToken::Domain(mailbox::Domain::Atoms(vec![
-                    Atom("smtp"[..].into()),
-                    Atom("example"[..].into()),
-                    Atom("com"[..].into()),
-                ]))
-            ))
-        );
-    }
-
-    #[test]
-    fn test_received_body() {
-        let hdrs = r#"from smtp.example.com ([10.83.2.2])
-    by server with LMTP
-    id xxxxxxxxx
-    (envelope-from <gitlab@example.com>)
-    for <me@example.com>; Tue, 13 Jun 2023 19:01:08 +0000"#
-            .as_bytes();
-
-        assert_eq!(
-            received_log(hdrs),
-            Ok((
-                &b""[..],
-                ReceivedLog {
-                    date:
-                    datetime::DateTime(
-                        FixedOffset::east_opt(0)
-                            .unwrap()
-                            .with_ymd_and_hms(2023, 06, 13, 19, 1, 8)
-                            .unwrap()
-                    ),
-                    log: vec![
-                        ReceivedLogToken::Word(Word::Atom(Atom("from"[..].into()))),
-                        ReceivedLogToken::Domain(mailbox::Domain::Atoms(vec![
-                            Atom("smtp"[..].into()),
-                            Atom("example"[..].into()),
-                            Atom("com"[..].into()),
-                        ])),
-                        ReceivedLogToken::Word(Word::Atom(Atom("by"[..].into()))),
-                        ReceivedLogToken::Word(Word::Atom(Atom("server"[..].into()))),
-                        ReceivedLogToken::Word(Word::Atom(Atom("with"[..].into()))),
-                        ReceivedLogToken::Word(Word::Atom(Atom("LMTP"[..].into()))),
-                        ReceivedLogToken::Word(Word::Atom(Atom("id"[..].into()))),
-                        ReceivedLogToken::Word(Word::Atom(Atom("xxxxxxxxx"[..].into()))),
-                        ReceivedLogToken::Word(Word::Atom(Atom("for"[..].into()))),
-                        ReceivedLogToken::Addr(mailbox::AddrSpec {
-                            local_part: mailbox::LocalPart(vec![mailbox::LocalPartToken::Word(
-                                Word::Atom(Atom("me"[..].into()))
-                            )]),
-                            domain: mailbox::Domain::Atoms(vec![
-                                Atom("example"[..].into()),
-                                Atom("com"[..].into()),
-                            ]),
-                        })
-                    ],
-                }
-            ))
-        );
-    }
-
-    #[test]
-    fn test_received_log2() {
-        let hdrs = r#"X.X.X Y foo@bar.com; Tue, 13 Jun 2023 19:01:08 +0000"#
-            .as_bytes();
-
-        assert_eq!(
-            received_log(hdrs),
-            Ok((
-                &b""[..],
-                ReceivedLog {
-                    date:
-                    datetime::DateTime(
-                        FixedOffset::east_opt(0)
-                            .unwrap()
-                            .with_ymd_and_hms(2023, 06, 13, 19, 1, 8)
-                            .unwrap()
-                    ),
-                    log: vec![
-                        ReceivedLogToken::Domain(mailbox::Domain::Atoms(vec![
-                            Atom("X"[..].into()),
-                            Atom("X"[..].into()),
-                            Atom("X"[..].into()),
-                        ])),
-                        ReceivedLogToken::Word(Word::Atom(Atom("Y"[..].into()))),
-                        ReceivedLogToken::Addr(mailbox::AddrSpec {
-                            local_part: mailbox::LocalPart(vec![mailbox::LocalPartToken::Word(
-                                Word::Atom(Atom("foo"[..].into()))
-                            )]),
-                            domain: mailbox::Domain::Atoms(vec![
-                                Atom("bar"[..].into()),
-                                Atom("com"[..].into()),
-                            ]),
-                        })
-                    ],
-                }
-            ))
-        );
-    }
 }

@@ -21,7 +21,7 @@ use crate::imf::field::{Field, Entry};
 use crate::imf::identification::MessageID;
 use crate::imf::mailbox::{MailboxRef, MailboxList};
 use crate::imf::mime::Version;
-use crate::imf::trace::{ReceivedLog, ReturnPath};
+use crate::imf::trace::ReturnPath;
 use crate::print::Formatter;
 use crate::text::misc_token::{PhraseList, Unstructured};
 
@@ -128,7 +128,13 @@ impl<'a> Arbitrary<'a> for From<'a> {
 #[derive(Clone, Debug, PartialEq, ToStatic)]
 #[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
 pub enum TraceField<'a> {
-    Received(ReceivedLog<'a>),
+    // At the moment, we do not try to parse the structure of Received fields.
+    // RFC5322 gives a rough grammar for tokenizing these fields, relegating
+    // their actual interpretation to RFC5321 (which is, for now, outside of
+    // the scope of this library).
+    // Furthermore, in practice many real-world emails contain Received headers
+    // that do not parse even wrt to the rough tokenization of RFC5322.
+    Received(Unstructured<'a>),
     ReturnPath(ReturnPath<'a>),
 }
 
@@ -235,7 +241,7 @@ impl<'a> Imf<'a> {
             field::Entry::Trace(i) =>
                 match &self.trace[i] {
                     TraceField::Received(r) =>
-                        header::print(fmt, b"Received", r),
+                        header::print_unstructured(fmt, b"Received", r),
                     TraceField::ReturnPath(p) =>
                         header::print(fmt, b"Return-Path", p),
                 }
