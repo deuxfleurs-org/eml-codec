@@ -2,7 +2,7 @@ use crate::text::ascii;
 use crate::text::encoding::{Context, encoded_word_plain};
 use crate::text::quoted::quoted_pair;
 use crate::text::utf8::{is_nonascii_or, space0_str, space1_str, take_utf8_while1};
-#[cfg(feature = "tracing")]
+#[cfg(feature = "tracing-recover")]
 use crate::utils::bytes_to_display_string;
 use nom::{
     branch::alt,
@@ -141,7 +141,7 @@ pub fn foldable_line(full_line: bool) -> impl Fn(&[u8]) -> IResult<&[u8], &[u8]>
 //     many1(alt((space1, preceded(tag(ascii::CRLF), space1))))(input)
 // }
 #[cfg_attr(
-    feature = "tracing",
+    feature = "tracing-recover",
     tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
 )]
 pub fn fws(input: &[u8]) -> IResult<&[u8], Vec<&str>> {
@@ -151,7 +151,7 @@ pub fn fws(input: &[u8]) -> IResult<&[u8], Vec<&str>> {
     ))(input)
 }
 #[cfg_attr(
-    feature = "tracing",
+    feature = "tracing-recover",
     tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
 )]
 fn fold_marker(input: &[u8]) -> IResult<&[u8], Vec<&str>> {
@@ -194,7 +194,7 @@ fn fold_marker(input: &[u8]) -> IResult<&[u8], Vec<&str>> {
 /// This is why we resort to the the low-level iterative implementation
 /// of `comment` and `comment_body` below.
 #[cfg_attr(
-    feature = "tracing",
+    feature = "tracing-recover",
     tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
 )]
  pub fn cfws(input: &[u8]) -> IResult<&[u8], ()> {
@@ -202,7 +202,7 @@ fn fold_marker(input: &[u8]) -> IResult<&[u8], Vec<&str>> {
 }
 
 #[cfg_attr(
-    feature = "tracing",
+    feature = "tracing-recover",
     tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
 )]
 pub fn comments(input: &[u8]) -> IResult<&[u8], ()> {
@@ -212,7 +212,7 @@ pub fn comments(input: &[u8]) -> IResult<&[u8], ()> {
 }
 
 #[cfg_attr(
-    feature = "tracing",
+    feature = "tracing-recover",
     tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
 )]
 pub fn comment(input: &[u8]) -> IResult<&[u8], ()> {
@@ -222,7 +222,7 @@ pub fn comment(input: &[u8]) -> IResult<&[u8], ()> {
 }
 
 #[cfg_attr(
-    feature = "tracing",
+    feature = "tracing-recover",
     tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
 )]
 pub fn comment_body(input: &[u8]) -> IResult<&[u8], ()> {
@@ -256,7 +256,7 @@ pub fn comment_body(input: &[u8]) -> IResult<&[u8], ()> {
 }
 
 #[cfg_attr(
-    feature = "tracing",
+    feature = "tracing-recover",
     tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
 )]
  pub fn ctext(input: &[u8]) -> IResult<&[u8], &str> {
