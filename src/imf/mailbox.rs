@@ -48,6 +48,7 @@ impl<'a> Print for AddrSpec<'a> {
 pub struct MailboxRef<'a> {
     // The actual "email address" like hello@example.com
     pub addrspec: AddrSpec<'a>,
+    // The optional name
     pub name: Option<Phrase<'a>>,
 }
 impl MailboxRef<'static> {
