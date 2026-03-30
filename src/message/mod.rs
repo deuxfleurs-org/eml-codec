@@ -201,10 +201,6 @@ impl<'a> FromIterator<header::FieldRaw<'a>> for MessageFields<'a> {
                             #[cfg(feature = "tracing-discard")]
                             warn!(field = ?f, "dropping conflicting IMF field");
                         },
-                        Err(imf::AddFieldErr::NotAllowed) => {
-                            #[cfg(feature = "tracing-discard")]
-                            warn!(field = ?f, "IMF field not allowed in this position");
-                        },
                     }
                     continue;
                 },

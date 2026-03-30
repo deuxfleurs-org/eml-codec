@@ -297,11 +297,8 @@ pub enum AddFieldErr {
     // account and there is no loss of data.
     NoEntry,
     // This field is conflicting with an earlier field and must be dropped, its
-    // data will be lost
+    // data will be lost.
     Conflict,
-    // This field is not allowed in this position, it must be dropped and its
-    // data will be lost
-    NotAllowed,
 }
 
 impl<'a> PartialImf<'a> {
@@ -311,8 +308,8 @@ impl<'a> PartialImf<'a> {
             Field::ReturnPath(_) |
             Field::Received(_) => {
                 if self.trace_complete {
-                    // drop trace fields that are not at the beginning
-                    return Err(AddFieldErr::NotAllowed)
+                    // drop trace fields that come after other IMF fields
+                    return Err(AddFieldErr::Conflict)
                 }
             },
             // non-trace fields
