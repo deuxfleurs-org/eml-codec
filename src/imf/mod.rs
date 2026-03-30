@@ -26,7 +26,7 @@ use crate::print::Formatter;
 use crate::text::misc_token::{PhraseList, Unstructured};
 
 #[derive(Clone, Debug, PartialEq, ToStatic)]
-#[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
+#[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
 pub struct Imf<'a> {
     // 3.6.1.  The Origination Date Field
     pub date: DateTime,
@@ -57,6 +57,14 @@ pub struct Imf<'a> {
 
     // MIME
     pub mime_version: Version,
+
+    // This field is for information only, and should not be considered part of
+    // the "structured" Imf AST. It contains fields encountered during parsing
+    // that were discarded because they conflicted with an earlier field (e.g.
+    // because there were multiple occurrences of a field that must only appear
+    // once). These discarded fields are never printed back.
+    #[cfg_attr(feature = "arbitrary", fuzz_eq(ignore))]
+    pub discarded: Vec<field::Field<'a>>,
 }
 
 #[derive(Clone, Debug, PartialEq, ToStatic)]
@@ -69,6 +77,32 @@ pub enum From<'a> {
     Multiple {
         from: MailboxList<'a>, // must contain at least two elements
         sender: MailboxRef<'a>,
+    }
+}
+
+#[cfg(feature = "arbitrary")]
+impl<'a> Arbitrary<'a> for Imf<'a> {
+    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
+        // XXX it would be nicer if the Arbitrary derive macro supported field
+        // attributes to allow setting a value for `discarded`, rather than
+        // having to write this implementation by hand.
+        Ok(Self {
+            date: u.arbitrary()?,
+            from: u.arbitrary()?,
+            reply_to: u.arbitrary()?,
+            to: u.arbitrary()?,
+            cc: u.arbitrary()?,
+            bcc: u.arbitrary()?,
+            msg_id: u.arbitrary()?,
+            in_reply_to: u.arbitrary()?,
+            references: u.arbitrary()?,
+            subject: u.arbitrary()?,
+            comments: u.arbitrary()?,
+            keywords: u.arbitrary()?,
+            trace: u.arbitrary()?,
+            mime_version: u.arbitrary()?,
+            discarded: vec![],
+        })
     }
 }
 
@@ -115,6 +149,7 @@ impl<'a> Imf<'a> {
             keywords: vec![],
             trace: vec![],
             mime_version: Version::default(),
+            discarded: vec![],
         }
     }
 
@@ -289,20 +324,35 @@ pub struct PartialImf<'a> {
     trace: Vec<TraceField<'a>>,
     trace_complete: bool,
     mime_version: Option<Version>,
+    discarded: Vec<field::Field<'a>>,
 }
 
-#[derive(Clone, Copy, Debug,)]
+#[derive(Clone, Copy, Debug)]
 pub enum AddFieldErr {
     // This field results in no entry, but its contents have been taken into
     // account and there is no loss of data.
     NoEntry,
     // This field is conflicting with an earlier field and must be dropped, its
-    // data will be lost.
+    // data will not be part of the IMF AST.
     Conflict,
 }
 
 impl<'a> PartialImf<'a> {
     pub fn add_field(&mut self, f: Field<'a>) -> Result<Entry, AddFieldErr> {
+        // XXX it is a bit unfortunate to have to .clone() here just
+        // because of the AddFieldErr::Conflict case below
+        let res = self.add_field_inner(f.clone());
+
+        // Store dropped fields in `self.discarded`, for information
+        // purposes only.
+        if let Err(AddFieldErr::Conflict) = res {
+            self.discarded.push(f);
+        }
+
+        res
+    }
+
+    fn add_field_inner(&mut self, f: Field<'a>) -> Result<Entry, AddFieldErr> {
         match &f {
             // trace fields
             Field::ReturnPath(_) |
@@ -430,7 +480,8 @@ impl<'a> PartialImf<'a> {
             // XXX we don't support reading non-MIME compliant emails
             // currently, so we always turn a missing MIME-Version field
             // into the default supported version
-            mime_version: self.mime_version.unwrap_or_default()
+            mime_version: self.mime_version.unwrap_or_default(),
+            discarded: self.discarded,
         }
     }
 }
