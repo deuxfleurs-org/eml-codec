@@ -32,6 +32,7 @@ pub struct Message<'a> {
     pub imf: imf::Imf<'a>,
     pub mime_body: part::MimeBody<'a>,
     pub entries: Vec<MessageEntry<'a>>,
+    // TODO: also track discarded MIME fields?
 }
 
 impl<'a> Print for Message<'a> {
@@ -198,8 +199,8 @@ impl<'a> FromIterator<header::FieldRaw<'a>> for MessageFields<'a> {
                             warn!(field = ?f, "no new entry for IMF field");
                         },
                         Err(imf::AddFieldErr::Conflict) => {
-                            #[cfg(feature = "tracing-discard")]
-                            warn!(field = ?f, "dropping conflicting IMF field");
+                            #[cfg(feature = "tracing-recover")]
+                            warn!(field = ?f, "discarding conflicting IMF field");
                         },
                     }
                     continue;
@@ -362,6 +363,7 @@ Bad entry
   on multiple lines
 Message-ID: <NTAxNzA2AC47634Y366BAMTY4ODc5MzQyODY0ODY5@www.grrrndzero.org>
 MIME-Version: 1.0
+Subject: Bad_redundant_subject
 Content-Type: multipart/alternative;
  boundary="b1_e376dc71bafc953c0b0fdeb9983a9956"
 Content-Transfer-Encoding: 7bit
@@ -486,6 +488,11 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                             right: MessageIDRight::DotAtom(DotAtom("www.grrrndzero.org"[..].into())),
                         });
 
+                        imf.discarded.push(imf::field::Field::Subject(Unstructured(vec![
+                            UnstrToken::from_plain(" ", UnstrTxtKind::Fws),
+                            UnstrToken::from_plain("Bad_redundant_subject", UnstrTxtKind::Txt),
+                        ])));
+
                         imf
                     },
                     entries: vec![
@@ -578,7 +585,7 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                                 }),
                             },
                         ],
-                    })
+                    }),
                 };
 
         let reprinted: &[u8] = "Date: Sat, 8 Jul 2023 07:14:29 +0200\r

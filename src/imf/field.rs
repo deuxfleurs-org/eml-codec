@@ -39,7 +39,7 @@ pub enum Entry {
     MIMEVersion,
 }
 
-#[derive(Debug, PartialEq, ToStatic)]
+#[derive(Clone, Debug, PartialEq, ToStatic)]
 pub enum Field<'a> {
     // 3.6.1.  The Origination Date Field
     Date(DateTime),
