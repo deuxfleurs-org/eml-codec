@@ -11,8 +11,9 @@ use crate::{
 };
 use crate::print::{Print, Formatter};
 use crate::text::ascii;
+use crate::text::utf8::{is_nonascii_or, take_utf8_while1};
 use crate::text::whitespace::cfws;
-use crate::utils::{is_nonascii_or, take_utf8_while1, ContainsUtf8};
+use crate::utils::ContainsUtf8;
 use nom::{
     bytes::complete::{tag, take_while1},
     character::is_alphanumeric,

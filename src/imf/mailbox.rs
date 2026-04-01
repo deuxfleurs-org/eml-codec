@@ -20,9 +20,10 @@ use crate::print::{print_seq, Print, Formatter, ToStringFromPrint};
 use crate::text::ascii;
 use crate::text::misc_token::{phrase, word, Phrase, Word, WordChars};
 use crate::text::quoted::print_quoted;
+use crate::text::utf8::{is_ascii_and, is_nonascii_or, take_utf8_while1};
 use crate::text::whitespace::{cfws, fws, is_obs_no_ws_ctl};
 use crate::text::words::{dot_atom_text, atom, Atom};
-use crate::utils::{is_ascii_and, is_nonascii_or, take_utf8_while1, ContainsUtf8};
+use crate::utils::ContainsUtf8;
 
 #[derive(Clone, Debug, PartialEq, ToStatic, ToStringFromPrint)]
 #[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]

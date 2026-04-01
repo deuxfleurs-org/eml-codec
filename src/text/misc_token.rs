@@ -26,10 +26,11 @@ use crate::text::{
     ascii,
     encoding::{self, encoded_word, encoded_word_plain},
     quoted::{quoted_string, QuotedString, QuotedStringChars},
+    utf8::{space0_str, take_utf8_while1},
     whitespace::{cfws, fws, is_obs_no_ws_ctl},
     words::{atom, is_vchar, mime_atom, Atom, MIMEAtom, MIMEAtomChars},
 };
-use crate::utils::{space0_str, take_utf8_while1, ContainsUtf8};
+use crate::utils::ContainsUtf8;
 
 #[derive(Clone, Debug, PartialEq, Default, ToStatic)]
 #[cfg_attr(feature = "arbitrary", derive(FuzzEq))]

@@ -25,9 +25,9 @@ use crate::{
 use crate::print::{print_seq, Print, Formatter, ToStringFromPrint};
 use crate::text::ascii;
 use crate::text::charset::EmailCharset;
+use crate::text::utf8::take_utf8_while1;
 use crate::text::whitespace::{self, cfws, fws};
 use crate::text::words;
-use crate::utils::take_utf8_while1;
 
 // Context in which an encoded word is parsed.
 //

@@ -1,7 +1,7 @@
 use crate::text::ascii;
 use crate::text::encoding::{Context, encoded_word_plain};
 use crate::text::quoted::quoted_pair;
-use crate::utils::{is_nonascii_or, space0_str, space1_str, take_utf8_while1};
+use crate::text::utf8::{is_nonascii_or, space0_str, space1_str, take_utf8_while1};
 use nom::{
     branch::alt,
     bytes::complete::tag,
