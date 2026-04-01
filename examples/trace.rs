@@ -203,7 +203,7 @@ fn main() {
             dir_entries(&std::path::PathBuf::from(path.clone()), &mut entries)
                 .expect(&format!("failed listing files in {}", path));
             entries.par_iter().for_each(|path| {
-                let span = span!(Level::TRACE, "file email", path = format!("{}", path.display()));
+                let span = span!(Level::TRACE, "file email", path = %format!("{}", path.display()));
                 let _enter = span.enter();
                 eprintln!("parsing email {}", path.display());
                 let mut input = Vec::new();
@@ -213,7 +213,7 @@ fn main() {
         } else {
 
             if path.ends_with(".mbox") {
-                let span = span!(Level::TRACE, "mailbox", path);
+                let span = span!(Level::TRACE, "mailbox", %path);
                 let _enter = span.enter();
                 eprintln!("parsing mailbox: {}", path);
                 let mut input = Vec::new();
@@ -228,7 +228,7 @@ fn main() {
                     let _eml = eml_codec::parse_message(raw_email);
                 })
             } else if path.ends_with(".zip") {
-                let span = span!(Level::TRACE, "zip", path);
+                let span = span!(Level::TRACE, "zip", %path);
                 let _enter = span.enter();
                 eprintln!("parsing zip file: {}", path);
                 let archive = zip::ZipArchive::new(File::open(&path).unwrap()).unwrap();
@@ -245,12 +245,12 @@ fn main() {
                         path = Some(file.name().to_string());
                         file.read_to_end(&mut input).unwrap();
                     }
-                    let span = span!(Level::TRACE, "zip email", path = path.unwrap());
+                    let span = span!(Level::TRACE, "zip email", path = %path.unwrap());
                     let _enter = span.enter();
                     let _eml = eml_codec::parse_message(&input);
                 })
             } else {
-                let span = span!(Level::TRACE, "eml", path);
+                let span = span!(Level::TRACE, "eml", %path);
                 let _enter = span.enter();
                 eprintln!("parsing single email: {}", path);
                 let mut input = Vec::new();

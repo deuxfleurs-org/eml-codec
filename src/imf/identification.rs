@@ -13,7 +13,7 @@ use nom::{
 #[cfg(feature = "arbitrary")]
 use crate::fuzz_eq::FuzzEq;
 #[cfg(feature = "tracing")]
-use crate::utils::bytes_to_display_string;
+use crate::utils::bytes_to_trace_string;
 use crate::i18n::ContainsUtf8;
 use crate::print::{print_seq, Print, Formatter, ToStringFromPrint};
 use crate::imf::mailbox::{dtext, Dtext};
@@ -53,7 +53,7 @@ impl<'a> Print for MessageIDList<'a> {
 /// ```
 #[cfg_attr(
     feature = "tracing",
-    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+    tracing::instrument(level = "trace", fields(input = %bytes_to_trace_string(input)))
 )]
 pub fn msg_id(input: &[u8]) -> IResult<&[u8], MessageID<'_>> {
     let (input, (left, _, right)) = delimited(
@@ -66,7 +66,7 @@ pub fn msg_id(input: &[u8]) -> IResult<&[u8], MessageID<'_>> {
 
 #[cfg_attr(
     feature = "tracing",
-    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+    tracing::instrument(level = "trace", fields(input = %bytes_to_trace_string(input)))
 )]
 pub fn msg_list(input: &[u8]) -> IResult<&[u8], MessageIDList<'_>> {
     // The "," separator is not specified in the RFC but some real-world emails
@@ -77,7 +77,7 @@ pub fn msg_list(input: &[u8]) -> IResult<&[u8], MessageIDList<'_>> {
 
 #[cfg_attr(
     feature = "tracing",
-    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+    tracing::instrument(level = "trace", fields(input = %bytes_to_trace_string(input)))
 )]
 pub fn nullable_msg_list(input: &[u8]) -> IResult<&[u8], MessageIDList<'_>> {
     alt((
@@ -89,7 +89,7 @@ pub fn nullable_msg_list(input: &[u8]) -> IResult<&[u8], MessageIDList<'_>> {
 // @FIXME Missing obsolete
 #[cfg_attr(
     feature = "tracing",
-    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+    tracing::instrument(level = "trace", fields(input = %bytes_to_trace_string(input)))
 )]
 fn id_left(input: &[u8]) -> IResult<&[u8], DotAtom<'_>> {
     dot_atom_text(input)
@@ -117,7 +117,7 @@ impl<'a> Print for MessageIDRight<'a> {
 // @FIXME Missing obsolete
 #[cfg_attr(
     feature = "tracing",
-    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+    tracing::instrument(level = "trace", fields(input = %bytes_to_trace_string(input)))
 )]
 fn id_right(input: &[u8]) -> IResult<&[u8], MessageIDRight<'_>> {
     alt((
@@ -128,7 +128,7 @@ fn id_right(input: &[u8]) -> IResult<&[u8], MessageIDRight<'_>> {
 
 #[cfg_attr(
     feature = "tracing",
-    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+    tracing::instrument(level = "trace", fields(input = %bytes_to_trace_string(input)))
 )]
 fn no_fold_literal(input: &[u8]) -> IResult<&[u8], Dtext<'_>> {
     delimited(tag("["), dtext, tag("]"))(input)

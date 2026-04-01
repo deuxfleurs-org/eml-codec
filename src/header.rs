@@ -25,7 +25,7 @@ use crate::print::{Print, Formatter};
 use crate::text::misc_token;
 use crate::text::whitespace::{foldable_line, obs_crlf};
 #[cfg(feature = "tracing-recover")]
-use crate::utils::bytes_to_display_string;
+use crate::utils::bytes_to_trace_string;
 
 // A valid header field name.
 #[derive(PartialEq, Clone, ContainsUtf8, ToStatic)]
@@ -115,12 +115,12 @@ pub fn header_kv(input: &[u8]) -> (&[u8], Vec<FieldRaw<'_>>) {
         // EOF (as if EOF was a CRLF).
         map(consumed(pair(field_name, rest)), |(_i, (name, body))| {
             #[cfg(feature = "tracing-recover")]
-            warn!(input = bytes_to_display_string(_i), "raw field before EOF");
+            warn!(input = %bytes_to_trace_string(_i), "raw field before EOF");
             Some(FieldRaw { name, body })
         }),
         map(rest, |_i: &[u8]| {
             #[cfg(feature = "tracing-recover")]
-            warn!(input = bytes_to_display_string(_i), "raw bytes before EOF");
+            warn!(input = %bytes_to_trace_string(_i), "raw bytes before EOF");
             None
         }),
     ))(input).unwrap();

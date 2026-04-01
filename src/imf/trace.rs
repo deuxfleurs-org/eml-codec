@@ -16,7 +16,7 @@ use crate::{
     fuzz_eq::FuzzEq,
 };
 #[cfg(feature = "tracing")]
-use crate::utils::bytes_to_display_string;
+use crate::utils::bytes_to_trace_string;
 use crate::print::{Print, Formatter, ToStringFromPrint};
 use crate::imf::mailbox;
 use crate::text::{ascii, whitespace};
@@ -40,7 +40,7 @@ impl<'a> Print for ReturnPath<'a> {
 
 #[cfg_attr(
     feature = "tracing",
-    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+    tracing::instrument(level = "trace", fields(input = %bytes_to_trace_string(input)))
 )]
 pub fn return_path(input: &[u8]) -> IResult<&[u8], ReturnPath<'_>> {
     alt((
@@ -48,13 +48,13 @@ pub fn return_path(input: &[u8]) -> IResult<&[u8], ReturnPath<'_>> {
         map(consumed(mailbox::addr_spec), |(_i, a)| {
             // This is not allowed by the RFC but happens in real-world emails
             #[cfg(feature = "tracing-recover")]
-            warn!(input = bytes_to_display_string(_i), "bare addr-spec in return-path");
+            warn!(input = %bytes_to_trace_string(_i), "bare addr-spec in return-path");
             ReturnPath(Some(a))
         }),
         map(consumed(mailbox::mailbox), |(_i, m)| {
             // This is not allowed by the RFC but happens in some real-world emails
             #[cfg(feature = "tracing-recover")]
-            warn!(input = bytes_to_display_string(_i), "mailbox in return-path");
+            warn!(input = %bytes_to_trace_string(_i), "mailbox in return-path");
             ReturnPath(Some(m.addrspec))
         }),
         empty_path
@@ -63,7 +63,7 @@ pub fn return_path(input: &[u8]) -> IResult<&[u8], ReturnPath<'_>> {
 
 #[cfg_attr(
     feature = "tracing",
-    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+    tracing::instrument(level = "trace", fields(input = %bytes_to_trace_string(input)))
 )]
 fn empty_path(input: &[u8]) -> IResult<&[u8], ReturnPath<'_>> {
     let (input, _) = tuple((

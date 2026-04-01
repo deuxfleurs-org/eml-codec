@@ -11,7 +11,7 @@ use crate::mime::mechanism::{mechanism, Mechanism};
 use crate::mime::r#type::{naive_type, NaiveType};
 use crate::text::misc_token::{unstructured, Unstructured};
 #[cfg(feature = "tracing-discard")]
-use crate::utils::bytes_to_display_string;
+use crate::utils::bytes_to_trace_string;
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, ToStatic)]
 #[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
@@ -84,7 +84,7 @@ impl<'a> TryFrom<&header::FieldRaw<'a>> for Content<'a> {
             Ok((_rest, _)) => {
                 // return an error if we haven't parsed the full value
                 #[cfg(feature = "tracing-discard")]
-                warn!(rest = bytes_to_display_string(_rest),
+                warn!(rest = %bytes_to_trace_string(_rest),
                       "leftover input after parsing");
                 Err(InvalidField::Body)
             },

@@ -1,12 +1,14 @@
 #[cfg(feature = "arbitrary")]
-use arbitrary::Arbitrary;
+use {
+    arbitrary::Arbitrary,
+    crate::fuzz_eq::FuzzEq,
+};
+#[cfg(feature = "tracing")]
+use {
+    tracing::warn,
+    crate::utils::bytes_to_trace_string,
+};
 use bounded_static::ToStatic;
-#[cfg(feature = "tracing")]
-use tracing::warn;
-#[cfg(feature = "arbitrary")]
-use crate::fuzz_eq::FuzzEq;
-#[cfg(feature = "tracing")]
-use crate::utils::bytes_to_display_string;
 use crate::i18n::ContainsUtf8;
 use crate::print::{Print, Formatter, ToStringFromPrint};
 use crate::text::whitespace::cfws;
@@ -80,7 +82,7 @@ impl<'a> Mechanism<'a> {
 
 #[cfg_attr(
     feature = "tracing",
-    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+    tracing::instrument(level = "trace", fields(input = %bytes_to_trace_string(input)))
 )]
 pub fn mechanism(input: &[u8]) -> IResult<&[u8], Mechanism<'_>> {
     use Mechanism::*;
@@ -99,7 +101,7 @@ pub fn mechanism(input: &[u8]) -> IResult<&[u8], Mechanism<'_>> {
         ),
         map(consumed(mime_atom), |(_i, tok)| {
             #[cfg(feature = "tracing-recover")]
-            warn!(input = bytes_to_display_string(_i), "unknown mechanism");
+            warn!(input = %bytes_to_trace_string(_i), "unknown mechanism");
             Other(tok)
         }),
     ))(input)

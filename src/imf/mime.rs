@@ -12,7 +12,7 @@ use nom::{
 #[cfg(feature = "arbitrary")]
 use crate::fuzz_eq::FuzzEq;
 #[cfg(feature = "tracing")]
-use crate::utils::bytes_to_display_string;
+use crate::utils::bytes_to_trace_string;
 use crate::print::{Print, Formatter, ToStringFromPrint};
 use crate::text::whitespace::cfws;
 
@@ -37,7 +37,7 @@ impl FuzzEq for Version {
 
 #[cfg_attr(
     feature = "tracing",
-    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+    tracing::instrument(level = "trace", fields(input = %bytes_to_trace_string(input)))
 )]
 pub fn version(input: &[u8]) -> IResult<&[u8], Version> {
     let (rest, (_, major, _, _, _, minor, _)) = tuple((

@@ -16,7 +16,7 @@ use std::fmt::{Debug, Formatter};
 #[cfg(feature = "arbitrary")]
 use crate::fuzz_eq::FuzzEq;
 #[cfg(feature = "tracing")]
-use crate::utils::bytes_to_display_string;
+use crate::utils::bytes_to_trace_string;
 use crate::print::{Print, Formatter as PFmt};
 use crate::text::whitespace::{cfws, fws};
 
@@ -145,7 +145,7 @@ impl Print for DateTime {
 /// timezone according to the RFC5322 definition
 #[cfg_attr(
     feature = "tracing",
-    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+    tracing::instrument(level = "trace", fields(input = %bytes_to_trace_string(input)))
 )]
 pub fn date_time(input: &[u8]) -> IResult<&[u8], DateTime> {
     map_opt(
@@ -175,7 +175,7 @@ pub fn date_time(input: &[u8]) -> IResult<&[u8], DateTime> {
 ///    day-of-week     =   ([FWS] day-name) / obs-day-of-week
 #[cfg_attr(
     feature = "tracing",
-    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+    tracing::instrument(level = "trace", fields(input = %bytes_to_trace_string(input)))
 )]
 fn strict_day_of_week(input: &[u8]) -> IResult<&[u8], &[u8]> {
     preceded(opt(fws), day_name)(input)
@@ -184,7 +184,7 @@ fn strict_day_of_week(input: &[u8]) -> IResult<&[u8], &[u8]> {
 ///    obs-day-of-week =   [CFWS] day-name [CFWS]
 #[cfg_attr(
     feature = "tracing",
-    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+    tracing::instrument(level = "trace", fields(input = %bytes_to_trace_string(input)))
 )]
 fn obs_day_of_week(input: &[u8]) -> IResult<&[u8], &[u8]> {
     delimited(opt(cfws), day_name, opt(cfws))(input)
@@ -207,7 +207,7 @@ fn day_name(input: &[u8]) -> IResult<&[u8], &[u8]> {
 ///    date            =   day month year
 #[cfg_attr(
     feature = "tracing",
-    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+    tracing::instrument(level = "trace", fields(input = %bytes_to_trace_string(input)))
 )]
 fn strict_date(input: &[u8]) -> IResult<&[u8], NaiveDate> {
     map_opt(tuple((strict_day, month, strict_year)), |(d, m, y)| {
@@ -218,7 +218,7 @@ fn strict_date(input: &[u8]) -> IResult<&[u8], NaiveDate> {
 ///    date            =   day month year
 #[cfg_attr(
     feature = "tracing",
-    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+    tracing::instrument(level = "trace", fields(input = %bytes_to_trace_string(input)))
 )]
 fn obs_date(input: &[u8]) -> IResult<&[u8], NaiveDate> {
     map_opt(tuple((obs_day, month, obs_year)), |(d, m, y)| {
@@ -229,7 +229,7 @@ fn obs_date(input: &[u8]) -> IResult<&[u8], NaiveDate> {
 ///    day             =   ([FWS] 1*2DIGIT FWS) / obs-day
 #[cfg_attr(
     feature = "tracing",
-    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+    tracing::instrument(level = "trace", fields(input = %bytes_to_trace_string(input)))
 )]
 fn strict_day(input: &[u8]) -> IResult<&[u8], u32> {
     delimited(opt(fws), character::complete::u32, fws)(input)
@@ -238,7 +238,7 @@ fn strict_day(input: &[u8]) -> IResult<&[u8], u32> {
 ///    obs-day         =   [CFWS] 1*2DIGIT [CFWS]
 #[cfg_attr(
     feature = "tracing",
-    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+    tracing::instrument(level = "trace", fields(input = %bytes_to_trace_string(input)))
 )]
 fn obs_day(input: &[u8]) -> IResult<&[u8], u32> {
     delimited(opt(cfws), character::complete::u32, opt(cfws))(input)
@@ -267,7 +267,7 @@ fn month(input: &[u8]) -> IResult<&[u8], u32> {
 ///   year            =   (FWS 4*DIGIT FWS) / obs-year
 #[cfg_attr(
     feature = "tracing",
-    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+    tracing::instrument(level = "trace", fields(input = %bytes_to_trace_string(input)))
 )]
 fn strict_year(input: &[u8]) -> IResult<&[u8], i32> {
     delimited(
@@ -292,7 +292,7 @@ fn strict_year(input: &[u8]) -> IResult<&[u8], i32> {
 // The implementation below thus also supports three digit years.
 #[cfg_attr(
     feature = "tracing",
-    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+    tracing::instrument(level = "trace", fields(input = %bytes_to_trace_string(input)))
 )]
 fn obs_year(input: &[u8]) -> IResult<&[u8], i32> {
     map(
@@ -318,7 +318,7 @@ fn obs_year(input: &[u8]) -> IResult<&[u8], i32> {
 ///   time-of-day     =   hour ":" minute [ ":" second ]
 #[cfg_attr(
     feature = "tracing",
-    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+    tracing::instrument(level = "trace", fields(input = %bytes_to_trace_string(input)))
 )]
 fn strict_time_of_day(input: &[u8]) -> IResult<&[u8], NaiveTime> {
     map_opt(
@@ -337,7 +337,7 @@ fn strict_time_of_day(input: &[u8]) -> IResult<&[u8], NaiveTime> {
 ///   time-of-day     =   hour ":" minute [ ":" second ]
 #[cfg_attr(
     feature = "tracing",
-    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+    tracing::instrument(level = "trace", fields(input = %bytes_to_trace_string(input)))
 )]
 fn obs_time_of_day(input: &[u8]) -> IResult<&[u8], NaiveTime> {
     map_opt(
@@ -359,7 +359,7 @@ fn strict_time_digit(input: &[u8]) -> IResult<&[u8], u32> {
 
 #[cfg_attr(
     feature = "tracing",
-    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+    tracing::instrument(level = "trace", fields(input = %bytes_to_trace_string(input)))
 )]
 fn obs_time_digit(input: &[u8]) -> IResult<&[u8], u32> {
     delimited(opt(cfws), character::complete::u32, opt(cfws))(input)
@@ -372,7 +372,7 @@ fn obs_time_digit(input: &[u8]) -> IResult<&[u8], u32> {
 /// ```
 #[cfg_attr(
     feature = "tracing",
-    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+    tracing::instrument(level = "trace", fields(input = %bytes_to_trace_string(input)))
 )]
 fn strict_zone(input: &[u8]) -> IResult<&[u8], FixedOffset> {
     map_opt(
@@ -419,7 +419,7 @@ fn strict_zone(input: &[u8]) -> IResult<&[u8], FixedOffset> {
 ///                       1*(ALPHA / DIGIT)  ; Unknown legacy timezones
 #[cfg_attr(
     feature = "tracing",
-    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+    tracing::instrument(level = "trace", fields(input = %bytes_to_trace_string(input)))
 )]
 fn obs_zone(input: &[u8]) -> IResult<&[u8], FixedOffset> {
     // The writing of this function is volontarily verbose

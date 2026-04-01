@@ -3,7 +3,7 @@ use crate::text::encoding::{Context, encoded_word_plain};
 use crate::text::quoted::quoted_pair;
 use crate::text::utf8::{is_nonascii_or, space0_str, space1_str, take_utf8_while1};
 #[cfg(feature = "tracing-recover")]
-use crate::utils::bytes_to_display_string;
+use crate::utils::bytes_to_trace_string;
 use nom::{
     branch::alt,
     bytes::complete::tag,
@@ -81,7 +81,7 @@ pub fn foldable_line(full_line: bool) -> impl Fn(&[u8]) -> IResult<&[u8], &[u8]>
                 },
                 (_b /* \r | \n */, Some(b' ' | b'\t'), _) => {
                     #[cfg(feature = "tracing-recover")]
-                    warn!(input = bytes_to_display_string(&[_b]), "foldable: best-effort line ending");
+                    warn!(input = %bytes_to_trace_string(&[_b]), "foldable: best-effort line ending");
                     continue;
                 },
                 _ =>
@@ -142,7 +142,7 @@ pub fn foldable_line(full_line: bool) -> impl Fn(&[u8]) -> IResult<&[u8], &[u8]>
 // }
 #[cfg_attr(
     feature = "tracing-recover",
-    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+    tracing::instrument(level = "trace", fields(input = %bytes_to_trace_string(input)))
 )]
 pub fn fws(input: &[u8]) -> IResult<&[u8], Vec<&str>> {
     alt((
@@ -152,7 +152,7 @@ pub fn fws(input: &[u8]) -> IResult<&[u8], Vec<&str>> {
 }
 #[cfg_attr(
     feature = "tracing-recover",
-    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+    tracing::instrument(level = "trace", fields(input = %bytes_to_trace_string(input)))
 )]
 fn fold_marker(input: &[u8]) -> IResult<&[u8], Vec<&str>> {
     let (input, wsp0) = space0_str(input)?;
@@ -195,7 +195,7 @@ fn fold_marker(input: &[u8]) -> IResult<&[u8], Vec<&str>> {
 /// of `comment` and `comment_body` below.
 #[cfg_attr(
     feature = "tracing-recover",
-    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+    tracing::instrument(level = "trace", fields(input = %bytes_to_trace_string(input)))
 )]
  pub fn cfws(input: &[u8]) -> IResult<&[u8], ()> {
      alt((comments, fws.map(|_| ())))(input)
@@ -203,7 +203,7 @@ fn fold_marker(input: &[u8]) -> IResult<&[u8], Vec<&str>> {
 
 #[cfg_attr(
     feature = "tracing-recover",
-    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+    tracing::instrument(level = "trace", fields(input = %bytes_to_trace_string(input)))
 )]
 pub fn comments(input: &[u8]) -> IResult<&[u8], ()> {
     let (input, _) = many1(tuple((opt(fws), comment)))(input)?;
@@ -213,7 +213,7 @@ pub fn comments(input: &[u8]) -> IResult<&[u8], ()> {
 
 #[cfg_attr(
     feature = "tracing-recover",
-    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+    tracing::instrument(level = "trace", fields(input = %bytes_to_trace_string(input)))
 )]
 pub fn comment(input: &[u8]) -> IResult<&[u8], ()> {
     let (input, _) = tag("(")(input)?;
@@ -223,7 +223,7 @@ pub fn comment(input: &[u8]) -> IResult<&[u8], ()> {
 
 #[cfg_attr(
     feature = "tracing-recover",
-    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+    tracing::instrument(level = "trace", fields(input = %bytes_to_trace_string(input)))
 )]
 pub fn comment_body(input: &[u8]) -> IResult<&[u8], ()> {
     let mut nesting = 1;
@@ -257,7 +257,7 @@ pub fn comment_body(input: &[u8]) -> IResult<&[u8], ()> {
 
 #[cfg_attr(
     feature = "tracing-recover",
-    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+    tracing::instrument(level = "trace", fields(input = %bytes_to_trace_string(input)))
 )]
  pub fn ctext(input: &[u8]) -> IResult<&[u8], &str> {
      take_utf8_while1(is_ctext)(input)

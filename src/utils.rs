@@ -35,3 +35,16 @@ pub fn bytes_to_display_string(bs: &[u8]) -> String {
     s.push('"');
     s
 }
+
+#[allow(dead_code)]
+pub fn bytes_to_trace_string(bs: &[u8]) -> String {
+    let mut s = String::new();
+    for b in bs {
+        match b {
+            b'\\' => s.push_str("\\\\"),
+            b if b.is_ascii() => s.push(*b as char),
+            _ => s.push_str(&format!("\\{}", b)),
+        }
+    }
+    s
+}

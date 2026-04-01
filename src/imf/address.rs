@@ -13,7 +13,7 @@ use nom::{
 #[cfg(feature = "arbitrary")]
 use crate::fuzz_eq::FuzzEq;
 #[cfg(feature = "tracing")]
-use crate::utils::bytes_to_display_string;
+use crate::utils::bytes_to_trace_string;
 use crate::print::{print_seq, Print, Formatter};
 use crate::imf::mailbox::{mailbox, mailbox_list_nullable, MailboxRef, MailboxList};
 use crate::text::misc_token::{phrase, Phrase};
@@ -80,7 +80,7 @@ impl<'a> Print for AddressList<'a> {
 /// ```
 #[cfg_attr(
     feature = "tracing",
-    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+    tracing::instrument(level = "trace", fields(input = %bytes_to_trace_string(input)))
 )]
 pub fn address(input: &[u8]) -> IResult<&[u8], AddressRef<'_>> {
     alt((into(mailbox), into(group)))(input)
@@ -94,7 +94,7 @@ pub fn address(input: &[u8]) -> IResult<&[u8], AddressRef<'_>> {
 /// ```
 #[cfg_attr(
     feature = "tracing",
-    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+    tracing::instrument(level = "trace", fields(input = %bytes_to_trace_string(input)))
 )]
 pub fn group(input: &[u8]) -> IResult<&[u8], GroupRef<'_>> {
     let (input, (grp_name, _, grp_list, _, _)) =
@@ -117,7 +117,7 @@ pub fn group(input: &[u8]) -> IResult<&[u8], GroupRef<'_>> {
 /// ```
 #[cfg_attr(
     feature = "tracing",
-    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+    tracing::instrument(level = "trace", fields(input = %bytes_to_trace_string(input)))
 )]
 pub fn group_list(input: &[u8]) -> IResult<&[u8], Option<MailboxList<'_>>> {
     mailbox_list_nullable(input)
@@ -131,7 +131,7 @@ pub fn group_list(input: &[u8]) -> IResult<&[u8], Option<MailboxList<'_>>> {
 /// ```
 #[cfg_attr(
     feature = "tracing",
-    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+    tracing::instrument(level = "trace", fields(input = %bytes_to_trace_string(input)))
 )]
 pub fn address_list(input: &[u8]) -> IResult<&[u8], Vec<AddressRef<'_>>> {
     map_opt(
@@ -148,7 +148,7 @@ pub fn address_list(input: &[u8]) -> IResult<&[u8], Vec<AddressRef<'_>>> {
 
 #[cfg_attr(
     feature = "tracing",
-    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+    tracing::instrument(level = "trace", fields(input = %bytes_to_trace_string(input)))
 )]
 pub fn empty_address_list(input: &[u8]) -> IResult<&[u8], Vec<AddressRef<'_>>> {
     map(opt(cfws), |_| vec![])(input)
@@ -156,7 +156,7 @@ pub fn empty_address_list(input: &[u8]) -> IResult<&[u8], Vec<AddressRef<'_>>> {
 
 #[cfg_attr(
     feature = "tracing",
-    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+    tracing::instrument(level = "trace", fields(input = %bytes_to_trace_string(input)))
 )]
 pub fn nullable_address_list(input: &[u8]) -> IResult<&[u8], Vec<AddressRef<'_>>> {
     alt((address_list, empty_address_list))(input)

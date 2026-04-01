@@ -24,7 +24,7 @@ use crate::{
     fuzz_eq::FuzzEq,
 };
 #[cfg(feature = "tracing")]
-use crate::utils::bytes_to_display_string;
+use crate::utils::bytes_to_trace_string;
 use crate::i18n::ContainsUtf8;
 use crate::print::{print_seq, Print, Formatter, ToStringFromPrint};
 use crate::text::{
@@ -59,7 +59,7 @@ impl<'a> Arbitrary<'a> for PhraseList<'a> {
 /// and in turn, a `PhraseList` is always non-empty.
 #[cfg_attr(
     feature = "tracing",
-    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+    tracing::instrument(level = "trace", fields(input = %bytes_to_trace_string(input)))
 )]
 pub fn phrase_list(input: &[u8]) -> IResult<&[u8], Option<PhraseList<'_>>> {
     let (input, phrases_opt) = separated_list0(
@@ -98,7 +98,7 @@ impl Default for MIMEWord<'static> {
 }
 #[cfg_attr(
     feature = "tracing",
-    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+    tracing::instrument(level = "trace", fields(input = %bytes_to_trace_string(input)))
 )]
 pub fn mime_word(input: &[u8]) -> IResult<&[u8], MIMEWord<'_>> {
     alt((
@@ -188,7 +188,7 @@ impl<'a, 'b> Iterator for WordChars<'a, 'b> {
 /// ```
 #[cfg_attr(
     feature = "tracing",
-    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+    tracing::instrument(level = "trace", fields(input = %bytes_to_trace_string(input)))
 )]
 pub fn word(input: &[u8]) -> IResult<&[u8], Word<'_>> {
     alt((
@@ -235,7 +235,7 @@ impl<'a> Arbitrary<'a> for PhraseToken<'a> {
 /// A part of a phrase or obs-phrase
 #[cfg_attr(
     feature = "tracing",
-    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+    tracing::instrument(level = "trace", fields(input = %bytes_to_trace_string(input)))
 )]
 pub fn phrase_token(input: &[u8]) -> IResult<&[u8], PhraseToken<'_>> {
     alt((
@@ -314,7 +314,7 @@ impl<'a> FuzzEq for Phrase<'a> {
 /// ```
 #[cfg_attr(
     feature = "tracing",
-    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+    tracing::instrument(level = "trace", fields(input = %bytes_to_trace_string(input)))
 )]
 pub fn phrase(input: &[u8]) -> IResult<&[u8], Phrase<'_>> {
     let (input, phrase) = map(many1(phrase_token), Phrase)(input)?;
@@ -556,7 +556,7 @@ impl<'a> Arbitrary<'a> for Unstructured<'a> {
 /// This does not match the RFC but seems to better match real-world practices.
 #[cfg_attr(
     feature = "tracing",
-    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+    tracing::instrument(level = "trace", fields(input = %bytes_to_trace_string(input)))
 )]
 pub fn unstructured(input: &[u8]) -> IResult<&[u8], Unstructured<'_>> {
     let (input, r) = many0(alt((

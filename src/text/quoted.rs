@@ -22,7 +22,7 @@ use crate::{
     fuzz_eq::FuzzEq,
 };
 #[cfg(feature = "tracing")]
-use crate::utils::bytes_to_display_string;
+use crate::utils::bytes_to_trace_string;
 use crate::i18n::ContainsUtf8;
 use crate::print::{Print, Formatter, ToStringFromPrint};
 use crate::text::ascii;
@@ -143,7 +143,7 @@ pub fn quoted_pair(input: &[u8]) -> IResult<&[u8], Option<&str>> {
                     if !(b == ascii::NULL || is_obs_no_ws_ctl(b)
                          || b == ascii::LF || b == ascii::CR) {
                             #[cfg(feature = "tracing-recover")]
-                            warn!(byte = bytes_to_display_string(&[b]),
+                            warn!(byte = %bytes_to_trace_string(&[b]),
                                   "invalid quoted pair")
                         }
                     None
@@ -188,7 +188,7 @@ fn is_obs_qtext(c: u8) -> bool {
 /// returns `None` in this case.
 #[cfg_attr(
     feature = "tracing",
-    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+    tracing::instrument(level = "trace", fields(input = %bytes_to_trace_string(input)))
 )]
 fn qcontent(input: &[u8]) -> IResult<&[u8], Option<&str>> {
     alt((
@@ -207,7 +207,7 @@ fn qcontent(input: &[u8]) -> IResult<&[u8], Option<&str>> {
 /// ```
 #[cfg_attr(
     feature = "tracing",
-    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+    tracing::instrument(level = "trace", fields(input = %bytes_to_trace_string(input)))
 )]
 pub fn quoted_string(input: &[u8]) -> IResult<&[u8], QuotedString<'_>> {
     let (input, _) = opt(cfws)(input)?;

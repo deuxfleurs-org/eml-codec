@@ -19,7 +19,7 @@ use crate::{
     fuzz_eq::FuzzEq,
 };
 #[cfg(feature = "tracing")]
-use crate::utils::bytes_to_display_string;
+use crate::utils::bytes_to_trace_string;
 use crate::i18n::ContainsUtf8;
 use crate::print::{print_seq, Print, Formatter, ToStringFromPrint};
 use crate::text::ascii;
@@ -117,7 +117,7 @@ impl<'a> Arbitrary<'a> for MailboxList<'a> {
 /// ```
 #[cfg_attr(
     feature = "tracing",
-    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+    tracing::instrument(level = "trace", fields(input = %bytes_to_trace_string(input)))
 )]
 pub fn mailbox(input: &[u8]) -> IResult<&[u8], MailboxRef<'_>> {
     alt((name_addr, into(addr_spec)))(input)
@@ -131,7 +131,7 @@ pub fn mailbox(input: &[u8]) -> IResult<&[u8], MailboxRef<'_>> {
 /// ```
 #[cfg_attr(
     feature = "tracing",
-    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+    tracing::instrument(level = "trace", fields(input = %bytes_to_trace_string(input)))
 )]
 pub fn mailbox_list(input: &[u8]) -> IResult<&[u8], MailboxList<'_>> {
     map_opt(mailbox_list_nullable, |mlist| mlist)(input)
@@ -140,7 +140,7 @@ pub fn mailbox_list(input: &[u8]) -> IResult<&[u8], MailboxList<'_>> {
 // mailbox-list but allows the list to only contain "null" elements
 #[cfg_attr(
     feature = "tracing",
-    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+    tracing::instrument(level = "trace", fields(input = %bytes_to_trace_string(input)))
 )]
 pub(crate) fn mailbox_list_nullable(input: &[u8]) -> IResult<&[u8], Option<MailboxList<'_>>> {
     map(
@@ -169,7 +169,7 @@ pub(crate) fn mailbox_list_nullable(input: &[u8]) -> IResult<&[u8], Option<Mailb
 /// ```
 #[cfg_attr(
     feature = "tracing",
-    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+    tracing::instrument(level = "trace", fields(input = %bytes_to_trace_string(input)))
 )]
 fn name_addr(input: &[u8]) -> IResult<&[u8], MailboxRef<'_>> {
     let (input, name) = opt(phrase)(input)?;
@@ -185,7 +185,7 @@ fn name_addr(input: &[u8]) -> IResult<&[u8], MailboxRef<'_>> {
 /// ```
 #[cfg_attr(
     feature = "tracing",
-    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+    tracing::instrument(level = "trace", fields(input = %bytes_to_trace_string(input)))
 )]
 pub fn angle_addr(input: &[u8]) -> IResult<&[u8], AddrSpec<'_>> {
     delimited(
@@ -202,7 +202,7 @@ pub fn angle_addr(input: &[u8]) -> IResult<&[u8], AddrSpec<'_>> {
 ///    obs-route       =   obs-domain-list ":"
 #[cfg_attr(
     feature = "tracing",
-    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+    tracing::instrument(level = "trace", fields(input = %bytes_to_trace_string(input)))
 )]
 fn obs_route(input: &[u8]) -> IResult<&[u8], Vec<Option<Domain<'_>>>> {
     terminated(obs_domain_list, tag(&[ascii::COL]))(input)
@@ -216,7 +216,7 @@ fn obs_route(input: &[u8]) -> IResult<&[u8], Vec<Option<Domain<'_>>>> {
 /// contain no real domains (e.g. only commas).
 #[cfg_attr(
     feature = "tracing",
-    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+    tracing::instrument(level = "trace", fields(input = %bytes_to_trace_string(input)))
 )]
 fn obs_domain_list(input: &[u8]) -> IResult<&[u8], Vec<Option<Domain<'_>>>> {
     preceded(
@@ -238,7 +238,7 @@ fn obs_domain_list(input: &[u8]) -> IResult<&[u8], Vec<Option<Domain<'_>>>> {
 /// ```
 #[cfg_attr(
     feature = "tracing",
-    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+    tracing::instrument(level = "trace", fields(input = %bytes_to_trace_string(input)))
 )]
 pub fn addr_spec(input: &[u8]) -> IResult<&[u8], AddrSpec<'_>> {
     map(
@@ -357,7 +357,7 @@ impl<'a> Print for LocalPart<'a> {
 /// ```
 #[cfg_attr(
     feature = "tracing",
-    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+    tracing::instrument(level = "trace", fields(input = %bytes_to_trace_string(input)))
 )]
 fn obs_local_part(input: &[u8]) -> IResult<&[u8], LocalPart<'_>> {
     let (input, prefix) = many0(local_part_dot)(input)?;
@@ -444,7 +444,7 @@ impl<'a> Arbitrary<'a> for Domain<'a> {
 /// ```
 #[cfg_attr(
     feature = "tracing",
-    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+    tracing::instrument(level = "trace", fields(input = %bytes_to_trace_string(input)))
 )]
 pub fn obs_domain(input: &[u8]) -> IResult<&[u8], Domain<'_>> {
     alt((
@@ -460,7 +460,7 @@ pub fn obs_domain(input: &[u8]) -> IResult<&[u8], Domain<'_>> {
 /// ```
 #[cfg_attr(
     feature = "tracing",
-    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+    tracing::instrument(level = "trace", fields(input = %bytes_to_trace_string(input)))
 )]
 fn domain_litteral(input: &[u8]) -> IResult<&[u8], Domain<'_>> {
     delimited(
@@ -472,7 +472,7 @@ fn domain_litteral(input: &[u8]) -> IResult<&[u8], Domain<'_>> {
 
 #[cfg_attr(
     feature = "tracing",
-    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+    tracing::instrument(level = "trace", fields(input = %bytes_to_trace_string(input)))
 )]
 fn inner_domain_litteral(input: &[u8]) -> IResult<&[u8], Domain<'_>> {
     map(
@@ -553,7 +553,7 @@ fn is_obs_dtext(c: char) -> bool {
 
 #[cfg_attr(
     feature = "tracing",
-    tracing::instrument(level = "trace", fields(input = bytes_to_display_string(input)))
+    tracing::instrument(level = "trace", fields(input = %bytes_to_trace_string(input)))
 )]
 pub fn dtext<'a>(input: &'a [u8]) -> IResult<&'a [u8], Dtext<'a>> {
     map(take_utf8_while1(is_dtext), |b| Dtext(Cow::Borrowed(b)))(input)
