@@ -3,10 +3,10 @@ use arbitrary::Arbitrary;
 use bounded_static::ToStatic;
 #[cfg(feature = "arbitrary")]
 use crate::fuzz_eq::FuzzEq;
+use crate::i18n::ContainsUtf8;
 use crate::print::{Print, Formatter, ToStringFromPrint};
 use crate::text::whitespace::cfws;
 use crate::text::words::{mime_atom as token, MIMEAtom};
-use crate::utils::ContainsUtf8;
 use nom::{
     branch::alt,
     bytes::complete::tag_no_case,

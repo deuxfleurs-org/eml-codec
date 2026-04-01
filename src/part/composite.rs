@@ -6,11 +6,11 @@ use std::fmt;
 
 #[cfg(feature = "arbitrary")]
 use crate::fuzz_eq::FuzzEq;
+use crate::i18n::ContainsUtf8;
 use crate::header;
 use crate::mime;
 use crate::part::{self, AnyPart, field::EntityFields};
 use crate::text::boundary::{boundary, Delimiter};
-use crate::utils::ContainsUtf8;
 
 //--- Multipart
 #[derive(Clone, PartialEq, ToStatic)]

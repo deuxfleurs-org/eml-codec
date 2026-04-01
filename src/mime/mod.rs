@@ -15,13 +15,14 @@ use std::collections::HashSet;
 #[cfg(feature = "arbitrary")]
 use crate::fuzz_eq::FuzzEq;
 use crate::header;
+use crate::i18n::ContainsUtf8;
 use crate::imf::identification::MessageID;
 use crate::mime::field::{Content, Entry as FieldEntry};
 use crate::mime::mechanism::Mechanism;
 use crate::mime::r#type::{AnyType, NaiveType};
 use crate::print::Formatter;
 use crate::text::misc_token::Unstructured;
-use crate::utils::{set_opt, ContainsUtf8};
+use crate::utils::set_opt;
 
 #[derive(Debug, Default, PartialEq, Clone, ToStatic)]
 #[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]

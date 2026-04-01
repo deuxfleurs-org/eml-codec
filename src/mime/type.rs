@@ -11,12 +11,12 @@ use nom::{
 
 #[cfg(feature = "arbitrary")]
 use crate::fuzz_eq::FuzzEq;
+use crate::i18n::ContainsUtf8;
 use crate::print::{Print, Formatter, ToStringFromPrint};
 use crate::text::charset::EmailCharset;
 use crate::text::misc_token::{mime_word, MIMEWord};
 use crate::text::quoted::print_quoted;
 use crate::text::words::{mime_atom, MIMEAtom};
-use crate::utils::ContainsUtf8;
 
 // --------- NAIVE TYPE
 #[derive(Clone, ContainsUtf8, Debug, PartialEq, ToStatic)]

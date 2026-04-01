@@ -18,10 +18,10 @@ use crate::{
     arbitrary_utils::arbitrary_vec_nonempty_where,
     fuzz_eq::FuzzEq,
 };
+use crate::i18n::ContainsUtf8;
 use crate::print::{Print, Formatter};
 use crate::text::misc_token;
 use crate::text::whitespace::{foldable_line, obs_crlf};
-use crate::utils::ContainsUtf8;
 
 // A valid header field name.
 #[derive(PartialEq, Clone, ContainsUtf8, ToStatic)]

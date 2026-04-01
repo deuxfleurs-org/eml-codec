@@ -19,13 +19,13 @@ use crate::{
     fuzz_eq::FuzzEq,
     mime,
 };
+use crate::i18n::ContainsUtf8;
 use crate::mime::AnyMIME;
 use crate::part::{
     composite::{message, multipart, Message, Multipart},
     discrete::{Binary, Text},
 };
 use crate::print::{Print, Formatter};
-use crate::utils::ContainsUtf8;
 
 #[derive(Clone, Debug, PartialEq, ToStatic)]
 #[cfg_attr(feature = "arbitrary", derive(FuzzEq))]

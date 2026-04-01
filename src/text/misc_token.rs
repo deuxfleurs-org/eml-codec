@@ -21,6 +21,7 @@ use crate::{
     },
     fuzz_eq::FuzzEq,
 };
+use crate::i18n::ContainsUtf8;
 use crate::print::{print_seq, Print, Formatter, ToStringFromPrint};
 use crate::text::{
     ascii,
@@ -30,7 +31,6 @@ use crate::text::{
     whitespace::{cfws, fws, is_obs_no_ws_ctl},
     words::{atom, is_vchar, mime_atom, Atom, MIMEAtom, MIMEAtomChars},
 };
-use crate::utils::ContainsUtf8;
 
 #[derive(Clone, Debug, PartialEq, Default, ToStatic)]
 #[cfg_attr(feature = "arbitrary", derive(FuzzEq))]

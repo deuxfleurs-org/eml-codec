@@ -42,34 +42,3 @@ pub fn bytes_to_display_string(bs: &[u8]) -> String {
     s.push('"');
     s
 }
-
-pub use eml_codec_derives::ContainsUtf8;
-
-// This is a trait instead of plain old functions because it allows factoring
-// code when working on instances of MIME<'a, T> for specific Ts
-pub trait ContainsUtf8 {
-    fn contains_utf8(&self) -> bool;
-}
-impl<T: ContainsUtf8> ContainsUtf8 for Option<T> {
-    fn contains_utf8(&self) -> bool {
-        match &self {
-            None => false,
-            Some(x) => x.contains_utf8(),
-        }
-    }
-}
-impl<T: ContainsUtf8> ContainsUtf8 for Box<T> {
-    fn contains_utf8(&self) -> bool {
-        <T as ContainsUtf8>::contains_utf8(self.as_ref())
-    }
-}
-impl<'a, T: ContainsUtf8> ContainsUtf8 for Vec<T> {
-    fn contains_utf8(&self) -> bool {
-        self.iter().any(|x| x.contains_utf8())
-    }
-}
-impl<'a> ContainsUtf8 for std::borrow::Cow<'a, str> {
-    fn contains_utf8(&self) -> bool {
-        self.as_bytes().iter().any(|b| !b.is_ascii())
-    }
-}

@@ -12,11 +12,11 @@ use nom::{
 
 #[cfg(feature = "arbitrary")]
 use crate::fuzz_eq::FuzzEq;
+use crate::i18n::ContainsUtf8;
 use crate::print::{print_seq, Print, Formatter, ToStringFromPrint};
 use crate::imf::mailbox::{dtext, Dtext};
 use crate::text::whitespace::cfws;
 use crate::text::words::{dot_atom_text, DotAtom};
-use crate::utils::ContainsUtf8;
 
 #[derive(Clone, ContainsUtf8, Debug, PartialEq, ToStatic, ToStringFromPrint)]
 #[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]

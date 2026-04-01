@@ -19,12 +19,12 @@ use crate::{
     arbitrary_utils::arbitrary_string_where,
     fuzz_eq::FuzzEq,
 };
+use crate::i18n::ContainsUtf8;
 use crate::print::{Print, Formatter, ToStringFromPrint};
 use crate::text::ascii;
 use crate::text::whitespace::{cfws, fws, is_obs_no_ws_ctl};
 use crate::text::words::is_vchar;
 use crate::text::utf8::{is_nonascii_or, take_utf8_while1};
-use crate::utils::ContainsUtf8;
 
 // A quoted string contains bytes that satisfy `is_vchar` or are in `ascii::WS`.
 #[derive(Clone, ContainsUtf8, PartialEq, Default, ToStatic, ToStringFromPrint)]

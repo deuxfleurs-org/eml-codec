@@ -2,8 +2,8 @@
 use arbitrary::Arbitrary;
 use bounded_static::ToStatic;
 use encoding_rs::Encoding;
+use crate::i18n::ContainsUtf8;
 use crate::text::words::is_vchar;
-use crate::utils::ContainsUtf8;
 #[cfg(feature = "arbitrary")]
 use crate::fuzz_eq::FuzzEq;
 

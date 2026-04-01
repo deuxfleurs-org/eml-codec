@@ -21,6 +21,9 @@ pub mod text;
 /// Printing with email-specific line folding
 pub mod print;
 
+/// Helpers related to UTF-8 support in headers (RFC 6532)
+pub mod i18n;
+
 /// Custom equality trait used for fuzz-checking
 #[cfg(feature = "arbitrary")]
 pub mod fuzz_eq;
