@@ -223,6 +223,9 @@ pub fn dot_atom_text(input: &[u8]) -> IResult<&[u8], DotAtom<'_>> {
             many0(pair(tag("."), take_utf8_while1(is_atext))),
         )),
         |b: &[u8]| {
+            // SAFETY: `b` is composed of bytes recognized by
+            // `take_utf8_while1()` and dots ("."). Both are guaranteed to be
+            // valid UTF-8.
             let s = unsafe { str::from_utf8_unchecked(b) };
             DotAtom(s.into())
         },

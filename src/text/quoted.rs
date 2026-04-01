@@ -130,6 +130,8 @@ pub fn quoted_pair(input: &[u8]) -> IResult<&[u8], Option<&str>> {
             verify(take(1usize), |b: &[u8]| b[0].is_ascii()),
             |b: &[u8]|
             if is_strict_quoted_pair(b[0].into()) {
+                // SAFETY: from the combinators above (take and verify), we know
+                // that `b` contains a single ASCII character.
                 Some(unsafe { str::from_utf8_unchecked(b) })
             } else {
                 None

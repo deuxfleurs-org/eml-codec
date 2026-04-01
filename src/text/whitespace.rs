@@ -34,7 +34,9 @@ pub fn obs_crlf(input: &[u8]) -> IResult<&[u8], &str> {
             tag(&[ascii::CR]),
             tag(&[ascii::LF]),
         )),
-        |b: &[u8]| unsafe { str::from_utf8_unchecked(b) }
+        |b: &[u8]|
+        // SAFETY: CR and LF are ASCII characters
+        unsafe { str::from_utf8_unchecked(b) }
     )(input)
 }
 

@@ -316,6 +316,8 @@ fn obs_utext_token<'a>(input: &'a [u8]) -> IResult<&'a [u8], UtextToken<'a>> {
         take_utf8_while1(is_vchar)
             .map(|s| UtextToken { txt: Cow::Borrowed(s), obs: false }),
         take_while1(|c| is_obs_no_ws_ctl(c) || c == ascii::NULL)
+            // SAFETY: from the line above we know that `s` contains ASCII bytes
+            // (they satisfy either is_obs_no_ws_ctl or are NULL).
             .map(|s| unsafe { str::from_utf8_unchecked(s) })
             .map(|s| UtextToken { txt: Cow::Borrowed(s), obs: true }),
     ))(input)
