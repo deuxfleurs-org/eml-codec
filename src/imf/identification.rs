@@ -16,17 +16,17 @@ use crate::fuzz_eq::FuzzEq;
 use crate::utils::bytes_to_trace_string;
 use crate::i18n::ContainsUtf8;
 use crate::print::{print_seq, Print, Formatter, ToStringFromPrint};
-use crate::imf::mailbox::{dtext, Dtext};
+use crate::imf::mailbox::{domain, dtext, local_part, Domain, Dtext, LocalPart};
 use crate::text::whitespace::cfws;
-use crate::text::words::{dot_atom_text, DotAtom};
 
+// NOTE: MessageID is not strictly RFC-compliant, printing it may use obsolete
+// syntax.
 #[derive(Clone, ContainsUtf8, Debug, PartialEq, ToStatic, ToStringFromPrint)]
 #[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
 pub struct MessageID<'a> {
-    pub left: DotAtom<'a>,
-    pub right: MessageIDRight<'a>,
+    pub left: LocalPart<'a>,
+    pub right: Domain<'a>,
 }
-// TODO: drop obs parts (when implemented?)
 impl<'a> Print for MessageID<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
         fmt.write_bytes(b"<");
@@ -86,46 +86,39 @@ pub fn nullable_msg_list(input: &[u8]) -> IResult<&[u8], MessageIDList<'_>> {
     ))(input)
 }
 
-// @FIXME Missing obsolete
+/// Implements obs-id-left, which is a superset of id-left:
+/// ```abnf
+///     id-left     =   dot-atom-text / obs-id-left
+/// obs-id-left     =   local-part
+/// ```
+///
+/// NOTE: this directly returns the AST corresponding to *possibly obsolete*
+/// syntax; we do not attempt to "strictify" it
 #[cfg_attr(
     feature = "tracing",
     tracing::instrument(level = "trace", fields(input = %bytes_to_trace_string(input)))
 )]
-fn id_left(input: &[u8]) -> IResult<&[u8], DotAtom<'_>> {
-    dot_atom_text(input)
+fn id_left(input: &[u8]) -> IResult<&[u8], LocalPart<'_>> {
+    local_part(input)
 }
 
-#[derive(Clone, ContainsUtf8, Debug, PartialEq, ToStatic, ToStringFromPrint)]
-#[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
-pub enum MessageIDRight<'a> {
-    DotAtom(DotAtom<'a>),
-    Literal(Dtext<'a>),
-}
-impl<'a> Print for MessageIDRight<'a> {
-    fn print(&self, fmt: &mut impl Formatter) {
-        match self {
-            MessageIDRight::DotAtom(a) => a.print(fmt),
-            MessageIDRight::Literal(dt) => {
-                fmt.write_bytes(b"[");
-                dt.print(fmt);
-                fmt.write_bytes(b"]");
-            },
-        }
-    }
-}
-
-// @FIXME Missing obsolete
+/// Implements obs-id-right, which is a superset of id-right:
+/// ```abnf
+///     id-right     =   dot-atom-text / no-fold-literal / obs-id-right
+/// obs-id-right     =   domain
+/// ```
+///
+/// NOTE: this directly returns the AST corresponding to *possibly obsolete*
+/// syntax; we do not attempt to "strictify" it
 #[cfg_attr(
     feature = "tracing",
     tracing::instrument(level = "trace", fields(input = %bytes_to_trace_string(input)))
 )]
-fn id_right(input: &[u8]) -> IResult<&[u8], MessageIDRight<'_>> {
-    alt((
-        map(dot_atom_text, MessageIDRight::DotAtom),
-        map(no_fold_literal, MessageIDRight::Literal)
-    ))(input)
+fn id_right(input: &[u8]) -> IResult<&[u8], Domain<'_>> {
+    domain(input)
 }
 
+#[allow(dead_code)]
 #[cfg_attr(
     feature = "tracing",
     tracing::instrument(level = "trace", fields(input = %bytes_to_trace_string(input)))
@@ -137,7 +130,10 @@ fn no_fold_literal(input: &[u8]) -> IResult<&[u8], Dtext<'_>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::text::words::DotAtom;
+    use crate::text::misc_token::Word;
+    use crate::text::quoted::QuotedString;
+    use crate::text::words::Atom;
+    use crate::imf::mailbox::{Domain, LocalPart, LocalPartToken};
 
     #[test]
     fn test_msg_id() {
@@ -146,8 +142,61 @@ mod tests {
             Ok((
                 &b""[..],
                 MessageID {
-                    left: DotAtom("5678.21-Nov-1997"[..].into()),
-                    right: MessageIDRight::DotAtom(DotAtom("example.com"[..].into())),
+                    left: LocalPart(vec![
+                        LocalPartToken::Word(Word::Atom(Atom("5678".into()))),
+                        LocalPartToken::Dot,
+                        LocalPartToken::Word(Word::Atom(Atom("21-Nov-1997".into()))),
+                    ]),
+                    right: Domain::Atoms(vec![
+                        Atom("example".into()),
+                        Atom("com".into()),
+                    ]),
+                }
+            )),
+        );
+    }
+
+    #[test]
+    fn test_obsolete_msg_id() {
+        assert_eq!(
+            msg_id(b" < foo . bar@univ-valenciennes  .fr >"),
+            Ok((
+                &b""[..],
+                MessageID {
+                    left: LocalPart(vec![
+                        LocalPartToken::Word(Word::Atom(Atom("foo".into()))),
+                        LocalPartToken::Dot,
+                        LocalPartToken::Word(Word::Atom(Atom("bar".into()))),
+                    ]),
+                    right: Domain::Atoms(vec![
+                        Atom("univ-valenciennes".into()),
+                        Atom("fr".into()),
+                    ]),
+                }
+            )),
+        );
+
+        assert_eq!(
+            msg_id(b"<\"24806 Tue Sep 19 11:05:34 1995\"@bnr.ca>"),
+            Ok((
+                &b""[..],
+                MessageID {
+                    left: LocalPart(vec![
+                        LocalPartToken::Word(Word::Quoted(
+                            QuotedString(vec![
+                                "24806".into(), " ".into(),
+                                "Tue".into(), " ".into(),
+                                "Sep".into(), " ".into(),
+                                "19".into(), " ".into(),
+                                "11:05:34".into(), " ".into(),
+                                "1995".into(),
+                            ])
+                        ))
+                    ]),
+                    right: Domain::Atoms(vec![
+                        Atom("bnr".into()),
+                        Atom("ca".into()),
+                    ]),
                 }
             )),
         );
@@ -165,12 +214,22 @@ mod tests {
                 &b""[..],
                 vec![
                     MessageID {
-                        left: DotAtom("8d9bb189354d4804bcc2fd1d1a5398b5"[..].into()),
-                        right: MessageIDRight::DotAtom(DotAtom("cnrs.fr"[..].into())),
+                        left: LocalPart(vec![
+                            LocalPartToken::Word(Word::Atom(Atom("8d9bb189354d4804bcc2fd1d1a5398b5".into()))),
+                        ]),
+                        right: Domain::Atoms(vec![
+                            Atom("cnrs".into()),
+                            Atom("fr".into()),
+                        ]),
                     },
                     MessageID {
-                        left: DotAtom("ef8fac8b36834864bae895571064565c"[..].into()),
-                        right: MessageIDRight::DotAtom(DotAtom("cnrs.fr"[..].into())),
+                        left: LocalPart(vec![
+                            LocalPartToken::Word(Word::Atom(Atom("ef8fac8b36834864bae895571064565c".into()))),
+                        ]),
+                        right: Domain::Atoms(vec![
+                            Atom("cnrs".into()),
+                            Atom("fr".into()),
+                        ]),
                     },
                 ]
             ))

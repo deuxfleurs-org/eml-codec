@@ -130,7 +130,7 @@ pub fn mime_atom_plain(input: &[u8]) -> IResult<&[u8], MIMEAtom<'_>> {
 
 /// An IMF atom.
 // Contains a non-zero amount of bytes that satisfy `is_atext`.
-#[derive(Clone, Debug, PartialEq, ToStatic)]
+#[derive(Clone, ContainsUtf8, Debug, PartialEq, ToStatic)]
 pub struct Atom<'a>(pub Cow<'a, str>);
 
 impl<'a> Print for Atom<'a> {

@@ -140,7 +140,7 @@ impl<'a, 'b> Iterator for MIMEWordChars<'a, 'b> {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, ToStatic, ToStringFromPrint)]
+#[derive(Clone, ContainsUtf8, Debug, PartialEq, ToStatic, ToStringFromPrint)]
 #[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
 pub enum Word<'a> {
     Quoted(QuotedString<'a>),
