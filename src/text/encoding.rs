@@ -8,7 +8,7 @@ use nom::{
     bytes::complete::{tag, take, take_while, take_while1},
     character::complete::one_of,
     character::is_alphanumeric,
-    combinator::{all_consuming, map, map_parser, opt},
+    combinator::{all_consuming, map, map_parser, opt, recognize},
     multi::{many0, many1, separated_list1},
     sequence::{delimited, preceded, terminated, tuple},
     IResult,
@@ -70,17 +70,20 @@ pub fn encoded_word_token(ctx: Context) -> impl FnMut(&[u8]) -> IResult<&[u8], E
 
 fn encoded_word_token_atom(ctx: Context) -> impl FnMut(&[u8]) -> IResult<&[u8], &[u8]> {
     move |input| {
+        // use `recognize` as this will be re-parsed by the encoded-word
+        // combinators, and all our parsing combinators work on &[u8]s.
+        //
+        // XXX if invalid utf-8 is present, this makes `take_utf8_while1`
+        // unnecessarily allocate a string for the result that is then
+        // discarded.
         match ctx {
             // mirrors words::atom
-            Context::Phrase => take_utf8_while1(words::is_atext)(input),
+            Context::Phrase => recognize(take_utf8_while1(words::is_atext))(input),
             // mirrors whitespace::ctext
-            Context::Comment => take_utf8_while1(whitespace::is_ctext)(input),
+            Context::Comment => recognize(take_utf8_while1(whitespace::is_ctext))(input),
             // mirrors misc_token::obs_utext_token (non-obs case)
-            Context::Unstructured => take_utf8_while1(words::is_vchar)(input),
+            Context::Unstructured => recognize(take_utf8_while1(words::is_vchar))(input),
         }
-        // downgrade the resulting &str as &[u8] as this will be re-parsed and all our
-        // parsing combinators work on &[u8]s.
-        .map(|(i, s)| (i, s.as_bytes()))
     }
 }
 

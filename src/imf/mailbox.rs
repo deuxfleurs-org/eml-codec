@@ -516,7 +516,7 @@ fn is_obs_dtext(c: char) -> bool {
 
 #[instrument_input("tracing")]
 pub fn dtext<'a>(input: &'a [u8]) -> IResult<&'a [u8], Dtext<'a>> {
-    map(take_utf8_while1(is_dtext), |b| Dtext(Cow::Borrowed(b)))(input)
+    map(take_utf8_while1(is_dtext), Dtext)(input)
 }
 
 #[cfg(test)]
@@ -707,6 +707,24 @@ mod tests {
                     domain: Domain::Atoms(vec![Atom("example"[..].into()), Atom("com"[..].into())]),
                 }
             }
+        );
+
+        // UTF-8 with invalid bytes
+        assert_eq!(
+            mailbox(b"a\xD4\xC6z\xE7 <tigermeeting@mail.net>"),
+            Ok((&b""[..],
+                MailboxRef {
+                    name: Some(Phrase(vec![
+                        PhraseToken::Word(Word::Atom(Atom("a\u{FFFD}\u{FFFD}z\u{FFFD}".into()))),
+                    ])),
+                    addrspec: AddrSpec {
+                        local_part: LocalPart(vec![
+                            LocalPartToken::Word(Word::Atom(Atom("tigermeeting".into())))
+                        ]),
+                        domain: Domain::Atoms(vec![Atom("mail".into()), Atom("net".into())]),
+                    },
+                }
+            ))
         );
 
         mailbox_roundtrip_as(
