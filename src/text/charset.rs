@@ -2,6 +2,7 @@
 use arbitrary::Arbitrary;
 use bounded_static::ToStatic;
 use encoding_rs::Encoding;
+use crate::i18n::ContainsUtf8;
 use crate::text::words::is_vchar;
 #[cfg(feature = "arbitrary")]
 use crate::fuzz_eq::FuzzEq;
@@ -13,7 +14,8 @@ use crate::fuzz_eq::FuzzEq;
 /// using encoding_rs datastructures directly would lead to a loss of information.
 /// <https://www.iana.org/assignments/character-sets/character-sets.xhtml>
 #[allow(non_camel_case_types)]
-#[derive(Debug, PartialEq, Default, Clone, ToStatic)]
+#[derive(Clone, ContainsUtf8, Debug, Default, PartialEq, ToStatic)]
+#[contains_utf8(false)]
 pub enum EmailCharset {
     #[default]
     US_ASCII,
@@ -41,9 +43,9 @@ pub enum EmailCharset {
     Big5,
     KOI8_R,
     UTF_8,
-    // Must contain only printable characters (text::words::is_vchar).
+    // Must contain only ASCII printable characters.
     // Must be nonempty, and must not represent any of the known charsets.
-    Unknown(Vec<u8>),
+    Unknown(String),
 }
 
 impl<T: AsRef<[u8]>> From<T> for EmailCharset {
@@ -76,8 +78,10 @@ impl<T: AsRef<[u8]>> From<T> for EmailCharset {
             b"koi8-r" => EmailCharset::KOI8_R,
             b"utf-8" | b"utf8" => EmailCharset::UTF_8,
             _ => {
-                // Filter out bytes that are not printable, in case there are some…
-                let sanitized = bytes.as_ref().iter().cloned().filter(|b| is_vchar(*b));
+                // Filter out bytes that are not ASCII printable, in case there are some…
+                let sanitized = bytes.as_ref().iter().cloned().filter_map(|b| {
+                    (b.is_ascii() && is_vchar(b as char)).then_some(b as char)
+                });
                 EmailCharset::Unknown(sanitized.collect())
             }
         }
@@ -119,7 +123,7 @@ impl EmailCharset {
             Big5 => b"Big5",
             KOI8_R => b"KOI8-R",
             UTF_8 => b"UTF-8",
-            Unknown(s) => &s,
+            Unknown(s) => s.as_bytes(),
         }
     }
 
@@ -162,7 +166,7 @@ impl<'a> Arbitrary<'a> for EmailCharset {
                 24 => EmailCharset::UTF_8,
                 25 => {
                     // don't bother generating unknown charsets, use a dummy
-                    EmailCharset::Unknown(b"unk".to_vec())
+                    EmailCharset::Unknown("unk".to_string())
                 }
                 _ => unreachable!(),
             }
@@ -205,7 +209,7 @@ mod tests {
 
         assert_eq!(
             EmailCharset::from(&b"!*\x00\x01abc"[..]),
-            EmailCharset::Unknown(b"!*abc".to_vec()),
+            EmailCharset::Unknown("!*abc".to_string()),
         );
     }
 }

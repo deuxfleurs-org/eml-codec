@@ -1,11 +1,11 @@
 use crate::text::ascii;
 use crate::text::encoding::{Context, encoded_word_plain};
 use crate::text::quoted::quoted_pair;
+use crate::text::utf8::{is_nonascii_or, space0_str, space1_str, take_utf8_while1};
 use nom::{
     branch::alt,
-    bytes::complete::{tag, take_while1},
-    character::complete::{space0, space1},
-    combinator::{opt, recognize},
+    bytes::complete::tag,
+    combinator::{map, opt, recognize},
     multi::many1,
     sequence::{pair, tuple},
     IResult,
@@ -26,13 +26,18 @@ use nom::{
 /// This means that using obs_crlf instead of CRLF (as done currently)
 /// may parse unstructured inputs in a way that contradicts the spec.
 
-pub fn obs_crlf(input: &[u8]) -> IResult<&[u8], &[u8]> {
-    alt((
-        tag(ascii::CRLF),
-        tag(ascii::CRCRLF),
-        tag(&[ascii::CR]),
-        tag(&[ascii::LF]),
-    ))(input)
+pub fn obs_crlf(input: &[u8]) -> IResult<&[u8], &str> {
+    map(
+        alt((
+            tag(ascii::CRLF),
+            tag(ascii::CRCRLF),
+            tag(&[ascii::CR]),
+            tag(&[ascii::LF]),
+        )),
+        |b: &[u8]|
+        // SAFETY: CR and LF are ASCII characters
+        unsafe { str::from_utf8_unchecked(b) }
+    )(input)
 }
 
 /// ```abnf
@@ -118,16 +123,16 @@ pub fn foldable_line(full_line: bool) -> impl Fn(&[u8]) -> IResult<&[u8], &[u8]>
 // pub fn fws(input: &[u8]) -> IResult<&[u8], Vec<&[u8]>> {
 //     many1(alt((space1, preceded(tag(ascii::CRLF), space1))))(input)
 // }
-pub fn fws(input: &[u8]) -> IResult<&[u8], Vec<&[u8]>> {
+pub fn fws(input: &[u8]) -> IResult<&[u8], Vec<&str>> {
     alt((
         many1(fold_marker).map(|v| v.into_iter().flatten().collect()),
-        space1.map(|wsp| vec![wsp])
+        space1_str.map(|wsp| vec![wsp])
     ))(input)
 }
-fn fold_marker(input: &[u8]) -> IResult<&[u8], Vec<&[u8]>> {
-    let (input, wsp0) = space0(input)?;
+fn fold_marker(input: &[u8]) -> IResult<&[u8], Vec<&str>> {
+    let (input, wsp0) = space0_str(input)?;
     let (input, _) = obs_crlf(input)?;
-    let (input, wsp) = space1(input)?;
+    let (input, wsp) = space1_str(input)?;
 
     let mut res = vec![];
     if !wsp0.is_empty() {
@@ -163,8 +168,8 @@ fn fold_marker(input: &[u8]) -> IResult<&[u8], Vec<&[u8]>> {
 ///
 /// This is why we resort to the the low-level iterative implementation
 /// of `comment` and `comment_body` below.
-pub fn cfws(input: &[u8]) -> IResult<&[u8], &[u8]> {
-    alt((recognize(comments), recognize(fws)))(input)
+pub fn cfws(input: &[u8]) -> IResult<&[u8], ()> {
+    alt((comments, fws.map(|_| ())))(input)
 }
 
 pub fn comments(input: &[u8]) -> IResult<&[u8], ()> {
@@ -197,7 +202,7 @@ pub fn comment_body(input: &[u8]) -> IResult<&[u8], ()> {
             alt((
                 recognize(quoted_pair),
                 recognize(encoded_word_plain(Context::Comment)),
-                ctext,
+                recognize(ctext),
             )).map(|_| false)
         ))(input)?;
 
@@ -209,12 +214,13 @@ pub fn comment_body(input: &[u8]) -> IResult<&[u8], ()> {
     }
 }
 
-pub fn ctext(input: &[u8]) -> IResult<&[u8], &[u8]> {
-    take_while1(is_ctext)(input)
+pub fn ctext(input: &[u8]) -> IResult<&[u8], &str> {
+    take_utf8_while1(is_ctext)(input)
 }
 
-pub fn is_ctext(c: u8) -> bool {
-    is_restr_ctext(c) || is_obs_no_ws_ctl(c)
+/// RFC6532: ctext includes non-ascii UTF-8
+pub fn is_ctext(c: char) -> bool {
+    is_nonascii_or(|c| is_restr_ctext(c) || is_obs_no_ws_ctl(c))(c)
 }
 
 /// Check if it's a comment text character
@@ -254,17 +260,17 @@ mod tests {
 
     #[test]
     fn test_obs_crlf() {
-        assert_eq!(obs_crlf(b"\rworld"), Ok((&b"world"[..], &b"\r"[..])));
-        assert_eq!(obs_crlf(b"\r\nworld"), Ok((&b"world"[..], &b"\r\n"[..])));
-        assert_eq!(obs_crlf(b"\nworld"), Ok((&b"world"[..], &b"\n"[..])));
+        assert_eq!(obs_crlf(b"\rworld"), Ok((&b"world"[..], &"\r"[..])));
+        assert_eq!(obs_crlf(b"\r\nworld"), Ok((&b"world"[..], &"\r\n"[..])));
+        assert_eq!(obs_crlf(b"\nworld"), Ok((&b"world"[..], &"\n"[..])));
     }
 
     #[test]
     fn test_fws() {
-        assert_eq!(fws(b"\r\n world"), Ok((&b"world"[..], vec![&b" "[..]])));
-        assert_eq!(fws(b" \r\n \r\n world"), Ok((&b"world"[..], vec![&b" "[..], &b" "[..], &b" "[..]])));
-        assert_eq!(fws(b" world"), Ok((&b"world"[..], vec![&b" "[..]])));
-        assert_eq!(fws(b" \t  \r\n  world"), Ok((&b"world"[..], vec![&b" \t  "[..], &b"  "[..]])));
+        assert_eq!(fws(b"\r\n world"), Ok((&b"world"[..], vec![&" "[..]])));
+        assert_eq!(fws(b" \r\n \r\n world"), Ok((&b"world"[..], vec![&" "[..], &" "[..], &" "[..]])));
+        assert_eq!(fws(b" world"), Ok((&b"world"[..], vec![&" "[..]])));
+        assert_eq!(fws(b" \t  \r\n  world"), Ok((&b"world"[..], vec![&" \t  "[..], &"  "[..]])));
         assert!(fws(b"\r\nFrom: test").is_err());
     }
 
@@ -274,16 +280,16 @@ mod tests {
             cfws(b"(A nice \\) chap) <pete(his account)@silly.test(his host)>"),
             Ok((
                 &b"<pete(his account)@silly.test(his host)>"[..],
-                &b"(A nice \\) chap) "[..]
+                ()
             ))
         );
         assert_eq!(
             cfws(b"(Chris's host.)public.example>,"),
-            Ok((&b"public.example>,"[..], &b"(Chris's host.)"[..]))
+            Ok((&b"public.example>,"[..], ()))
         );
         assert_eq!(
             cfws(b"(double (comment) is fun) wouch"),
-            Ok((&b"wouch"[..], &b"(double (comment) is fun) "[..]))
+            Ok((&b"wouch"[..], ()))
         );
         // assert_eq!(
         //     cfws(b"(unbalanced ( parens) wouch"),
@@ -291,7 +297,7 @@ mod tests {
         // );
         assert_eq!(
             cfws(b"(using (256/256 bits) (2048 bits))"),
-            Ok((&b""[..], &b"(using (256/256 bits) (2048 bits))"[..]))
+            Ok((&b""[..], ()))
         );
     }
 
@@ -299,7 +305,7 @@ mod tests {
     fn test_cfws_encoded_word() {
         assert_eq!(
             cfws(b"(=?US-ASCII?Q?Keith_Moore?=)"),
-            Ok((&b""[..], &b"(=?US-ASCII?Q?Keith_Moore?=)"[..])),
+            Ok((&b""[..], ())),
         );
     }
 

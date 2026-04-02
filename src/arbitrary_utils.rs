@@ -40,13 +40,41 @@ where
     Ok(v)
 }
 
-pub fn arbitrary_whitespace_nonempty(u: &mut Unstructured) -> Result<Vec<u8>> {
-    let mut v = Vec::new();
-    for _ in 0..=u.arbitrary_len::<u8>()? {
-        let b: bool = u.arbitrary()?;
-        v.push(if b { ascii::SP } else { ascii::HT });
+pub fn arbitrary_string_where<'a, F>(u: &mut Unstructured<'a>, pred: F) -> Result<String>
+where
+    F: Fn(char) -> bool,
+{
+    let len = u.arbitrary_len::<char>()?;
+    let mut s = String::with_capacity(len);
+    for _ in 0..len {
+        let c: char = u.arbitrary()?;
+        if pred(c) {
+            s.push(c)
+        } else {
+            return Err(arbitrary::Error::IncorrectFormat)
+        }
+    }
+    Ok(s)
+}
+
+pub fn arbitrary_string_nonempty_where<'a, F>(u: &mut Unstructured<'a>, pred: F, default: char) -> Result<String>
+where
+    F: Fn(char) -> bool,
+{
+    let mut v = arbitrary_string_where(u, pred)?;
+    if v.is_empty() {
+        v.push(default)
     }
     Ok(v)
+}
+
+pub fn arbitrary_whitespace_nonempty(u: &mut Unstructured) -> Result<String> {
+    let mut s = String::new();
+    for _ in 0..=u.arbitrary_len::<u8>()? {
+        let b: bool = u.arbitrary()?;
+        s.push((if b { ascii::SP } else { ascii::HT }).into());
+    }
+    Ok(s)
 }
 
 pub fn arbitrary_shuffle<T>(u: &mut Unstructured, v: &mut Vec<T>) -> Result<()> {

@@ -19,6 +19,7 @@ use crate::{
     fuzz_eq::FuzzEq,
     mime,
 };
+use crate::i18n::ContainsUtf8;
 use crate::mime::AnyMIME;
 use crate::part::{
     composite::{message, multipart, Message, Multipart},
@@ -39,6 +40,19 @@ pub struct AnyPart<'a> {
     // Invariant: `fields` must contain no duplicates.
     pub entries: Vec<field::EntityEntry<'a>>,
     pub mime_body: MimeBody<'a>,
+}
+
+impl<'a> AnyPart<'a> {
+    pub fn contains_utf8_headers(&self) -> bool {
+        self.entries.iter().find(|f| {
+            match f {
+                field::EntityEntry::Unstructured(u) => u.contains_utf8(),
+                _ => false,
+            }
+        }).is_some()
+        ||
+        self.mime_body.mime().contains_utf8()
+    }
 }
 
 #[cfg(feature = "arbitrary")]

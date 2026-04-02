@@ -12,12 +12,13 @@ use nom::{
 
 #[cfg(feature = "arbitrary")]
 use crate::fuzz_eq::FuzzEq;
+use crate::i18n::ContainsUtf8;
 use crate::print::{print_seq, Print, Formatter, ToStringFromPrint};
 use crate::imf::mailbox::{dtext, Dtext};
 use crate::text::whitespace::cfws;
 use crate::text::words::{dot_atom_text, DotAtom};
 
-#[derive(Clone, Debug, PartialEq, ToStatic, ToStringFromPrint)]
+#[derive(Clone, ContainsUtf8, Debug, PartialEq, ToStatic, ToStringFromPrint)]
 #[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
 pub struct MessageID<'a> {
     pub left: DotAtom<'a>,
@@ -66,7 +67,7 @@ fn id_left(input: &[u8]) -> IResult<&[u8], DotAtom<'_>> {
     dot_atom_text(input)
 }
 
-#[derive(Clone, Debug, PartialEq, ToStatic, ToStringFromPrint)]
+#[derive(Clone, ContainsUtf8, Debug, PartialEq, ToStatic, ToStringFromPrint)]
 #[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
 pub enum MessageIDRight<'a> {
     DotAtom(DotAtom<'a>),
@@ -75,7 +76,7 @@ pub enum MessageIDRight<'a> {
 impl<'a> Print for MessageIDRight<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
         match self {
-            MessageIDRight::DotAtom(a) => fmt.write_bytes(&a.0),
+            MessageIDRight::DotAtom(a) => a.print(fmt),
             MessageIDRight::Literal(dt) => {
                 fmt.write_bytes(b"[");
                 dt.print(fmt);
@@ -109,8 +110,8 @@ mod tests {
             Ok((
                 &b""[..],
                 MessageID {
-                    left: DotAtom(b"5678.21-Nov-1997"[..].into()),
-                    right: MessageIDRight::DotAtom(DotAtom(b"example.com"[..].into())),
+                    left: DotAtom("5678.21-Nov-1997"[..].into()),
+                    right: MessageIDRight::DotAtom(DotAtom("example.com"[..].into())),
                 }
             )),
         );

@@ -25,7 +25,8 @@ use crate::{
 use crate::print::{print_seq, Print, Formatter, ToStringFromPrint};
 use crate::text::ascii;
 use crate::text::charset::EmailCharset;
-use crate::text::whitespace::{cfws, fws, is_ctext};
+use crate::text::utf8::take_utf8_while1;
+use crate::text::whitespace::{self, cfws, fws};
 use crate::text::words;
 
 // Context in which an encoded word is parsed.
@@ -70,10 +71,16 @@ pub fn encoded_word_token(ctx: Context) -> impl FnMut(&[u8]) -> IResult<&[u8], E
 fn encoded_word_token_atom(ctx: Context) -> impl FnMut(&[u8]) -> IResult<&[u8], &[u8]> {
     move |input| {
         match ctx {
-            Context::Phrase => take_while1(words::is_atext)(input),
-            Context::Comment => take_while1(is_ctext)(input),
-            Context::Unstructured => take_while1(words::is_vchar)(input),
+            // mirrors words::atom
+            Context::Phrase => take_utf8_while1(words::is_atext)(input),
+            // mirrors whitespace::ctext
+            Context::Comment => take_utf8_while1(whitespace::is_ctext)(input),
+            // mirrors misc_token::obs_utext_token (non-obs case)
+            Context::Unstructured => take_utf8_while1(words::is_vchar)(input),
         }
+        // downgrade the resulting &str as &[u8] as this will be re-parsed and all our
+        // parsing combinators work on &[u8]s.
+        .map(|(i, s)| (i, s.as_bytes()))
     }
 }
 
@@ -289,7 +296,7 @@ fn safe_char2(input: &[u8]) -> IResult<&[u8], QuotedChunk<'_>> {
 /// than "=", "?", and "_" (underscore), MAY be represented as those
 /// characters.
 fn is_safe_char2(c: u8) -> bool {
-    words::is_vchar(c) && c != ascii::UNDERSCORE && c != ascii::QUESTION && c != ascii::EQ
+    words::is_vchar(c.into()) && c != ascii::UNDERSCORE && c != ascii::QUESTION && c != ascii::EQ
 }
 
 fn encoded_space(input: &[u8]) -> IResult<&[u8], QuotedChunk<'_>> {

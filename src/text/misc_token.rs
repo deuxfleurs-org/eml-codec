@@ -4,7 +4,6 @@ use bounded_static::ToStatic;
 use nom::{
     branch::alt,
     bytes::complete::{tag, take_while1},
-    character::complete::space0,
     combinator::{map, opt},
     multi::{many0, many1, separated_list0},
     sequence::{delimited, pair},
@@ -12,24 +11,25 @@ use nom::{
     Parser,
 };
 use std::borrow::Cow;
-use std::fmt;
 
 #[cfg(feature = "arbitrary")]
 use crate::{
     arbitrary_utils::{
-        arbitrary_whitespace_nonempty,
+        arbitrary_string_nonempty_where,
         arbitrary_vec_nonempty,
-        arbitrary_vec_nonempty_where,
+        arbitrary_whitespace_nonempty,
     },
     fuzz_eq::FuzzEq,
 };
+use crate::i18n::ContainsUtf8;
 use crate::print::{print_seq, Print, Formatter, ToStringFromPrint};
 use crate::text::{
     ascii,
     encoding::{self, encoded_word, encoded_word_plain},
-    quoted::{quoted_string, QuotedString, QuotedStringBytes},
+    quoted::{quoted_string, QuotedString, QuotedStringChars},
+    utf8::{space0_str, take_utf8_while1},
     whitespace::{cfws, fws, is_obs_no_ws_ctl},
-    words::{atom, is_vchar, mime_atom, Atom, MIMEAtom},
+    words::{atom, is_vchar, mime_atom, Atom, MIMEAtom, MIMEAtomChars},
 };
 
 #[derive(Clone, Debug, PartialEq, Default, ToStatic)]
@@ -74,7 +74,7 @@ impl<'a> Print for PhraseList<'a> {
     }
 }
 
-#[derive(Debug, PartialEq, Clone, ToStatic, ToStringFromPrint)]
+#[derive(Clone, ContainsUtf8, Debug, PartialEq, ToStatic, ToStringFromPrint)]
 #[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
 pub enum MIMEWord<'a> {
     Quoted(QuotedString<'a>),
@@ -93,10 +93,10 @@ pub fn mime_word(input: &[u8]) -> IResult<&[u8], MIMEWord<'_>> {
 }
 
 impl<'a> MIMEWord<'a> {
-    pub fn bytes<'b>(&'b self) -> WordBytes<'a, 'b> {
+    pub fn chars<'b>(&'b self) -> MIMEWordChars<'a, 'b> {
         match self {
-            MIMEWord::Quoted(q) => WordBytes::Quoted(q.bytes()),
-            MIMEWord::Atom(a) => WordBytes::Atom(a.0.iter()),
+            MIMEWord::Quoted(q) => MIMEWordChars::Quoted(q.chars()),
+            MIMEWord::Atom(a) => MIMEWordChars::Atom(a.chars()),
         }
     }
 }
@@ -104,7 +104,23 @@ impl<'a> Print for MIMEWord<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
         match self {
             MIMEWord::Quoted(q) => q.print(fmt),
-            MIMEWord::Atom(a) => fmt.write_bytes(&a.0),
+            MIMEWord::Atom(a) => a.print(fmt),
+        }
+    }
+}
+
+#[derive(Clone)]
+pub enum MIMEWordChars<'a, 'b> {
+    Quoted(QuotedStringChars<'a, 'b>),
+    Atom(MIMEAtomChars<'a, 'b>),
+}
+
+impl<'a, 'b> Iterator for MIMEWordChars<'a, 'b> {
+    type Item = char;
+    fn next(&mut self) -> Option<Self::Item> {
+        match self {
+            MIMEWordChars::Quoted(q) => q.next(),
+            MIMEWordChars::Atom(a) => a.next(),
         }
     }
 }
@@ -120,31 +136,32 @@ impl<'a> Print for Word<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
         match self {
             Word::Quoted(q) => q.print(fmt),
-            Word::Atom(a) => fmt.write_bytes(&a.0),
+            Word::Atom(a) => a.print(fmt),
         }
     }
 }
 
 impl<'a> Word<'a> {
-    pub fn bytes<'b>(&'b self) -> WordBytes<'a, 'b> {
+    pub fn chars<'b>(&'b self) -> WordChars<'a, 'b> {
         match self {
-            Word::Quoted(q) => WordBytes::Quoted(q.bytes()),
-            Word::Atom(a) => WordBytes::Atom(a.0.iter()),
+            Word::Quoted(q) => WordChars::Quoted(q.chars()),
+            Word::Atom(a) => WordChars::Atom(a.0.chars()),
         }
     }
 }
 
-pub enum WordBytes<'a, 'b> {
-    Quoted(QuotedStringBytes<'a, 'b>),
-    Atom(std::slice::Iter<'b, u8>),
+#[derive(Clone)]
+pub enum WordChars<'a, 'b> {
+    Quoted(QuotedStringChars<'a, 'b>),
+    Atom(std::str::Chars<'b>),
 }
 
-impl<'a, 'b> Iterator for WordBytes<'a, 'b> {
-    type Item = u8;
+impl<'a, 'b> Iterator for WordChars<'a, 'b> {
+    type Item = char;
     fn next(&mut self) -> Option<Self::Item> {
         match self {
-            WordBytes::Quoted(q) => q.next(),
-            WordBytes::Atom(a) => a.next().copied(),
+            WordChars::Quoted(q) => q.next(),
+            WordChars::Atom(a) => a.next(),
         }
     }
 }
@@ -185,7 +202,7 @@ impl<'a> Arbitrary<'a> for PhraseToken<'a> {
             // As a coarse-grained measure, reject any atom that contains '=?'
             // to avoid confusion with Encoded tokens
             if let Word::Atom(a) = &w {
-                if a.0.windows(2).find(|&s| s == b"=?").is_some() {
+                if a.0.find("=?").is_some() {
                     return Err(arbitrary::Error::IncorrectFormat)
                 }
             }
@@ -210,8 +227,10 @@ pub fn phrase_token(input: &[u8]) -> IResult<&[u8], PhraseToken<'_>> {
         // as the AST for `"."` (note the quotes), which is allowed in the
         // non-obs- syntax, thus ensuring that this AST can be safely
         // printed as-is.
-        map(delimited(opt(cfws), tag(&[ascii::PERIOD]), opt(cfws)), |b| {
-            PhraseToken::Word(Word::Quoted(QuotedString(vec![Cow::Borrowed(b)])))
+        map(delimited(opt(cfws), tag(&[ascii::PERIOD]), opt(cfws)), |_| {
+            PhraseToken::Word(Word::Quoted(QuotedString(vec![
+                Cow::Owned(".".to_string())
+            ])))
         }),
     ))(input)
 }
@@ -277,7 +296,7 @@ pub fn phrase(input: &[u8]) -> IResult<&[u8], Phrase<'_>> {
 
 #[derive(Debug, PartialEq, Clone, ToStatic)]
 pub struct UtextToken<'a> {
-    txt: Cow<'a, [u8]>,
+    txt: Cow<'a, str>,
     obs: bool,
 }
 
@@ -286,6 +305,7 @@ pub struct UtextToken<'a> {
 /// ```abnf
 /// obs-utext       =   %d0 / obs-NO-WS-CTL / VCHAR
 /// ```
+/// and also non-ascii UTF-8 text, following RFC6532.
 ///
 /// The parser result records which parts of the input
 /// were using the obsolete syntax (i.e. not VCHAR).
@@ -294,9 +314,12 @@ pub struct UtextToken<'a> {
 /// characters.
 fn obs_utext_token<'a>(input: &'a [u8]) -> IResult<&'a [u8], UtextToken<'a>> {
     alt((
-        take_while1(is_vchar)
+        take_utf8_while1(is_vchar)
             .map(|s| UtextToken { txt: Cow::Borrowed(s), obs: false }),
         take_while1(|c| is_obs_no_ws_ctl(c) || c == ascii::NULL)
+            // SAFETY: from the line above we know that `s` contains ASCII bytes
+            // (they satisfy either is_obs_no_ws_ctl or are NULL).
+            .map(|s| unsafe { str::from_utf8_unchecked(s) })
             .map(|s| UtextToken { txt: Cow::Borrowed(s), obs: true }),
     ))(input)
 }
@@ -308,18 +331,18 @@ pub enum UnstrTxtKind {
     Fws, // whitespace
 }
 
-#[derive(PartialEq, Clone, ToStatic)]
+#[derive(PartialEq, Clone, Debug, ToStatic)]
 #[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
 pub enum UnstrToken<'a> {
     Encoded(encoding::EncodedWord<'a>),
     // `Plain` MUST NOT contain text that represents an encoded word,
     // ie. of the form =?..?..?..?=
     #[cfg_attr(feature = "arbitrary", fuzz_eq(use_eq))]
-    Plain(Cow<'a, [u8]>, UnstrTxtKind),
+    Plain(Cow<'a, str>, UnstrTxtKind),
 }
 
 impl<'a> UnstrToken<'a> {
-    pub(crate) fn from_plain(s: &'a [u8], kind: UnstrTxtKind) -> Self {
+    pub(crate) fn from_plain(s: &'a str, kind: UnstrTxtKind) -> Self {
         Self::Plain(Cow::Borrowed(s), kind)
     }
 
@@ -331,18 +354,11 @@ impl<'a> UnstrToken<'a> {
         }
     }
 }
-impl<'a> fmt::Debug for UnstrToken<'a> {
-    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl<'a> ContainsUtf8 for UnstrToken<'a> {
+    fn contains_utf8(&self) -> bool {
         match self {
-            UnstrToken::Encoded(e) => fmt
-                .debug_tuple("Encoded")
-                .field(e)
-                .finish(),
-            UnstrToken::Plain(s, k) => fmt
-                .debug_tuple("Plain")
-                .field(&String::from_utf8_lossy(&s))
-                .field(k)
-                .finish(),
+            UnstrToken::Encoded(_) => false,
+            UnstrToken::Plain(s, _) => s.contains_utf8(),
         }
     }
 }
@@ -352,12 +368,12 @@ impl<'a> Print for UnstrToken<'a> {
             UnstrToken::Encoded(e) =>
                 e.print(fmt),
             UnstrToken::Plain(txt, UnstrTxtKind::Txt) =>
-                fmt.write_bytes(&txt),
+                fmt.write_bytes(txt.as_bytes()),
             UnstrToken::Plain(_, UnstrTxtKind::Obs) =>
                 // skip obsolete parts
                 (),
             UnstrToken::Plain(txt, UnstrTxtKind::Fws) =>
-                fmt.write_fws_bytes(&txt),
+                fmt.write_fws_bytes(txt.as_bytes()),
         }
     }
 }
@@ -369,10 +385,10 @@ impl<'a> Arbitrary<'a> for UnstrToken<'a> {
         match u.int_in_range(0..=2)? {
             0 => Ok(UnstrToken::Encoded(u.arbitrary()?)),
             1 => {
-                let txt = arbitrary_vec_nonempty_where(u, |c| is_vchar(*c), b'X')?;
+                let txt = arbitrary_string_nonempty_where(u, is_vchar, 'X')?;
                 // As a coarse-grained measure, reject text that contains '=?' to avoid confusion with
                 // Encoded tokens
-                if txt.windows(2).find(|&s| s == b"=?").is_some() {
+                if txt.find("=?").is_some() {
                     return Err(arbitrary::Error::IncorrectFormat)
                 }
                 Ok(UnstrToken::Plain(txt.into(), UnstrTxtKind::Txt))
@@ -423,8 +439,8 @@ impl<'a> Unstructured<'a> {
         let mut v: Vec<UnstrToken<'static>> = Vec::new();
         for tok in &self.0 {
             match (v.last_mut(), tok) {
-                (Some(UnstrToken::Plain(b1, k1)), UnstrToken::Plain(b2, k2)) if k1 == k2 =>
-                    b1.to_mut().extend(b2.iter()),
+                (Some(UnstrToken::Plain(s1, k1)), UnstrToken::Plain(s2, k2)) if k1 == k2 =>
+                    s1.to_mut().push_str(&s2),
                 (Some(UnstrToken::Encoded(e1)), UnstrToken::Encoded(e2)) =>
                     e1.0.extend(e2.to_static().0.into_iter()),
                 _ =>
@@ -432,6 +448,11 @@ impl<'a> Unstructured<'a> {
             }
         }
         Unstructured(v)
+    }
+}
+impl<'a> ContainsUtf8 for Unstructured<'a> {
+    fn contains_utf8(&self) -> bool {
+        self.0.contains_utf8()
     }
 }
 
@@ -509,7 +530,7 @@ pub fn unstructured(input: &[u8]) -> IResult<&[u8], Unstructured<'_>> {
             many1(map(obs_utext_token, UnstrToken::from_utext)),
         )),
     ))(input)?;
-    let (input, wsp0) = space0(input)?;
+    let (input, wsp0) = space0_str(input)?;
 
     // construct UnstrToken tokens
     let mut tokens = vec![];
@@ -570,14 +591,14 @@ mod tests {
 
         let (rest, parsed) = unstructured(b" \t").unwrap();
         assert_eq!(rest, &b""[..]);
-        assert_eq!(parsed, Unstructured(vec![UnstrToken::Plain(b" \t"[..].into(), UnstrTxtKind::Fws)]));
+        assert_eq!(parsed, Unstructured(vec![UnstrToken::Plain(" \t"[..].into(), UnstrTxtKind::Fws)]));
 
 
         let (rest, parsed) = unstructured(b"foo =?UTF-8?q?foo?=").unwrap();
         assert_eq!(rest, &b""[..]);
         assert_eq!(parsed, Unstructured(vec![
-            UnstrToken::Plain(b"foo"[..].into(), UnstrTxtKind::Txt),
-            UnstrToken::Plain(b" "[..].into(), UnstrTxtKind::Fws),
+            UnstrToken::Plain("foo"[..].into(), UnstrTxtKind::Txt),
+            UnstrToken::Plain(" "[..].into(), UnstrTxtKind::Fws),
             UnstrToken::Encoded(EncodedWord(vec![EncodedWordToken::Quoted(
                 QuotedWord {
                     enc: EmailCharset::UTF_8,
@@ -591,7 +612,7 @@ mod tests {
         let (rest, parsed) = unstructured(b"foo=?UTF-8?q?foo?=").unwrap();
         assert_eq!(rest, &b""[..]);
         assert_eq!(parsed, Unstructured(vec![
-            UnstrToken::Plain(b"foo=?UTF-8?q?foo?="[..].into(), UnstrTxtKind::Txt),
+            UnstrToken::Plain("foo=?UTF-8?q?foo?="[..].into(), UnstrTxtKind::Txt),
         ]));
     }
 }

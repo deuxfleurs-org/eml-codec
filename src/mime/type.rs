@@ -8,10 +8,10 @@ use nom::{
     sequence::{preceded, terminated, tuple},
     IResult,
 };
-use std::fmt;
 
 #[cfg(feature = "arbitrary")]
 use crate::fuzz_eq::FuzzEq;
+use crate::i18n::ContainsUtf8;
 use crate::print::{Print, Formatter, ToStringFromPrint};
 use crate::text::charset::EmailCharset;
 use crate::text::misc_token::{mime_word, MIMEWord};
@@ -19,7 +19,7 @@ use crate::text::quoted::print_quoted;
 use crate::text::words::{mime_atom, MIMEAtom};
 
 // --------- NAIVE TYPE
-#[derive(Debug, PartialEq, Clone, ToStatic)]
+#[derive(Clone, ContainsUtf8, Debug, PartialEq, ToStatic)]
 #[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
 pub struct NaiveType<'a> {
     pub main: MIMEAtom<'a>,
@@ -54,7 +54,7 @@ impl<'a> Print for NaiveType<'a> {
     }
 }
 
-#[derive(Debug, PartialEq, Clone, ToStatic)]
+#[derive(Clone, ContainsUtf8, Debug, PartialEq, ToStatic)]
 #[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
 pub struct Parameter<'a> {
     pub name: MIMEAtom<'a>,
@@ -121,26 +121,19 @@ impl<'a> Print for AnyType<'a> {
 
 // REAL PARTS
 
-#[derive(PartialEq, Clone, ToStatic)]
+#[derive(Clone, ContainsUtf8, Debug, PartialEq, ToStatic)]
 #[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
 pub struct Multipart<'a> {
     pub subtype: MultipartSubtype,
     // XXX: this is a hack, it is used to propagate information during parsing,
     // but is ignored by the printer.
     #[cfg_attr(feature = "arbitrary", fuzz_eq(ignore))]
-    pub boundary: Option<Vec<u8>>,
+    // boundary is always ascii
+    #[contains_utf8(ignore)]
+    pub boundary: Option<String>,
     pub params: Vec<Parameter<'a>>,
 }
 
-impl<'a> fmt::Debug for Multipart<'a> {
-    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt.debug_struct("mime::r#type::Multipart")
-            .field("subtype", &self.subtype)
-            .field("boundary", &self.boundary.as_deref().map(String::from_utf8_lossy))
-            .field("params", &self.params)
-            .finish()
-    }
-}
 #[cfg(feature = "arbitrary")]
 impl<'a> Arbitrary<'a> for Multipart<'a> {
     fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Multipart<'a>> {
@@ -176,7 +169,7 @@ impl<'a> TryFrom<&NaiveType<'a>> for Multipart<'a> {
         for param in &nt.params {
             if param.name.0.to_ascii_lowercase().as_slice() == b"boundary" {
                 if boundary.is_none() {
-                    boundary = Some(param.value.bytes().collect::<Vec<_>>());
+                    boundary = Some(param.value.chars().collect::<String>());
                 }
                 // drop any redundant "boundary" parameter that is not the first
             } else {
@@ -194,7 +187,7 @@ impl<'a> TryFrom<&NaiveType<'a>> for Multipart<'a> {
     }
 }
 
-#[derive(Debug, PartialEq, Clone, ToStatic, ToStringFromPrint)]
+#[derive(Clone, ContainsUtf8, Debug, PartialEq, ToStatic, ToStringFromPrint)]
 #[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
 pub enum MultipartSubtype {
     Alternative,
@@ -260,11 +253,12 @@ impl<'a> Arbitrary<'a> for MultipartSubtype {
     }
 }
 
-#[derive(Debug, PartialEq, Default, Clone, ToStatic, ToStringFromPrint)]
+#[derive(Clone, ContainsUtf8, Debug, Default, PartialEq, ToStatic, ToStringFromPrint)]
 #[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
 pub enum MessageSubtype {
     #[default]
     RFC822,
+    Global, // RFC6532 subtype (message containing UTF-8 headers)
     Partial,
     External,
     // neither of the above (ignoring capitalization).
@@ -275,6 +269,7 @@ impl MessageSubtype {
     fn as_bytes(&self) -> &[u8] {
         match self {
             Self::RFC822 => b"rfc822",
+            Self::Global => b"global",
             Self::Partial => b"partial",
             Self::External => b"external",
             Self::Unknown(b) => &b.0,
@@ -292,6 +287,7 @@ impl<'a> From<&NaiveType<'a>> for MessageSubtype {
         let sub = nt.sub.0.to_ascii_lowercase();
         match sub.as_slice() {
             b"rfc822" => MessageSubtype::RFC822,
+            b"global" => MessageSubtype::Global,
             b"partial" => MessageSubtype::Partial,
             b"external" => MessageSubtype::External,
             _ => MessageSubtype::Unknown(nt.sub.to_static()),
@@ -302,14 +298,15 @@ impl<'a> From<&NaiveType<'a>> for MessageSubtype {
 #[cfg(feature = "arbitrary")]
 impl<'a> Arbitrary<'a> for MessageSubtype {
     fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
-        match u.int_in_range(0..=3)? {
+        match u.int_in_range(0..=4)? {
             0 => Ok(MessageSubtype::RFC822),
-            1 => Ok(MessageSubtype::Partial),
-            2 => Ok(MessageSubtype::External),
-            3 => {
+            1 => Ok(MessageSubtype::Global),
+            2 => Ok(MessageSubtype::Partial),
+            3 => Ok(MessageSubtype::External),
+            4 => {
                 let a: MIMEAtom = u.arbitrary()?;
                 if matches!(a.0.to_ascii_lowercase().as_slice(),
-                            b"rfc822" | b"partial" | b"external") {
+                            b"rfc822" | b"global" | b"partial" | b"external") {
                     return Err(arbitrary::Error::IncorrectFormat)
                 }
                 Ok(MessageSubtype::Unknown(a))
@@ -319,7 +316,7 @@ impl<'a> Arbitrary<'a> for MessageSubtype {
     }
 }
 
-#[derive(Debug, PartialEq, Default, Clone, ToStatic)]
+#[derive(Clone, ContainsUtf8, Debug, Default, PartialEq, ToStatic)]
 #[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
 pub struct Message<'a> {
     pub subtype: MessageSubtype,
@@ -347,7 +344,7 @@ impl<'a> From<&NaiveType<'a>> for Message<'a> {
     }
 }
 
-#[derive(Debug, PartialEq, Default, Clone, ToStatic)]
+#[derive(Clone, ContainsUtf8, Debug, PartialEq, Default, ToStatic)]
 #[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
 pub struct Text<'a> {
     // NOTE: an unknown subtype combined with an unknown charset should
@@ -366,8 +363,8 @@ impl<'a> Print for Text<'a> {
         fmt.write_bytes(b"charset=");
         match &self.charset {
             EmailCharset::Unknown(s) =>
-            // print it as quoted just to be safe
-                print_quoted(fmt, s.iter().cloned()),
+                // print it as quoted just to be safe
+                print_quoted(fmt, s.chars()),
             _ =>
                 fmt.write_bytes(&self.charset.as_bytes())
         }
@@ -386,8 +383,8 @@ impl<'a> From<&NaiveType<'a>> for Text<'a> {
         for param in &nt.params {
             if param.name.0.to_ascii_lowercase().as_slice() == b"charset" {
                 if charset.is_none() {
-                    let value: Vec<u8> = param.value.bytes().collect();
-                    charset = Some(EmailCharset::from(value.as_slice()));
+                    let value: String = param.value.chars().collect();
+                    charset = Some(EmailCharset::from(&value));
                 }
                 // drop any "charset" parameter that is not the first
             } else {
@@ -403,7 +400,7 @@ impl<'a> From<&NaiveType<'a>> for Text<'a> {
     }
 }
 
-#[derive(Debug, PartialEq, Default, Clone, ToStatic, ToStringFromPrint)]
+#[derive(Clone, ContainsUtf8, Debug, PartialEq, Default, ToStatic, ToStringFromPrint)]
 #[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
 pub enum TextSubtype {
     #[default]
@@ -457,7 +454,7 @@ impl<'a> Arbitrary<'a> for TextSubtype {
     }
 }
 
-#[derive(Debug, PartialEq, Clone, ToStatic)]
+#[derive(Clone, ContainsUtf8, Debug, PartialEq, ToStatic)]
 #[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
 pub struct Binary<'a> {
     // invariant: ctype.main is neither "multipart", "message" or "text"
@@ -511,7 +508,7 @@ mod tests {
                 &b""[..],
                 Parameter {
                     name: MIMEAtom(b"charset"[..].into()),
-                    value: MIMEWord::Quoted(QuotedString(vec![b"utf-8"[..].into()])),
+                    value: MIMEWord::Quoted(QuotedString(vec!["utf-8"[..].into()])),
                 }
             )),
         );
@@ -603,7 +600,7 @@ mod tests {
                 &b""[..],
                 vec![Parameter {
                     name: MIMEAtom(b"boundary"[..].into()),
-                    value: MIMEWord::Quoted(QuotedString(vec![b"festivus"[..].into()])),
+                    value: MIMEWord::Quoted(QuotedString(vec!["festivus"[..].into()])),
                 }],
             ))
         );
