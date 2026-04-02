@@ -25,11 +25,19 @@ use crate::text::misc_token::Unstructured;
 use crate::utils::set_opt;
 
 #[derive(Debug, Default, PartialEq, Clone, ToStatic)]
-#[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
+#[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
 pub struct CommonMIME<'a> {
     pub transfer_encoding: Mechanism<'a>,
     pub id: Option<MessageID<'a>>,
     pub description: Option<Unstructured<'a>>,
+
+    // This field is for information only, and should not be considered part of
+    // the "structured" MIME AST. It contains fields encountered during parsing
+    // that were discarded because they conflicted with an earlier field (e.g.
+    // because there were multiple occurrences of a field that must only appear
+    // once). These discarded fields are never printed back.
+    #[cfg_attr(feature = "arbitrary", fuzz_eq(ignore))]
+    pub discarded: Vec<Content<'a>>,
 }
 
 impl<'a> ContainsUtf8 for CommonMIME<'a> {
@@ -37,6 +45,18 @@ impl<'a> ContainsUtf8 for CommonMIME<'a> {
         self.transfer_encoding.contains_utf8() ||
         self.id.contains_utf8() ||
         self.description.contains_utf8()
+    }
+}
+
+#[cfg(feature = "arbitrary")]
+impl<'a> Arbitrary<'a> for CommonMIME<'a> {
+    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
+        Ok(Self {
+            transfer_encoding: u.arbitrary()?,
+            id: u.arbitrary()?,
+            description: u.arbitrary()?,
+            discarded: vec![],
+        })
     }
 }
 
@@ -207,10 +227,25 @@ pub struct NaiveMIME<'a> {
     transfer_encoding: Option<Mechanism<'a>>,
     id: Option<MessageID<'a>>,
     description: Option<Unstructured<'a>>,
+    #[cfg_attr(feature = "arbitrary", fuzz_eq(ignore))]
+    discarded: Vec<Content<'a>>,
 }
 
 impl<'a> NaiveMIME<'a> {
     pub fn add_field(&mut self, f: Content<'a>) -> Option<FieldEntry> {
+        // XXX it is slightly unfortunate that we must .clone() just for the
+        // `is_none()` case below
+        let res = self.add_field_inner(f.clone());
+
+        // Store dropped fields in `self.discarded` for information purposes
+        if res.is_none() {
+            self.discarded.push(f);
+        }
+
+        res
+    }
+
+    fn add_field_inner(&mut self, f: Content<'a>) -> Option<FieldEntry> {
         match f {
             Content::Type(ctype) =>
                 set_opt(&mut self.ctype, ctype).then_some(FieldEntry::Type),
@@ -235,6 +270,7 @@ impl<'a> NaiveMIME<'a> {
             transfer_encoding,
             id: self.id,
             description: self.description,
+            discarded: self.discarded,
         };
         match typ {
             AnyType::Multipart(ctype) => {

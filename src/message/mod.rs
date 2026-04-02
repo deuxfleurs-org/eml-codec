@@ -32,7 +32,6 @@ pub struct Message<'a> {
     pub imf: imf::Imf<'a>,
     pub mime_body: part::MimeBody<'a>,
     pub entries: Vec<MessageEntry<'a>>,
-    // TODO: also track discarded MIME fields?
 }
 
 impl<'a> Print for Message<'a> {
@@ -172,8 +171,8 @@ impl<'a> FromIterator<header::FieldRaw<'a>> for MessageFields<'a> {
                         entries.push(MessageEntry::MIME(entry))
                     } else {
                         // otherwise drop the field
-                        #[cfg(feature = "tracing-discard")]
-                        warn!(field = ?f, "dropping redundant MIME field")
+                        #[cfg(feature = "tracing-recover")]
+                        warn!(field = ?f, "dropping conflicting MIME field")
                     }
                     continue;
                 },
@@ -256,7 +255,7 @@ mod tests {
     use crate::text::charset::EmailCharset;
     use crate::text::encoding::{Base64Word, EncodedWord, EncodedWordToken, QuotedChunk, QuotedWord};
     use crate::text::misc_token::*;
-    use crate::text::words::{Atom, DotAtom};
+    use crate::text::words::{Atom, DotAtom, MIMEAtom};
     use chrono::{FixedOffset, TimeZone};
     use pretty_assertions::assert_eq;
 
@@ -367,6 +366,7 @@ Subject: Bad_redundant_subject
 Content-Type: multipart/alternative;
  boundary="b1_e376dc71bafc953c0b0fdeb9983a9956"
 Content-Transfer-Encoding: 7bit
+Content-Transfer-Encoding: bad_redundant
 
 This is a multi-part message in MIME format.
 
@@ -526,8 +526,13 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                             },
                             fields: mime::CommonMIME {
                                 transfer_encoding: mime::mechanism::Mechanism::_7Bit,
+                                discarded: vec![
+                                    mime::field::Content::TransferEncoding(
+                                        mime::mechanism::Mechanism::Other(MIMEAtom(b"bad_redundant".into()))
+                                    ),
+                                ],
                                 ..mime::CommonMIME::default()
-                            }
+                            },
                         },
                         preamble: preamble.into(),
                         epilogue: vec![].into(),
