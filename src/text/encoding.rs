@@ -1,5 +1,4 @@
-use bounded_static::{ToStatic, ToBoundedStatic, IntoBoundedStatic};
-use encoding_rs::Encoding;
+use bounded_static::ToStatic;
 
 use base64::{engine::general_purpose, Engine as _};
 use nom::{
@@ -13,10 +12,12 @@ use nom::{
     IResult,
 };
 use std::borrow::Cow;
+use std::fmt;
 use std::io::Write;
 
 use crate::print::{print_seq, Print, Formatter};
 use crate::text::ascii;
+use crate::text::charset::EmailCharset;
 use crate::text::whitespace::{cfws, fws};
 use crate::text::words;
 
@@ -59,12 +60,8 @@ pub fn encoded_word_token_quoted(input: &[u8]) -> IResult<&[u8], EncodedWordToke
         tag("?="),
     ))(input)?;
 
-    // NOTE: we use encoding_rs directly instead of crate::mime::charset, because
-    // we only care about decoding (in `to_string`); printing will then always use
-    // UTF-8 as output charset.
-    let renc = Encoding::for_label(charset).unwrap_or(encoding_rs::WINDOWS_1252);
     let parsed = EncodedWordToken::Quoted(QuotedWord {
-        enc: renc,
+        enc: charset.0.into(),
         chunks: txt,
     });
     Ok((rest, parsed))
@@ -81,10 +78,8 @@ pub fn encoded_word_token_base64(input: &[u8]) -> IResult<&[u8], EncodedWordToke
         tag("?="),
     ))(input)?;
 
-    // NOTE: we use encoding_rs and not crate::mime::charset; see above.
-    let renc = Encoding::for_label(charset).unwrap_or(encoding_rs::WINDOWS_1252);
     let parsed = EncodedWordToken::Base64(Base64Word {
-        enc: renc,
+        enc: charset.0.into(),
         content: Cow::Borrowed(txt),
     });
     Ok((rest, parsed))
@@ -123,50 +118,33 @@ impl<'a> Print for EncodedWordToken<'a> {
     }
 }
 
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Clone, ToStatic)]
 pub struct Base64Word<'a> {
-    pub enc: &'static Encoding,
+    pub enc: EmailCharset,
     pub content: Cow<'a, [u8]>,
 }
-impl ToBoundedStatic for Base64Word<'_> {
-    type Static = Base64Word<'static>;
-    fn to_static(&self) -> Base64Word<'static> {
-        Base64Word { enc: self.enc, content: self.content.to_static() }
+impl<'a> fmt::Debug for Base64Word<'a> {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt.debug_struct("Base64Word")
+            .field("enc", &self.enc)
+            .field("content", &String::from_utf8_lossy(&self.content))
+            .finish()
     }
 }
-impl IntoBoundedStatic for Base64Word<'_> {
-    type Static = Base64Word<'static>;
-    fn into_static(self) -> Base64Word<'static> {
-        Base64Word { enc: self.enc, content: self.content.to_static() }
-    }
-}
-
 
 impl<'a> Base64Word<'a> {
     pub fn to_string(&self) -> String {
         general_purpose::STANDARD_NO_PAD
             .decode(&self.content)
-            .map(|d| self.enc.decode(d.as_slice()).0.to_string())
+            .map(|d| self.enc.as_encoding().decode(d.as_slice()).0.to_string())
             .unwrap_or("".into())
     }
 }
 
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Debug, Clone, ToStatic)]
 pub struct QuotedWord<'a> {
-    pub enc: &'static Encoding,
+    pub enc: EmailCharset,
     pub chunks: Vec<QuotedChunk<'a>>,
-}
-impl ToBoundedStatic for QuotedWord<'_> {
-    type Static = QuotedWord<'static>;
-    fn to_static(&self) -> QuotedWord<'static> {
-        QuotedWord { enc: self.enc, chunks: self.chunks.to_static() }
-    }
-}
-impl<'a> IntoBoundedStatic for QuotedWord<'a> {
-    type Static = QuotedWord<'static>;
-    fn into_static(self) -> QuotedWord<'static> {
-        QuotedWord { enc: self.enc, chunks: self.chunks.to_static() }
-    }
 }
 
 impl<'a> QuotedWord<'a> {
@@ -179,7 +157,7 @@ impl<'a> QuotedWord<'a> {
                 }
                 QuotedChunk::Space => acc.push(' '),
                 QuotedChunk::Encoded(v) => {
-                    let (d, _) = self.enc.decode_without_bom_handling(v.as_slice());
+                    let (d, _) = self.enc.as_encoding().decode_without_bom_handling(v.as_slice());
                     acc.push_str(d.as_ref());
                 }
             };
@@ -188,11 +166,28 @@ impl<'a> QuotedWord<'a> {
     }
 }
 
-#[derive(PartialEq, Debug, Clone, ToStatic)]
+#[derive(PartialEq, Clone, ToStatic)]
 pub enum QuotedChunk<'a> {
     Safe(Cow<'a, [u8]>),
     Encoded(Vec<u8>),
     Space,
+}
+impl<'a> fmt::Debug for QuotedChunk<'a> {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            QuotedChunk::Safe(b) =>
+                fmt.debug_tuple("QuotedChunk::Safe")
+                   .field(&String::from_utf8_lossy(&b))
+                   .finish(),
+            QuotedChunk::Encoded(e) =>
+                fmt.debug_tuple("QuotedChunk::Encoded")
+                   .field(e)
+                   .finish(),
+            QuotedChunk::Space =>
+                fmt.debug_tuple("QuotedChunk::Space")
+                   .finish(),
+        }
+    }
 }
 
 //quoted_printable
@@ -351,6 +346,21 @@ mod tests {
                 .1
                 .to_string(),
             "Accusé de réception (affiché)".to_string(),
+        );
+    }
+
+    #[test]
+    fn test_decode_word_ast() {
+        assert_eq!(
+            encoded_word(b"=?ISO-8859-1?B?SWYgeW91IGNhbiByZWFkIHRoaXMgeW8=?=")
+                .unwrap()
+                .1,
+            EncodedWord(vec![
+                EncodedWordToken::Base64(Base64Word{
+                    enc: EmailCharset::ISO_8859_1,
+                    content: b"SWYgeW91IGNhbiByZWFkIHRoaXMgeW8"[..].into(),
+                })
+            ])
         );
     }
 

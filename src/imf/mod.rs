@@ -14,7 +14,7 @@ use crate::imf::address::AddressRef;
 use crate::imf::datetime::DateTime;
 use crate::imf::field::{Field, Entry};
 use crate::imf::identification::MessageID;
-use crate::imf::mailbox::MailboxRef;
+use crate::imf::mailbox::{MailboxRef, MailboxList};
 use crate::imf::mime::Version;
 use crate::imf::trace::{ReceivedLog, ReturnPath, TraceBlock};
 use crate::print::Formatter;
@@ -43,7 +43,7 @@ pub struct Imf<'a> {
     // 3.6.5.  Informational Fields
     pub subject: Option<Unstructured<'a>>,
     pub comments: Vec<Unstructured<'a>>,
-    pub keywords: Vec<PhraseList<'a>>, // must be non-empty
+    pub keywords: Vec<PhraseList<'a>>,
 
     // 3.6.6 Not implemented
     // 3.6.7 Trace Fields
@@ -60,7 +60,7 @@ pub enum From<'a> {
         sender: Option<MailboxRef<'a>>,
     },
     Multiple {
-        from: Vec<MailboxRef<'a>>,
+        from: MailboxList<'a>,
         sender: MailboxRef<'a>,
     }
 }
@@ -93,9 +93,9 @@ impl<'a> Imf<'a> {
         }
     }
 
-    pub fn from(&self) -> Vec<MailboxRef<'a>> {
+    pub fn from(&self) -> MailboxList<'a> {
         match &self.from {
-            From::Single { from, .. } => vec![from.clone()],
+            From::Single { from, .. } => MailboxList(vec![from.clone()]),
             From::Multiple { from, .. } => from.clone(),
         }
     }
@@ -111,11 +111,8 @@ impl<'a> Imf<'a> {
         match f {
             field::Entry::Date =>
                 header::print(fmt, b"Date", &self.date),
-            field::Entry::From => {
-                if !self.from().is_empty() {
-                    header::print(fmt, b"From", self.from())
-                }
-            },
+            field::Entry::From =>
+                header::print(fmt, b"From", self.from()),
             field::Entry::Sender => {
                 if let Some(sender) = self.sender() {
                     header::print(fmt, b"Sender", sender)
@@ -165,10 +162,6 @@ impl<'a> Imf<'a> {
                 header::print_unstructured(fmt, b"Comments", &self.comments[i]),
             field::Entry::Keywords(i) =>
                 header::print(fmt, b"Keywords", &self.keywords[i]),
-            field::Entry::ReturnPath(i) =>
-                header::print(fmt, b"Return-Path", &self.trace[i].return_path.as_ref().unwrap()),
-            field::Entry::Received(i, j) =>
-                header::print(fmt, b"Received", &self.trace[i].received[j]),
             field::Entry::MIMEVersion =>
                 header::print(fmt, b"MIME-Version", &self.mime_version),
         }
@@ -178,7 +171,7 @@ impl<'a> Imf<'a> {
 #[derive(Debug, Default, PartialEq, ToStatic)]
 pub struct PartialImf<'a> {
     date: Option<DateTime>,
-    from: Option<Vec<MailboxRef<'a>>>,
+    from: Option<MailboxList<'a>>,
     sender: Option<MailboxRef<'a>>,
     reply_to: Option<Vec<AddressRef<'a>>>,
     to: Option<Vec<AddressRef<'a>>>,
@@ -283,12 +276,10 @@ impl<'a> PartialImf<'a> {
             Field::Keywords(kwds) => {
                 // the obs syntax allows empty phrase lists, but not
                 // the normal syntax. we drop them.
-                if !kwds.0.is_empty() {
+                if let Some(kwds) = kwds {
                     let idx = self.keywords.len();
                     self.keywords.push(kwds);
                     return Some(Entry::Keywords(idx))
-                } else {
-                    return None
                 }
             },
             Field::Received(received) => {
@@ -296,17 +287,15 @@ impl<'a> PartialImf<'a> {
                     self.trace.push(PartialTraceBlock::default())
                 }
                 let block_idx = self.trace.len() - 1;
-                let field_idx = self.trace[block_idx].received.len();
                 self.trace[block_idx].received.push(received);
-                return Some(Entry::Received(block_idx, field_idx))
+                return None
             },
             Field::ReturnPath(path) => {
-                let block_idx = self.trace.len();
                 self.trace.push(PartialTraceBlock {
                     return_path: Some(path),
                     received: vec![],
                 });
-                return Some(Entry::ReturnPath(block_idx))
+                return None
             },
             Field::MIMEVersion(version) => {
                 if set_opt(&mut self.mime_version, version) {
@@ -327,9 +316,9 @@ impl<'a> PartialImf<'a> {
                 entries.push(Entry::From)
             },
             Some(v) => {
-                if v.is_empty() {
+                if v.0.is_empty() {
                     entries.push(Entry::From)
-                } else if v.len() > 1 && self.sender.is_none() {
+                } else if v.0.len() > 1 && self.sender.is_none() {
                     entries.push(Entry::Sender)
                 }
             },
@@ -343,13 +332,10 @@ impl<'a> PartialImf<'a> {
     pub fn to_imf(self) -> Imf<'a> {
         let date = self.date.unwrap_or_else(DateTime::placeholder);
         let from = {
-            let mut p_from = self.from.unwrap_or_else(|| vec![MailboxRef::placeholder()]);
-            if p_from.is_empty() {
-                p_from = vec![MailboxRef::placeholder()]
-            }
-            if p_from.len() == 1 {
+            let mut p_from = self.from.unwrap_or_else(|| MailboxList(vec![MailboxRef::placeholder()]));
+            if p_from.0.len() == 1 {
                 From::Single {
-                    from: p_from.pop().unwrap(),
+                    from: p_from.0.pop().unwrap(),
                     sender: self.sender,
                 }
             } else {

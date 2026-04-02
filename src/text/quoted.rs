@@ -14,6 +14,8 @@ use crate::text::ascii;
 use crate::text::whitespace::{cfws, fws, is_obs_no_ws_ctl};
 use crate::text::words::is_vchar;
 
+// TODO: add a debug impl that prints ASCII text as ASCII
+// (but beware: a quoted string can also contain non-ascii/printable bytes)
 #[derive(Debug, PartialEq, Default, Clone, ToStatic)]
 pub struct QuotedString<'a>(pub Vec<Cow<'a, [u8]>>);
 

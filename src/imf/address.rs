@@ -10,7 +10,7 @@ use nom::{
 
 //use crate::error::IMFError;
 use crate::print::{print_seq, Print, Formatter};
-use crate::imf::mailbox::{mailbox, mailbox_list_nullable, MailboxRef};
+use crate::imf::mailbox::{mailbox, mailbox_list_nullable, MailboxRef, MailboxList};
 use crate::text::misc_token::{phrase, Phrase};
 use crate::text::whitespace::cfws;
 use crate::utils::vec_filter_none_nonempty;
@@ -18,13 +18,15 @@ use crate::utils::vec_filter_none_nonempty;
 #[derive(Clone, Debug, PartialEq, ToStatic)]
 pub struct GroupRef<'a> {
     pub name: Phrase<'a>,
-    pub participants: Vec<MailboxRef<'a>>,
+    pub participants: Option<MailboxList<'a>>,
 }
 impl<'a> Print for GroupRef<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
         self.name.print(fmt);
         fmt.write_bytes(b":");
-        self.participants.print(fmt);
+        if let Some(mboxs) = &self.participants {
+            mboxs.print(fmt);
+        }
         fmt.write_bytes(b";")
     }
 }
@@ -87,7 +89,7 @@ pub fn group(input: &[u8]) -> IResult<&[u8], GroupRef<'_>> {
         input,
         GroupRef {
             name: grp_name,
-            participants: grp_list.unwrap_or(vec![]),
+            participants: grp_list.unwrap_or(None),
         },
     ))
 }
@@ -98,7 +100,7 @@ pub fn group(input: &[u8]) -> IResult<&[u8], GroupRef<'_>> {
 ///    group-list      =   mailbox-list / CFWS / obs-group-list
 ///    obs-group-list  =   1*([CFWS] ",") [CFWS]
 /// ```
-pub fn group_list(input: &[u8]) -> IResult<&[u8], Vec<MailboxRef<'_>>> {
+pub fn group_list(input: &[u8]) -> IResult<&[u8], Option<MailboxList<'_>>> {
     mailbox_list_nullable(input)
 }
 
@@ -135,9 +137,11 @@ pub fn nullable_address_list(input: &[u8]) -> IResult<&[u8], Vec<AddressRef<'_>>
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::text::charset::EmailCharset;
     use crate::imf::mailbox::{AddrSpec, Domain, LocalPart, LocalPartToken};
     use crate::print::tests::with_formatter;
     use crate::text::misc_token::{Phrase, PhraseToken, Word};
+    use crate::text::words::Atom;
 
     fn address_list_parsed_printed(addrlist: &[u8], printed: &[u8], parsed: AddressList<'_>) {
         assert_eq!(address_list(addrlist).unwrap(), (&b""[..], parsed.clone()));
@@ -160,46 +164,46 @@ mod tests {
             vec![
                 AddressRef::Many(GroupRef {
                     name: Phrase(vec![
-                        PhraseToken::Word(Word::Atom(b"A"[..].into())),
-                        PhraseToken::Word(Word::Atom(b"Group"[..].into())),
+                        PhraseToken::Word(Word::Atom(Atom(b"A"[..].into()))),
+                        PhraseToken::Word(Word::Atom(Atom(b"Group"[..].into()))),
                     ]),
-                    participants: vec![
+                    participants: Some(MailboxList(vec![
                         MailboxRef {
                             name: Some(Phrase(vec![
-                                PhraseToken::Word(Word::Atom(b"Ed"[..].into())),
-                                PhraseToken::Word(Word::Atom(b"Jones"[..].into())),
+                                PhraseToken::Word(Word::Atom(Atom(b"Ed"[..].into()))),
+                                PhraseToken::Word(Word::Atom(Atom(b"Jones"[..].into()))),
                             ])),
                             addrspec: AddrSpec {
-                                local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(b"c"[..].into()))]),
-                                domain: Domain::Atoms(vec![b"a"[..].into(), b"test"[..].into()]),
+                                local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(Atom(b"c"[..].into())))]),
+                                domain: Domain::Atoms(vec![Atom(b"a"[..].into()), Atom(b"test"[..].into())]),
                             },
                         },
                         MailboxRef {
                             name: None,
                             addrspec: AddrSpec {
-                                local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(b"joe"[..].into()))]),
-                                domain: Domain::Atoms(vec![b"where"[..].into(), b"test"[..].into()])
+                                local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(Atom(b"joe"[..].into())))]),
+                                domain: Domain::Atoms(vec![Atom(b"where"[..].into()), Atom(b"test"[..].into())])
                             },
                         },
                         MailboxRef {
                             name: Some(Phrase(vec![
-                                PhraseToken::Word(Word::Atom(b"John"[..].into())),
+                                PhraseToken::Word(Word::Atom(Atom(b"John"[..].into()))),
                             ])),
                             addrspec: AddrSpec {
-                                local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(b"jdoe"[..].into()))]),
-                                domain: Domain::Atoms(vec![b"one"[..].into(), b"test"[..].into()])
+                                local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(Atom(b"jdoe"[..].into())))]),
+                                domain: Domain::Atoms(vec![Atom(b"one"[..].into()), Atom(b"test"[..].into())])
                             },
                         },
-                    ],
+                    ])),
                 }),
                 AddressRef::Single(MailboxRef {
                     name: Some(Phrase(vec![
-                        PhraseToken::Word(Word::Atom(b"Mary"[..].into())),
-                        PhraseToken::Word(Word::Atom(b"Smith"[..].into())),
+                        PhraseToken::Word(Word::Atom(Atom(b"Mary"[..].into()))),
+                        PhraseToken::Word(Word::Atom(Atom(b"Smith"[..].into()))),
                     ])),
                     addrspec: AddrSpec {
-                        local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(b"mary"[..].into()))]),
-                        domain: Domain::Atoms(vec![b"x"[..].into(), b"test"[..].into()])
+                        local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(Atom(b"mary"[..].into())))]),
+                        domain: Domain::Atoms(vec![Atom(b"x"[..].into()), Atom(b"test"[..].into())])
                     },
                 }),
             ],
@@ -228,7 +232,7 @@ mod tests {
                     name: Phrase(vec![
                         PhraseToken::Word(Word::Quoted(QuotedString(vec![b"Colleagues"[..].into()]))),
                     ]),
-                    participants: vec![MailboxRef {
+                    participants: Some(MailboxList(vec![MailboxRef {
                         name: Some(Phrase(vec![
                             PhraseToken::Word(Word::Quoted(QuotedString(vec![
                                 b"James"[..].into(),
@@ -237,29 +241,29 @@ mod tests {
                             ])))])),
                         addrspec: AddrSpec {
                             local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(
-                                b"james"[..].into()
+                                Atom(b"james"[..].into())
                             ))]),
-                            domain: Domain::Atoms(vec![b"vandelay"[..].into(), b"com"[..].into()]),
+                            domain: Domain::Atoms(vec![Atom(b"vandelay"[..].into()), Atom(b"com"[..].into())]),
                         }
-                    },],
+                    },])),
                 }),
                 AddressRef::Many(GroupRef {
-                    name: Phrase(vec![PhraseToken::Word(Word::Atom(b"Friends"[..].into()))]),
-                    participants: vec![
+                    name: Phrase(vec![PhraseToken::Word(Word::Atom(Atom(b"Friends"[..].into())))]),
+                    participants: Some(MailboxList(vec![
                         MailboxRef {
                             name: None,
                             addrspec: AddrSpec {
                                 local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(
-                                    b"jane"[..].into()
+                                    Atom(b"jane"[..].into())
                                 ))]),
-                                domain: Domain::Atoms(vec![b"example"[..].into(), b"com"[..].into()]),
+                                domain: Domain::Atoms(vec![Atom(b"example"[..].into()), Atom(b"com"[..].into())]),
                             }
                         },
                         MailboxRef {
                             name: Some(Phrase(vec![PhraseToken::Encoded(EncodedWord(vec![
                                 EncodedWordToken::Quoted(
                                     QuotedWord {
-                                        enc: encoding_rs::UTF_8,
+                                        enc: EmailCharset::UTF_8,
                                         chunks: vec![
                                             QuotedChunk::Safe(b"John"[..].into()),
                                             QuotedChunk::Space,
@@ -272,12 +276,12 @@ mod tests {
                             ]))])),
                             addrspec: AddrSpec {
                                 local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(
-                                    b"john"[..].into()
+                                    Atom(b"john"[..].into())
                                 ))]),
-                                domain: Domain::Atoms(vec![b"example"[..].into(), b"com"[..].into()]),
+                                domain: Domain::Atoms(vec![Atom(b"example"[..].into()), Atom(b"com"[..].into())]),
                             }
                         },
-                    ]
+                    ]))
                 }),
             ],
         );
@@ -286,8 +290,8 @@ mod tests {
             b"group:;",
             b"group:;",
             vec![AddressRef::Many(GroupRef {
-                name: Phrase(vec![PhraseToken::Word(Word::Atom(b"group".into()))]),
-                participants: vec![],
+                name: Phrase(vec![PhraseToken::Word(Word::Atom(Atom(b"group".into())))]),
+                participants: None,
             })],
         );
 
@@ -295,8 +299,8 @@ mod tests {
             b"group: \r\n ;",
             b"group:;",
             vec![AddressRef::Many(GroupRef {
-                name: Phrase(vec![PhraseToken::Word(Word::Atom(b"group".into()))]),
-                participants: vec![],
+                name: Phrase(vec![PhraseToken::Word(Word::Atom(Atom(b"group".into())))]),
+                participants: None,
             })],
         );
     }
@@ -307,8 +311,8 @@ mod tests {
             b"group: ,,  \r\n  ,,,, ;",
             b"group:;",
             vec![AddressRef::Many(GroupRef {
-                name: Phrase(vec![PhraseToken::Word(Word::Atom(b"group".into()))]),
-                participants: vec![],
+                name: Phrase(vec![PhraseToken::Word(Word::Atom(Atom(b"group".into())))]),
+                participants: None,
             })],
         );
 
@@ -316,8 +320,8 @@ mod tests {
             b"group:,;",
             b"group:;",
             vec![AddressRef::Many(GroupRef {
-                name: Phrase(vec![PhraseToken::Word(Word::Atom(b"group".into()))]),
-                participants: vec![],
+                name: Phrase(vec![PhraseToken::Word(Word::Atom(Atom(b"group".into())))]),
+                participants: None,
             })],
         )
     }

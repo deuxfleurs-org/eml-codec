@@ -1,5 +1,6 @@
 pub mod ascii;
 pub mod boundary;
+pub mod charset;
 pub mod encoding;
 pub mod misc_token;
 pub mod quoted;

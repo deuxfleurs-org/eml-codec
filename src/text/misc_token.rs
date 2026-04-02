@@ -18,9 +18,10 @@ use crate::text::{
     encoding::{self, encoded_word, encoded_word_plain},
     quoted::{print_quoted, quoted_string, QuotedString, QuotedStringBytes},
     whitespace::{cfws, fws, is_obs_no_ws_ctl},
-    words::{atom, is_vchar, mime_atom},
+    words::{atom, is_vchar, mime_atom, Atom, MIMEAtom},
 };
 
+// A non-empty list of phrases.
 #[derive(Clone, Debug, PartialEq, Default, ToStatic)]
 pub struct PhraseList<'a>(pub Vec<Phrase<'a>>);
 
@@ -28,13 +29,23 @@ pub struct PhraseList<'a>(pub Vec<Phrase<'a>>);
 ///
 /// obs-phrase-list =   [phrase / CFWS] *("," [phrase / CFWS])
 ///
-pub fn phrase_list(input: &[u8]) -> IResult<&[u8], PhraseList<'_>> {
+/// where phrase-list (not defined explicitly in the RFC, but used in keywords):
+///
+/// phrase-list     = phrase *("," phrase)
+///
+/// We return an option to represent the empty-list case of the obsolete syntax;
+/// and in turn, a `PhraseList` is always non-empty.
+pub fn phrase_list(input: &[u8]) -> IResult<&[u8], Option<PhraseList<'_>>> {
     let (input, phrases_opt) = separated_list0(
         tag(","),
         alt((map(phrase, Some), map(opt(cfws), |_| None))),
     )(input)?;
     let phrases: Vec<Phrase> = phrases_opt.into_iter().flatten().collect();
-    Ok((input, PhraseList(phrases)))
+    if phrases.is_empty() {
+        Ok((input, None))
+    } else {
+        Ok((input, Some(PhraseList(phrases))))
+    }
 }
 impl<'a> Print for PhraseList<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
@@ -51,19 +62,19 @@ impl<'a> Print for PhraseList<'a> {
 #[derive(Debug, PartialEq, Clone, ToStatic)]
 pub enum MIMEWord<'a> {
     Quoted(QuotedString<'a>),
-    Atom(Cow<'a, [u8]>),
+    Atom(MIMEAtom<'a>),
 }
 impl Default for MIMEWord<'static> {
     fn default() -> Self {
-        Self::Atom(Cow::Owned(vec![]))
+        Self::Atom(MIMEAtom::default())
     }
 }
 impl<'a> MIMEWord<'a> {
     pub fn to_string(&self) -> String {
         match self {
             Self::Quoted(v) => v.to_string(),
-            Self::Atom(v) => encoding_rs::UTF_8
-                .decode_without_bom_handling(v)
+            Self::Atom(a) => encoding_rs::UTF_8
+                .decode_without_bom_handling(&a.0)
                 .0
                 .to_string(),
         }
@@ -72,7 +83,7 @@ impl<'a> MIMEWord<'a> {
 pub fn mime_word(input: &[u8]) -> IResult<&[u8], MIMEWord<'_>> {
     alt((
         map(quoted_string, MIMEWord::Quoted),
-        map(mime_atom, |a| MIMEWord::Atom(Cow::Borrowed(a))),
+        map(mime_atom, MIMEWord::Atom),
     ))(input)
 }
 
@@ -80,7 +91,7 @@ impl<'a> MIMEWord<'a> {
     pub fn bytes<'b>(&'b self) -> WordBytes<'a, 'b> {
         match self {
             MIMEWord::Quoted(q) => WordBytes::Quoted(q.bytes()),
-            MIMEWord::Atom(a) => WordBytes::Atom(a.iter()),
+            MIMEWord::Atom(a) => WordBytes::Atom(a.0.iter()),
         }
     }
 }
@@ -88,33 +99,26 @@ impl<'a> Print for MIMEWord<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
         match self {
             MIMEWord::Quoted(q) => print_quoted(fmt, q.bytes()),
-            MIMEWord::Atom(a) => fmt.write_bytes(&a),
+            MIMEWord::Atom(a) => fmt.write_bytes(&a.0),
         }
     }
 }
 
-#[derive(Clone, PartialEq, ToStatic)]
+#[derive(Clone, Debug, PartialEq, ToStatic)]
 pub enum Word<'a> {
     Quoted(QuotedString<'a>),
-    Atom(Cow<'a, [u8]>),
+    Atom(Atom<'a>),
 }
 
 impl<'a> ToString for Word<'a> {
     fn to_string(&self) -> String {
         match self {
             Word::Quoted(v) => v.to_string(),
-            Word::Atom(v) => encoding_rs::UTF_8
-                .decode_without_bom_handling(v)
+            Word::Atom(a) => encoding_rs::UTF_8
+                .decode_without_bom_handling(&a.0)
                 .0
                 .to_string(),
         }
-    }
-}
-impl<'a> fmt::Debug for Word<'a> {
-    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt.debug_tuple("Word")
-            .field(&format_args!("\"{}\"", self.to_string()))
-            .finish()
     }
 }
 
@@ -122,7 +126,7 @@ impl<'a> Print for Word<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
         match self {
             Word::Quoted(q) => print_quoted(fmt, q.bytes()),
-            Word::Atom(a) => fmt.write_bytes(&a),
+            Word::Atom(a) => fmt.write_bytes(&a.0),
         }
     }
 }
@@ -131,7 +135,7 @@ impl<'a> Word<'a> {
     pub fn bytes<'b>(&'b self) -> WordBytes<'a, 'b> {
         match self {
             Word::Quoted(q) => WordBytes::Quoted(q.bytes()),
-            Word::Atom(a) => WordBytes::Atom(a.iter()),
+            Word::Atom(a) => WordBytes::Atom(a.0.iter()),
         }
     }
 }
@@ -159,11 +163,11 @@ impl<'a, 'b> Iterator for WordBytes<'a, 'b> {
 pub fn word(input: &[u8]) -> IResult<&[u8], Word<'_>> {
     alt((
         map(quoted_string, Word::Quoted),
-        map(atom, |a| Word::Atom(Cow::Borrowed(a))),
+        map(atom, Word::Atom),
     ))(input)
 }
 
-#[derive(Clone, PartialEq, ToStatic)]
+#[derive(Clone, Debug, PartialEq, ToStatic)]
 pub enum PhraseToken<'a> {
     Word(Word<'a>),
     Encoded(encoding::EncodedWord<'a>),
@@ -174,13 +178,6 @@ impl<'a> ToString for PhraseToken<'a> {
             PhraseToken::Word(w) => w.to_string(),
             PhraseToken::Encoded(e) => e.to_string(),
         }
-    }
-}
-impl<'a> fmt::Debug for PhraseToken<'a> {
-    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt.debug_tuple("PhraseToken")
-            .field(&format_args!("\"{}\"", self.to_string()))
-            .finish()
     }
 }
 impl<'a> Print for PhraseToken<'a> {
@@ -214,7 +211,7 @@ pub fn phrase_token(input: &[u8]) -> IResult<&[u8], PhraseToken<'_>> {
 }
 
 // Must be a non-empty list
-#[derive(Clone, PartialEq, ToStatic)]
+#[derive(Clone, Debug, PartialEq, ToStatic)]
 pub struct Phrase<'a>(pub Vec<PhraseToken<'a>>);
 
 impl<'a> ToString for Phrase<'a> {
@@ -226,14 +223,6 @@ impl<'a> ToString for Phrase<'a> {
             .join(" ")
     }
 }
-impl<'a> fmt::Debug for Phrase<'a> {
-    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt.debug_tuple("Phrase")
-            .field(&format_args!("\"{}\"", self.to_string()))
-            .finish()
-    }
-}
-
 impl<'a> Print for Phrase<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
         print_seq(fmt, &self.0, Formatter::write_fws)
@@ -316,7 +305,10 @@ impl<'a> UnstrToken<'a> {
 impl<'a> fmt::Debug for UnstrToken<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            UnstrToken::Encoded(e) => fmt.debug_tuple("Encoded").field(&e.to_string()).finish(),
+            UnstrToken::Encoded(e) => fmt
+                .debug_tuple("Encoded")
+                .field(e)
+                .finish(),
             UnstrToken::Plain(s, k) => fmt
                 .debug_tuple("Plain")
                 .field(&String::from_utf8_lossy(&s))
@@ -457,7 +449,7 @@ mod tests {
     fn test_phrase_list() {
         let (rest, parsed) = phrase_list(b",abc def,,   ,ghi").unwrap();
         assert_eq!(rest, &b""[..]);
-        let printed = with_formatter(|f| parsed.print(f));
+        let printed = with_formatter(|f| parsed.as_ref().unwrap().print(f));
         assert_eq!(printed, b"abc def, ghi");
     }
 }

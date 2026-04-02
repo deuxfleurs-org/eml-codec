@@ -37,7 +37,7 @@ pub struct AnyPart<'a> {
     // - it must *only* contain entries for fields that have a value. (This means
     //   no optional fields set to `None`.)
     // Invariant: `fields` must contain no duplicates.
-    pub fields: Vec<field::EntityField<'a>>,
+    pub entries: Vec<field::EntityEntry<'a>>,
     pub mime_body: MimeBody<'a>,
 }
 
@@ -125,10 +125,10 @@ impl<'a> Print for AnyPart<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
         fmt.begin_line_folding();
         let mime = self.mime_body.mime();
-        for field in &self.fields {
-            match field {
-                field::EntityField::Unstructured(u) => u.print(fmt),
-                field::EntityField::MIME(f) => mime.print_field(*f, fmt),
+        for entry in &self.entries {
+            match entry {
+                field::EntityEntry::Unstructured(u) => u.print(fmt),
+                field::EntityEntry::MIME(f) => mime.print_field(*f, fmt),
             }
         }
         fmt.end_line_folding();

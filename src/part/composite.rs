@@ -73,14 +73,14 @@ pub fn multipart<'a>(
 
             // parse mime headers, otherwise pick default mime
             let (input, fields_raw) = header::header_kv(input);
-            let fields = fields_raw.into_iter().collect::<EntityFields>();
+            let EntityFields { entries, mime } = fields_raw.into_iter().collect::<EntityFields>();
 
             // interpret mime according to context
             let mime = match m.ctype.subtype {
                 mime::r#type::MultipartSubtype::Digest => {
-                    fields.mime.to_interpreted(mime::DefaultType::Digest).into()
+                    mime.to_interpreted(mime::DefaultType::Digest).into()
                 }
-                _ => fields.mime.to_interpreted(mime::DefaultType::Generic).into(),
+                _ => mime.to_interpreted(mime::DefaultType::Generic).into(),
             };
 
             // parse raw part
@@ -92,7 +92,7 @@ pub fn multipart<'a>(
             // XXX this can be an (indirect) recursive call;
             // -> risk of stack overflow
             let mime_body = part::part_body(mime)(rpart);
-            mparts.push(AnyPart { fields: fields.all_fields, mime_body });
+            mparts.push(AnyPart { entries, mime_body });
 
             input_loop = input;
         }
@@ -101,7 +101,7 @@ pub fn multipart<'a>(
 
 //--- Message
 
-#[derive(Clone, PartialEq, ToStatic)]
+#[derive(Clone, Debug, PartialEq, ToStatic)]
 pub struct Message<'a> {
     pub mime: mime::MIME<'a, mime::r#type::Message<'a>>,
 
@@ -122,14 +122,6 @@ pub struct Message<'a> {
     // of information, so further parsing is possible, just not zero-copy
     // anymore.
     pub child: Box<AnyPart<'a>>,
-}
-impl<'a> fmt::Debug for Message<'a> {
-    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt.debug_struct("part::Message")
-            .field("mime", &self.mime)
-            .field("child", &self.child)
-            .finish()
-    }
 }
 
 /// Parse an embedded message.
@@ -152,7 +144,7 @@ pub fn message<'a>(
 
         Message {
             mime: m.clone(),
-            child: Box::new(AnyPart { fields: fields.all_fields, mime_body }),
+            child: Box::new(AnyPart { entries: fields.entries, mime_body }),
         }
     }
 }
@@ -163,7 +155,8 @@ mod tests {
     use crate::mime::field::Entry;
     use crate::part::discrete::Text;
     use crate::part::{AnyPart, MimeBody};
-    use crate::part::field::EntityField;
+    use crate::part::field::EntityEntry;
+    use crate::text::charset::EmailCharset;
     use crate::utils::Deductible;
     use pretty_assertions::assert_eq;
 
@@ -215,7 +208,7 @@ This is the epilogue. It is also to be ignored.
                  epilogue: epilogue.into(),
                  children: vec![
                      AnyPart {
-                         fields: vec![],
+                         entries: vec![],
                          mime_body: MimeBody::Txt(Text {
                              mime: mime::MIME {
                                  ctype: Deductible::Inferred,
@@ -225,12 +218,12 @@ This is the epilogue. It is also to be ignored.
                          }),
                      },
                      AnyPart {
-                         fields: vec![EntityField::MIME(Entry::Type)],
+                         entries: vec![EntityEntry::MIME(Entry::Type)],
                          mime_body: MimeBody::Txt(Text {
                              mime: mime::MIME {
                                  ctype: Deductible::Explicit(mime::r#type::Text {
                                      subtype: mime::r#type::TextSubtype::Plain,
-                                     charset: Deductible::Explicit(mime::charset::EmailCharset::US_ASCII),
+                                     charset: Deductible::Explicit(EmailCharset::US_ASCII),
                                      params: vec![],
                                  }),
                                  fields: mime::CommonMIME::default(),
@@ -244,17 +237,17 @@ This is the epilogue. It is also to be ignored.
         );
     }
 
-// The terminator of a multipart entity can be missing.
-// This should be properly handled even for nested multiparts
-// (RFC2046 specifies that this in sec 5.1.2).
-#[test]
-fn test_nested_multipart_inner_broken() {
-    let base_mime = mime::MIME {
-        ctype: mime::r#type::Multipart {
-            subtype: mime::r#type::MultipartSubtype::Mixed,
-            boundary: Some(b"outer boundary".to_vec()),
-            params: vec![],
-        },
+    // The terminator of a multipart entity can be missing.
+    // This should be properly handled even for nested multiparts
+    // (RFC2046 specifies that this in sec 5.1.2).
+    #[test]
+    fn test_nested_multipart_inner_broken() {
+        let base_mime = mime::MIME {
+            ctype: mime::r#type::Multipart {
+                subtype: mime::r#type::MultipartSubtype::Mixed,
+                boundary: Some(b"outer boundary".to_vec()),
+                params: vec![],
+            },
             fields: mime::CommonMIME::default(),
         };
 
@@ -279,7 +272,7 @@ This is implicitly typed plain US-ASCII text.
                  epilogue: b"".into(),
                  children: vec![
                      AnyPart {
-                         fields: vec![EntityField::MIME(Entry::Type)],
+                         entries: vec![EntityEntry::MIME(Entry::Type)],
                          mime_body: MimeBody::Mult(Multipart {
                              mime: mime::MIME {
                                  ctype: mime::r#type::Multipart {
@@ -293,7 +286,7 @@ This is implicitly typed plain US-ASCII text.
                              epilogue: b"".into(),
                              children: vec![
                                  AnyPart {
-                                     fields: vec![],
+                                     entries: vec![],
                                      mime_body: MimeBody::Txt(Text {
                                          mime: mime::MIME {
                                              ctype: Deductible::Inferred,
@@ -306,7 +299,7 @@ This is implicitly typed plain US-ASCII text.
                          }),
                      },
                      AnyPart {
-                         fields: vec![],
+                         entries: vec![],
                          mime_body: MimeBody::Txt(Text {
                              mime: mime::MIME {
                                  ctype: Deductible::Inferred,
