@@ -1,9 +1,5 @@
-use crate::text::ascii;
-use crate::text::encoding::{Context, encoded_word_plain};
-use crate::text::quoted::quoted_pair;
-use crate::text::utf8::{is_nonascii_or, space0_str, space1_str, take_utf8_while1};
 #[cfg(feature = "tracing-recover")]
-use crate::utils::bytes_to_trace_string;
+use tracing::warn;
 use nom::{
     branch::alt,
     bytes::complete::tag,
@@ -13,8 +9,13 @@ use nom::{
     IResult,
     Parser,
 };
+use std::borrow::Cow;
+use crate::text::ascii;
+use crate::text::encoding::{Context, encoded_word_plain};
+use crate::text::quoted::quoted_pair;
+use crate::text::utf8::{is_nonascii_or, space0_str, space1_str, take_utf8_while1};
 #[cfg(feature = "tracing-recover")]
-use tracing::warn;
+use crate::utils::bytes_to_trace_string;
 
 /// Whitespace (space, new line, tab) content and
 /// delimited content (eg. comment, line, sections, etc.)
@@ -42,7 +43,7 @@ pub fn obs_crlf(input: &[u8]) -> IResult<&[u8], &str> {
                 )),
                 |input: &[u8]| {
                     #[cfg(feature = "tracing-recover")]
-                    warn!(input = unsafe { str::from_utf8_unchecked(input) },
+                    warn!(input = %unsafe { str::from_utf8_unchecked(input) },
                           "best-effort line ending");
                     input
                 }
@@ -259,7 +260,7 @@ pub fn comment_body(input: &[u8]) -> IResult<&[u8], ()> {
     feature = "tracing-recover",
     tracing::instrument(level = "trace", fields(input = %bytes_to_trace_string(input)))
 )]
- pub fn ctext(input: &[u8]) -> IResult<&[u8], &str> {
+ pub fn ctext(input: &[u8]) -> IResult<&[u8], Cow<'_, str>> {
      take_utf8_while1(is_ctext)(input)
 }
 

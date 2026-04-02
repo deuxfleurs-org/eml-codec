@@ -43,8 +43,12 @@ impl<'a> fmt::Debug for QuotedString<'a> {
 }
 
 impl<'a> QuotedString<'a> {
-    pub fn push(&mut self, e: &'a str) {
+    pub fn push_str(&mut self, e: &'a str) {
         self.0.push(Cow::Borrowed(e))
+    }
+
+    pub fn push(&mut self, e: Cow<'a, str>) {
+        self.0.push(e)
     }
 
     pub fn chars<'b>(&'b self) -> QuotedStringChars<'a, 'b> {
@@ -190,11 +194,11 @@ fn is_obs_qtext(c: u8) -> bool {
     feature = "tracing",
     tracing::instrument(level = "trace", fields(input = %bytes_to_trace_string(input)))
 )]
-fn qcontent(input: &[u8]) -> IResult<&[u8], Option<&str>> {
+fn qcontent(input: &[u8]) -> IResult<&[u8], Option<Cow<'_, str>>> {
     alt((
         map(take_utf8_while1(is_strict_qtext), Some),
         map(take_while1(is_obs_qtext), |_| None),
-        quoted_pair,
+        map(quoted_pair, |qp| qp.map(|s| Cow::Borrowed(s))),
     ))(input)
 }
 
@@ -219,10 +223,10 @@ pub fn quoted_string(input: &[u8]) -> IResult<&[u8], QuotedString<'_>> {
 
     // Rebuild string
     let mut qstring = content
-        .iter()
+        .into_iter()
         .fold(QuotedString::default(), |mut acc, (maybe_wsp, c)| {
             for wsp in maybe_wsp.into_iter().flat_map(|v| v.into_iter()) {
-                acc.push(wsp);
+                acc.push_str(wsp);
             }
             if let Some(c) = c {
                 acc.push(c);
@@ -231,7 +235,7 @@ pub fn quoted_string(input: &[u8]) -> IResult<&[u8], QuotedString<'_>> {
         });
 
     for wsp in maybe_wsp.into_iter().flat_map(|v| v.into_iter()) {
-        qstring.push(wsp);
+        qstring.push_str(wsp);
     }
 
     Ok((input, qstring))
