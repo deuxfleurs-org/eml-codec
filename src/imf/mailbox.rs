@@ -205,9 +205,12 @@ pub fn angle_addr(input: &[u8]) -> IResult<&[u8], AddrSpec<'_>> {
     tracing::instrument(level = "trace", fields(input = %bytes_to_trace_string(input)))
 )]
 fn obs_route(input: &[u8]) -> IResult<&[u8], Vec<Option<Domain<'_>>>> {
-    terminated(obs_domain_list, tag(&[ascii::COL]))(input)
+    terminated(domain_list, tag(&[ascii::COL]))(input)
 }
 
+/// Domain list.
+///
+/// This implement a relaxed version of the obsolete syntax:
 /// ```abnf
 ///    obs-domain-list =   *(CFWS / ",") "@" domain
 ///                        *("," [CFWS] ["@" domain])
@@ -218,13 +221,13 @@ fn obs_route(input: &[u8]) -> IResult<&[u8], Vec<Option<Domain<'_>>>> {
     feature = "tracing",
     tracing::instrument(level = "trace", fields(input = %bytes_to_trace_string(input)))
 )]
-fn obs_domain_list(input: &[u8]) -> IResult<&[u8], Vec<Option<Domain<'_>>>> {
+fn domain_list(input: &[u8]) -> IResult<&[u8], Vec<Option<Domain<'_>>>> {
     preceded(
         opt(cfws),
         separated_list1(
             tag(&[ascii::COMMA]),
             alt((
-                map(preceded(pair(opt(cfws), tag(&[ascii::AT])), obs_domain), |d| Some(d)),
+                map(preceded(pair(opt(cfws), tag(&[ascii::AT])), domain), |d| Some(d)),
                 map(opt(cfws), |_| None),
             ))
         )
@@ -243,10 +246,10 @@ fn obs_domain_list(input: &[u8]) -> IResult<&[u8], Vec<Option<Domain<'_>>>> {
 pub fn addr_spec(input: &[u8]) -> IResult<&[u8], AddrSpec<'_>> {
     map(
         tuple((
-            obs_local_part,
+            local_part,
             tag(&[ascii::AT]),
-            obs_domain,
-            many0(pair(tag(&[ascii::AT]), obs_domain)), // for compatibility reasons with ENRON
+            domain,
+            many0(pair(tag(&[ascii::AT]), domain)), // for compatibility reasons with ENRON
         )),
         |(local_part, _, domain, _)| AddrSpec { local_part, domain },
     )(input)
@@ -341,25 +344,25 @@ impl<'a> Print for LocalPart<'a> {
     }
 }
 
-/// Obsolete local part
+/// Local part
 ///
 /// Compared to the RFC, we allow multiple dots.
 /// This is found in Enron emails and supported by Gmail.
 /// We also allow dots at the beginning and end.
 ///
-/// This "obsolete local part" syntax is a superset of both the RFC's
+/// This "local part" syntax is a superset of both the RFC's
 /// local-part and obs-local-part.
 ///
 /// ```abnf
 /// local-part          = dot-atom / quoted-string / obs-local-part
 /// obs-local-part      = word *("." word)
-/// our-obs-local-part  =  *"." word *(1*"." word) *"."
+/// our-local-part      =  *"." word *(1*"." word) *"."
 /// ```
 #[cfg_attr(
     feature = "tracing",
     tracing::instrument(level = "trace", fields(input = %bytes_to_trace_string(input)))
 )]
-fn obs_local_part(input: &[u8]) -> IResult<&[u8], LocalPart<'_>> {
+fn local_part(input: &[u8]) -> IResult<&[u8], LocalPart<'_>> {
     let (input, prefix) = many0(local_part_dot)(input)?;
     let (input, w) = local_part_word(input)?;
     let (input, ws) = many0(pair(many1(local_part_dot), local_part_word))(input)?;
@@ -427,10 +430,10 @@ impl<'a> Arbitrary<'a> for Domain<'a> {
     }
 }
 
-/// Obsolete domain
+/// Domain
 ///
-/// Rewritten so that obs_domain is a superset
-/// of strict_domain.
+/// Rewritten so that domain is a superset
+/// of RFC-strict domain and obs_domain.
 ///
 /// RFC5322:
 /// ```abnf
@@ -440,13 +443,13 @@ impl<'a> Arbitrary<'a> for Domain<'a> {
 ///
 /// we implement the equivalent form:
 /// ```abnf
-///  obs-domain      = atom *("." atom) / domain-literal
+///  our-domain      = atom *("." atom) / domain-literal
 /// ```
 #[cfg_attr(
     feature = "tracing",
     tracing::instrument(level = "trace", fields(input = %bytes_to_trace_string(input)))
 )]
-pub fn obs_domain(input: &[u8]) -> IResult<&[u8], Domain<'_>> {
+pub fn domain(input: &[u8]) -> IResult<&[u8], Domain<'_>> {
     alt((
         map(separated_list1(tag("."), atom), Domain::Atoms),
         domain_litteral,
@@ -860,9 +863,9 @@ mod tests {
     }
 
     #[test]
-    fn test_obs_domain_list() {
+    fn test_domain_list() {
         assert_eq!(
-            obs_domain_list(
+            domain_list(
                 r#"(shhh it's coming)
  ,
  (not yet)
@@ -896,7 +899,7 @@ mod tests {
         );
 
         assert_eq!(
-            obs_domain_list(b",, ,@foo,"),
+            domain_list(b",, ,@foo,"),
             Ok((
                 &b""[..],
                 vec![
