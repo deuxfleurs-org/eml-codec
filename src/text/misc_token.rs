@@ -389,14 +389,26 @@ impl<'a> Arbitrary<'a> for UnstrToken<'a> {
 // Invariant:
 // - Encoded and Plain(_, Txt) tokens are always separated by whitespace
 //   (encoded words must be separated from other words by whitespace)
-// - There must not be whitespace in between two Encoded tokens
+// - There must not be whitespace token in between two Encoded tokens
 //   (whitespace in between encoded words is meaningless and is ignored during parsing)
 #[derive(Debug, PartialEq, Clone, ToStatic, ToStringFromPrint)]
 pub struct Unstructured<'a>(pub Vec<UnstrToken<'a>>);
 
 impl<'a> Print for Unstructured<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
-        for tok in &self.0 {
+        for i in 0..self.0.len() {
+            let tok = &self.0[i];
+
+            // consecutive encoded tokens must be separated by whitespace
+            if i > 0 {
+                match (&self.0[i-1], tok) {
+                    (UnstrToken::Encoded(_), UnstrToken::Encoded(_)) => {
+                        fmt.write_fws()
+                    }
+                    _ => ()
+                }
+            }
+
             tok.print(fmt)
         }
     }
@@ -406,13 +418,15 @@ impl<'a> Unstructured<'a> {
     // Merges consecutive tokens of the same kind.
     // Used to define fuzz_eq.
     #[cfg(feature = "arbitrary")]
-    fn normalize(&self) -> Unstructured<'static> {
+    fn fuzz_eq_normalize(&self) -> Unstructured<'static> {
         use bounded_static::ToBoundedStatic;
         let mut v: Vec<UnstrToken<'static>> = Vec::new();
         for tok in &self.0 {
             match (v.last_mut(), tok) {
                 (Some(UnstrToken::Plain(b1, k1)), UnstrToken::Plain(b2, k2)) if k1 == k2 =>
                     b1.to_mut().extend(b2.iter()),
+                (Some(UnstrToken::Encoded(e1)), UnstrToken::Encoded(e2)) =>
+                    e1.0.extend(e2.to_static().0.into_iter()),
                 _ =>
                     v.push(tok.to_static()),
             }
@@ -424,7 +438,7 @@ impl<'a> Unstructured<'a> {
 #[cfg(feature = "arbitrary")]
 impl<'a> FuzzEq for Unstructured<'a> {
     fn fuzz_eq(&self, other: &Self) -> bool {
-        self.normalize().0.fuzz_eq(&other.normalize().0)
+        self.fuzz_eq_normalize().0.fuzz_eq(&other.fuzz_eq_normalize().0)
     }
 }
 

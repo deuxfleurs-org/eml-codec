@@ -114,6 +114,8 @@ impl FuzzEq for DateTime {
 impl Print for DateTime {
     fn print(&self, fmt: &mut impl PFmt) {
         // date
+        fmt.write_bytes(format!("{},", self.0.weekday()).as_bytes());
+        fmt.write_fws();
         fmt.write_bytes(format!("{}", self.0.day()).as_bytes());
         fmt.write_fws();
         fmt.write_bytes(MONTHS[self.0.month0() as usize]);
@@ -453,7 +455,7 @@ mod tests {
     fn test_date_time_rfc_strict() {
         date_parsed_printed(
             b"Fri, 21 Nov 1997 09:55:06 -0600",
-            b"21 Nov 1997 09:55:06 -0600",
+            b"Fri, 21 Nov 1997 09:55:06 -0600",
             DateTime(
                 FixedOffset::west_opt(6 * HOUR)
                     .unwrap()
@@ -467,7 +469,7 @@ mod tests {
     fn test_date_time_received() {
         date_parsed_printed(
             b"Sun, 18 Jun 2023 15:39:08 +0200 (CEST)",
-            b"18 Jun 2023 15:39:08 +0200",
+            b"Sun, 18 Jun 2023 15:39:08 +0200",
             DateTime(
                 FixedOffset::east_opt(2 * HOUR)
                     .unwrap()
@@ -487,7 +489,7 @@ mod tests {
          23:32
                   -0330 (Newfoundland Time)"#
                     .as_bytes(),
-            b"13 Feb 1969 23:32:00 -0330",
+            b"Thu, 13 Feb 1969 23:32:00 -0330",
             DateTime(
                 FixedOffset::west_opt(3 * HOUR + 30 * MIN)
                     .unwrap()
@@ -501,7 +503,7 @@ mod tests {
     fn test_date_time_rfc_obs() {
         date_parsed_printed(
             b"21 Nov 97 09:55:06 GMT",
-            b"21 Nov 1997 09:55:06 +0000",
+            b"Fri, 21 Nov 1997 09:55:06 +0000",
             DateTime(
                 FixedOffset::east_opt(0)
                     .unwrap()
@@ -515,7 +517,7 @@ mod tests {
     fn test_date_time_3digit_year() {
         date_parsed_printed(
             b"21 Nov 103 09:55:06 UT",
-            b"21 Nov 2003 09:55:06 +0000",
+            b"Fri, 21 Nov 2003 09:55:06 +0000",
             DateTime(
                 FixedOffset::east_opt(0)
                     .unwrap()
@@ -529,7 +531,7 @@ mod tests {
     fn test_date_time_rfc_obs_ws() {
         date_parsed_printed(
             b"Fri, 21 Nov 1997 09(comment):   55  :  06 -0600",
-            b"21 Nov 1997 09:55:06 -0600",
+            b"Fri, 21 Nov 1997 09:55:06 -0600",
             DateTime(
                 FixedOffset::west_opt(6 * HOUR)
                     .unwrap()
@@ -543,7 +545,7 @@ mod tests {
     fn test_date_time_2digit_year() {
         date_parsed_printed(
             b"21 Nov 23 09:55:06Z",
-            b"21 Nov 2023 09:55:06 +0000",
+            b"Tue, 21 Nov 2023 09:55:06 +0000",
             DateTime(
                 FixedOffset::east_opt(0)
                     .unwrap()
@@ -599,7 +601,7 @@ mod tests {
     fn test_date_time_gmt() {
         date_parsed_printed(
             b"21 Nov 2023 07:07:07 +0000",
-            b"21 Nov 2023 07:07:07 +0000",
+            b"Tue, 21 Nov 2023 07:07:07 +0000",
             DateTime(
                 FixedOffset::east_opt(0)
                     .unwrap()
@@ -609,7 +611,7 @@ mod tests {
         );
         date_parsed_printed(
             b"21 Nov 2023 07:07:07 -0000",
-            b"21 Nov 2023 07:07:07 +0000",
+            b"Tue, 21 Nov 2023 07:07:07 +0000",
             DateTime(
                 FixedOffset::east_opt(0)
                     .unwrap()
@@ -619,7 +621,7 @@ mod tests {
         );
         date_parsed_printed(
             b"21 Nov 2023 07:07:07 Z",
-            b"21 Nov 2023 07:07:07 +0000",
+            b"Tue, 21 Nov 2023 07:07:07 +0000",
             DateTime(
                 FixedOffset::east_opt(0)
                     .unwrap()
@@ -629,7 +631,7 @@ mod tests {
         );
         date_parsed_printed(
             b"21 Nov 2023 07:07:07 GMT",
-            b"21 Nov 2023 07:07:07 +0000",
+            b"Tue, 21 Nov 2023 07:07:07 +0000",
             DateTime(
                 FixedOffset::east_opt(0)
                     .unwrap()
@@ -639,7 +641,7 @@ mod tests {
         );
         date_parsed_printed(
             b"21 Nov 2023 07:07:07 UT",
-            b"21 Nov 2023 07:07:07 +0000",
+            b"Tue, 21 Nov 2023 07:07:07 +0000",
             DateTime(
                 FixedOffset::east_opt(0)
                     .unwrap()
@@ -649,7 +651,7 @@ mod tests {
         );
         date_parsed_printed(
             b"21 Nov 2023 07:07:07 UTC",
-            b"21 Nov 2023 07:07:07 +0000",
+            b"Tue, 21 Nov 2023 07:07:07 +0000",
             DateTime(
                 FixedOffset::east_opt(0)
                     .unwrap()
@@ -663,7 +665,7 @@ mod tests {
     fn test_date_time_usa() {
         date_parsed_printed(
             b"21 Nov 2023 4:4:4 CST",
-            b"21 Nov 2023 04:04:04 -0600",
+            b"Tue, 21 Nov 2023 04:04:04 -0600",
             DateTime(
                 FixedOffset::west_opt(6 * HOUR)
                     .unwrap()

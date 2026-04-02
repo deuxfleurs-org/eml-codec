@@ -195,14 +195,16 @@ impl<'a> TryFrom<&NaiveType<'a>> for Multipart<'a> {
 }
 
 #[derive(Debug, PartialEq, Clone, ToStatic, ToStringFromPrint)]
-#[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
+#[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
 pub enum MultipartSubtype {
     Alternative,
     Mixed,
     Digest,
     Parallel,
     Report,
-    Unknown(MIMEAtom<'static>), // should be treated as Mixed
+    // neither of the above (capitalization does not matter).
+    // should be treated as Mixed
+    Unknown(MIMEAtom<'static>),
 }
 impl MultipartSubtype {
     fn as_bytes(&self) -> &[u8] {
@@ -236,14 +238,38 @@ impl<'a> From<&NaiveType<'a>> for MultipartSubtype {
     }
 }
 
+#[cfg(feature = "arbitrary")]
+impl<'a> Arbitrary<'a> for MultipartSubtype {
+    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
+        match u.int_in_range(0..=5)? {
+            0 => Ok(MultipartSubtype::Alternative),
+            1 => Ok(MultipartSubtype::Mixed),
+            2 => Ok(MultipartSubtype::Digest),
+            3 => Ok(MultipartSubtype::Parallel),
+            4 => Ok(MultipartSubtype::Report),
+            5 => {
+                let a: MIMEAtom = u.arbitrary()?;
+                if matches!(a.0.to_ascii_lowercase().as_slice(),
+                            b"alternative" | b"mixed" | b"digest" | b"parallel" | b"report") {
+                    return Err(arbitrary::Error::IncorrectFormat)
+                }
+                Ok(MultipartSubtype::Unknown(a))
+            },
+            _ => unreachable!()
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Default, Clone, ToStatic, ToStringFromPrint)]
-#[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
+#[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
 pub enum MessageSubtype {
     #[default]
     RFC822,
     Partial,
     External,
-    Unknown(MIMEAtom<'static>), // should be treated as the Binary type
+    // neither of the above (ignoring capitalization).
+    // should be treated as the Binary type
+    Unknown(MIMEAtom<'static>),
 }
 impl MessageSubtype {
     fn as_bytes(&self) -> &[u8] {
@@ -269,6 +295,26 @@ impl<'a> From<&NaiveType<'a>> for MessageSubtype {
             b"partial" => MessageSubtype::Partial,
             b"external" => MessageSubtype::External,
             _ => MessageSubtype::Unknown(nt.sub.to_static()),
+        }
+    }
+}
+
+#[cfg(feature = "arbitrary")]
+impl<'a> Arbitrary<'a> for MessageSubtype {
+    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
+        match u.int_in_range(0..=3)? {
+            0 => Ok(MessageSubtype::RFC822),
+            1 => Ok(MessageSubtype::Partial),
+            2 => Ok(MessageSubtype::External),
+            3 => {
+                let a: MIMEAtom = u.arbitrary()?;
+                if matches!(a.0.to_ascii_lowercase().as_slice(),
+                            b"rfc822" | b"partial" | b"external") {
+                    return Err(arbitrary::Error::IncorrectFormat)
+                }
+                Ok(MessageSubtype::Unknown(a))
+            },
+            _ => unreachable!(),
         }
     }
 }
@@ -358,11 +404,12 @@ impl<'a> From<&NaiveType<'a>> for Text<'a> {
 }
 
 #[derive(Debug, PartialEq, Default, Clone, ToStatic, ToStringFromPrint)]
-#[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
+#[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
 pub enum TextSubtype {
     #[default]
     Plain,
     Html,
+    // none of the above
     Unknown(MIMEAtom<'static>),
 }
 impl TextSubtype {
@@ -392,9 +439,28 @@ impl<'a> From<&NaiveType<'a>> for TextSubtype {
     }
 }
 
+#[cfg(feature = "arbitrary")]
+impl<'a> Arbitrary<'a> for TextSubtype {
+    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
+        match u.int_in_range(0..=2)? {
+            0 => Ok(TextSubtype::Plain),
+            1 => Ok(TextSubtype::Html),
+            2 => {
+                let a: MIMEAtom = u.arbitrary()?;
+                if matches!(a.0.to_ascii_lowercase().as_slice(), b"plain" | b"html") {
+                    return Err(arbitrary::Error::IncorrectFormat)
+                }
+                Ok(TextSubtype::Unknown(a))
+            },
+            _ => unreachable!(),
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Clone, ToStatic)]
-#[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
+#[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
 pub struct Binary<'a> {
+    // invariant: ctype.main is neither "multipart", "message" or "text"
     ctype: NaiveType<'a>,
 }
 
@@ -406,6 +472,18 @@ impl<'a> Print for Binary<'a> {
 impl<'a> From<&NaiveType<'a>> for Binary<'a> {
     fn from(nt: &NaiveType<'a>) -> Self {
         Self { ctype: nt.clone() }
+    }
+}
+
+#[cfg(feature = "arbitrary")]
+impl<'a> Arbitrary<'a> for Binary<'a> {
+    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
+        let ctype: NaiveType = u.arbitrary()?;
+        if matches!(ctype.main.0.to_ascii_lowercase().as_slice(),
+                    b"multipart" | b"message" | b"text") {
+            return Err(arbitrary::Error::IncorrectFormat)
+        }
+        Ok(Self { ctype })
     }
 }
 
