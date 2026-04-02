@@ -1,5 +1,7 @@
 #[cfg(feature = "arbitrary")]
 use arbitrary::Arbitrary;
+#[cfg(feature = "tracing-recover")]
+use tracing::warn;
 use bounded_static::ToStatic;
 use nom::{
     branch::alt,
@@ -18,22 +20,29 @@ use crate::i18n::ContainsUtf8;
 use crate::print::{print_seq, Print, Formatter, ToStringFromPrint};
 use crate::imf::mailbox::{domain, dtext, local_part, Domain, Dtext, LocalPart};
 use crate::text::whitespace::cfws;
+use crate::text::words::{dot_atom, dot_atom_text, DotAtom};
 
 // NOTE: MessageID is not strictly RFC-compliant, printing it may use obsolete
-// syntax.
+// or non-compliant syntax.
 #[derive(Clone, ContainsUtf8, Debug, PartialEq, ToStatic, ToStringFromPrint)]
 #[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
-pub struct MessageID<'a> {
-    pub left: LocalPart<'a>,
-    pub right: Domain<'a>,
+pub enum MessageID<'a> {
+    ObsLeftRight { left: LocalPart<'a>, right: Domain<'a> },
+    InvalidAtom(DotAtom<'a>),
 }
 impl<'a> Print for MessageID<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
         fmt.write_bytes(b"<");
-        self.left.print(fmt);
-        fmt.write_bytes(b"@");
-        self.right.print(fmt);
-        fmt.write_bytes(b">")
+        match &self {
+            MessageID::ObsLeftRight { left, right } => {
+                left.print(fmt);
+                fmt.write_bytes(b"@");
+                right.print(fmt);
+            },
+            MessageID::InvalidAtom(a) =>
+                a.print(fmt),
+        }
+        fmt.write_bytes(b">");
     }
 }
 
@@ -48,20 +57,44 @@ impl<'a> Print for MessageIDList<'a> {
 
 /// Message identifier
 ///
+/// The RFC gives the following syntax:
 /// ```abnf
 ///    msg-id          =   [CFWS] "<" id-left "@" id-right ">" [CFWS]
+/// ```
+///
+/// but we also handle invalid syntax found in the real-world:
+/// ```abnf
+///    our-msg-id      = msg-id / "<" dot-atom-text ">" / dot-atom
 /// ```
 #[cfg_attr(
     feature = "tracing",
     tracing::instrument(level = "trace", fields(input = %bytes_to_trace_string(input)))
 )]
 pub fn msg_id(input: &[u8]) -> IResult<&[u8], MessageID<'_>> {
-    let (input, (left, _, right)) = delimited(
-        pair(opt(cfws), tag("<")),
-        tuple((id_left, tag("@"), id_right)),
-        pair(tag(">"), opt(cfws)),
-    )(input)?;
-    Ok((input, MessageID { left, right }))
+    alt((
+        delimited(
+            pair(opt(cfws), tag("<")),
+            alt((
+                msg_id_left_right,
+                map(dot_atom_text, |a| {
+                    #[cfg(feature = "tracing-recover")]
+                    warn!("message-id: bare <atom>");
+                    MessageID::InvalidAtom(a)
+                }),
+            )),
+            pair(tag(">"), opt(cfws)),
+        ),
+        map(dot_atom, |a| {
+            #[cfg(feature = "tracing-recover")]
+            warn!("message-id: bare atom");
+            MessageID::InvalidAtom(a)
+        }),
+    ))(input)
+}
+
+fn msg_id_left_right(input: &[u8]) -> IResult<&[u8], MessageID<'_>> {
+    let (input, (left, _, right)) = tuple((id_left, tag("@"), id_right))(input)?;
+    Ok((input, MessageID::ObsLeftRight { left, right }))
 }
 
 #[cfg_attr(
@@ -141,7 +174,7 @@ mod tests {
             msg_id(b"<5678.21-Nov-1997@example.com>"),
             Ok((
                 &b""[..],
-                MessageID {
+                MessageID::ObsLeftRight {
                     left: LocalPart(vec![
                         LocalPartToken::Word(Word::Atom(Atom("5678".into()))),
                         LocalPartToken::Dot,
@@ -162,7 +195,7 @@ mod tests {
             msg_id(b" < foo . bar@univ-valenciennes  .fr >"),
             Ok((
                 &b""[..],
-                MessageID {
+                MessageID::ObsLeftRight {
                     left: LocalPart(vec![
                         LocalPartToken::Word(Word::Atom(Atom("foo".into()))),
                         LocalPartToken::Dot,
@@ -180,7 +213,7 @@ mod tests {
             msg_id(b"<\"24806 Tue Sep 19 11:05:34 1995\"@bnr.ca>"),
             Ok((
                 &b""[..],
-                MessageID {
+                MessageID::ObsLeftRight {
                     left: LocalPart(vec![
                         LocalPartToken::Word(Word::Quoted(
                             QuotedString(vec![
@@ -202,8 +235,18 @@ mod tests {
         );
     }
 
-    // TODO: non-compliant but found in aero100
-    // <523C50DA-160C-4550-A44E-7E192513CF91>
+    #[test]
+    fn test_noncompliant_msg_id() {
+        assert_eq!(
+            msg_id(b" <523C50DA-160C-4550-A44E-7E192513CF91> "),
+            Ok((&b""[..], MessageID::InvalidAtom(DotAtom("523C50DA-160C-4550-A44E-7E192513CF91".into()))))
+        );
+
+        assert_eq!(
+            msg_id(b" foo "),
+            Ok((&b""[..], MessageID::InvalidAtom(DotAtom("foo".into()))))
+        );
+    }
 
     #[test]
     fn test_comma_separated_msg_list() {
@@ -213,7 +256,7 @@ mod tests {
             Ok((
                 &b""[..],
                 vec![
-                    MessageID {
+                    MessageID::ObsLeftRight {
                         left: LocalPart(vec![
                             LocalPartToken::Word(Word::Atom(Atom("8d9bb189354d4804bcc2fd1d1a5398b5".into()))),
                         ]),
@@ -222,7 +265,7 @@ mod tests {
                             Atom("fr".into()),
                         ]),
                     },
-                    MessageID {
+                    MessageID::ObsLeftRight {
                         left: LocalPart(vec![
                             LocalPartToken::Word(Word::Atom(Atom("ef8fac8b36834864bae895571064565c".into()))),
                         ]),
