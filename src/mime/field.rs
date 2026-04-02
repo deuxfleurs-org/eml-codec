@@ -53,6 +53,7 @@ impl<'a> Content<'a> {
     }
 }
 
+#[derive(Clone, Copy, Debug)]
 pub enum InvalidField {
     Name,
     Body,
@@ -71,6 +72,16 @@ impl<'a> TryFrom<&header::FieldRaw<'a>> for Content<'a> {
 
         //@TODO check that the full value is parsed, otherwise maybe log an error ?!
         content.map(|(_, content)| content).or(Err(InvalidField::Body))
+    }
+}
+
+pub fn is_mime_header(name: &header::FieldName) -> bool {
+    match name.bytes().to_ascii_lowercase().as_slice() {
+        b"content-type" |
+        b"content-transfer-encoding" |
+        b"content-id" |
+        b"content-description" => true,
+        _ => false,
     }
 }
 

@@ -2,8 +2,12 @@
 use arbitrary::Arbitrary;
 use bounded_static::ToStatic;
 use encoding_rs::Encoding;
+use crate::text::words::is_vchar;
 #[cfg(feature = "arbitrary")]
-use crate::fuzz_eq::FuzzEq;
+use crate::{
+    arbitrary_utils::arbitrary_vec_nonempty_where,
+    fuzz_eq::FuzzEq,
+};
 
 /// Specific implementation of charset
 ///
@@ -13,7 +17,6 @@ use crate::fuzz_eq::FuzzEq;
 /// <https://www.iana.org/assignments/character-sets/character-sets.xhtml>
 #[allow(non_camel_case_types)]
 #[derive(Debug, PartialEq, Default, Clone, ToStatic)]
-#[cfg_attr(feature = "arbitrary", derive(Arbitrary))]
 pub enum EmailCharset {
     #[default]
     US_ASCII,
@@ -41,12 +44,14 @@ pub enum EmailCharset {
     Big5,
     KOI8_R,
     UTF_8,
+    // Must contain only printable characters (text::words::is_vchar).
+    // Must be nonempty.
     Unknown(Vec<u8>),
 }
 
 impl<T: AsRef<[u8]>> From<T> for EmailCharset {
-    fn from(s: T) -> Self {
-        let s = s.as_ref().to_ascii_lowercase();
+    fn from(bytes: T) -> Self {
+        let s = bytes.as_ref().to_ascii_lowercase();
         match s.as_slice() {
             b"us-ascii" | b"ascii" => EmailCharset::US_ASCII,
             b"iso-8859-1" => EmailCharset::ISO_8859_1,
@@ -73,7 +78,11 @@ impl<T: AsRef<[u8]>> From<T> for EmailCharset {
             b"big5" => EmailCharset::Big5,
             b"koi8-r" => EmailCharset::KOI8_R,
             b"utf-8" | b"utf8" => EmailCharset::UTF_8,
-            _ => EmailCharset::Unknown(s),
+            _ => {
+                // Filter out bytes that are not printable, in case there are some…
+                let sanitized = bytes.as_ref().iter().cloned().filter(|b| is_vchar(*b));
+                EmailCharset::Unknown(sanitized.collect())
+            }
         }
     }
 }
@@ -125,6 +134,45 @@ impl EmailCharset {
 }
 
 #[cfg(feature = "arbitrary")]
+impl<'a> Arbitrary<'a> for EmailCharset {
+    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
+        Ok(
+            match u.int_in_range(0..=25)? {
+                0 => EmailCharset::US_ASCII,
+                1 => EmailCharset::ISO_8859_1,
+                2 => EmailCharset::ISO_8859_2,
+                3 => EmailCharset::ISO_8859_3,
+                4 => EmailCharset::ISO_8859_4,
+                5 => EmailCharset::ISO_8859_5,
+                6 => EmailCharset::ISO_8859_6,
+                7 => EmailCharset::ISO_8859_7,
+                8 => EmailCharset::ISO_8859_8,
+                9 => EmailCharset::ISO_8859_9,
+                10 => EmailCharset::ISO_8859_10,
+                11 => EmailCharset::Shift_JIS,
+                12 => EmailCharset::EUC_JP,
+                13 => EmailCharset::ISO_2022_KR,
+                14 => EmailCharset::EUC_KR,
+                15 => EmailCharset::ISO_2022_JP,
+                16 => EmailCharset::ISO_2022_JP_2,
+                17 => EmailCharset::ISO_8859_6_E,
+                18 => EmailCharset::ISO_8859_6_I,
+                19 => EmailCharset::ISO_8859_8_E,
+                20 => EmailCharset::ISO_8859_8_I,
+                21 => EmailCharset::GB2312,
+                22 => EmailCharset::Big5,
+                23 => EmailCharset::KOI8_R,
+                24 => EmailCharset::UTF_8,
+                25 => {
+                    let v = arbitrary_vec_nonempty_where(u, |b| is_vchar(*b), b'X')?;
+                    EmailCharset::Unknown(v)
+                }
+                _ => unreachable!(),
+            }
+        )
+    }
+}
+#[cfg(feature = "arbitrary")]
 impl FuzzEq for EmailCharset {
     fn fuzz_eq(&self, other: &Self) -> bool {
         self == other
@@ -156,6 +204,11 @@ mod tests {
         assert_eq!(
             EmailCharset::from(&b"utf8"[..]).as_encoding(),
             encoding_rs::UTF_8,
+        );
+
+        assert_eq!(
+            EmailCharset::from(&b"!*\x00\x01abc"[..]),
+            EmailCharset::Unknown(b"!*abc".to_vec()),
         );
     }
 }

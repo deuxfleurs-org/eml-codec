@@ -15,12 +15,12 @@ use std::fmt;
 
 #[cfg(feature = "arbitrary")]
 use crate::{
-    arbitrary_utils::arbitrary_vec_where,
+    arbitrary_utils::arbitrary_vec_nonempty_where,
     fuzz_eq::FuzzEq,
 };
 use crate::print::{Print, Formatter};
 use crate::text::misc_token;
-use crate::text::whitespace::{foldable_line, obs_crlf};
+use crate::text::whitespace::{foldable_line, foldable_suffix, obs_crlf};
 
 // A valid header field name.
 #[derive(PartialEq, Clone, ToStatic)]
@@ -45,7 +45,7 @@ impl<'a> Print for FieldName<'a> {
 #[cfg(feature = "arbitrary")]
 impl<'a> Arbitrary<'a> for FieldName<'a> {
     fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<FieldName<'a>> {
-        let bytes: Vec<u8> = arbitrary_vec_where(u, is_ftext)?;
+        let bytes: Vec<u8> = arbitrary_vec_nonempty_where(u, |c| is_ftext(*c), b'X')?;
         Ok(FieldName(Cow::Owned(bytes)))
     }
 }
@@ -87,7 +87,7 @@ impl<'a> fmt::Debug for FieldRaw<'a> {
 /// Parse headers as raw key/values.
 /// Stop at an empty line or at EOF.
 pub fn header_kv(input: &[u8]) -> (&[u8], Vec<FieldRaw<'_>>) {
-    // SAFETY: both `field_raw` and `foldable_line` only accept non-empty inputs
+    // SAFETY: `field_raw_opt` only accepts non-empty inputs
     let (input, mut fields) = many0(field_raw_opt)(input).unwrap();
     // SAFETY: `rest` (last case) always succeeds.
     let (input, terminator) = alt((
@@ -113,7 +113,7 @@ pub fn header_kv(input: &[u8]) -> (&[u8], Vec<FieldRaw<'_>>) {
 // NOTE: field_raw only recognizes non-empty inputs.
 fn field_raw(input: &[u8]) -> IResult<&[u8], FieldRaw<'_>> {
     map(
-        pair(field_name, foldable_line),
+        pair(field_name, foldable_suffix),
         |(name, body)| FieldRaw { name, body }
     )(input)
 }
@@ -121,14 +121,14 @@ fn field_raw(input: &[u8]) -> IResult<&[u8], FieldRaw<'_>> {
 // A best-effort version of `field_raw` that also recognizes lines that cannot
 // be parsed as a field name and body. (It returns `None` in this case.)
 // NOTE: `field_raw_opt` only recognizes non-empty inputs.
-// NOTE: furthermore, in the "best effort" case, `foldable_line` always
+// NOTE: furthermore, in the "best effort" case, `foldable_line` only
 // recognizes non-empty lines; this is important so that it does not consume the
 // final empty line (obs_crlf) that terminates `header_kv`.
 fn field_raw_opt(input: &[u8]) -> IResult<&[u8], Option<FieldRaw<'_>>> {
     alt((
         map(field_raw, Some),
-        // best-effort: a foldable line that cannot even be parsed as a field name
-        // and body. We drop it afterwards.
+        // best-effort: a (non-empty) foldable line that cannot even be parsed as
+        // a field name and body. We drop it afterwards.
         map(foldable_line, |_| None),
     ))(input)
 }
@@ -156,18 +156,21 @@ fn is_ftext(c: u8) -> bool {
 
 #[derive(Debug, PartialEq, Clone, ToStatic)]
 #[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
-pub struct Unstructured<'a>(pub FieldName<'a>, pub misc_token::Unstructured<'a>);
+pub struct Unstructured<'a> {
+    pub name: FieldName<'a>,
+    pub body: misc_token::Unstructured<'a>,
+}
 
 impl<'a> Unstructured<'a> {
     // TODO: don't throw away the errors
     pub fn from_raw(f: FieldRaw<'a>) -> Option<Unstructured<'a>> {
         let (_, body) = all_consuming(misc_token::unstructured)(f.body).ok()?;
-        Some(Unstructured(f.name, body))
+        Some(Unstructured { name: f.name, body })
     }
 }
 impl<'a> Print for Unstructured<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
-        print_unstructured(fmt, &self.0.0, &self.1)
+        print_unstructured(fmt, &self.name.0, &self.body)
     }
 }
 
@@ -204,6 +207,27 @@ mod tests {
                 body: &b" something something"[..],
             }
         );
+
+        let (rest, f) = field_raw(b"X-Foo:\r\n").unwrap();
+        assert!(rest.is_empty());
+        assert_eq!(
+            f,
+            FieldRaw {
+                name: FieldName(b"X-Foo".into()),
+                body: &b""[..],
+            }
+        );
+
+        // with line folding
+        let (rest, f) = field_raw(b"From:\r\n foo@example.com\r\n abcd\r\n").unwrap();
+        assert!(rest.is_empty());
+        assert_eq!(
+            f,
+            FieldRaw {
+                name: FieldName(b"From".into()),
+                body: &b"\r\n foo@example.com\r\n abcd"[..],
+            }
+        );
     }
 
     #[test]
@@ -217,15 +241,15 @@ mod tests {
         .unwrap();
         assert_eq!(
             u,
-            Unstructured(
-                FieldName(b"X-Unknown".into()),
-                misc_token::Unstructured(vec![
+            Unstructured {
+                name: FieldName(b"X-Unknown".into()),
+                body: misc_token::Unstructured(vec![
                     UnstrToken::from_plain(b" ", UnstrTxtKind::Fws),
                     UnstrToken::from_plain(b"something", UnstrTxtKind::Txt),
                     UnstrToken::from_plain(b" ", UnstrTxtKind::Fws),
                     UnstrToken::from_plain(b"something", UnstrTxtKind::Txt),
                 ])
-            )
+            }
         )
     }
 
@@ -240,6 +264,25 @@ mod tests {
                 FieldRaw { name: FieldName(b"X-Bar".into()), body: b" something else" },
             ]
         )
+    }
+
+    #[test]
+    fn test_no_headers() {
+        let (rest, fields) = header_kv(b"\r\nthe rest");
+        assert_eq!(rest, b"the rest");
+        assert_eq!(fields, vec![]);
+
+        let (rest, fields) = header_kv(b"\nthe rest");
+        assert_eq!(rest, b"the rest");
+        assert_eq!(fields, vec![]);
+
+        let (rest, fields) = header_kv(b"\n\t\t\t");
+        assert_eq!(rest, b"\t\t\t");
+        assert_eq!(fields, vec![]);
+
+        let (rest, fields) = header_kv(b"\n\t\t\t\r\n");
+        assert_eq!(rest, b"\t\t\t\r\n");
+        assert_eq!(fields, vec![]);
     }
 
     #[test]

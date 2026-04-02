@@ -30,8 +30,6 @@ mod utils;
 #[cfg(feature = "arbitrary")]
 mod arbitrary_utils;
 
-use crate::print::Print;
-
 /// Parse a whole email including its (MIME) body
 ///
 /// # Arguments
@@ -71,7 +69,7 @@ pub fn parse_message(input: &[u8]) -> message::Message<'_> {
 /// The `seed` parameter controls the RNG used to generate multipart boundaries.
 /// Passing `None` will use randomness from the operating system.
 pub fn print_message(msg: message::Message<'_>, seed: Option<u64>) -> Vec<u8> {
-    print::with_formatter(seed, |fmt| msg.print(fmt))
+    print::print_to_vec(print::FMT_DEFAULT.with_seed(seed), msg)
 }
 
 /// Only extract the headers of the email that are part of the Internet Message Format spec

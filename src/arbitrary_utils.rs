@@ -1,21 +1,32 @@
 use arbitrary::{Arbitrary, Unstructured, Result};
-use std::ops::ControlFlow;
 use crate::text::ascii;
 
 pub fn arbitrary_vec_where<'a, F, T>(u: &mut Unstructured<'a>, pred: F) -> Result<Vec<T>>
 where
-    F: Fn(T) -> bool,
-    T: Arbitrary<'a> + Copy
+    F: for<'b> Fn(&'b T) -> bool,
+    T: Arbitrary<'a>
 {
     let len = u.arbitrary_len::<T>()?;
     let mut v = Vec::with_capacity(len);
     for _ in 0..len {
         let x: T = u.arbitrary()?;
-        if pred(x) {
+        if pred(&x) {
             v.push(x)
         } else {
-            break;
+            return Err(arbitrary::Error::IncorrectFormat)
         }
+    }
+    Ok(v)
+}
+
+pub fn arbitrary_vec_nonempty_where<'a, F, T>(u: &mut Unstructured<'a>, pred: F, default: T) -> Result<Vec<T>>
+where
+    F: for<'b> Fn(&'b T) -> bool,
+    T: Arbitrary<'a>
+{
+    let mut v = arbitrary_vec_where(u, pred)?;
+    if v.is_empty() {
+        v.push(default)
     }
     Ok(v)
 }
@@ -29,26 +40,21 @@ where
     Ok(v)
 }
 
-// generate simple FWS and obs-FWS
-pub fn arbitrary_fws(u: &mut Unstructured) -> Result<Vec<u8>> {
+pub fn arbitrary_whitespace_nonempty(u: &mut Unstructured) -> Result<Vec<u8>> {
     let mut v = Vec::new();
-    u.arbitrary_loop(Some(1), Some(3), |u| {
-        if u.arbitrary()? {
-            v.extend(ascii::CRLF)
-        }
-        for _ in 0..u.int_in_range(1..=4)? {
-            v.push(b' ')
-        }
-        Ok(ControlFlow::Continue(()))
-    })?;
+    for _ in 0..=u.arbitrary_len::<u8>()? {
+        let b: bool = u.arbitrary()?;
+        v.push(if b { ascii::SP } else { ascii::HT });
+    }
     Ok(v)
 }
 
-pub fn arbitrary_shuffle<T>(u: &mut Unstructured, v: &mut Vec<T>) {
+pub fn arbitrary_shuffle<T>(u: &mut Unstructured, v: &mut Vec<T>) -> Result<()> {
     let mut to_permute = &mut v[..];
     while to_permute.len() > 1 {
-        let idx = u.choose_index(to_permute.len()).unwrap();
+        let idx = u.choose_index(to_permute.len())?;
         to_permute.swap(0, idx);
         to_permute = &mut to_permute[1..];
     }
+    Ok(())
 }

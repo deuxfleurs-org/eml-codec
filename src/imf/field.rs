@@ -12,8 +12,6 @@ use crate::imf::mime::{version, Version};
 use crate::imf::trace::{received_log, return_path, ReceivedLog, ReturnPath};
 use crate::text::misc_token::{phrase_list, unstructured, PhraseList, Unstructured};
 
-// NOTE: we don't need `Entry` constructors for trace fields
-// because they are already stored in-order in the Imf struct.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, ToStatic)]
 #[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
 pub enum Entry {
@@ -32,6 +30,8 @@ pub enum Entry {
     Comments(usize),
     #[cfg_attr(feature = "arbitrary", fuzz_eq(use_eq))]
     Keywords(usize),
+    #[cfg_attr(feature = "arbitrary", fuzz_eq(use_eq))]
+    Trace(usize),
     MIMEVersion,
 }
 
@@ -69,6 +69,7 @@ pub enum Field<'a> {
     MIMEVersion(Version),
 }
 
+#[derive(Debug, Clone, Copy)]
 pub enum InvalidField {
     Name,
     Body,
@@ -101,5 +102,27 @@ impl<'a> TryFrom<&header::FieldRaw<'a>> for Field<'a> {
 
         // TODO: check that the parser consumed the entire body?
         content.map(|(_, content)| content).or(Err(InvalidField::Body))
+    }
+}
+
+pub fn is_imf_header(name: &header::FieldName) -> bool {
+    match name.bytes().to_ascii_lowercase().as_slice() {
+        b"date" |
+        b"from" |
+        b"sender" |
+        b"reply-to" |
+        b"to" |
+        b"cc" |
+        b"bcc" |
+        b"message-id" |
+        b"in-reply-to" |
+        b"references" |
+        b"subject" |
+        b"comments" |
+        b"keywords" |
+        b"return-path" |
+        b"received" |
+        b"mime-version" => true,
+        _ => false,
     }
 }

@@ -22,8 +22,9 @@ use std::borrow::Cow;
 #[cfg(feature = "arbitrary")]
 use crate::{
     header,
-    arbitrary_utils::arbitrary_shuffle,
+    arbitrary_utils::{arbitrary_shuffle, arbitrary_vec_where},
     fuzz_eq::FuzzEq,
+    mime,
 };
 use crate::mime::AnyMIME;
 use crate::part::{
@@ -60,9 +61,11 @@ impl<'a> Arbitrary<'a> for AnyPart<'a> {
                      .into_iter()
                      .map(field::EntityEntry::MIME)
                      .collect();
-        let unstr: Vec<header::Unstructured> = u.arbitrary()?;
+        let unstr: Vec<header::Unstructured> = arbitrary_vec_where(u, |f: &header::Unstructured| {
+            !mime::field::is_mime_header(&f.name)
+        })?;
         entries.extend(unstr.into_iter().map(field::EntityEntry::Unstructured));
-        arbitrary_shuffle(u, &mut entries);
+        arbitrary_shuffle(u, &mut entries)?;
         Ok(AnyPart { entries, mime_body })
     }
 }

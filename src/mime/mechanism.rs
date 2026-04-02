@@ -3,7 +3,7 @@ use arbitrary::Arbitrary;
 use bounded_static::ToStatic;
 #[cfg(feature = "arbitrary")]
 use crate::fuzz_eq::FuzzEq;
-use crate::print::{Print, Formatter};
+use crate::print::{Print, Formatter, ToStringFromPrint};
 use crate::text::whitespace::cfws;
 use crate::text::words::{mime_atom as token, MIMEAtom};
 use nom::{
@@ -14,7 +14,7 @@ use nom::{
     IResult,
 };
 
-#[derive(Debug, Clone, PartialEq, Default, ToStatic)]
+#[derive(Debug, Clone, PartialEq, Default, ToStatic, ToStringFromPrint)]
 #[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
 pub enum Mechanism<'a> {
     #[default]
@@ -39,11 +39,6 @@ impl<'a> Mechanism<'a> {
     }
 }
 
-impl<'a> ToString for Mechanism<'a> {
-    fn to_string(&self) -> String {
-        String::from_utf8_lossy(self.as_bytes()).to_string()
-    }
-}
 impl<'a> Print for Mechanism<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
         fmt.write_bytes(self.as_bytes())
@@ -53,13 +48,15 @@ impl<'a> Mechanism<'a> {
     // RFC2046: for entities of type "multipart" or "message/rfc822",
     // no encoding other than 7bit, 8bit and binary is permitted.
     // This converts a `Mechanism` to ensure it belongs to
-    // one of these three encodings, defaulting to 7bit in case
-    // of an invalid value.
+    // one of these three encodings, returning the default mechanism
+    // in case of an invalid value.
     pub fn to_part_encoding(&self) -> Mechanism<'static> {
+        use bounded_static::ToBoundedStatic;
         match self {
-            Mechanism::_8Bit => Mechanism::_8Bit,
-            Mechanism::Binary => Mechanism::Binary,
-            _ => Mechanism::_7Bit,
+            Mechanism::_7Bit | Mechanism::_8Bit | Mechanism::Binary =>
+                self.to_static(),
+            _ =>
+                Mechanism::default(),
         }
     }
 }

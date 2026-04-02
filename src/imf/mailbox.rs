@@ -5,7 +5,7 @@ use nom::{
     branch::alt,
     bytes::complete::{tag, take_while1},
     combinator::{all_consuming, into, map, map_opt, opt},
-    multi::{many0, separated_list1},
+    multi::{many0, many1, separated_list1},
     sequence::{delimited, pair, preceded, terminated, tuple},
     IResult,
 };
@@ -14,30 +14,21 @@ use std::fmt;
 
 #[cfg(feature = "arbitrary")]
 use crate::{
-    arbitrary_utils::{arbitrary_vec_nonempty, arbitrary_vec_where},
+    arbitrary_utils::{arbitrary_vec_nonempty, arbitrary_vec_nonempty_where},
     fuzz_eq::FuzzEq,
 };
-use crate::print::{print_seq, Print, Formatter};
+use crate::print::{print_seq, Print, Formatter, ToStringFromPrint};
 use crate::text::ascii;
 use crate::text::misc_token::{phrase, word, Phrase, Word};
 use crate::text::quoted::print_quoted;
 use crate::text::whitespace::{cfws, fws, is_obs_no_ws_ctl};
 use crate::text::words::{dot_atom_text, atom, Atom};
 
-#[derive(Clone, Debug, PartialEq, ToStatic)]
+#[derive(Clone, Debug, PartialEq, ToStatic, ToStringFromPrint)]
 #[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
 pub struct AddrSpec<'a> {
     pub local_part: LocalPart<'a>,
     pub domain: Domain<'a>,
-}
-impl<'a> ToString for AddrSpec<'a> {
-    fn to_string(&self) -> String {
-        format!(
-            "{}@{}",
-            self.local_part.to_string(),
-            self.domain.to_string()
-        )
-    }
 }
 impl<'a> Print for AddrSpec<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
@@ -47,7 +38,7 @@ impl<'a> Print for AddrSpec<'a> {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, ToStatic)]
+#[derive(Clone, Debug, PartialEq, ToStatic, ToStringFromPrint)]
 #[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
 pub struct MailboxRef<'a> {
     // The actual "email address" like hello@example.com
@@ -66,14 +57,6 @@ impl MailboxRef<'static> {
                 domain: Domain::Atoms(vec![Atom(b"unknown".into())]),
             },
             name: None,
-        }
-    }
-}
-impl<'a> ToString for MailboxRef<'a> {
-    fn to_string(&self) -> String {
-        match &self.name {
-            Some(n) => format!("{} <{}>", n.to_string(), self.addrspec.to_string()),
-            None => self.addrspec.to_string(),
         }
     }
 }
@@ -102,7 +85,7 @@ impl<'a> Print for MailboxRef<'a> {
 }
 
 /// A non-empty list of mailboxes.
-#[derive(Clone, Debug, PartialEq, ToStatic)]
+#[derive(Clone, Debug, PartialEq, ToStatic, ToStringFromPrint)]
 #[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
 pub struct MailboxList<'a>(pub Vec<MailboxRef<'a>>);
 
@@ -227,26 +210,38 @@ pub fn addr_spec(input: &[u8]) -> IResult<&[u8], AddrSpec<'_>> {
     )(input)
 }
 
+#[derive(Clone, Debug, PartialEq, ToStatic, ToStringFromPrint)]
+pub struct LocalPart<'a>(pub Vec<LocalPartToken<'a>>); // non-empty vec
+
 #[derive(Clone, Debug, PartialEq, ToStatic)]
-#[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
+#[cfg_attr(feature = "arbitrary", derive(Arbitrary))]
 pub enum LocalPartToken<'a> {
     Dot,
     Word(Word<'a>),
 }
 
-#[derive(Clone, Debug, PartialEq, ToStatic)]
-#[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
-pub struct LocalPart<'a>(pub Vec<LocalPartToken<'a>>);
-
 impl<'a> LocalPart<'a> {
-    pub fn to_string(&self) -> String {
-        self.0.iter().fold(String::new(), |mut acc, token| {
-            match token {
-                LocalPartToken::Dot => acc.push('.'),
-                LocalPartToken::Word(v) => acc.push_str(v.to_string().as_ref()),
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let mut v = Vec::new();
+        for tok in &self.0 {
+            match tok {
+                LocalPartToken::Dot => v.push(b'.'),
+                LocalPartToken::Word(w) => v.extend(w.bytes()),
             }
-            acc
-        })
+        }
+        v
+    }
+}
+#[cfg(feature = "arbitrary")]
+impl<'a> Arbitrary<'a> for LocalPart<'a> {
+    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
+        Ok(LocalPart(arbitrary_vec_nonempty(u)?))
+    }
+}
+#[cfg(feature = "arbitrary")]
+impl<'a> FuzzEq for LocalPart<'a> {
+    fn fuzz_eq(&self, other: &Self) -> bool {
+        self.to_bytes() == other.to_bytes()
     }
 }
 
@@ -259,16 +254,7 @@ impl<'a> Print for LocalPart<'a> {
         // should be printed.
 
         // print the local part as raw bytes
-        let as_bytes: Vec<u8> = {
-            let mut v = Vec::new();
-            for tok in &self.0 {
-                match tok {
-                    LocalPartToken::Dot => v.push(b'.'),
-                    LocalPartToken::Word(w) => v.extend(w.bytes()),
-                }
-            }
-            v
-        };
+        let as_bytes = self.to_bytes();
 
         // If `as_bytes` is a dot-atom we print it as-is, otherwise
         // we quote it. This ensures that our output is compliant with RFC5322.
@@ -284,54 +270,42 @@ impl<'a> Print for LocalPart<'a> {
 ///
 /// Compared to the RFC, we allow multiple dots.
 /// This is found in Enron emails and supported by Gmail.
+/// We also allow dots at the beginning and end.
 ///
-/// Obsolete local part is a superset of strict_local_part:
-/// anything that is parsed by strict_local_part will be parsed by
-/// obs_local_part.
+/// This "obsolete local part" syntax is a superset of both the RFC's
+/// local-part and obs-local-part.
 ///
 /// ```abnf
-/// obs-local-part  =  *("." / word)
+/// our-obs-local-part  =  *"." word *(1*"." word) *"."
 /// ```
 fn obs_local_part(input: &[u8]) -> IResult<&[u8], LocalPart<'_>> {
-    map(
-        many0(alt((
-            map(tag(&[ascii::PERIOD]), |_| LocalPartToken::Dot),
-            map(word, LocalPartToken::Word),
-        ))),
-        LocalPart,
-    )(input)
-}
+    let (input, prefix) = many0(local_part_dot)(input)?;
+    let (input, w) = local_part_word(input)?;
+    let (input, ws) = many0(pair(many1(local_part_dot), local_part_word))(input)?;
+    let (input, suffix) = many0(local_part_dot)(input)?;
 
-#[derive(Clone, Debug, PartialEq, ToStatic)]
-#[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
-pub enum Domain<'a> {
-    Atoms(Vec<Atom<'a>>),
-    Literal(Vec<Dtext<'a>>),
-}
-
-impl<'a> ToString for Domain<'a> {
-    fn to_string(&self) -> String {
-        match self {
-            Domain::Atoms(v) => v
-                .iter()
-                .map(|a| {
-                    encoding_rs::UTF_8
-                        .decode_without_bom_handling(&a.0)
-                        .0
-                        .to_string()
-                })
-                .collect::<Vec<String>>()
-                .join("."),
-            Domain::Literal(v) => {
-                let inner = v
-                    .iter()
-                    .map(|dt| dt.to_string())
-                    .collect::<Vec<String>>()
-                    .join(" ");
-                format!("[{}]", inner)
-            }
-        }
+    let mut v: Vec<LocalPartToken> = vec![];
+    v.extend(prefix);
+    v.push(w);
+    for (dots, w) in ws.into_iter() {
+        v.extend(dots);
+        v.push(w);
     }
+    v.extend(suffix);
+    Ok((input, LocalPart(v)))
+}
+fn local_part_dot(input: &[u8]) -> IResult<&[u8], LocalPartToken<'_>> {
+    map(tag(&[ascii::PERIOD]), |_| LocalPartToken::Dot)(input)
+}
+fn local_part_word(input: &[u8]) -> IResult<&[u8], LocalPartToken<'_>> {
+    map(word, LocalPartToken::Word)(input)
+}
+
+#[derive(Clone, Debug, PartialEq, ToStatic, ToStringFromPrint)]
+#[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
+pub enum Domain<'a> {
+    Atoms(Vec<Atom<'a>>), // non-empty vec
+    Literal(Vec<Dtext<'a>>),
 }
 
 impl<'a> Print for Domain<'a> {
@@ -345,6 +319,16 @@ impl<'a> Print for Domain<'a> {
                 print_seq(fmt, &parts, Formatter::write_fws);
                 fmt.write_bytes(b"]")
             },
+        }
+    }
+}
+#[cfg(feature = "arbitrary")]
+impl<'a> Arbitrary<'a> for Domain<'a> {
+    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
+        if u.arbitrary()? {
+            Ok(Domain::Atoms(arbitrary_vec_nonempty(u)?))
+        } else {
+            Ok(Domain::Literal(u.arbitrary()?))
         }
     }
 }
@@ -391,17 +375,10 @@ fn inner_domain_litteral(input: &[u8]) -> IResult<&[u8], Domain<'_>> {
     )(input)
 }
 
-#[derive(Clone, PartialEq, ToStatic)]
+// Invariant: must be non-empty
+#[derive(Clone, PartialEq, ToStatic, ToStringFromPrint)]
 pub struct Dtext<'a>(Cow<'a, [u8]>);
 
-impl<'a> ToString for Dtext<'a> {
-    fn to_string(&self) -> String {
-        encoding_rs::UTF_8
-            .decode_without_bom_handling(&self.0)
-            .0
-            .to_string()
-    }
-}
 impl<'a> fmt::Debug for Dtext<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt.debug_tuple("Dtext")
@@ -410,31 +387,47 @@ impl<'a> fmt::Debug for Dtext<'a> {
     }
 }
 
+impl<'a> Dtext<'a> {
+    // Best-effort conversion of any `Dtext` contents into bytes that all
+    // satisfy `is_strict_dtext`.
+    //
+    // - We drop characters which are not part of the strict syntax.
+    // Unfortunately this can drop printable characters, if they were part
+    // of a quote (\X), which is accepted by the obsolete syntax. However,
+    // we have no better option than to drop those since there is no way
+    // to represent them in the strict syntax.
+    // - Dropping obsolete characters may result in an empty string; however
+    // a `Dtext` must always be nonempty; in this case, we return "?", as a
+    // placeholder text.
+    // XXX it would be more consistent with the rest of the codebase if this
+    // sanitization was done at parsing time, resulting in an AST which is
+    // always "clean" as an invariant and can be printed directly.
+    fn to_strict_best_effort(&self) -> Self {
+        let mut strict_dtext: Vec<u8> =
+            self.0.iter().cloned().filter(|b| is_strict_dtext(*b)).collect();
+        if strict_dtext.is_empty() {
+            strict_dtext.push(b'?')
+        }
+        Dtext(strict_dtext.into())
+    }
+}
+
 impl<'a> Print for Dtext<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
-        for &b in self.0.iter() {
-            // NOTE: we drop characters which are not part of the strict syntax.
-            // Unfortunately this can drop printable characters, if they were part
-            // of a quote (\X), which is accepted by the obsolete syntax. However,
-            // we have no better option than to drop those since there is no way
-            // to represent them in the strict syntax.
-            if is_strict_dtext(b) {
-                fmt.write_bytes(&[b]);
-            }
-        }
+        fmt.write_bytes(&self.to_strict_best_effort().0)
     }
 }
 #[cfg(feature = "arbitrary")]
 impl<'a> Arbitrary<'a> for Dtext<'a> {
     fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Dtext<'a>> {
-        let bytes: Vec<u8> = arbitrary_vec_where(u, is_dtext)?;
+        let bytes: Vec<u8> = arbitrary_vec_nonempty_where(u, |c| is_dtext(*c), b'X')?;
         Ok(Dtext(Cow::Owned(bytes)))
     }
 }
 #[cfg(feature = "arbitrary")]
 impl<'a> FuzzEq for Dtext<'a> {
     fn fuzz_eq(&self, other: &Self) -> bool {
-        self == other
+        self.to_strict_best_effort() == other.to_strict_best_effort()
     }
 }
 
@@ -464,7 +457,7 @@ pub fn dtext<'a>(input: &'a [u8]) -> IResult<&'a [u8], Dtext<'a>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::print::tests::with_formatter;
+    use crate::print::tests::print_to_vec;
     use crate::text::misc_token::PhraseToken;
     use crate::text::quoted::QuotedString;
 
@@ -474,18 +467,18 @@ mod tests {
     // back as 'a').
     fn addr_roundtrip_as(addr: &[u8], parsed: AddrSpec<'_>) {
         assert_eq!(addr_spec(addr), Ok((&b""[..], parsed.clone())));
-        let printed = with_formatter(|f| parsed.print(f));
+        let printed = print_to_vec(parsed);
         assert_eq!(String::from_utf8_lossy(addr), String::from_utf8_lossy(&printed));
     }
     fn addr_roundtrip(addr: &[u8]) {
         let (input, parsed) = addr_spec(addr).unwrap();
         assert!(input.is_empty());
-        let printed = with_formatter(|f| parsed.print(f));
+        let printed = print_to_vec(parsed);
         assert_eq!(String::from_utf8_lossy(addr), String::from_utf8_lossy(&printed));
     }
     fn addr_parsed_printed(addr: &[u8], parsed: AddrSpec<'_>, printed: &[u8]) {
         assert_eq!(addr_spec(addr), Ok((&b""[..], parsed.clone())));
-        let reprinted = with_formatter(|f| parsed.print(f));
+        let reprinted = print_to_vec(parsed);
         assert_eq!(String::from_utf8_lossy(printed), String::from_utf8_lossy(&reprinted));
     }
 
@@ -493,19 +486,19 @@ mod tests {
     // in general.
     fn mailbox_roundtrip_as(mbox: &[u8], parsed: MailboxRef<'_>) {
         assert_eq!(mailbox(mbox), Ok((&b""[..], parsed.clone())));
-        let printed = with_formatter(|f| parsed.print(f));
+        let printed = print_to_vec(parsed);
         assert_eq!(String::from_utf8_lossy(mbox), String::from_utf8_lossy(&printed));
     }
     fn mailbox_parsed_printed(mbox: &[u8], parsed: MailboxRef<'_>, printed: &[u8]) {
         assert_eq!(mailbox(mbox), Ok((&b""[..], parsed.clone())));
-        let reprinted = with_formatter(|f| parsed.print(f));
+        let reprinted = print_to_vec(parsed);
         assert_eq!(String::from_utf8_lossy(printed), String::from_utf8_lossy(&reprinted));
     }
 
     fn mailbox_list_reprint(mboxlist: &[u8], printed: &[u8]) {
         let (input, parsed) = mailbox_list(mboxlist).unwrap();
         assert!(input.is_empty());
-        let reprinted = with_formatter(|f| parsed.print(f));
+        let reprinted = print_to_vec(parsed);
         assert_eq!(String::from_utf8_lossy(&reprinted), String::from_utf8_lossy(printed));
     }
 
@@ -516,6 +509,18 @@ mod tests {
             AddrSpec {
                 local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(Atom(b"alice"[..].into())))]),
                 domain: Domain::Atoms(vec![Atom(b"example"[..].into()), Atom(b"com"[..].into())]),
+            }
+        );
+
+        addr_roundtrip_as(
+            b"alice@smtp.example.com",
+            AddrSpec {
+                local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(Atom(b"alice"[..].into())))]),
+                domain: Domain::Atoms(vec![
+                    Atom(b"smtp"[..].into()),
+                    Atom(b"example"[..].into()),
+                    Atom(b"com"[..].into()),
+                ]),
             }
         );
 
@@ -580,6 +585,38 @@ mod tests {
                 domain: Domain::Atoms(vec![Atom(b"example"[..].into()), Atom(b"com"[..].into())]),
             }
         );
+
+        // edge-case: domain literal part that contains only obsolete bytes -> gets reprinted as '?'
+        let mut addr = b"foobar@[X ".to_vec();
+        addr.extend(&[1, 28, b']']);
+        addr_parsed_printed(
+            &addr,
+            AddrSpec {
+                local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(Atom(b"foobar".into())))]),
+                domain: Domain::Literal(vec![
+                    Dtext(b"X"[..].into()),
+                    Dtext((&[1, 28]).into()),
+                ]),
+            },
+            b"foobar@[X ?]",
+        );
+    }
+
+    #[test]
+    fn test_gmail_noncompliant() {
+        addr_parsed_printed(
+            b"foo..bar@gmail.com",
+            AddrSpec {
+                local_part: LocalPart(vec![
+                    LocalPartToken::Word(Word::Atom(Atom(b"foo".into()))),
+                    LocalPartToken::Dot,
+                    LocalPartToken::Dot,
+                    LocalPartToken::Word(Word::Atom(Atom(b"bar".into()))),
+                ]),
+                domain: Domain::Atoms(vec![Atom(b"gmail"[..].into()), Atom(b"com"[..].into())]),
+            },
+            b"\"foo..bar\"@gmail.com",
+        )
     }
 
     #[test]
@@ -676,6 +713,27 @@ mod tests {
                     domain: Domain::Atoms(vec![Atom(b"example"[..].into()), Atom(b"net"[..].into())]),
                 }
             }
+        );
+
+        // Tricky example illustrating a subtility of parsing encoded words.
+        // A mailbox can start with a phrase, which allows encoded words.
+        // However, "=?X?q?@[?=" *IS NOT* a valid encoded word in a phrase (because of '@' and '['),
+        // even though it is a valid encoded word in other contexts.
+        // This means that the correct way to parse this input is as an addr-spec...
+        mailbox_roundtrip_as(
+            r#"=?X?q?@[?= <?@?>]"#.as_bytes(),
+            MailboxRef {
+                name: None,
+                addrspec: AddrSpec {
+                    local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(
+                        Atom(b"=?X?q?"[..].into())
+                    ))]),
+                    domain: Domain::Literal(vec![
+                        Dtext(b"?="[..].into()),
+                        Dtext(b"<?@?>"[..].into()),
+                    ]),
+                },
+            },
         );
     }
 
@@ -816,5 +874,11 @@ mod tests {
             b",foo@bar.com,,boss@nil.test,jdoe@example.org, \r\n ,,",
             br#"foo@bar.com, boss@nil.test, jdoe@example.org"#,
         );
+    }
+
+    #[test]
+    fn test_dtext_strictify() {
+        let s: &[u8] = &Dtext((&[3]).into()).to_strict_best_effort().0;
+        assert_eq!(s, b"?")
     }
 }

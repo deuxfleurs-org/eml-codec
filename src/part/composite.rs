@@ -176,7 +176,6 @@ mod tests {
     use crate::part::{AnyPart, MimeBody};
     use crate::part::field::EntityEntry;
     use crate::text::charset::EmailCharset;
-    use crate::utils::Deductible;
     use pretty_assertions::assert_eq;
 
     #[test]
@@ -230,7 +229,7 @@ This is the epilogue. It is also to be ignored.
                          entries: vec![],
                          mime_body: MimeBody::Txt(Text {
                              mime: mime::MIME {
-                                 ctype: Deductible::Inferred,
+                                 ctype: mime::r#type::Text::default(),
                                  fields: mime::CommonMIME::default(),
                              },
                              body: b"This is implicitly typed plain US-ASCII text.\nIt does NOT end with a linebreak."[..].into(),
@@ -240,11 +239,11 @@ This is the epilogue. It is also to be ignored.
                          entries: vec![EntityEntry::MIME(Entry::Type)],
                          mime_body: MimeBody::Txt(Text {
                              mime: mime::MIME {
-                                 ctype: Deductible::Explicit(mime::r#type::Text {
+                                 ctype: mime::r#type::Text {
                                      subtype: mime::r#type::TextSubtype::Plain,
-                                     charset: Deductible::Explicit(EmailCharset::US_ASCII),
+                                     charset: EmailCharset::US_ASCII,
                                      params: vec![],
-                                 }),
+                                 },
                                  fields: mime::CommonMIME::default(),
                              },
                              body: b"This is explicitly typed plain US-ASCII text.\nIt DOES end with a linebreak.\n"[..].into(),
@@ -308,7 +307,7 @@ This is implicitly typed plain US-ASCII text.
                                      entries: vec![],
                                      mime_body: MimeBody::Txt(Text {
                                          mime: mime::MIME {
-                                             ctype: Deductible::Inferred,
+                                             ctype: mime::r#type::Text::default(),
                                              fields: mime::CommonMIME::default(),
                                          },
                                          body: b"This is the inner part; it misses its terminator"[..].into(),
@@ -321,10 +320,56 @@ This is implicitly typed plain US-ASCII text.
                          entries: vec![],
                          mime_body: MimeBody::Txt(Text {
                              mime: mime::MIME {
-                                 ctype: Deductible::Inferred,
+                                 ctype: mime::r#type::Text::default(),
                                  fields: mime::CommonMIME::default(),
                              },
                              body: b"This is implicitly typed plain US-ASCII text."[..].into(),
+                         }),
+                     },
+                 ],
+             },
+            )
+        );
+    }
+
+    // currently, because of the non-spec-compliant best-effort whitespace::obs_crlf
+    // used in part::part_raw, an extra final \r character can get discarded while
+    // parsing...
+    // TODO: check against real-world email corpuses to know whether obs_crlf is
+    // actually useful when parsing parts
+    #[test]
+    fn test_multipart_cr() {
+        let base_mime = mime::MIME {
+            ctype: mime::r#type::Multipart {
+                subtype: mime::r#type::MultipartSubtype::Alternative,
+                boundary: Some(b"boundary".to_vec()),
+                params: vec![],
+            },
+            fields: mime::CommonMIME::default(),
+        };
+
+        let input = b"--boundary
+
+\r\r
+--boundary--
+";
+
+        assert_eq!(
+            multipart(base_mime.clone())(input),
+            (&b""[..],
+             Multipart {
+                 mime: base_mime,
+                 preamble: b"".into(),
+                 epilogue: b"".into(),
+                 children: vec![
+                     AnyPart {
+                         entries: vec![],
+                         mime_body: MimeBody::Txt(Text {
+                             mime: mime::MIME {
+                                 ctype: mime::r#type::Text::default(),
+                                 fields: mime::CommonMIME::default(),
+                             },
+                             body: b""[..].into(),
                          }),
                      },
                  ],

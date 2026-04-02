@@ -16,27 +16,30 @@ use std::fmt;
 
 #[cfg(feature = "arbitrary")]
 use crate::{
-    arbitrary_utils::{arbitrary_fws, arbitrary_vec_nonempty, arbitrary_vec_where},
+    arbitrary_utils::{
+        arbitrary_whitespace_nonempty,
+        arbitrary_vec_nonempty,
+        arbitrary_vec_nonempty_where,
+    },
     fuzz_eq::FuzzEq,
 };
-use crate::print::{print_seq, Print, Formatter};
+use crate::print::{print_seq, Print, Formatter, ToStringFromPrint};
 use crate::text::{
     ascii,
     encoding::{self, encoded_word, encoded_word_plain},
-    quoted::{print_quoted, quoted_string, QuotedString, QuotedStringBytes},
+    quoted::{quoted_string, QuotedString, QuotedStringBytes},
     whitespace::{cfws, fws, is_obs_no_ws_ctl},
     words::{atom, is_vchar, mime_atom, Atom, MIMEAtom},
 };
 
-// A non-empty list of phrases.
 #[derive(Clone, Debug, PartialEq, Default, ToStatic)]
 #[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
-pub struct PhraseList<'a>(pub Vec<Phrase<'a>>);
+pub struct PhraseList<'a>(pub Vec<Phrase<'a>>); // must be nonempty
 
 #[cfg(feature = "arbitrary")]
 impl<'a> Arbitrary<'a> for PhraseList<'a> {
-    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<PhraseList<'a>> {
-        Ok(PhraseList(arbitrary_vec_nonempty(u)?))
+    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
+        Ok(Self(arbitrary_vec_nonempty(u)?))
     }
 }
 
@@ -71,10 +74,7 @@ impl<'a> Print for PhraseList<'a> {
     }
 }
 
-// NOTE: this is not equivalent to `Word` because `MIMEWord::Atom`
-// does not allow the same characters as `Word::Atom` (see the definitions
-// of `mime_atom` and `atom`).
-#[derive(Debug, PartialEq, Clone, ToStatic)]
+#[derive(Debug, PartialEq, Clone, ToStatic, ToStringFromPrint)]
 #[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
 pub enum MIMEWord<'a> {
     Quoted(QuotedString<'a>),
@@ -83,17 +83,6 @@ pub enum MIMEWord<'a> {
 impl Default for MIMEWord<'static> {
     fn default() -> Self {
         Self::Atom(MIMEAtom::default())
-    }
-}
-impl<'a> MIMEWord<'a> {
-    pub fn to_string(&self) -> String {
-        match self {
-            Self::Quoted(v) => v.to_string(),
-            Self::Atom(a) => encoding_rs::UTF_8
-                .decode_without_bom_handling(&a.0)
-                .0
-                .to_string(),
-        }
     }
 }
 pub fn mime_word(input: &[u8]) -> IResult<&[u8], MIMEWord<'_>> {
@@ -114,35 +103,23 @@ impl<'a> MIMEWord<'a> {
 impl<'a> Print for MIMEWord<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
         match self {
-            MIMEWord::Quoted(q) => print_quoted(fmt, q.bytes()),
+            MIMEWord::Quoted(q) => q.print(fmt),
             MIMEWord::Atom(a) => fmt.write_bytes(&a.0),
         }
     }
 }
 
-#[derive(Clone, Debug, PartialEq, ToStatic)]
+#[derive(Clone, Debug, PartialEq, ToStatic, ToStringFromPrint)]
 #[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
 pub enum Word<'a> {
     Quoted(QuotedString<'a>),
     Atom(Atom<'a>),
 }
 
-impl<'a> ToString for Word<'a> {
-    fn to_string(&self) -> String {
-        match self {
-            Word::Quoted(v) => v.to_string(),
-            Word::Atom(a) => encoding_rs::UTF_8
-                .decode_without_bom_handling(&a.0)
-                .0
-                .to_string(),
-        }
-    }
-}
-
 impl<'a> Print for Word<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
         match self {
-            Word::Quoted(q) => print_quoted(fmt, q.bytes()),
+            Word::Quoted(q) => q.print(fmt),
             Word::Atom(a) => fmt.write_bytes(&a.0),
         }
     }
@@ -184,19 +161,13 @@ pub fn word(input: &[u8]) -> IResult<&[u8], Word<'_>> {
     ))(input)
 }
 
-#[derive(Clone, Debug, PartialEq, ToStatic)]
-#[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
+#[derive(Clone, Debug, PartialEq, ToStatic, ToStringFromPrint)]
+#[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
 pub enum PhraseToken<'a> {
+    // Word MUST NOT be a Word::Atom that represents an encoded
+    // word, ie of the form =?..?..?..?=
     Word(Word<'a>),
     Encoded(encoding::EncodedWord<'a>),
-}
-impl<'a> ToString for PhraseToken<'a> {
-    fn to_string(&self) -> String {
-        match self {
-            PhraseToken::Word(w) => w.to_string(),
-            PhraseToken::Encoded(e) => e.to_string(),
-        }
-    }
 }
 impl<'a> Print for PhraseToken<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
@@ -206,13 +177,30 @@ impl<'a> Print for PhraseToken<'a> {
         }
     }
 }
+#[cfg(feature = "arbitrary")]
+impl<'a> Arbitrary<'a> for PhraseToken<'a> {
+    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<PhraseToken<'a>> {
+        if u.arbitrary()? {
+            let w: Word<'_> = u.arbitrary()?;
+            // As a coarse-grained measure, reject any atom that contains '=?'
+            // to avoid confusion with Encoded tokens
+            if let Word::Atom(a) = &w {
+                if a.0.windows(2).find(|&s| s == b"=?").is_some() {
+                    return Err(arbitrary::Error::IncorrectFormat)
+                }
+            }
+            Ok(PhraseToken::Word(w))
+        } else {
+            Ok(PhraseToken::Encoded(u.arbitrary()?))
+        }
+    }
+}
 
 /// A part of a phrase or obs-phrase
 pub fn phrase_token(input: &[u8]) -> IResult<&[u8], PhraseToken<'_>> {
     alt((
-        // NOTE: we must try `encoded_word` first because encoded words
-        // are also valid atoms
-        map(encoded_word, PhraseToken::Encoded),
+        // NOTE: try encoded words first because they can also be parsed as words.
+        map(encoded_word(encoding::Context::Phrase), PhraseToken::Encoded),
         map(word, PhraseToken::Word),
         // "obs-phrase" allows periods while "phrase" does not.
         // We could have a dedicated `Dot` constructor to `PhraseToken`
@@ -228,23 +216,41 @@ pub fn phrase_token(input: &[u8]) -> IResult<&[u8], PhraseToken<'_>> {
     ))(input)
 }
 
-// Must be a non-empty list
-#[derive(Clone, Debug, PartialEq, ToStatic)]
-#[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
+// Must be a non-empty list.
+#[derive(Clone, Debug, PartialEq, ToStatic, ToStringFromPrint)]
 pub struct Phrase<'a>(pub Vec<PhraseToken<'a>>);
 
-impl<'a> ToString for Phrase<'a> {
-    fn to_string(&self) -> String {
-        self.0
-            .iter()
-            .map(|v| v.to_string())
-            .collect::<Vec<String>>()
-            .join(" ")
-    }
-}
 impl<'a> Print for Phrase<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
         print_seq(fmt, &self.0, Formatter::write_fws)
+    }
+}
+
+impl<'a> Phrase<'a> {
+    // Merges consecutive Encoded tokens
+    #[cfg(feature = "arbitrary")]
+    fn normalize(&self) -> Self {
+        let mut v = Vec::new();
+        for tok in &self.0 {
+            match (v.last_mut(), tok) {
+                (Some(PhraseToken::Encoded(ref mut e1)), PhraseToken::Encoded(e2)) =>
+                    e1.0.extend(e2.0.clone().into_iter()),
+                (_, tok) => v.push(tok.clone()),
+            }
+        }
+        Self(v)
+    }
+}
+#[cfg(feature = "arbitrary")]
+impl<'a> Arbitrary<'a> for Phrase<'a> {
+    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
+        Ok(Self(arbitrary_vec_nonempty(u)?))
+    }
+}
+#[cfg(feature = "arbitrary")]
+impl<'a> FuzzEq for Phrase<'a> {
+    fn fuzz_eq(&self, other: &Self) -> bool {
+        self.normalize().0.fuzz_eq(&other.normalize().0)
     }
 }
 
@@ -295,17 +301,19 @@ fn obs_utext_token<'a>(input: &'a [u8]) -> IResult<&'a [u8], UtextToken<'a>> {
     ))(input)
 }
 
-#[derive(Debug, PartialEq, Clone, ToStatic)]
+#[derive(Debug, PartialEq, Copy, Clone, ToStatic)]
 pub enum UnstrTxtKind {
-    Txt,
-    Obs,
-    Fws,
+    Txt, // non-space text
+    Obs, // non-space text using obsolete characters
+    Fws, // whitespace
 }
 
 #[derive(PartialEq, Clone, ToStatic)]
 #[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
 pub enum UnstrToken<'a> {
     Encoded(encoding::EncodedWord<'a>),
+    // `Plain` MUST NOT contain text that represents an encoded word,
+    // ie. of the form =?..?..?..?=
     #[cfg_attr(feature = "arbitrary", fuzz_eq(use_eq))]
     Plain(Cow<'a, [u8]>, UnstrTxtKind),
 }
@@ -353,35 +361,24 @@ impl<'a> Print for UnstrToken<'a> {
         }
     }
 }
-impl<'a> ToString for UnstrToken<'a> {
-    fn to_string(&self) -> String {
-        match self {
-            UnstrToken::Encoded(e) => e.to_string(),
-            // XXX discard obsolete tokens?
-            UnstrToken::Plain(e, _) => encoding_rs::UTF_8
-                .decode_without_bom_handling(&e)
-                .0
-                .into_owned(),
-        }
-    }
-}
 #[cfg(feature = "arbitrary")]
 impl<'a> Arbitrary<'a> for UnstrToken<'a> {
     fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<UnstrToken<'a>> {
-        match u.int_in_range(0..=3)? {
+        // XXX we do not generate `Obs` tokens because those are dropped at printing time.
+        // this is somewhat of a hack.
+        match u.int_in_range(0..=2)? {
             0 => Ok(UnstrToken::Encoded(u.arbitrary()?)),
             1 => {
-                let txt = arbitrary_vec_where(u, is_vchar)?;
+                let txt = arbitrary_vec_nonempty_where(u, |c| is_vchar(*c), b'X')?;
+                // As a coarse-grained measure, reject text that contains '=?' to avoid confusion with
+                // Encoded tokens
+                if txt.windows(2).find(|&s| s == b"=?").is_some() {
+                    return Err(arbitrary::Error::IncorrectFormat)
+                }
                 Ok(UnstrToken::Plain(txt.into(), UnstrTxtKind::Txt))
             },
             2 => {
-                let txt = arbitrary_vec_where(u, |b| {
-                    is_obs_no_ws_ctl(b) || b == ascii::NULL
-                })?;
-                Ok(UnstrToken::Plain(txt.into(), UnstrTxtKind::Obs))
-            },
-            3 => {
-                let txt = arbitrary_fws(u)?;
+                let txt = arbitrary_whitespace_nonempty(u)?;
                 Ok(UnstrToken::Plain(txt.into(), UnstrTxtKind::Fws))
             },
             _ => unreachable!(),
@@ -389,38 +386,90 @@ impl<'a> Arbitrary<'a> for UnstrToken<'a> {
     }
 }
 
-#[derive(Debug, PartialEq, Clone, ToStatic)]
-#[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
+// Invariant:
+// - Encoded and Plain(_, Txt) tokens are always separated by whitespace
+//   (encoded words must be separated from other words by whitespace)
+// - There must not be whitespace in between two Encoded tokens
+//   (whitespace in between encoded words is meaningless and is ignored during parsing)
+#[derive(Debug, PartialEq, Clone, ToStatic, ToStringFromPrint)]
 pub struct Unstructured<'a>(pub Vec<UnstrToken<'a>>);
 
-impl<'a> ToString for Unstructured<'a> {
-    fn to_string(&self) -> String {
-        self.0
-            .iter()
-            .fold(
-                (None, String::new()),
-                |(prev_token, mut result), current_token| {
-                    match (prev_token, current_token) {
-                        (None, v) => result.push_str(v.to_string().as_ref()),
-                        (Some(UnstrToken::Encoded(_)), UnstrToken::Encoded(v)) => {
-                            result.push_str(v.to_string().as_ref())
-                        }
-                        (_, v) => {
-                            result.push_str(v.to_string().as_ref())
-                        }
-                    };
-
-                    (Some(current_token.clone()), result)
-                },
-            )
-            .1
-    }
-}
 impl<'a> Print for Unstructured<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
         for tok in &self.0 {
             tok.print(fmt)
         }
+    }
+}
+
+impl<'a> Unstructured<'a> {
+    // Merges consecutive tokens of the same kind.
+    // Used to define fuzz_eq.
+    #[cfg(feature = "arbitrary")]
+    fn normalize(&self) -> Unstructured<'static> {
+        use bounded_static::ToBoundedStatic;
+        let mut v: Vec<UnstrToken<'static>> = Vec::new();
+        for tok in &self.0 {
+            match (v.last_mut(), tok) {
+                (Some(UnstrToken::Plain(b1, k1)), UnstrToken::Plain(b2, k2)) if k1 == k2 =>
+                    b1.to_mut().extend(b2.iter()),
+                _ =>
+                    v.push(tok.to_static()),
+            }
+        }
+        Unstructured(v)
+    }
+}
+
+#[cfg(feature = "arbitrary")]
+impl<'a> FuzzEq for Unstructured<'a> {
+    fn fuzz_eq(&self, other: &Self) -> bool {
+        self.normalize().0.fuzz_eq(&other.normalize().0)
+    }
+}
+
+#[cfg(feature = "arbitrary")]
+impl<'a> Arbitrary<'a> for Unstructured<'a> {
+    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Unstructured<'a>> {
+        enum Kind {
+            Encoded,
+            Wsp,
+            Txt,
+        }
+        use Kind::*;
+        fn k(tok: &UnstrToken<'_>) -> Kind {
+            match tok {
+                UnstrToken::Encoded(_) => Encoded,
+                UnstrToken::Plain(_, UnstrTxtKind::Fws) => Wsp,
+                UnstrToken::Plain(_, _) => Txt,
+                }
+        }
+
+        let mut v: Vec<UnstrToken> = Vec::new();
+        let mut before_last = None;
+        let mut last = None;
+        for _ in 0..u.arbitrary_len::<UnstrToken>()? {
+            let tok: UnstrToken = u.arbitrary()?;
+            match (&before_last, &last, k(&tok)) {
+                // invariant: no whitespace between encoded tokens
+                (Some(Encoded), Some(Wsp), Encoded) |
+                // invariant: encoded and text must be separated by whitespace
+                (_, Some(Encoded), Txt) | (_, Some(Txt), Encoded) => {
+                    return Err(arbitrary::Error::IncorrectFormat)
+                },
+
+                // consecutive Txt or Wsp nodes should be treated as one when
+                // tracking "the" previous token kind
+                (_, Some(Wsp), Wsp) | (_, Some(Txt), Txt) =>
+                    (),
+                (_, _, ktok) => {
+                    before_last = last;
+                    last = Some(ktok);
+                }
+            };
+            v.push(tok)
+        }
+        Ok(Unstructured(v))
     }
 }
 
@@ -442,7 +491,7 @@ pub fn unstructured(input: &[u8]) -> IResult<&[u8], Unstructured<'_>> {
     let (input, r) = many0(pair(
         opt(fws),
         alt((
-            map(encoded_word_plain, |w| vec![UnstrToken::Encoded(w)]),
+            map(encoded_word_plain(encoding::Context::Unstructured), |w| vec![UnstrToken::Encoded(w)]),
             many1(map(obs_utext_token, UnstrToken::from_utext)),
         )),
     ))(input)?;
@@ -457,7 +506,7 @@ pub fn unstructured(input: &[u8]) -> IResult<&[u8], Unstructured<'_>> {
         tokens.extend(toks);
     }
     if !wsp0.is_empty() {
-        tokens.push(UnstrToken::from_plain(wsp0, UnstrTxtKind::Txt))
+        tokens.push(UnstrToken::from_plain(wsp0, UnstrTxtKind::Fws))
     }
 
     Ok((input, Unstructured(tokens)))
@@ -466,34 +515,69 @@ pub fn unstructured(input: &[u8]) -> IResult<&[u8], Unstructured<'_>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::print::tests::with_formatter;
+    use crate::text::charset::EmailCharset;
+    use crate::text::encoding::{EncodedWord, EncodedWordToken, QuotedChunk, QuotedWord};
+    use crate::print::tests::print_to_vec;
 
     #[test]
     fn test_phrase() {
         assert_eq!(
-            phrase(b"hello world").unwrap().1.to_string(),
-            "hello world".to_string(),
+            print_to_vec(phrase(b"hello world").unwrap().1),
+            b"hello world".to_vec(),
         );
+        // XXX: would we rather want this to be reprinted as "salut le monde"?
+        // (since the quotes are unnecessary in this case)
         assert_eq!(
-            phrase(b"salut \"le\" monde").unwrap().1.to_string(),
-            "salut le monde".to_string(),
+            print_to_vec(phrase(b"salut \"le\" monde").unwrap().1),
+            b"salut \"le\" monde".to_vec(),
         );
 
         let (rest, parsed) = phrase(b"fin\r\n du\r\nmonde").unwrap();
         assert_eq!(rest, &b"\r\nmonde"[..]);
-        assert_eq!(parsed.to_string(), "fin du".to_string());
+        assert_eq!(&print_to_vec(parsed), b"fin du");
 
         let (rest, parsed) = phrase(b"foo.bar").unwrap();
         assert_eq!(rest, &b""[..]);
-        let printed = with_formatter(|f| parsed.print(f));
-        assert_eq!(printed, b"foo \".\" bar");
+        assert_eq!(&print_to_vec(parsed), b"foo \".\" bar");
     }
 
     #[test]
     fn test_phrase_list() {
         let (rest, parsed) = phrase_list(b",abc def,,   ,ghi").unwrap();
         assert_eq!(rest, &b""[..]);
-        let printed = with_formatter(|f| parsed.as_ref().unwrap().print(f));
-        assert_eq!(printed, b"abc def, ghi");
+        assert_eq!(&print_to_vec(parsed.as_ref().unwrap()), b"abc def, ghi");
+    }
+
+    #[test]
+    fn test_unstructured() {
+        let (rest, parsed) = unstructured(b"").unwrap();
+        assert_eq!(rest, &b""[..]);
+        assert_eq!(parsed, Unstructured(vec![]));
+
+        let (rest, parsed) = unstructured(b" \t").unwrap();
+        assert_eq!(rest, &b""[..]);
+        assert_eq!(parsed, Unstructured(vec![UnstrToken::Plain(b" \t"[..].into(), UnstrTxtKind::Fws)]));
+
+
+        let (rest, parsed) = unstructured(b"foo =?UTF-8?q?foo?=").unwrap();
+        assert_eq!(rest, &b""[..]);
+        assert_eq!(parsed, Unstructured(vec![
+            UnstrToken::Plain(b"foo"[..].into(), UnstrTxtKind::Txt),
+            UnstrToken::Plain(b" "[..].into(), UnstrTxtKind::Fws),
+            UnstrToken::Encoded(EncodedWord(vec![EncodedWordToken::Quoted(
+                QuotedWord {
+                    enc: EmailCharset::UTF_8,
+                    chunks: vec![QuotedChunk::Safe(b"foo"[..].into())],
+                }
+            )]))
+        ]));
+
+        // RFC 2047 specifies that encoded words MUST be separated from other
+        // words by whitespace. otherwise, we parse them as normal text...
+        let (rest, parsed) = unstructured(b"foo=?UTF-8?q?foo?=").unwrap();
+        assert_eq!(rest, &b""[..]);
+        assert_eq!(parsed, Unstructured(vec![
+            UnstrToken::Plain(b"foo=?UTF-8?q?foo?="[..].into(), UnstrTxtKind::Txt),
+        ]));
     }
 }

@@ -1,4 +1,4 @@
-pub use derive_fuzz_eq::FuzzEq;
+pub use eml_codec_derives::FuzzEq;
 
 pub trait FuzzEq {
     fn fuzz_eq(&self, other: &Self) -> bool;

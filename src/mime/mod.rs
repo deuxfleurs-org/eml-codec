@@ -21,29 +21,72 @@ use crate::mime::mechanism::Mechanism;
 use crate::mime::r#type::{AnyType, NaiveType};
 use crate::print::Formatter;
 use crate::text::misc_token::Unstructured;
-use crate::utils::{Deductible, set_opt};
+use crate::utils::set_opt;
 
 #[derive(Debug, Default, PartialEq, Clone, ToStatic)]
 #[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
 pub struct CommonMIME<'a> {
-    pub transfer_encoding: Deductible<Mechanism<'a>>,
+    pub transfer_encoding: Mechanism<'a>,
     pub id: Option<MessageID<'a>>,
     pub description: Option<Unstructured<'a>>,
 }
 
+// Invariant: when T is mime::r#type::Multipart or mime::r#type::Message,
+// fields.transfer_encoding must be 7bit, 8bit or binary.
 #[derive(Debug, PartialEq, Clone, ToStatic)]
-#[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
+#[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
 pub struct MIME<'a, T> {
     pub ctype: T,
     pub fields: CommonMIME<'a>,
 }
 
-impl<'a> Default for MIME<'a, r#type::DeductibleText<'a>> {
-    fn default() -> Self {
-        Self {
-            ctype: r#type::DeductibleText::default(),
-            fields: CommonMIME::default(),
-        }
+#[cfg(feature = "arbitrary")]
+impl<'a> Arbitrary<'a> for MIME<'a, r#type::Multipart<'a>> {
+    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
+        let mime = MIME {
+            ctype: u.arbitrary()?,
+            fields: u.arbitrary()?,
+        };
+        match mime.fields.transfer_encoding {
+            Mechanism::_7Bit | Mechanism::_8Bit | Mechanism::Binary => (),
+            _ => return Err(arbitrary::Error::IncorrectFormat),
+        };
+        Ok(mime)
+    }
+}
+
+#[cfg(feature = "arbitrary")]
+impl<'a> Arbitrary<'a> for MIME<'a, r#type::Message<'a>> {
+    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
+        let mime = MIME {
+            ctype: u.arbitrary()?,
+            fields: u.arbitrary()?,
+        };
+        match mime.fields.transfer_encoding {
+            Mechanism::_7Bit | Mechanism::_8Bit | Mechanism::Binary => (),
+            _ => return Err(arbitrary::Error::IncorrectFormat),
+        };
+        Ok(mime)
+    }
+}
+
+#[cfg(feature = "arbitrary")]
+impl<'a> Arbitrary<'a> for MIME<'a, r#type::Text<'a>> {
+    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
+        Ok(MIME {
+            ctype: u.arbitrary()?,
+            fields: u.arbitrary()?,
+        })
+    }
+}
+
+#[cfg(feature = "arbitrary")]
+impl<'a> Arbitrary<'a> for MIME<'a, r#type::Binary<'a>> {
+    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
+        Ok(MIME {
+            ctype: u.arbitrary()?,
+            fields: u.arbitrary()?,
+        })
     }
 }
 
@@ -52,7 +95,7 @@ impl<'a> Default for MIME<'a, r#type::DeductibleText<'a>> {
 pub enum AnyMIME<'a> {
     Mult(MIME<'a, r#type::Multipart<'a>>),
     Msg(MIME<'a, r#type::Message<'a>>),
-    Txt(MIME<'a, r#type::DeductibleText<'a>>),
+    Txt(MIME<'a, r#type::Text<'a>>),
     Bin(MIME<'a, r#type::Binary<'a>>),
 }
 impl<'a> AnyMIME<'a> {
@@ -91,7 +134,7 @@ impl<'a> AnyMIME<'a> {
             },
             FieldEntry::Description => {
                 if let Some(desc) = &self.common().description {
-                    header::print(fmt, b"Content-Description", desc)
+                    header::print_unstructured(fmt, b"Content-Description", desc)
                 }
             },
         }
@@ -102,13 +145,9 @@ impl<'a> AnyMIME<'a> {
     // randomly ordered list of field entries.
     pub fn field_entries(&self) -> HashSet<field::Entry> {
         let mut fs = HashSet::default();
-        if !matches!(self.ctype(), AnyType::Text(Deductible::Inferred)) {
-            fs.insert(field::Entry::Type);
-        }
+        fs.insert(field::Entry::Type);
+        fs.insert(field::Entry::TransferEncoding);
         let common = self.common();
-        if let Deductible::Explicit(_) = common.transfer_encoding {
-            fs.insert(field::Entry::TransferEncoding);
-        }
         if common.id.is_some() {
             fs.insert(field::Entry::ID);
         }
@@ -131,7 +170,7 @@ impl<'a> Into<AnyMIME<'a>> for MIME<'a, r#type::Message<'a>> {
     }
 }
 
-impl<'a> Into<AnyMIME<'a>> for MIME<'a, r#type::DeductibleText<'a>> {
+impl<'a> Into<AnyMIME<'a>> for MIME<'a, r#type::Text<'a>> {
     fn into(self) -> AnyMIME<'a> {
         AnyMIME::Txt(self)
     }
@@ -172,7 +211,6 @@ impl<'a> NaiveMIME<'a> {
             .map(NaiveType::to_type)
             .unwrap_or(default_type.to_type());
         let transfer_encoding = self.transfer_encoding
-            .map(Deductible::Explicit)
             .unwrap_or_default();
         let mut fields = CommonMIME {
             transfer_encoding,
@@ -182,21 +220,13 @@ impl<'a> NaiveMIME<'a> {
         match typ {
             AnyType::Multipart(ctype) => {
                 // Ensure we are using an encoding allowed for multipart
-                fields.transfer_encoding =
-                    match fields.transfer_encoding {
-                        t @ Deductible::Inferred => t,
-                        Deductible::Explicit(t) => Deductible::Explicit(t.to_part_encoding()),
-                    };
+                fields.transfer_encoding = fields.transfer_encoding.to_part_encoding();
                 AnyMIME::Mult(MIME { ctype, fields })
             },
             AnyType::Message(ctype) => {
                 // Ensure we are using an encoding allowed for message/rfc822
                 // TODO: enforce corresponding restrictions for other message subtypes
-                fields.transfer_encoding =
-                    match fields.transfer_encoding {
-                        t @ Deductible::Inferred => t,
-                        Deductible::Explicit(t) => Deductible::Explicit(t.to_part_encoding()),
-                    };
+                fields.transfer_encoding = fields.transfer_encoding.to_part_encoding();
                 AnyMIME::Msg(MIME { ctype, fields })
             },
             AnyType::Text(ctype) => AnyMIME::Txt(MIME { ctype, fields }),

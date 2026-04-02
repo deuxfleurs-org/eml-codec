@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-cargo +nightly fuzz run "$1" -- -timeout=1
+cargo +nightly fuzz run "$1" -- -timeout=1 -max_len=2000
 
 # -max_len=1500
 

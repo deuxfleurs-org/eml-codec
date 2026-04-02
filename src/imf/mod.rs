@@ -21,7 +21,7 @@ use crate::imf::field::{Field, Entry};
 use crate::imf::identification::MessageID;
 use crate::imf::mailbox::{MailboxRef, MailboxList};
 use crate::imf::mime::Version;
-use crate::imf::trace::{ReceivedLog, ReturnPath, TraceBlock};
+use crate::imf::trace::{ReceivedLog, ReturnPath};
 use crate::print::Formatter;
 use crate::text::misc_token::{PhraseList, Unstructured};
 use crate::utils::{append_opt, set_opt};
@@ -52,24 +52,51 @@ pub struct Imf<'a> {
     pub keywords: Vec<PhraseList<'a>>,
 
     // 3.6.6 Not implemented
+
     // 3.6.7 Trace Fields
-    pub trace: Vec<TraceBlock<'a>>,
+    pub trace: Vec<TraceField<'a>>,
 
     // MIME
     pub mime_version: Version,
 }
 
 #[derive(Clone, Debug, PartialEq, ToStatic)]
-#[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
+#[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
 pub enum From<'a> {
     Single {
         from: MailboxRef<'a>,
         sender: Option<MailboxRef<'a>>,
     },
     Multiple {
-        from: MailboxList<'a>,
+        from: MailboxList<'a>, // must contain at least two elements
         sender: MailboxRef<'a>,
     }
+}
+
+#[cfg(feature = "arbitrary")]
+impl<'a> Arbitrary<'a> for From<'a> {
+    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
+        if u.arbitrary()? {
+            Ok(From::Single {
+                from: u.arbitrary()?,
+                sender: u.arbitrary()?,
+            })
+        } else {
+            let mut from: MailboxList = u.arbitrary()?;
+            from.0.push(u.arbitrary()?);
+            Ok(From::Multiple {
+                from,
+                sender: u.arbitrary()?,
+            })
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, ToStatic)]
+#[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
+pub enum TraceField<'a> {
+    Received(ReceivedLog<'a>),
+    ReturnPath(ReturnPath<'a>),
 }
 
 impl<'a> Imf<'a> {
@@ -171,13 +198,28 @@ impl<'a> Imf<'a> {
                 header::print(fmt, b"Keywords", &self.keywords[i]),
             field::Entry::MIMEVersion =>
                 header::print(fmt, b"MIME-Version", &self.mime_version),
+            field::Entry::Trace(i) =>
+                match &self.trace[i] {
+                    TraceField::Received(r) =>
+                        header::print(fmt, b"Received", r),
+                    TraceField::ReturnPath(p) =>
+                        header::print(fmt, b"Return-Path", p),
+                }
         }
     }
 
-    // Returns the list of entries included in this Imf struct. This is used to
-    // define the Arbitrary instance for Message, to construct a randomly
-    // ordered list of field entries.
-    pub fn field_entries(&self) -> HashSet<field::Entry> {
+    // Returns the entries included in this Imf struct. This is used to define
+    // the Arbitrary instance for Message, to construct a randomly ordered list
+    // of field entries.
+    //
+    // The first component of the pair is the list of trace entries (for which
+    // the order matters), and the second component is the set of other entries.
+    pub fn field_entries(&self) -> (Vec<field::Entry>, HashSet<field::Entry>) {
+        let mut trace = vec![];
+        for i in 0..self.trace.len() {
+            trace.push(field::Entry::Trace(i))
+        }
+
         let mut fs = HashSet::default();
         fs.insert(field::Entry::Date);
         fs.insert(field::Entry::From);
@@ -225,7 +267,8 @@ impl<'a> Imf<'a> {
             fs.insert(field::Entry::Keywords(i));
         }
         fs.insert(field::Entry::MIMEVersion);
-        fs
+
+        (trace, fs)
     }
 }
 
@@ -244,15 +287,9 @@ pub struct PartialImf<'a> {
     subject: Option<Unstructured<'a>>,
     comments: Vec<Unstructured<'a>>,
     keywords: Vec<PhraseList<'a>>,
-    trace: Vec<PartialTraceBlock<'a>>,
+    trace: Vec<TraceField<'a>>,
     trace_complete: bool,
     mime_version: Option<Version>,
-}
-
-#[derive(Debug, Default, PartialEq, ToStatic)]
-pub struct PartialTraceBlock<'a> {
-    return_path: Option<ReturnPath<'a>>,
-    received: Vec<ReceivedLog<'a>>,
 }
 
 impl<'a> PartialImf<'a> {
@@ -344,19 +381,14 @@ impl<'a> PartialImf<'a> {
                 }
             },
             Field::Received(received) => {
-                if self.trace.is_empty() {
-                    self.trace.push(PartialTraceBlock::default())
-                }
-                let block_idx = self.trace.len() - 1;
-                self.trace[block_idx].received.push(received);
-                return None
+                let idx = self.trace.len();
+                self.trace.push(TraceField::Received(received));
+                return Some(Entry::Trace(idx))
             },
             Field::ReturnPath(path) => {
-                self.trace.push(PartialTraceBlock {
-                    return_path: Some(path),
-                    received: vec![],
-                });
-                return None
+                let idx = self.trace.len();
+                self.trace.push(TraceField::ReturnPath(path));
+                return Some(Entry::Trace(idx))
             },
             Field::MIMEVersion(version) => {
                 if set_opt(&mut self.mime_version, version) {
@@ -406,16 +438,6 @@ impl<'a> PartialImf<'a> {
                 }
             }
         };
-        let trace = {
-            // drop trace blocks with zero 'received' as they are not allowed
-            self.trace.into_iter().filter_map(|PartialTraceBlock { return_path, received }| {
-                if received.is_empty() {
-                    None
-                } else {
-                    Some(TraceBlock { return_path, received })
-                }
-            }).collect()
-        };
 
         Imf {
             date,
@@ -430,7 +452,7 @@ impl<'a> PartialImf<'a> {
             subject: self.subject,
             comments: self.comments,
             keywords: self.keywords,
-            trace,
+            trace: self.trace,
             // XXX we don't support reading non-MIME compliant emails
             // currently, so we always turn a missing MIME-Version field
             // into the default supported version

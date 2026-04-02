@@ -30,14 +30,15 @@ println!(
 
 The provided `eml_parse` binary can be used to test email parsing and printing.
 The binary takes parses its standard input as an email (on a best-effort basis),
-and reprints the parsed email on its standard output. It also prints a debugging
+and reprints the parsed email on its standard output.
+When passed the `--show-ast` option, it also prints a debugging
 view of the parsed AST on the standard error output. The printed email is
 guaranteed to be RFC compliant; parts of the input using obsolete or invalid
 syntax will be reprinted using valid syntax when possible, or dropped otherwise.
 
 Usage example:
 ```shell
-$ cargo run --bin eml_parse <<EOF
+$ cargo run --bin eml_parse -- --show-ast <<EOF
 hello: barrr
 date: uhh
 
