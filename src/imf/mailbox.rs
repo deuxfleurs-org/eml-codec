@@ -441,18 +441,23 @@ impl<'a> Arbitrary<'a> for Domain<'a> {
 
 /// Domain
 ///
-/// Rewritten so that domain is a superset
-/// of RFC-strict domain and obs_domain.
+/// Rewritten so that domain is a superset of RFC-strict domain and obs_domain.
+///
+/// We also allow a final dot, which is not part of the RFC but occurs in
+/// old emails.
 ///
 /// RFC5322:
 /// ```abnf
 ///  domain          =   dot-atom / domain-literal / obs-domain
 ///  obs-domain      =   atom *("." atom)
-/// ```
 ///
-/// we implement the equivalent form:
+/// which is equivalent to:
+///
+/// domain           =   atom *("." atom) / domain-literal
+/// ```
+/// We implement:
 /// ```abnf
-///  our-domain      = atom *("." atom) / domain-literal
+///  our-domain      =   atom *("." atom) [.] / domain-literal
 /// ```
 #[cfg_attr(
     feature = "tracing",
@@ -460,7 +465,16 @@ impl<'a> Arbitrary<'a> for Domain<'a> {
 )]
 pub fn domain(input: &[u8]) -> IResult<&[u8], Domain<'_>> {
     alt((
-        map(separated_list1(tag("."), atom), Domain::Atoms),
+        map(
+            terminated(
+                separated_list1(tag("."), atom),
+                opt(map(tag("."), |i| {
+                    #[cfg(feature = "tracing-recover")]
+                    warn!("trailing dot in domain");
+                    i
+                }))),
+            Domain::Atoms
+        ),
         domain_litteral,
     ))(input)
 }
@@ -999,6 +1013,20 @@ mod tests {
                 }
             },
             b"mark_kopinski/intl/acim/americancentury@americancentury.com",
+        );
+    }
+
+    #[test]
+    fn test_final_dot() {
+        addr_parsed_printed(
+            "201102080055@viruhosting.eu.".as_bytes(),
+            AddrSpec {
+                local_part: LocalPart(vec![
+                    LocalPartToken::Word(Word::Atom(Atom("201102080055"[..].into()))),
+                ]),
+                domain: Domain::Atoms(vec![Atom("viruhosting"[..].into()), Atom("eu"[..].into())]),
+            },
+            r#"201102080055@viruhosting.eu"#.as_bytes(),
         );
     }
 
