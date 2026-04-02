@@ -335,6 +335,7 @@ impl<'a> Print for LocalPart<'a> {
 /// ```
 #[instrument_input("tracing")]
 fn local_part(input: &[u8]) -> IResult<&[u8], LocalPart<'_>> {
+    let (input, _) = opt(cfws)(input)?;
     let (input, prefix) = many0(local_part_dot)(input)?;
     let (input, w) = local_part_word(input)?;
     let (input, ws) = many0(pair(many1(local_part_dot), local_part_word))(input)?;
@@ -894,6 +895,19 @@ mod tests {
     fn test_enron2() {
         addr_parsed_printed(
             ".nelson@enron.com".as_bytes(),
+            AddrSpec {
+                local_part: LocalPart(vec![
+                    LocalPartToken::Dot,
+                    LocalPartToken::Word(Word::Atom(Atom("nelson"[..].into()))),
+                ]),
+                domain: Domain::Atoms(vec![Atom("enron"[..].into()), Atom("com"[..].into())]),
+            },
+            r#"".nelson"@enron.com"#.as_bytes(),
+        );
+
+        // variant with leading whitespace
+        addr_parsed_printed(
+            "  .nelson@enron.com".as_bytes(),
             AddrSpec {
                 local_part: LocalPart(vec![
                     LocalPartToken::Dot,
