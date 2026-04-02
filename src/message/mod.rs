@@ -489,7 +489,7 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                             ])),
                         ]));
 
-                        imf.msg_id = Some(imf::identification::MessageID {
+                        imf.msg_id = Some(imf::identification::MessageID::ObsLeftRight {
                             left: LocalPart(vec![
                                 LocalPartToken::Word(Word::Atom(Atom("NTAxNzA2AC47634Y366BAMTY4ODc5MzQyODY0ODY5".into()))),
                             ]),
