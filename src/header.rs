@@ -20,7 +20,7 @@ use crate::{
 };
 use crate::print::{Print, Formatter};
 use crate::text::misc_token;
-use crate::text::whitespace::{foldable_line, foldable_suffix, obs_crlf};
+use crate::text::whitespace::{foldable_line, obs_crlf};
 
 // A valid header field name.
 #[derive(PartialEq, Clone, ToStatic)]
@@ -113,7 +113,7 @@ pub fn header_kv(input: &[u8]) -> (&[u8], Vec<FieldRaw<'_>>) {
 // NOTE: field_raw only recognizes non-empty inputs.
 fn field_raw(input: &[u8]) -> IResult<&[u8], FieldRaw<'_>> {
     map(
-        pair(field_name, foldable_suffix),
+        pair(field_name, foldable_line(false)),
         |(name, body)| FieldRaw { name, body }
     )(input)
 }
@@ -129,7 +129,7 @@ fn field_raw_opt(input: &[u8]) -> IResult<&[u8], Option<FieldRaw<'_>>> {
         map(field_raw, Some),
         // best-effort: a (non-empty) foldable line that cannot even be parsed as
         // a field name and body. We drop it afterwards.
-        map(foldable_line, |_| None),
+        map(foldable_line(true), |_| None),
     ))(input)
 }
 

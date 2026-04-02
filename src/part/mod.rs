@@ -10,13 +10,6 @@ pub mod field;
 #[cfg(feature = "arbitrary")]
 use arbitrary::Arbitrary;
 use bounded_static::ToStatic;
-use nom::{
-    branch::alt,
-    bytes::complete::is_not,
-    combinator::{not, recognize},
-    multi::many0,
-    sequence::pair,
-};
 use std::borrow::Cow;
 
 #[cfg(feature = "arbitrary")]
@@ -32,9 +25,6 @@ use crate::part::{
     discrete::{Binary, Text},
 };
 use crate::print::{Print, Formatter};
-use crate::text::ascii::CRLF;
-use crate::text::boundary::boundary;
-use crate::text::whitespace::obs_crlf;
 
 #[derive(Clone, Debug, PartialEq, ToStatic)]
 #[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
@@ -198,16 +188,32 @@ pub fn part_body<'a>(m: AnyMIME<'a>) -> impl FnOnce(&'a [u8]) -> MimeBody<'a> {
     }
 }
 
-pub fn part_raw<'a>(bound: &[u8]) -> impl Fn(&'a [u8]) -> (&'a [u8], &'a [u8]) + '_ {
+// Recognizes bytes for the next part, until the next boundary or the end of the input.
+pub fn part_raw<'a, 'b>(bound: &[u8]) -> impl Fn(&'a [u8]) -> (&'a [u8], &'a [u8]) + 'b {
+    use memchr::memmem::Finder;
+    // This low-level implementation (which basically just calls `memmem`) is faster
+    // than trying to express this using parser combinators.
+
+    let mut needle = b"--".to_vec();
+    needle.extend(bound.iter());
+    let finder = Finder::new(&needle).into_owned();
+
     move |input| {
-        // XXX could this parser be defined in a way that matches the spec more naturally?
-        // SAFETY: `many0` only fails if its argument parser recognizes the
-        // empty input, and both `is_not(CRLF)` and `obs_crlf` fail on the empty
-        // input.
-        recognize(many0(pair(
-            not(boundary(bound)),
-            alt((is_not(CRLF), obs_crlf)),
-        )))(input).unwrap()
+        for i in finder.find_iter(input) {
+            // a boundary can be at the beginning of the input
+            if i == 0 {
+                return (&input, &[])
+            }
+
+            // or it can be after a newline
+            if i.checked_sub(1).is_some_and(|j| input[j] == b'\n') {
+                // best-effort: recognize both \n and \r\n before the boundary
+                let i = i.checked_sub(2).filter(|j| input[*j] == b'\r').unwrap_or(i-1);
+                return (&input[i..], &input[0..i])
+            }
+        }
+        // no matching boundary found; return the entire input
+        (&[], input)
     }
 }
 

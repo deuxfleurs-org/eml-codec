@@ -57,10 +57,11 @@ pub fn multipart<'a>(
         // the parser, which always specifies a `boundary` (the boundary
         // used by the input).
         let bound = m.ctype.boundary.as_ref().unwrap();
+        let part_raw = part::part_raw(bound);
         let mut mparts: Vec<AnyPart> = vec![];
 
         // preamble
-        let (mut input_loop, preamble) = part::part_raw(bound)(input);
+        let (mut input_loop, preamble) = part_raw(input);
 
         loop {
             let input = match boundary(bound)(input_loop) {
@@ -102,7 +103,7 @@ pub fn multipart<'a>(
             };
 
             // parse raw part
-            let (input, rpart) = part::part_raw(bound)(input);
+            let (input, rpart) = part_raw(input);
 
             // parse mime body
             // -- we do not keep the input as we are using the
@@ -332,11 +333,6 @@ This is implicitly typed plain US-ASCII text.
         );
     }
 
-    // currently, because of the non-spec-compliant best-effort whitespace::obs_crlf
-    // used in part::part_raw, an extra final \r character can get discarded while
-    // parsing...
-    // TODO: check against real-world email corpuses to know whether obs_crlf is
-    // actually useful when parsing parts
     #[test]
     fn test_multipart_cr() {
         let base_mime = mime::MIME {
@@ -369,7 +365,7 @@ This is implicitly typed plain US-ASCII text.
                                  ctype: mime::r#type::Text::default(),
                                  fields: mime::CommonMIME::default(),
                              },
-                             body: b""[..].into(),
+                             body: b"\r"[..].into(),
                          }),
                      },
                  ],
