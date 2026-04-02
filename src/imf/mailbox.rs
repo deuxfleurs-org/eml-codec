@@ -230,7 +230,7 @@ pub fn addr_spec(input: &[u8]) -> IResult<&[u8], AddrSpec<'_>> {
     )(input)
 }
 
-#[derive(Clone, Debug, PartialEq, ToStatic, ToStringFromPrint)]
+#[derive(Clone, ContainsUtf8, Debug, PartialEq, ToStatic, ToStringFromPrint)]
 pub struct LocalPart<'a>(pub Vec<LocalPartToken<'a>>); // non-empty vec
 
 #[derive(Clone, Debug, PartialEq, ToStatic)]
@@ -238,6 +238,14 @@ pub struct LocalPart<'a>(pub Vec<LocalPartToken<'a>>); // non-empty vec
 pub enum LocalPartToken<'a> {
     Dot,
     Word(Word<'a>),
+}
+impl<'a> ContainsUtf8 for LocalPartToken<'a> {
+    fn contains_utf8(&self) -> bool {
+        match self {
+            Self::Dot => false,
+            Self::Word(w) => w.contains_utf8(),
+        }
+    }
 }
 
 impl<'a> LocalPart<'a> {
@@ -334,7 +342,7 @@ impl<'a> Print for LocalPart<'a> {
 /// our-local-part      =  *"." word *(1*"." word) *"."
 /// ```
 #[instrument_input("tracing")]
-fn local_part(input: &[u8]) -> IResult<&[u8], LocalPart<'_>> {
+pub fn local_part(input: &[u8]) -> IResult<&[u8], LocalPart<'_>> {
     let (input, _) = opt(cfws)(input)?;
     let (input, prefix) = many0(local_part_dot)(input)?;
     let (input, w) = local_part_word(input)?;
@@ -371,7 +379,7 @@ fn local_part_word(input: &[u8]) -> IResult<&[u8], LocalPartToken<'_>> {
     map(word, LocalPartToken::Word)(input)
 }
 
-#[derive(Clone, Debug, PartialEq, ToStatic, ToStringFromPrint)]
+#[derive(Clone, ContainsUtf8, Debug, PartialEq, ToStatic, ToStringFromPrint)]
 #[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
 pub enum Domain<'a> {
     Atoms(Vec<Atom<'a>>), // non-empty vec

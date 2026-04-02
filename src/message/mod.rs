@@ -251,7 +251,6 @@ mod tests {
     use crate::imf::datetime::DateTime;
     use crate::imf::{Imf, From};
     use crate::imf::address::*;
-    use crate::imf::identification::MessageIDRight;
     use crate::imf::mailbox::*;
     use crate::mime::{CommonMIME, MIME};
     use crate::part::composite::Multipart;
@@ -262,7 +261,7 @@ mod tests {
     use crate::text::charset::EmailCharset;
     use crate::text::encoding::{Base64Word, EncodedWord, EncodedWordToken, QuotedChunk, QuotedWord};
     use crate::text::misc_token::*;
-    use crate::text::words::{Atom, DotAtom, MIMEAtom};
+    use crate::text::words::{Atom, MIMEAtom};
     use chrono::{FixedOffset, TimeZone};
     use pretty_assertions::assert_eq;
 
@@ -491,8 +490,14 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                         ]));
 
                         imf.msg_id = Some(imf::identification::MessageID {
-                            left: DotAtom("NTAxNzA2AC47634Y366BAMTY4ODc5MzQyODY0ODY5"[..].into()),
-                            right: MessageIDRight::DotAtom(DotAtom("www.grrrndzero.org"[..].into())),
+                            left: LocalPart(vec![
+                                LocalPartToken::Word(Word::Atom(Atom("NTAxNzA2AC47634Y366BAMTY4ODc5MzQyODY0ODY5".into()))),
+                            ]),
+                            right: Domain::Atoms(vec![
+                                Atom("www".into()),
+                                Atom("grrrndzero".into()),
+                                Atom("org".into()),
+                            ]),
                         });
 
                         imf.discarded.push(imf::field::Field::Subject(Unstructured(vec![
