@@ -9,7 +9,7 @@ use crate::text::utf8::{is_nonascii_or, space0_str, space1_str, take_utf8_while1
 // non-"tracing-recover" events. So it is both correct and faster to only emit
 // these spans when they are used, i.e. with "tracing-recover".
 #[cfg(feature = "tracing-recover")]
-use crate::utils::bytes_to_trace_string;
+use tracing::warn;
 use eml_codec_derives::instrument_input;
 use nom::{
     branch::alt,
@@ -20,8 +20,9 @@ use nom::{
     IResult,
     Parser,
 };
+use std::borrow::Cow;
 #[cfg(feature = "tracing-recover")]
-use tracing::warn;
+use crate::utils::bytes_to_trace_string;
 
 /// Whitespace (space, new line, tab) content and
 /// delimited content (eg. comment, line, sections, etc.)
@@ -48,7 +49,7 @@ pub fn obs_crlf(input: &[u8]) -> IResult<&[u8], &str> {
                 )),
                 |input: &[u8]| {
                     #[cfg(feature = "tracing-recover")]
-                    warn!(input = unsafe { str::from_utf8_unchecked(input) },
+                    warn!(input = %unsafe { str::from_utf8_unchecked(input) },
                           "best-effort line ending");
                     input
                 }
@@ -244,7 +245,7 @@ pub fn comment_body(input: &[u8]) -> IResult<&[u8], ()> {
 }
 
 #[instrument_input("tracing-recover")]
- pub fn ctext(input: &[u8]) -> IResult<&[u8], &str> {
+pub fn ctext(input: &[u8]) -> IResult<&[u8], Cow<'_, str>> {
      take_utf8_while1(is_ctext)(input)
 }
 
