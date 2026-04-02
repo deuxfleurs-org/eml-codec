@@ -2,10 +2,11 @@
 use arbitrary::Arbitrary;
 use bounded_static::{ToBoundedStatic, ToStatic};
 use nom::{
+    branch::alt,
     bytes::complete::tag,
     combinator::{map, opt, recognize},
     multi::many0,
-    sequence::{pair, preceded, terminated, tuple},
+    sequence::{delimited, pair, preceded, terminated, tuple},
     IResult,
 };
 #[cfg(feature = "tracing")]
@@ -35,10 +36,29 @@ impl<'a> NaiveType<'a> {
     }
 }
 pub fn naive_type(input: &[u8]) -> IResult<&[u8], NaiveType<'_>> {
-    map(
-        tuple((mime_atom, tag("/"), mime_atom, parameter_list)),
-        |(main, _, sub, params)| NaiveType { main, sub, params },
-    )(input)
+    alt((
+        map(
+            tuple((mime_atom, tag("/"), mime_atom, parameter_list)),
+            |(main, _, sub, params)| NaiveType { main, sub, params }
+        ),
+        // outside of RFCs but found in old emails: recognize "text"
+        // as alias for "text/plain"
+        map(
+            preceded(
+                delimited(opt(cfws), tag("text"), opt(cfws)),
+                parameter_list,
+            ),
+            |params| {
+                #[cfg(feature = "tracing-recover")]
+                warn!("bare 'text' content-type instead of text/plain");
+                NaiveType {
+                    main: MIMEAtom(b"text".into()),
+                    sub: MIMEAtom(b"plain".into()),
+                    params,
+                }
+            }
+        ),
+    ))(input)
 }
 
 // XXX we allow printing content types without further validation;
@@ -541,6 +561,35 @@ mod tests {
         let (rest, nt) = naive_type(b"text/plain;\r\n charset=utf-8 ; hello=yolo").unwrap();
         assert_eq!(rest, &b""[..]);
 
+        assert_eq!(
+            nt.to_type(),
+            AnyType::Text(Text {
+                charset: EmailCharset::utf8(),
+                subtype: TextSubtype::Plain,
+                params: vec![Parameter {
+                    name: MIMEAtom(b"hello"[..].into()),
+                    value: MIMEWord::Atom(MIMEAtom(b"yolo"[..].into())),
+                }],
+            })
+        );
+    }
+
+    // old invalid form of text/plain
+    #[test]
+    fn test_content_type_plaintext_old() {
+        let (rest, nt) = naive_type(b"  text ").unwrap();
+        assert_eq!(rest, &b""[..]);
+        assert_eq!(
+            nt.to_type(),
+            AnyType::Text(Text {
+                charset: EmailCharset::US_ASCII,
+                subtype: TextSubtype::Plain,
+                params: vec![],
+            })
+        );
+
+        let (rest, nt) = naive_type(b"text;\r\n charset=utf-8 ; hello=yolo").unwrap();
+        assert_eq!(rest, &b""[..]);
         assert_eq!(
             nt.to_type(),
             AnyType::Text(Text {
