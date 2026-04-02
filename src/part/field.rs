@@ -37,15 +37,15 @@ impl<'a> FromIterator<header::FieldRaw<'a>> for EntityFields<'a> {
                         e.entries.push(EntityEntry::MIME(entry))
                     } else {
                         // otherwise drop the field
-                        #[cfg(feature = "tracing-discard")]
-                        warn!(field = ?f, "dropping redundant MIME field");
+                        #[cfg(feature = "tracing-recover")]
+                        warn!(field = ?f, "dropping conflicting MIME field");
                     }
                     continue;
                 },
                 Err(mime::field::InvalidField::Body) => {
                     // this is a MIME field but its body is invalid; drop it.
                     #[cfg(feature = "tracing-discard")]
-                    warn!(field = ?f, "dropping invalid MIME field");
+                    warn!(field = ?f, "dropping MIME field with an invalid body");
                     continue;
                 },
                 Err(mime::field::InvalidField::Name) => {

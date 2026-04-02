@@ -22,7 +22,7 @@ pub enum Entry {
     Description,
 }
 
-#[derive(Debug, PartialEq, ToStatic)]
+#[derive(Clone, Debug, PartialEq, ToStatic)]
 pub enum Content<'a> {
     Type(NaiveType<'a>),
     TransferEncoding(Mechanism<'a>),
