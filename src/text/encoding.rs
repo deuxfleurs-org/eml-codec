@@ -1,3 +1,5 @@
+#[cfg(feature = "arbitrary")]
+use arbitrary::Arbitrary;
 use bounded_static::ToStatic;
 
 use base64::{engine::general_purpose, Engine as _};
@@ -15,6 +17,11 @@ use std::borrow::Cow;
 use std::fmt;
 use std::io::Write;
 
+#[cfg(feature = "arbitrary")]
+use crate::{
+    arbitrary_utils::arbitrary_vec_where,
+    fuzz_eq::FuzzEq,
+};
 use crate::print::{print_seq, Print, Formatter};
 use crate::text::ascii;
 use crate::text::charset::EmailCharset;
@@ -86,6 +93,7 @@ pub fn encoded_word_token_base64(input: &[u8]) -> IResult<&[u8], EncodedWordToke
 }
 
 #[derive(PartialEq, Debug, Clone, ToStatic)]
+#[cfg_attr(feature = "arbitrary", derive(Arbitrary))]
 pub struct EncodedWord<'a>(pub Vec<EncodedWordToken<'a>>);
 
 impl<'a> EncodedWord<'a> {
@@ -99,7 +107,15 @@ impl<'a> Print for EncodedWord<'a> {
     }
 }
 
+#[cfg(feature = "arbitrary")]
+impl<'a> FuzzEq for EncodedWord<'a> {
+    fn fuzz_eq(&self, other: &Self) -> bool {
+        self.to_string() == other.to_string()
+    }
+}
+
 #[derive(PartialEq, Debug, Clone, ToStatic)]
+#[cfg_attr(feature = "arbitrary", derive(Arbitrary))]
 pub enum EncodedWordToken<'a> {
     Quoted(QuotedWord<'a>),
     Base64(Base64Word<'a>),
@@ -141,7 +157,17 @@ impl<'a> Base64Word<'a> {
     }
 }
 
+#[cfg(feature = "arbitrary")]
+impl<'a> Arbitrary<'a> for Base64Word<'a> {
+    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Base64Word<'a>> {
+        let enc: EmailCharset = u.arbitrary()?;
+        let content = arbitrary_vec_where(u, is_bchar)?;
+        Ok(Base64Word { enc, content: Cow::Owned(content) })
+    }
+}
+
 #[derive(PartialEq, Debug, Clone, ToStatic)]
+#[cfg_attr(feature = "arbitrary", derive(Arbitrary))]
 pub struct QuotedWord<'a> {
     pub enc: EmailCharset,
     pub chunks: Vec<QuotedChunk<'a>>,
@@ -186,6 +212,25 @@ impl<'a> fmt::Debug for QuotedChunk<'a> {
             QuotedChunk::Space =>
                 fmt.debug_tuple("QuotedChunk::Space")
                    .finish(),
+        }
+    }
+}
+
+#[cfg(feature = "arbitrary")]
+impl<'a> Arbitrary<'a> for QuotedChunk<'a> {
+    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<QuotedChunk<'a>> {
+        match u.int_in_range(0..=2)? {
+            0 => {
+                let v = arbitrary_vec_where(u, is_safe_char2)?;
+                Ok(QuotedChunk::Safe(Cow::Owned(v)))
+            },
+            1 => {
+                let v: Vec<u8> = u.arbitrary()?;
+                Ok(QuotedChunk::Encoded(v))
+            },
+            2 =>
+                Ok(QuotedChunk::Space),
+            _ => unreachable!()
         }
     }
 }

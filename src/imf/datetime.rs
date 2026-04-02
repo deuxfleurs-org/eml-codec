@@ -1,3 +1,5 @@
+#[cfg(feature = "arbitrary")]
+use arbitrary::Arbitrary;
 use bounded_static::{IntoBoundedStatic, ToBoundedStatic};
 use chrono::{Datelike, FixedOffset, NaiveDate, NaiveTime, Timelike};
 use nom::{
@@ -11,6 +13,8 @@ use nom::{
 };
 use std::fmt::{Debug, Formatter};
 
+#[cfg(feature = "arbitrary")]
+use crate::fuzz_eq::FuzzEq;
 use crate::print::{Print, Formatter as PFmt};
 use crate::text::whitespace::{cfws, fws};
 //use crate::error::IMFError;
@@ -82,6 +86,24 @@ impl ToBoundedStatic for DateTime {
     type Static = Self;
     fn to_static(&self) -> Self::Static {
         self.clone()
+    }
+}
+
+#[cfg(feature = "arbitrary")]
+impl<'a> Arbitrary<'a> for DateTime {
+    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
+        let d: chrono::DateTime<FixedOffset> = u.arbitrary()?;
+        if d.year() < 1900 || d.offset().local_minus_utc().rem_euclid(3600) != 0 {
+            Ok(DateTime(chrono::DateTime::UNIX_EPOCH.into()))
+        } else {
+            Ok(DateTime(d))
+        }
+    }
+}
+#[cfg(feature = "arbitrary")]
+impl FuzzEq for DateTime {
+    fn fuzz_eq(&self, other: &Self) -> bool {
+        self.0 == other.0
     }
 }
 

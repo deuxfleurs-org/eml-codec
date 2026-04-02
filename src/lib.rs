@@ -21,7 +21,14 @@ pub mod text;
 /// Printing with email-specific line folding
 pub mod print;
 
+/// Custom equality trait used for fuzz-checking
+#[cfg(feature = "arbitrary")]
+pub mod fuzz_eq;
+
 mod utils;
+
+#[cfg(feature = "arbitrary")]
+mod arbitrary_utils;
 
 use crate::print::Print;
 

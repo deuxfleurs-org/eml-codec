@@ -1,4 +1,8 @@
+#[cfg(feature = "arbitrary")]
+use arbitrary::Arbitrary;
 use bounded_static::ToStatic;
+#[cfg(feature = "arbitrary")]
+use crate::fuzz_eq::FuzzEq;
 use crate::print::{Print, Formatter};
 use crate::text::whitespace::cfws;
 use crate::text::words::{mime_atom as token, MIMEAtom};
@@ -11,6 +15,7 @@ use nom::{
 };
 
 #[derive(Debug, Clone, PartialEq, Default, ToStatic)]
+#[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
 pub enum Mechanism<'a> {
     #[default]
     _7Bit,

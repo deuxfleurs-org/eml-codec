@@ -1,3 +1,5 @@
+#[cfg(feature = "arbitrary")]
+use arbitrary::Arbitrary;
 use bounded_static::ToStatic;
 use nom::{
     branch::alt,
@@ -8,17 +10,34 @@ use nom::{
     IResult,
 };
 
+#[cfg(feature = "arbitrary")]
+use crate::{
+    arbitrary_utils::arbitrary_vec_nonempty,
+    fuzz_eq::FuzzEq,
+};
 use crate::print::{print_seq, Print, Formatter};
 use crate::imf::{datetime, mailbox};
 use crate::text::{ascii, misc_token, whitespace};
 
 #[derive(Clone, Debug, PartialEq, ToStatic)]
+#[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
 pub struct TraceBlock<'a> {
     pub return_path: Option<ReturnPath<'a>>,
     pub received: Vec<ReceivedLog<'a>>, // non-empty
 }
 
+#[cfg(feature = "arbitrary")]
+impl<'a> Arbitrary<'a> for TraceBlock<'a> {
+    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<TraceBlock<'a>> {
+        Ok(TraceBlock{
+            return_path: u.arbitrary()?,
+            received: arbitrary_vec_nonempty(u)?,
+        })
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, ToStatic)]
+#[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
 pub enum ReceivedLogToken<'a> {
     Addr(mailbox::AddrSpec<'a>),
     Domain(mailbox::Domain<'a>),
@@ -36,6 +55,7 @@ impl<'a> Print for ReceivedLogToken<'a> {
 }
 
 #[derive(Clone, Debug, PartialEq, ToStatic)]
+#[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
 pub struct ReceivedLog<'a> {
     pub log: Vec<ReceivedLogToken<'a>>,
     pub date: datetime::DateTime,
@@ -51,6 +71,7 @@ impl<'a> Print for ReceivedLog<'a> {
 }
 
 #[derive(Debug, Clone, PartialEq, ToStatic)]
+#[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
 pub struct ReturnPath<'a>(pub Option<mailbox::AddrSpec<'a>>);
 
 impl<'a> Print for ReturnPath<'a> {
