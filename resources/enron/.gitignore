@@ -1,1 +1,3 @@
 maildir/
+*.tar
+*.json
