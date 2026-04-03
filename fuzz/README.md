@@ -17,6 +17,12 @@ Running a fuzz target:
 ./fuzz.sh <fuzz target>
 ```
 
+Running a fuzz target with parallel processes:
+
+``` sh
+./parallel_fuzz.sh <fuzz target> <nb processes>
+```
+
 Available fuzz targets (can be listed using `cargo fuzz list`):
 - `message_print_parse`: a target that generates an arbitrary email message
   (driven by the fuzzer), prints it, parses the result, and checks that the
