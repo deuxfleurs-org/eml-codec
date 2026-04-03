@@ -455,6 +455,14 @@ mod tests {
             "Accusé de réception (affiché)".to_string(),
         );
 
+        assert_eq!(
+            encoded_word(Context::Unstructured)(b"=?iso-8859-1?Q?=805.4bn?=")
+                .unwrap()
+                .1
+                .data(),
+            "€5.4bn".to_string(),
+        );
+
         assert!(
             encoded_word(Context::Phrase)(b"=?iso8859-1?Q?Accus=E9_de_r=E9ception_(affich=E9)?=")
                 .is_err()
