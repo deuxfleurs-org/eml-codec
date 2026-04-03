@@ -695,6 +695,12 @@ mod tests {
     }
 
     #[test]
+    fn test_parameter_list_broken() {
+        // TODO: "; name=threadTest.ml; charset="
+        // TODO: "; name=threadTest.ml foo=bar; baz=qux"
+    }
+
+    #[test]
     fn test_roundtrip_unknown() {
         let raw = b"Foo/Bar; bAr=Unknown; uU=zorrO";
         let (rest, nt) = naive_type(raw).unwrap();

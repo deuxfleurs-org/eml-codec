@@ -249,7 +249,12 @@ pub fn addr_spec(input: &[u8]) -> IResult<&[u8], AddrSpec<'_>> {
             local_part,
             tag(&[ascii::AT]),
             domain,
-            many0(pair(tag(&[ascii::AT]), domain)), // for compatibility reasons with ENRON
+            opt(map(
+                many1(pair(tag(&[ascii::AT]), domain)), // for compatibility reasons with ENRON
+                |_| {
+                    #[cfg(feature = "tracing-recover")]
+                    warn!("addr_spec with multiple @ parts")
+                }))
         )),
         |(local_part, _, domain, _)| AddrSpec { local_part, domain },
     )(input)
