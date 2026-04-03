@@ -249,6 +249,21 @@ fn main() {
                     let _enter = span.enter();
                     let _eml = eml_codec::parse_message(&input);
                 })
+            } else if path.ends_with(".tar") {
+                let span = span!(Level::TRACE, "tar", %path);
+                let _enter = span.enter();
+                eprintln!("parsing tar file: {}", path);
+                let mut archive = tar::Archive::new(File::open(&path).unwrap());
+                for ent in archive.entries_with_seek().unwrap() {
+                    let mut input = Vec::new();
+                    let mut ent = ent.unwrap();
+                    let path = ent.path().unwrap().into_owned();
+                    let _ = ent.read_to_end(&mut input).unwrap();
+                    eprintln!("parsing email {}", path.display());
+                    let span = span!(Level::TRACE, "tar email", path = %path.display());
+                    let _enter = span.enter();
+                    let _eml = eml_codec::parse_message(&input);
+                }
             } else {
                 let span = span!(Level::TRACE, "eml", %path);
                 let _enter = span.enter();
