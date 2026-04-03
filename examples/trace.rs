@@ -220,7 +220,6 @@ fn main() {
                 let _eml = eml_codec::parse_message(&input);
             });
         } else {
-
             if path.ends_with(".mbox") {
                 let span = span!(Level::TRACE, "mailbox", %path);
                 let _enter = span.enter();
@@ -231,7 +230,7 @@ fn main() {
                 eprintln!("{} emails found", raw_emails.len());
 
                 raw_emails.par_iter().enumerate().for_each(|(idx, raw_email)| {
-                    let span = span!(Level::TRACE, "mailbox email", idx);
+                    let span = span!(Level::TRACE, "mailbox email", %path, idx);
                     let _enter = span.enter();
                     eprintln!("parsing mbox email {}", idx);
                     let _eml = eml_codec::parse_message(raw_email);
@@ -246,15 +245,15 @@ fn main() {
                 (0..nb_items).into_par_iter().for_each(|i| {
                     let mut input = Vec::new();
                     #[allow(unused_assignments)]
-                    let mut path = None;
+                    let mut fpath = None;
                     {
                         let mut archive = archive_lck.lock().unwrap();
                         let mut file = archive.by_index(i).unwrap();
                         eprintln!("parsing email {}", file.name());
-                        path = Some(file.name().to_string());
+                        fpath = Some(file.name().to_string());
                         file.read_to_end(&mut input).unwrap();
                     }
-                    let span = span!(Level::TRACE, "zip email", path = %path.unwrap());
+                    let span = span!(Level::TRACE, "zip email", %path, fpath = %fpath.unwrap());
                     let _enter = span.enter();
                     let _eml = eml_codec::parse_message(&input);
                 })
@@ -266,10 +265,10 @@ fn main() {
                 for ent in archive.entries_with_seek().unwrap() {
                     let mut input = Vec::new();
                     let mut ent = ent.unwrap();
-                    let path = ent.path().unwrap().into_owned();
+                    let fpath = ent.path().unwrap().into_owned();
                     let _ = ent.read_to_end(&mut input).unwrap();
-                    eprintln!("parsing email {}", path.display());
-                    let span = span!(Level::TRACE, "tar email", path = %path.display());
+                    eprintln!("parsing email {}", fpath.display());
+                    let span = span!(Level::TRACE, "tar email", %path, fpath = %fpath.display());
                     let _enter = span.enter();
                     let _eml = eml_codec::parse_message(&input);
                 }
