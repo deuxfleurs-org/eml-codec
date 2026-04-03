@@ -7,8 +7,8 @@ use nom::{
     branch::alt,
     bytes::complete::tag,
     combinator::{map, opt},
-    multi::many1,
-    sequence::{delimited, pair, terminated, tuple},
+    multi::many0,
+    sequence::{delimited, pair, tuple},
     IResult,
 };
 
@@ -72,18 +72,7 @@ impl<'a> Print for MessageIDList<'a> {
 )]
 pub fn msg_id(input: &[u8]) -> IResult<&[u8], MessageID<'_>> {
     alt((
-        delimited(
-            pair(opt(cfws), tag("<")),
-            alt((
-                msg_id_left_right,
-                map(dot_atom_text, |a| {
-                    #[cfg(feature = "tracing-recover")]
-                    warn!("message-id: bare <atom>");
-                    MessageID::InvalidAtom(a)
-                }),
-            )),
-            pair(tag(">"), opt(cfws)),
-        ),
+        msg_id_angle,
         map(dot_atom, |a| {
             #[cfg(feature = "tracing-recover")]
             warn!("message-id: bare atom");
@@ -91,32 +80,56 @@ pub fn msg_id(input: &[u8]) -> IResult<&[u8], MessageID<'_>> {
         }),
     ))(input)
 }
-
-fn msg_id_left_right(input: &[u8]) -> IResult<&[u8], MessageID<'_>> {
-    let (input, (left, _, right)) = tuple((id_left, tag("@"), id_right))(input)?;
-    Ok((input, MessageID::ObsLeftRight { left, right }))
+pub fn msg_id_angle(input: &[u8]) -> IResult<&[u8], MessageID<'_>> {
+    delimited(
+        pair(opt(cfws), tag("<")),
+        alt((
+            map(tuple((id_left, tag("@"), id_right)), |(left, _, right)| {
+                MessageID::ObsLeftRight { left, right }
+            }),
+            map(dot_atom_text, |a| {
+                #[cfg(feature = "tracing-recover")]
+                warn!("message-id: bare <atom>");
+                MessageID::InvalidAtom(a)
+            }),
+        )),
+        pair(tag(">"), opt(cfws)),
+    )(input)
 }
 
-#[cfg_attr(
-    feature = "tracing",
-    tracing::instrument(level = "trace", fields(input = %bytes_to_trace_string(input)))
-)]
-pub fn msg_list(input: &[u8]) -> IResult<&[u8], MessageIDList<'_>> {
-    // The "," separator is not specified in the RFC but some real-world emails
-    // use it.
-    // TODO: obs-references and obs-in-reply-to
-    many1(terminated(msg_id, opt(tag(","))))(input)
-}
-
+/// A *very* lenient parser for lists of msg_id as used by In-Reply-To and References
+///
+/// The RFC definition is:
+/// ```abnf
+///       in-reply-to    =    1*msg-id
+///   obs-in-reply-to    =    *(phrase / msg-id)
+/// ```
+/// In the obs- syntax, the phrase tokens must be ignored.
+///
+/// However, historical emails seem to contain a lot of nonsense in between msg-id,
+/// a lot of it not part of the "phrase" syntax. We implement a more lenient parser
+/// that skips quoted strings, encoded words (both part of the phrase syntax), and
+/// as a last resort, any bytes until encountering something that could be the start
+/// of one of the more "structured" tokens (msg-id, encoded word, quoted string).
 #[cfg_attr(
     feature = "tracing",
     tracing::instrument(level = "trace", fields(input = %bytes_to_trace_string(input)))
 )]
 pub fn nullable_msg_list(input: &[u8]) -> IResult<&[u8], MessageIDList<'_>> {
-    alt((
-        msg_list,
-        map(opt(cfws), |_| vec![]),
-    ))(input)
+    use crate::text::quoted::quoted_string;
+    use crate::text::encoding::{encoded_word, Context};
+    let (input, tokens) = many0(alt((
+        map(msg_id_angle, Some),
+        map(cfws, |_| None),
+        map(quoted_string, |_| None),
+        map(encoded_word(Context::Phrase), |_| None),
+        // skip until encountering either a < (for the beginning of msg-id), a =
+        // (for the beginning of encoded-word), or a \" (beginning of quoted
+        // string).
+        map(nom::bytes::complete::is_not("<=\""), |_| None),
+    )))(input)?;
+
+    Ok((input, tokens.into_iter().flatten().collect()))
 }
 
 /// Implements obs-id-left, which is a superset of id-left:
@@ -167,6 +180,14 @@ mod tests {
     use crate::text::quoted::QuotedString;
     use crate::text::words::Atom;
     use crate::imf::mailbox::{Domain, LocalPart, LocalPartToken};
+    use crate::print::tests::print_to_vec;
+
+    fn assert_msg_list_reprinted(txt: &[u8], printed: &[u8]) {
+        let (rest, parsed) = nullable_msg_list(txt).unwrap();
+        assert_eq!(rest, b"");
+        let reprinted = print_to_vec(parsed);
+        assert_eq!(String::from_utf8_lossy(&reprinted), String::from_utf8_lossy(printed));
+    }
 
     #[test]
     fn test_msg_id() {
@@ -252,7 +273,7 @@ mod tests {
     fn test_comma_separated_msg_list() {
         // This is not RFC-valid syntax but was encountered in real-world emails
         assert_eq!(
-            msg_list(b" <8d9bb189354d4804bcc2fd1d1a5398b5@cnrs.fr>,<ef8fac8b36834864bae895571064565c@cnrs.fr>"),
+            nullable_msg_list(b" <8d9bb189354d4804bcc2fd1d1a5398b5@cnrs.fr>,<ef8fac8b36834864bae895571064565c@cnrs.fr>"),
             Ok((
                 &b""[..],
                 vec![
@@ -276,6 +297,19 @@ mod tests {
                     },
                 ]
             ))
+        );
+    }
+
+    #[test]
+    fn test_msg_list_weird() {
+        assert_msg_list_reprinted(
+            b"<3AB624F9.5B6C6680@example.com>; from foo@example.com on Mon, Mar 19, 2001 at 04:25:45PM +0100",
+            b"<3AB624F9.5B6C6680@example.com>"
+        );
+
+        assert_msg_list_reprinted(
+            b"<3AB624F9.5B6C6680@example.com> from \"Foo bar\" on Mon, Mar 19, 2001 at 04:25:45 AM",
+            b"<3AB624F9.5B6C6680@example.com>"
         );
     }
 }
