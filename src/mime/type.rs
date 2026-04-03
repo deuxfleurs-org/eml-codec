@@ -4,9 +4,8 @@ use bounded_static::{ToBoundedStatic, ToStatic};
 use nom::{
     branch::alt,
     bytes::complete::tag,
-    combinator::{map, opt, recognize},
-    multi::many0,
-    sequence::{delimited, pair, preceded, terminated, tuple},
+    combinator::{all_consuming, map, opt},
+    sequence::{delimited, preceded, tuple},
     IResult,
 };
 #[cfg(feature = "tracing")]
@@ -14,6 +13,8 @@ use tracing::warn;
 
 #[cfg(feature = "arbitrary")]
 use crate::fuzz_eq::FuzzEq;
+#[cfg(feature = "tracing-unsupported")]
+use crate::utils::bytes_to_trace_string;
 use crate::i18n::ContainsUtf8;
 use crate::print::{Print, Formatter, ToStringFromPrint};
 use crate::text::charset::EmailCharset;
@@ -91,18 +92,45 @@ impl<'a> Print for Parameter<'a> {
     }
 }
 
+/// Parses a parameter list that follows a content-type.
+///
+/// The RFC parameter-list syntax is:
+/// ```abnf
+///   parameter-list   =  *(";" mime-atom "=" mime-word)
+/// ```
+///
+/// Additionally, we handle partially broken parameter lists, where some
+/// segments (delimited by ";") contain invalid data. We drop invalid segments
+/// and keep the rest.
+///
+/// We thus parse the following grammar:
+/// ```abnf
+///   parameter-list   =   *(";" (mime-atom "=" mime-word / any-not-semicolon)) [";"]
+/// ```
+/// As a consequence, this combinator always consumes all of its input.
+pub fn parameter_list(input: &[u8]) -> IResult<&[u8], Vec<Parameter<'_>>> {
+    let mut params = vec![];
+    let mut parse_segment = alt((
+        map(all_consuming(parameter), Some),
+        map(all_consuming(opt(cfws)), |_| None),
+    ));
+    for input in input.split(|c: &u8| *c == b';') {
+        match parse_segment(input) {
+            Ok((_, None)) => (),
+            Ok((_, Some(param))) => params.push(param),
+            Err(_) => {
+                #[cfg(feature = "tracing-unsupported")]
+                warn!(segment = %bytes_to_trace_string(input),
+                      "discarding segment in parameter list");
+            }
+        }
+    }
+    Ok((b"", params))
+}
 pub fn parameter(input: &[u8]) -> IResult<&[u8], Parameter<'_>> {
     map(
         tuple((mime_atom, tag(b"="), mime_word)),
         |(name, _, value)| Parameter { name, value },
-    )(input)
-}
-pub fn parameter_list(input: &[u8]) -> IResult<&[u8], Vec<Parameter<'_>>> {
-    terminated(
-        many0(preceded(tag(";"), parameter)),
-        // the final optional ; is not specified in RFC2045 but happens in
-        // practice
-        pair(opt(tag(";")), opt(recognize(cfws))),
     )(input)
 }
 
@@ -687,6 +715,58 @@ mod tests {
                         value: MIMEWord::Atom(MIMEAtom(b"flowed"[..].into())),
                     },
                 ],
+            ))
+        );
+    }
+
+    #[test]
+    fn test_parameter_list_broken() {
+        // these test cases come from real-world emails with broken parameter lists
+        assert_eq!(
+            parameter_list(b"; name=threadTest.ml; charset="),
+            Ok((
+                &b""[..],
+                vec![
+                    Parameter {
+                        name: MIMEAtom(b"name".into()),
+                        value: MIMEWord::Atom(MIMEAtom(b"threadTest.ml".into())),
+                    },
+                ]
+            ))
+        );
+
+        assert_eq!(
+            // an extra space was inserted before the Content-Transfer-Encoding
+            // header name, making it a continuation of the previous
+            // Content-Type header as per line folding rules... We don't try to
+            // recover the Content-Transfer-Encoding email, but at least we read
+            // can read the parameter list before dropping the rest.
+            parameter_list(b"; name=\"calendar.ics\";method=REQUEST;\n Content-Transfer-Encoding: 8bit;"),
+            Ok((
+                &b""[..],
+                vec![
+                    Parameter {
+                        name: MIMEAtom(b"name".into()),
+                        value: MIMEWord::Quoted(QuotedString(vec!["calendar.ics".into()])),
+                    },
+                    Parameter {
+                        name: MIMEAtom(b"method".into()),
+                        value: MIMEWord::Atom(MIMEAtom(b"REQUEST".into())),
+                    },
+                ]
+            ))
+        );
+
+        assert_eq!(
+            parameter_list(b"; name=threadTest.ml foo=bar; baz=qux"),
+            Ok((
+                &b""[..],
+                vec![
+                    Parameter {
+                        name: MIMEAtom(b"baz".into()),
+                        value: MIMEWord::Atom(MIMEAtom(b"qux".into())),
+                    },
+                ]
             ))
         );
     }
