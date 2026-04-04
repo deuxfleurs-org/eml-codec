@@ -6,28 +6,33 @@ use bounded_static::ToStatic;
 use nom::{
     branch::alt,
     bytes::complete::tag,
-    combinator::{map, opt},
-    multi::many0,
-    sequence::{delimited, pair, tuple},
+    combinator::{eof, map, opt, recognize},
+    multi::{many0, separated_list1},
+    sequence::{delimited, pair, preceded, tuple},
     IResult,
 };
 
 #[cfg(feature = "arbitrary")]
-use crate::fuzz_eq::FuzzEq;
+use crate::{
+    arbitrary_utils::arbitrary_vec_nonempty,
+    fuzz_eq::FuzzEq,
+};
 use eml_codec_derives::instrument_input;
 use crate::i18n::ContainsUtf8;
 use crate::print::{print_seq, Print, Formatter, ToStringFromPrint};
 use crate::imf::mailbox::{domain, dtext, local_part, Domain, Dtext, LocalPart};
 use crate::text::whitespace::cfws;
-use crate::text::words::{dot_atom, dot_atom_text, DotAtom};
+use crate::text::words::{dot_atom, DotAtom};
 
 // NOTE: MessageID is not strictly RFC-compliant, printing it may use obsolete
 // or non-compliant syntax.
 #[derive(Clone, ContainsUtf8, Debug, PartialEq, ToStatic, ToStringFromPrint)]
-#[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
+#[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
 pub enum MessageID<'a> {
+    // The compliant (but possibly obsolete) syntax
     ObsLeftRight { left: LocalPart<'a>, right: Domain<'a> },
-    InvalidAtom(DotAtom<'a>),
+    // Non-compliant non-empty sequence of dot-atoms separated by '@'s
+    InvalidAtoms(Vec<DotAtom<'a>>),
 }
 impl<'a> Print for MessageID<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
@@ -38,10 +43,23 @@ impl<'a> Print for MessageID<'a> {
                 fmt.write_bytes(b"@");
                 right.print(fmt);
             },
-            MessageID::InvalidAtom(a) =>
-                a.print(fmt),
+            MessageID::InvalidAtoms(a) =>
+                print_seq(fmt, a, |fmt| fmt.write_bytes(b"@")),
         }
         fmt.write_bytes(b">");
+    }
+}
+#[cfg(feature = "arbitrary")]
+impl<'a> Arbitrary<'a> for MessageID<'a> {
+    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
+        match u.int_in_range(0..=1)? {
+            0 =>
+                Ok(MessageID::ObsLeftRight { left: u.arbitrary()?, right: u.arbitrary()? }),
+            1 =>
+                Ok(MessageID::InvalidAtoms(arbitrary_vec_nonempty(u)?)),
+            _ =>
+                unreachable!(),
+        }
     }
 }
 
@@ -63,34 +81,47 @@ impl<'a> Print for MessageIDList<'a> {
 ///
 /// but we also handle invalid syntax found in the real-world:
 /// ```abnf
-///    our-msg-id      = msg-id / "<" dot-atom-text ">" / dot-atom
+///    our-msg-id        = our-msg-id-angle / our-msg-id-bare
+///    our-msg-id-angle  = "<" our-msg-id-bare ">"
+///    our-msg-id-bare   = id-left "@" id-right / dot-atom *("@" dot-atom)
 /// ```
+/// The grammar above is ambiguous since "id-left @ id-right" and "dot-atom @
+/// dot-atom" intersect. To work around this problem, our parsers for our-msg-id
+/// and our-msg-id-bare assume that they consume all of their input. If this is
+/// not the case, our-msg-id-angle should be used instead (as it is properly
+/// delimited).
 #[instrument_input("tracing")]
 pub fn msg_id(input: &[u8]) -> IResult<&[u8], MessageID<'_>> {
     alt((
         msg_id_angle,
-        map(dot_atom, |a| {
+        map(msg_id_bare(|i: &[u8]| eof(i)), |msg| {
             #[cfg(feature = "tracing-recover")]
-            warn!("message-id: bare atom");
-            MessageID::InvalidAtom(a)
-        }),
+            warn!("message-id: bare msg-id without <>");
+            msg
+        })
     ))(input)
 }
 pub fn msg_id_angle(input: &[u8]) -> IResult<&[u8], MessageID<'_>> {
-    delimited(
+    preceded(
         pair(opt(cfws), tag("<")),
+        msg_id_bare(|i: &[u8]| recognize(pair(tag(">"), opt(cfws)))(i)),
+    )(input)
+}
+pub fn msg_id_bare<F>(terminator: F) -> impl FnMut(&[u8]) -> IResult<&[u8], MessageID<'_>>
+where F: for<'a> Fn(&'a [u8]) -> IResult<&'a [u8], &'a [u8]>
+{
+    move |input: &[u8]| {
         alt((
-            map(tuple((id_left, tag("@"), id_right)), |(left, _, right)| {
+            map(tuple((id_left, tag("@"), id_right, &terminator)), |(left, _, right, _)| {
                 MessageID::ObsLeftRight { left, right }
             }),
-            map(dot_atom_text, |a| {
+            map(pair(separated_list1(tag("@"), dot_atom), &terminator), |(a, _)| {
                 #[cfg(feature = "tracing-recover")]
-                warn!("message-id: bare <atom>");
-                MessageID::InvalidAtom(a)
+                warn!("message-id: @-separated dot-atoms instead of id-left@id-right");
+                MessageID::InvalidAtoms(a)
             }),
-        )),
-        pair(tag(">"), opt(cfws)),
-    )(input)
+        ))(input)
+    }
 }
 
 /// A *very* lenient parser for lists of msg_id as used by In-Reply-To and References
@@ -244,12 +275,45 @@ mod tests {
     fn test_noncompliant_msg_id() {
         assert_eq!(
             msg_id(b" <523C50DA-160C-4550-A44E-7E192513CF91> "),
-            Ok((&b""[..], MessageID::InvalidAtom(DotAtom("523C50DA-160C-4550-A44E-7E192513CF91".into()))))
+            Ok((&b""[..], MessageID::InvalidAtoms(vec![
+                DotAtom("523C50DA-160C-4550-A44E-7E192513CF91".into())
+            ])))
         );
 
         assert_eq!(
             msg_id(b" foo "),
-            Ok((&b""[..], MessageID::InvalidAtom(DotAtom("foo".into()))))
+            Ok((&b""[..], MessageID::InvalidAtoms(vec![
+                DotAtom("foo".into())
+            ])))
+        );
+
+        assert_eq!(
+            msg_id(b"text/plain.RKLqBQUAAZl1yPGCYOHKDjrj_nwwBg.1758617731@alan.eu"),
+            Ok((
+                &b""[..],
+                MessageID::ObsLeftRight {
+                    left: LocalPart(vec![
+                        LocalPartToken::Word(Word::Atom(Atom("text/plain".into()))),
+                        LocalPartToken::Dot,
+                        LocalPartToken::Word(Word::Atom(Atom("RKLqBQUAAZl1yPGCYOHKDjrj_nwwBg".into()))),
+                        LocalPartToken::Dot,
+                        LocalPartToken::Word(Word::Atom(Atom("1758617731".into()))),
+                    ]),
+                    right: Domain::Atoms(vec![
+                        Atom("alan".into()),
+                        Atom("eu".into()),
+                    ]),
+                },
+            ))
+        );
+
+        assert_eq!(
+            msg_id(b" <aAdGYiJBX0VZF2TI@millmess@rouba.net> "),
+            Ok((&b""[..], MessageID::InvalidAtoms(vec![
+                DotAtom("aAdGYiJBX0VZF2TI".into()),
+                DotAtom("millmess".into()),
+                DotAtom("rouba.net".into()),
+            ])))
         );
     }
 
