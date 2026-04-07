@@ -4,10 +4,10 @@ use {
     crate::fuzz_eq::FuzzEq,
 };
 #[cfg(feature = "tracing")]
-use {
-    tracing::warn,
-    crate::utils::bytes_to_trace_string,
-};
+use tracing::warn;
+#[cfg(feature = "tracing-recover")]
+use crate::utils::bytes_to_trace_string;
+use eml_codec_derives::instrument_input;
 use bounded_static::ToStatic;
 use crate::i18n::ContainsUtf8;
 use crate::print::{Print, Formatter, ToStringFromPrint};
@@ -77,10 +77,7 @@ impl<'a> Mechanism<'a> {
     }
 }
 
-#[cfg_attr(
-    feature = "tracing",
-    tracing::instrument(fields(input = %bytes_to_trace_string(input)))
-)]
+#[instrument_input("tracing")]
 pub fn mechanism(input: &[u8]) -> IResult<&[u8], Mechanism<'_>> {
     use Mechanism::*;
 

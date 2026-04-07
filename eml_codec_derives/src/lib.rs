@@ -1,7 +1,7 @@
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{parse_macro_input, Data, DeriveInput, Fields};
-use syn::{Attribute, Variant, punctuated::Punctuated, token::Comma};
+use syn::{parse_macro_input, parse_quote, Data, DeriveInput, Fields, ItemFn};
+use syn::{Attribute, Variant, punctuated::Punctuated, token::Comma, LitStr};
 
 // derive(ToStringFromPrint) ---------------------------------------------------
 
@@ -297,6 +297,25 @@ fn derive_contains_utf8_enum(
             #(#arms),*,
         }
     }
+}
+
+// instrument_input ------------------------------------------------------------
+
+// This macro is fairly ad-hoc (it is simply a wrapper over the
+// tracing::instrument macro), but saves us quite a bit of repeated
+// boilerplate...
+#[proc_macro_attribute]
+pub fn instrument_input(attr: TokenStream, input: TokenStream) -> TokenStream {
+    let mut input = parse_macro_input!(input as ItemFn);
+    let feat = parse_macro_input!(attr as LitStr);
+    let attr: Attribute = parse_quote! {
+        #[cfg_attr(
+            feature = #feat,
+            tracing::instrument(fields(input = %crate::utils::bytes_to_trace_string(input)))
+        )]
+    };
+    input.attrs.push(attr);
+    TokenStream::from(quote!{ #input })
 }
 
 // helpers

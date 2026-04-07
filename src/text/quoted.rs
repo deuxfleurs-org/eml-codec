@@ -21,8 +21,9 @@ use crate::{
     arbitrary_utils::arbitrary_string_where,
     fuzz_eq::FuzzEq,
 };
-#[cfg(feature = "tracing")]
+#[cfg(feature = "tracing-recover")]
 use crate::utils::bytes_to_trace_string;
+use eml_codec_derives::instrument_input;
 use crate::i18n::ContainsUtf8;
 use crate::print::{Print, Formatter, ToStringFromPrint};
 use crate::text::ascii;
@@ -186,10 +187,7 @@ fn is_obs_qtext(c: u8) -> bool {
 ///
 /// Like for `quoted_pair`, this supports the obsolete syntax but
 /// returns `None` in this case.
-#[cfg_attr(
-    feature = "tracing",
-    tracing::instrument(fields(input = %bytes_to_trace_string(input)))
-)]
+#[instrument_input("tracing")]
 fn qcontent(input: &[u8]) -> IResult<&[u8], Option<&str>> {
     alt((
         map(take_utf8_while1(is_strict_qtext), Some),
@@ -205,10 +203,7 @@ fn qcontent(input: &[u8]) -> IResult<&[u8], Option<&str>> {
 ///                     DQUOTE *([FWS] qcontent) [FWS] DQUOTE
 ///                     [CFWS]
 /// ```
-#[cfg_attr(
-    feature = "tracing",
-    tracing::instrument(fields(input = %bytes_to_trace_string(input)))
-)]
+#[instrument_input("tracing")]
 pub fn quoted_string(input: &[u8]) -> IResult<&[u8], QuotedString<'_>> {
     let (input, _) = opt(cfws)(input)?;
     let (input, _) = tag("\"")(input)?;

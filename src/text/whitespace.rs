@@ -10,6 +10,7 @@ use crate::text::utf8::{is_nonascii_or, space0_str, space1_str, take_utf8_while1
 // these spans when they are used, i.e. with "tracing-recover".
 #[cfg(feature = "tracing-recover")]
 use crate::utils::bytes_to_trace_string;
+use eml_codec_derives::instrument_input;
 use nom::{
     branch::alt,
     bytes::complete::tag,
@@ -145,20 +146,14 @@ pub fn foldable_line(full_line: bool) -> impl Fn(&[u8]) -> IResult<&[u8], &[u8]>
 // pub fn fws(input: &[u8]) -> IResult<&[u8], Vec<&[u8]>> {
 //     many1(alt((space1, preceded(tag(ascii::CRLF), space1))))(input)
 // }
-#[cfg_attr(
-    feature = "tracing-recover",
-    tracing::instrument(fields(input = %bytes_to_trace_string(input)))
-)]
+#[instrument_input("tracing-recover")]
 pub fn fws(input: &[u8]) -> IResult<&[u8], Vec<&str>> {
     alt((
         many1(fold_marker).map(|v| v.into_iter().flatten().collect()),
         space1_str.map(|wsp| vec![wsp]),
     ))(input)
 }
-#[cfg_attr(
-    feature = "tracing-recover",
-    tracing::instrument(fields(input = %bytes_to_trace_string(input)))
-)]
+#[instrument_input("tracing-recover")]
 fn fold_marker(input: &[u8]) -> IResult<&[u8], Vec<&str>> {
     let (input, wsp0) = space0_str(input)?;
     let (input, _) = obs_crlf(input)?;
@@ -198,38 +193,26 @@ fn fold_marker(input: &[u8]) -> IResult<&[u8], Vec<&str>> {
 ///
 /// This is why we resort to the the low-level iterative implementation
 /// of `comment` and `comment_body` below.
-#[cfg_attr(
-    feature = "tracing-recover",
-    tracing::instrument(fields(input = %bytes_to_trace_string(input)))
-)]
+#[instrument_input("tracing-recover")]
  pub fn cfws(input: &[u8]) -> IResult<&[u8], ()> {
      alt((comments, fws.map(|_| ())))(input)
 }
 
-#[cfg_attr(
-    feature = "tracing-recover",
-    tracing::instrument(fields(input = %bytes_to_trace_string(input)))
-)]
+#[instrument_input("tracing-recover")]
 pub fn comments(input: &[u8]) -> IResult<&[u8], ()> {
     let (input, _) = many1(tuple((opt(fws), comment)))(input)?;
     let (input, _) = opt(fws)(input)?;
     Ok((input, ()))
 }
 
-#[cfg_attr(
-    feature = "tracing-recover",
-    tracing::instrument(fields(input = %bytes_to_trace_string(input)))
-)]
+#[instrument_input("tracing-recover")]
 pub fn comment(input: &[u8]) -> IResult<&[u8], ()> {
     let (input, _) = tag("(")(input)?;
     let (input, ()) = comment_body(input)?;
     Ok((input, ()))
 }
 
-#[cfg_attr(
-    feature = "tracing-recover",
-    tracing::instrument(fields(input = %bytes_to_trace_string(input)))
-)]
+#[instrument_input("tracing-recover")]
 pub fn comment_body(input: &[u8]) -> IResult<&[u8], ()> {
     let mut nesting = 1;
     let mut cursor: &[u8] = input;
@@ -260,10 +243,7 @@ pub fn comment_body(input: &[u8]) -> IResult<&[u8], ()> {
     }
 }
 
-#[cfg_attr(
-    feature = "tracing-recover",
-    tracing::instrument(fields(input = %bytes_to_trace_string(input)))
-)]
+#[instrument_input("tracing-recover")]
  pub fn ctext(input: &[u8]) -> IResult<&[u8], &str> {
      take_utf8_while1(is_ctext)(input)
 }

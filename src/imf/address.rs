@@ -12,8 +12,7 @@ use nom::{
 
 #[cfg(feature = "arbitrary")]
 use crate::fuzz_eq::FuzzEq;
-#[cfg(feature = "tracing")]
-use crate::utils::bytes_to_trace_string;
+use eml_codec_derives::instrument_input;
 use crate::print::{print_seq, Print, Formatter};
 use crate::imf::mailbox::{mailbox, mailbox_list_nullable, MailboxRef, MailboxList};
 use crate::text::misc_token::{phrase, Phrase};
@@ -78,10 +77,7 @@ impl<'a> Print for AddressList<'a> {
 /// ```abnf
 ///    address         =   mailbox / group
 /// ```
-#[cfg_attr(
-    feature = "tracing",
-    tracing::instrument(fields(input = %bytes_to_trace_string(input)))
-)]
+#[instrument_input("tracing")]
 pub fn address(input: &[u8]) -> IResult<&[u8], AddressRef<'_>> {
     alt((into(mailbox), into(group)))(input)
 }
@@ -92,10 +88,7 @@ pub fn address(input: &[u8]) -> IResult<&[u8], AddressRef<'_>> {
 ///    group           =   display-name ":" [group-list] ";" [CFWS]
 ///    display-name    =   phrase
 /// ```
-#[cfg_attr(
-    feature = "tracing",
-    tracing::instrument(fields(input = %bytes_to_trace_string(input)))
-)]
+#[instrument_input("tracing")]
 pub fn group(input: &[u8]) -> IResult<&[u8], GroupRef<'_>> {
     let (input, (grp_name, _, grp_list, _, _)) =
         tuple((phrase, tag(":"), opt(group_list), tag(";"), opt(cfws)))(input)?;
@@ -115,10 +108,7 @@ pub fn group(input: &[u8]) -> IResult<&[u8], GroupRef<'_>> {
 ///    group-list      =   mailbox-list / CFWS / obs-group-list
 ///    obs-group-list  =   1*([CFWS] ",") [CFWS]
 /// ```
-#[cfg_attr(
-    feature = "tracing",
-    tracing::instrument(fields(input = %bytes_to_trace_string(input)))
-)]
+#[instrument_input("tracing")]
 pub fn group_list(input: &[u8]) -> IResult<&[u8], Option<MailboxList<'_>>> {
     mailbox_list_nullable(input)
 }
@@ -129,10 +119,7 @@ pub fn group_list(input: &[u8]) -> IResult<&[u8], Option<MailboxList<'_>>> {
 ///   address-list    =   (address *("," address)) / obs-addr-list
 ///   obs-addr-list   =   *([CFWS] ",") address *("," [address / CFWS])
 /// ```
-#[cfg_attr(
-    feature = "tracing",
-    tracing::instrument(fields(input = %bytes_to_trace_string(input)))
-)]
+#[instrument_input("tracing")]
 pub fn address_list(input: &[u8]) -> IResult<&[u8], Vec<AddressRef<'_>>> {
     map_opt(
         separated_list1(
@@ -146,19 +133,13 @@ pub fn address_list(input: &[u8]) -> IResult<&[u8], Vec<AddressRef<'_>>> {
     )(input)
 }
 
-#[cfg_attr(
-    feature = "tracing",
-    tracing::instrument(fields(input = %bytes_to_trace_string(input)))
-)]
+#[instrument_input("tracing")]
 pub fn address_list_cfws(input: &[u8]) -> IResult<&[u8], Vec<AddressRef<'_>>> {
     let (input, _) = cfws(input)?;
     Ok((input, vec![]))
 }
 
-#[cfg_attr(
-    feature = "tracing",
-    tracing::instrument(fields(input = %bytes_to_trace_string(input)))
-)]
+#[instrument_input("tracing")]
 pub fn nullable_address_list(input: &[u8]) -> IResult<&[u8], Vec<AddressRef<'_>>> {
     map(opt(alt((address_list, address_list_cfws))), |v| {
         v.unwrap_or(vec![])

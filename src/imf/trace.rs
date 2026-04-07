@@ -14,8 +14,7 @@ use nom::{
 use crate::{
     fuzz_eq::FuzzEq,
 };
-#[cfg(feature = "tracing")]
-use crate::utils::bytes_to_trace_string;
+use eml_codec_derives::instrument_input;
 use crate::print::{print_seq, Print, Formatter, ToStringFromPrint};
 use crate::imf::{datetime, mailbox};
 use crate::text::{ascii, misc_token, whitespace};
@@ -79,10 +78,7 @@ impl<'a> Print for ReturnPath<'a> {
     }
 }
 
-#[cfg_attr(
-    feature = "tracing",
-    tracing::instrument(fields(input = %bytes_to_trace_string(input)))
-)]
+#[instrument_input("tracing")]
 pub fn received_log(input: &[u8]) -> IResult<&[u8], ReceivedLog<'_>> {
     map(
         tuple((many0(received_token), opt(whitespace::cfws), tag(";"), datetime::date_time)),
@@ -93,10 +89,7 @@ pub fn received_log(input: &[u8]) -> IResult<&[u8], ReceivedLog<'_>> {
     )(input)
 }
 
-#[cfg_attr(
-    feature = "tracing",
-    tracing::instrument(fields(input = %bytes_to_trace_string(input)))
-)]
+#[instrument_input("tracing")]
 pub fn return_path(input: &[u8]) -> IResult<&[u8], ReturnPath<'_>> {
     alt((
         map(mailbox::angle_addr, |a| ReturnPath(Some(a))),
@@ -104,10 +97,7 @@ pub fn return_path(input: &[u8]) -> IResult<&[u8], ReturnPath<'_>> {
     ))(input)
 }
 
-#[cfg_attr(
-    feature = "tracing",
-    tracing::instrument(fields(input = %bytes_to_trace_string(input)))
-)]
+#[instrument_input("tracing")]
 fn empty_path(input: &[u8]) -> IResult<&[u8], ReturnPath<'_>> {
     let (input, _) = tuple((
         opt(whitespace::cfws),
@@ -119,10 +109,7 @@ fn empty_path(input: &[u8]) -> IResult<&[u8], ReturnPath<'_>> {
     Ok((input, ReturnPath(None)))
 }
 
-#[cfg_attr(
-    feature = "tracing",
-    tracing::instrument(fields(input = %bytes_to_trace_string(input)))
-)]
+#[instrument_input("tracing")]
 fn received_token(input: &[u8]) -> IResult<&[u8], ReceivedLogToken<'_>> {
     alt((
         terminated(
