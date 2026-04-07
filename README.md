@@ -112,6 +112,33 @@ This library has also been fuzz tested, both for crashes and serialization/deser
 
 It is planned to test it on large email datasets (like Enron, jpbush, mailing lists, etc.) but it's not done yet.
 
+### Tracing parser recovery decisions
+
+The `eml-codec` parser never fails on non-compliant inputs. (Non-compliant input
+refers to input whose syntax is outside of RFC definitions; use of the
+"obsolete" syntax defined in the RFCs is considered compliant.)
+
+Instead, the `eml-codec` parser implements various *recovery* strategies that
+allow it to continue and return a best-effort result. A last resort strategy is
+to discard the part of the input that cannot be interpreted, but in other cases,
+the parser is able to recover from ill-formed input and interpret it in a
+plausible fashion.
+
+The library provides two optional feature flags that make it *output a trace of
+the recovery strategies it applied* during parsing:
+- `tracing-recover`: emit an event each time a recovery strategy was applied to
+  interpret non-compliant data;
+- `tracing-discard`: emit an event each time some data could not be interpreted
+  and was discarded as last resort.
+
+Parsing a fully RFC-compliant email should not emit any event. In practice,
+`tracing-recover` tends to be quite verbose on real-world emails, and using
+`tracing-discard` is more useful to detect occurrences of real-world syntax that
+could be better handled by the parser.
+
+See the [trace](examples/README.md#trace-tool) example for more info on
+collecting tracing events.
+
 ## RFC and IANA references
 
 RFC
