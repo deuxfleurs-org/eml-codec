@@ -119,22 +119,22 @@ refers to input whose syntax is outside of RFC definitions; use of the
 "obsolete" syntax defined in the RFCs is considered compliant.)
 
 Instead, the `eml-codec` parser implements various *recovery* strategies that
-allow it to continue and return a best-effort result. A last resort strategy is
-to discard the part of the input that cannot be interpreted, but in other cases,
-the parser is able to recover from ill-formed input and interpret it in a
-plausible fashion.
+allow it to continue and return a best-effort result. In a number of cases, the 
+parser can recover from ill-formed input and interpret it in a plausible fashion.
+In the remaining cases where the parser cannot recognize a part of the input,
+this part is then discarded, allowing parsing to continue.
 
 The library provides two optional feature flags that make it *output a trace of
 the recovery strategies it applied* during parsing:
 - `tracing-recover`: emit an event each time a recovery strategy was applied to
   interpret non-compliant data;
-- `tracing-discard`: emit an event each time some data could not be interpreted
-  and was discarded as last resort.
+- `tracing-unsupported`: emit an event each time some data could not be
+  interpreted and was discarded as last resort.
 
 Parsing a fully RFC-compliant email should not emit any event. In practice,
 `tracing-recover` tends to be quite verbose on real-world emails, and using
-`tracing-discard` is more useful to detect occurrences of real-world syntax that
-could be better handled by the parser.
+`tracing-unsupported` is more useful to detect occurrences of real-world syntax
+that could possibly be handled better by the parser.
 
 See the [trace](examples/README.md#trace-tool) example for more info on
 collecting tracing events.

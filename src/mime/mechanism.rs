@@ -69,7 +69,7 @@ impl<'a> Mechanism<'a> {
             Mechanism::_7Bit | Mechanism::_8Bit | Mechanism::Binary =>
                 self.to_static(),
             _ => {
-                #[cfg(feature = "tracing-discard")]
+                #[cfg(feature = "tracing-unsupported")]
                 warn!(mechanism = ?self, "to_part_encoding: invalid mechanism");
                 Mechanism::default()
             }

@@ -2,11 +2,11 @@
 
 The `trace` example program runs the parser on a set of emails, recording
 "recovery" trace events. It must be compiled by enabling at least one of the
-`tracing-recover` or `tracing-discard` features.
+`tracing-recover` or `tracing-unsupported` features.
 
 Example invocation:
 ``` sh
-cargo run --features=tracing-recover,tracing-discard --example trace -- <emails>... > trace.json
+cargo run --features=tracing-recover,tracing-unsupported --example trace -- <emails>... > trace.json
 ```
 
 where `<emails>` can be:
