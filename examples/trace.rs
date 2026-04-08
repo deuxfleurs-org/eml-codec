@@ -13,10 +13,11 @@ use std::fs::File;
 use std::io::{Write, Read};
 use std::sync::{Arc, Mutex};
 
-// This small tool provides:
-//
-// - a collector for the `tracing` events emitted from the parser, filtering
-// useless spans and outputting the result as json records;
+// This small tool implements:
+// - a collector for the `tracing` events and spans emitted from the parser,
+// performing some form of "tail sampling": only keep events and the spans that
+// enclose events, removing spans that do not contain any event.
+// - output of the filtered events as json records (one output line = one event)
 // - parallel parsing of collections of emails (from directories, mbox files,
 // etc), to allow tracing events on large email corpuses.
 
@@ -36,6 +37,8 @@ struct SpanData {
     fields: Vec<(&'static str, String)>,
 }
 
+// The "pruning layer" performs tail sampling, filtering out spans that do not
+// contain any event.
 struct PruningLayer {
     spans: Mutex<HashMap<Id, SpanData>>,
     relevant_spans: Mutex<HashSet<Id>>,
@@ -140,6 +143,8 @@ where
     }
 }
 
+// Items of the output trace (list of json records, one `LogEvent` record per
+// line)
 #[derive(serde::Serialize)]
 struct LogEvent {
     event: String,
@@ -148,6 +153,7 @@ struct LogEvent {
     trace: Vec<LogSpan>,
 }
 
+
 #[derive(serde::Serialize)]
 struct LogSpan {
     span: String,
@@ -155,6 +161,8 @@ struct LogSpan {
     meta: HashMap<&'static str, String>,
 }
 
+// mbox parsing. A .mbox is the concatenation of emails, each prepended with a
+// "From ..." line (which is not part of the email itself).
 fn parse_mbox(input: &[u8]) -> Vec<&[u8]> {
     let mut res = Vec::new();
     let mut start = 0usize;
