@@ -4,3 +4,5 @@ fuzz/target
 fuzz/artifacts
 fuzz/corpus
 archive
+*.json
+*.json.gz

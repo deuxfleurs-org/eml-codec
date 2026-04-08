@@ -15,9 +15,9 @@ use std::fmt::{Debug, Formatter};
 
 #[cfg(feature = "arbitrary")]
 use crate::fuzz_eq::FuzzEq;
+use eml_codec_derives::instrument_input;
 use crate::print::{Print, Formatter as PFmt};
 use crate::text::whitespace::{cfws, fws};
-//use crate::error::IMFError;
 
 const MIN: i32 = 60;
 const HOUR: i32 = 60 * MIN;
@@ -36,19 +36,6 @@ const MONTHS: &[&[u8]] = &[
     b"Nov",
     b"Dec",
 ];
-
-/*
-impl<'a> TryFrom<&'a lazy::DateTime<'a>> for DateTime<FixedOffset> {
-    type Error = IMFError<'a>;
-
-    fn try_from(value: &'a lazy::DateTime<'a>) -> Result<Self, Self::Error> {
-        match section(value.0) {
-            Ok((_, Some(dt))) => Ok(dt),
-            Err(e) => Err(IMFError::DateTimeParse(e)),
-            _ => Err(IMFError::DateTimeLogic),
-        }
-    }
-}*/
 
 // NOTE: must satisfy the following properties:
 // - timezone offset: must be a round hours+minutes (no seconds)
@@ -155,6 +142,7 @@ impl Print for DateTime {
 ///   - Obsolete military zones should be considered as NaiveTime
 /// due to an error in RFC0822 but are interpreted as their respective
 /// timezone according to the RFC5322 definition
+#[instrument_input("tracing")]
 pub fn date_time(input: &[u8]) -> IResult<&[u8], DateTime> {
     map_opt(
         terminated(
@@ -181,11 +169,13 @@ pub fn date_time(input: &[u8]) -> IResult<&[u8], DateTime> {
 }
 
 ///    day-of-week     =   ([FWS] day-name) / obs-day-of-week
+#[instrument_input("tracing")]
 fn strict_day_of_week(input: &[u8]) -> IResult<&[u8], &[u8]> {
     preceded(opt(fws), day_name)(input)
 }
 
 ///    obs-day-of-week =   [CFWS] day-name [CFWS]
+#[instrument_input("tracing")]
 fn obs_day_of_week(input: &[u8]) -> IResult<&[u8], &[u8]> {
     delimited(opt(cfws), day_name, opt(cfws))(input)
 }
@@ -205,6 +195,7 @@ fn day_name(input: &[u8]) -> IResult<&[u8], &[u8]> {
 }
 
 ///    date            =   day month year
+#[instrument_input("tracing")]
 fn strict_date(input: &[u8]) -> IResult<&[u8], NaiveDate> {
     map_opt(tuple((strict_day, month, strict_year)), |(d, m, y)| {
         NaiveDate::from_ymd_opt(y, m, d)
@@ -212,6 +203,7 @@ fn strict_date(input: &[u8]) -> IResult<&[u8], NaiveDate> {
 }
 
 ///    date            =   day month year
+#[instrument_input("tracing")]
 fn obs_date(input: &[u8]) -> IResult<&[u8], NaiveDate> {
     map_opt(tuple((obs_day, month, obs_year)), |(d, m, y)| {
         NaiveDate::from_ymd_opt(y, m, d)
@@ -219,11 +211,13 @@ fn obs_date(input: &[u8]) -> IResult<&[u8], NaiveDate> {
 }
 
 ///    day             =   ([FWS] 1*2DIGIT FWS) / obs-day
+#[instrument_input("tracing")]
 fn strict_day(input: &[u8]) -> IResult<&[u8], u32> {
     delimited(opt(fws), character::complete::u32, fws)(input)
 }
 
 ///    obs-day         =   [CFWS] 1*2DIGIT [CFWS]
+#[instrument_input("tracing")]
 fn obs_day(input: &[u8]) -> IResult<&[u8], u32> {
     delimited(opt(cfws), character::complete::u32, opt(cfws))(input)
 }
@@ -249,6 +243,7 @@ fn month(input: &[u8]) -> IResult<&[u8], u32> {
 }
 
 ///   year            =   (FWS 4*DIGIT FWS) / obs-year
+#[instrument_input("tracing")]
 fn strict_year(input: &[u8]) -> IResult<&[u8], i32> {
     delimited(
         fws,
@@ -270,6 +265,7 @@ fn strict_year(input: &[u8]) -> IResult<&[u8], i32> {
 // NOTE: RFC5322 defines obs-year as above, but also defines the interpretation
 // of three digit years (which are not covered by this grammar).
 // The implementation below thus also supports three digit years.
+#[instrument_input("tracing")]
 fn obs_year(input: &[u8]) -> IResult<&[u8], i32> {
     map(
         delimited(
@@ -292,6 +288,7 @@ fn obs_year(input: &[u8]) -> IResult<&[u8], i32> {
 }
 
 ///   time-of-day     =   hour ":" minute [ ":" second ]
+#[instrument_input("tracing")]
 fn strict_time_of_day(input: &[u8]) -> IResult<&[u8], NaiveTime> {
     map_opt(
         tuple((
@@ -307,6 +304,7 @@ fn strict_time_of_day(input: &[u8]) -> IResult<&[u8], NaiveTime> {
 }
 
 ///   time-of-day     =   hour ":" minute [ ":" second ]
+#[instrument_input("tracing")]
 fn obs_time_of_day(input: &[u8]) -> IResult<&[u8], NaiveTime> {
     map_opt(
         tuple((
@@ -325,6 +323,7 @@ fn strict_time_digit(input: &[u8]) -> IResult<&[u8], u32> {
     character::complete::u32(input)
 }
 
+#[instrument_input("tracing")]
 fn obs_time_digit(input: &[u8]) -> IResult<&[u8], u32> {
     delimited(opt(cfws), character::complete::u32, opt(cfws))(input)
 }
@@ -334,6 +333,7 @@ fn obs_time_digit(input: &[u8]) -> IResult<&[u8], u32> {
 /// ```abnf
 ///   zone            =   (FWS ( "+" / "-" ) 4DIGIT) / (FWS obs-zone)
 /// ```
+#[instrument_input("tracing")]
 fn strict_zone(input: &[u8]) -> IResult<&[u8], FixedOffset> {
     map_opt(
         tuple((
@@ -372,6 +372,7 @@ fn strict_zone(input: &[u8]) -> IResult<&[u8], FixedOffset> {
 ///                       %d107-122 /        ; upper and lower case
 ///                                          ;
 ///                       1*(ALPHA / DIGIT)  ; Unknown legacy timezones
+#[instrument_input("tracing")]
 fn obs_zone(input: &[u8]) -> IResult<&[u8], FixedOffset> {
     // The writing of this function is volontarily verbose
     // to keep it straightforward to understand.

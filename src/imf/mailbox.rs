@@ -3,19 +3,22 @@ use arbitrary::Arbitrary;
 use bounded_static::ToStatic;
 use nom::{
     branch::alt,
-    bytes::complete::tag,
     combinator::{all_consuming, into, map, map_opt, opt},
+    bytes::complete::tag,
     multi::{many0, many1, separated_list1},
     sequence::{delimited, pair, preceded, terminated, tuple},
     IResult,
 };
 use std::borrow::Cow;
+#[cfg(feature = "tracing")]
+use tracing::warn;
 
 #[cfg(feature = "arbitrary")]
 use crate::{
     arbitrary_utils::{arbitrary_vec_nonempty, arbitrary_string_nonempty_where},
     fuzz_eq::FuzzEq,
 };
+use eml_codec_derives::instrument_input;
 use crate::i18n::ContainsUtf8;
 use crate::print::{print_seq, Print, Formatter, ToStringFromPrint};
 use crate::text::ascii;
@@ -110,6 +113,7 @@ impl<'a> Arbitrary<'a> for MailboxList<'a> {
 /// ```abnf
 ///    mailbox         =   name-addr / addr-spec
 /// ```
+#[instrument_input("tracing")]
 pub fn mailbox(input: &[u8]) -> IResult<&[u8], MailboxRef<'_>> {
     alt((name_addr, into(addr_spec)))(input)
 }
@@ -120,11 +124,13 @@ pub fn mailbox(input: &[u8]) -> IResult<&[u8], MailboxRef<'_>> {
 ///    mailbox-list    =   (mailbox *("," mailbox)) / obs-mbox-list
 ///    obs-mbox-list   =   *([CFWS] ",") mailbox *("," [mailbox / CFWS])
 /// ```
+#[instrument_input("tracing")]
 pub fn mailbox_list(input: &[u8]) -> IResult<&[u8], MailboxList<'_>> {
     map_opt(mailbox_list_nullable, |mlist| mlist)(input)
 }
 
 // mailbox-list but allows the list to only contain "null" elements
+#[instrument_input("tracing")]
 pub(crate) fn mailbox_list_nullable(input: &[u8]) -> IResult<&[u8], Option<MailboxList<'_>>> {
     map(
         separated_list1(
@@ -150,6 +156,7 @@ pub(crate) fn mailbox_list_nullable(input: &[u8]) -> IResult<&[u8], Option<Mailb
 /// ```abnf
 ///    name-addr       =   [display-name] angle-addr
 /// ```
+#[instrument_input("tracing")]
 fn name_addr(input: &[u8]) -> IResult<&[u8], MailboxRef<'_>> {
     let (input, name) = opt(phrase)(input)?;
     let (input, addrspec) = angle_addr(input)?;
@@ -162,15 +169,21 @@ fn name_addr(input: &[u8]) -> IResult<&[u8], MailboxRef<'_>> {
 /// angle-addr      =   [CFWS] "<" addr-spec ">" [CFWS] /
 ///                     obs-angle-addr
 /// ```
+#[instrument_input("tracing")]
 pub fn angle_addr(input: &[u8]) -> IResult<&[u8], AddrSpec<'_>> {
     delimited(
-        tuple((opt(cfws), tag(&[ascii::LT]), opt(obs_route))),
+        tuple((
+            opt(cfws),
+            tag(&[ascii::LT]),
+            opt(obs_route),
+        )),
         addr_spec,
         pair(tag(&[ascii::GT]), opt(cfws)),
     )(input)
 }
 
 ///    obs-route       =   obs-domain-list ":"
+#[instrument_input("tracing")]
 fn obs_route(input: &[u8]) -> IResult<&[u8], Vec<Option<Domain<'_>>>> {
     terminated(obs_domain_list, tag(&[ascii::COL]))(input)
 }
@@ -181,6 +194,7 @@ fn obs_route(input: &[u8]) -> IResult<&[u8], Vec<Option<Domain<'_>>>> {
 /// ```
 /// The parser below is slightly more lenient as it allows domains list that
 /// contain no real domains (e.g. only commas).
+#[instrument_input("tracing")]
 fn obs_domain_list(input: &[u8]) -> IResult<&[u8], Vec<Option<Domain<'_>>>> {
     preceded(
         opt(cfws),
@@ -199,6 +213,7 @@ fn obs_domain_list(input: &[u8]) -> IResult<&[u8], Vec<Option<Domain<'_>>>> {
 /// ```abnf
 ///    addr-spec       =   local-part "@" domain
 /// ```
+#[instrument_input("tracing")]
 pub fn addr_spec(input: &[u8]) -> IResult<&[u8], AddrSpec<'_>> {
     map(
         tuple((
@@ -310,18 +325,34 @@ impl<'a> Print for LocalPart<'a> {
 /// local-part and obs-local-part.
 ///
 /// ```abnf
+/// local-part          = dot-atom / quoted-string / obs-local-part
+/// obs-local-part      = word *("." word)
 /// our-obs-local-part  =  *"." word *(1*"." word) *"."
 /// ```
+#[instrument_input("tracing")]
 fn obs_local_part(input: &[u8]) -> IResult<&[u8], LocalPart<'_>> {
     let (input, prefix) = many0(local_part_dot)(input)?;
     let (input, w) = local_part_word(input)?;
     let (input, ws) = many0(pair(many1(local_part_dot), local_part_word))(input)?;
     let (input, suffix) = many0(local_part_dot)(input)?;
 
+    if !prefix.is_empty() {
+        #[cfg(feature = "tracing-recover")]
+        warn!("best-effort local-part (leading dots)");
+    }
+    if !suffix.is_empty() {
+        #[cfg(feature = "tracing-recover")]
+        warn!("best-effort local part (trailing dots)");
+    }
+
     let mut v: Vec<LocalPartToken> = vec![];
     v.extend(prefix);
     v.push(w);
     for (dots, w) in ws.into_iter() {
+        if dots.len() > 1 {
+            #[cfg(feature = "tracing-recover")]
+            warn!("best-effort local part (consecutive dots)");
+        }
         v.extend(dots);
         v.push(w);
     }
@@ -382,6 +413,7 @@ impl<'a> Arbitrary<'a> for Domain<'a> {
 /// ```abnf
 ///  obs-domain      = atom *("." atom) / domain-literal
 /// ```
+#[instrument_input("tracing")]
 pub fn obs_domain(input: &[u8]) -> IResult<&[u8], Domain<'_>> {
     alt((
         map(separated_list1(tag("."), atom), Domain::Atoms),
@@ -394,6 +426,7 @@ pub fn obs_domain(input: &[u8]) -> IResult<&[u8], Domain<'_>> {
 /// ```abnf
 ///    domain-literal  =   [CFWS] "[" *([FWS] dtext) [FWS] "]" [CFWS]
 /// ```
+#[instrument_input("tracing")]
 fn domain_litteral(input: &[u8]) -> IResult<&[u8], Domain<'_>> {
     delimited(
         pair(opt(cfws), tag(&[ascii::LEFT_BRACKET])),
@@ -402,6 +435,7 @@ fn domain_litteral(input: &[u8]) -> IResult<&[u8], Domain<'_>> {
     )(input)
 }
 
+#[instrument_input("tracing")]
 fn inner_domain_litteral(input: &[u8]) -> IResult<&[u8], Domain<'_>> {
     map(
         terminated(many0(preceded(opt(fws), dtext)), opt(fws)),
@@ -479,6 +513,7 @@ fn is_obs_dtext(c: char) -> bool {
     //@FIXME does not support quoted pair yet while RFC requires it
 }
 
+#[instrument_input("tracing")]
 pub fn dtext<'a>(input: &'a [u8]) -> IResult<&'a [u8], Dtext<'a>> {
     map(take_utf8_while1(is_dtext), |b| Dtext(Cow::Borrowed(b)))(input)
 }

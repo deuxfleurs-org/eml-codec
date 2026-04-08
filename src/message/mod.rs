@@ -1,6 +1,8 @@
 #[cfg(feature = "arbitrary")]
 use arbitrary::Arbitrary;
 use bounded_static::ToStatic;
+#[cfg(feature = "tracing")]
+use tracing::warn;
 
 #[cfg(feature = "arbitrary")]
 use crate::{
@@ -154,6 +156,10 @@ struct MessageFields<'a> {
 }
 
 impl<'a> FromIterator<header::FieldRaw<'a>> for MessageFields<'a> {
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(name = "MessageFields::from_iter", skip(it))
+    )]
     fn from_iter<I: IntoIterator<Item = header::FieldRaw<'a>>>(it: I) -> Self {
         let mut mime = mime::NaiveMIME::default();
         let mut imf = imf::PartialImf::default();
@@ -163,11 +169,17 @@ impl<'a> FromIterator<header::FieldRaw<'a>> for MessageFields<'a> {
                 Ok(mimef) => {
                     if let Some(entry) = mime.add_field(mimef) {
                         entries.push(MessageEntry::MIME(entry))
-                    }; // otherwise drop the field
+                    } else {
+                        // otherwise drop the field
+                        #[cfg(feature = "tracing-recover")]
+                        warn!(field = ?f, "dropping conflicting MIME field")
+                    }
                     continue;
                 },
                 Err(mime::field::InvalidField::Body) => {
                     // this is a MIME field but its body is invalid; drop it.
+                    #[cfg(feature = "tracing-unsupported")]
+                    warn!(field = ?f, "dropping MIME field with an invalid body");
                     continue;
                 },
                 Err(mime::field::InvalidField::Name) => {
@@ -178,13 +190,24 @@ impl<'a> FromIterator<header::FieldRaw<'a>> for MessageFields<'a> {
 
             match imf::field::Field::try_from(&f) {
                 Ok(imff) => {
-                    if let Some(entry) = imf.add_field(imff) {
-                        entries.push(MessageEntry::Imf(entry))
-                    }; // otherwise drop the field
+                    match imf.add_field(imff) {
+                        Ok(entry) =>
+                            entries.push(MessageEntry::Imf(entry)),
+                        Err(imf::AddFieldErr::NoEntry) => {
+                            #[cfg(feature = "tracing-recover")]
+                            warn!(field = ?f, "no new entry for IMF field");
+                        },
+                        Err(imf::AddFieldErr::Conflict) => {
+                            #[cfg(feature = "tracing-recover")]
+                            warn!(field = ?f, "discarding conflicting IMF field");
+                        },
+                    }
                     continue;
                 },
                 Err(imf::field::InvalidField::Body) => {
                     // this is an IMF field but its body is invalid; drop it.
+                    #[cfg(feature = "tracing-unsupported")]
+                    warn!(field = ?f, "dropping IMF field with an invalid body");
                     continue;
                 }
                 Err(imf::field::InvalidField::Name) => {
@@ -193,9 +216,13 @@ impl<'a> FromIterator<header::FieldRaw<'a>> for MessageFields<'a> {
                 }
             }
 
-            if let Some(u) = header::Unstructured::from_raw(f) {
+            if let Some(u) = header::Unstructured::from_raw(&f) {
                 entries.push(MessageEntry::Unstructured(u));
-            } // otherwise drop the field
+            } else {
+                // otherwise drop the field
+                #[cfg(feature = "tracing-unsupported")]
+                warn!(field = ?f, "dropping field that cannot be parsed as unstructured")
+            }
         }
         entries.extend(
             imf.missing_mandatory_fields()
@@ -228,7 +255,7 @@ mod tests {
     use crate::text::charset::EmailCharset;
     use crate::text::encoding::{Base64Word, EncodedWord, EncodedWordToken, QuotedChunk, QuotedWord};
     use crate::text::misc_token::*;
-    use crate::text::words::{Atom, DotAtom};
+    use crate::text::words::{Atom, DotAtom, MIMEAtom};
     use chrono::{FixedOffset, TimeZone};
     use pretty_assertions::assert_eq;
 
@@ -335,9 +362,11 @@ Bad entry
   on multiple lines
 Message-ID: <NTAxNzA2AC47634Y366BAMTY4ODc5MzQyODY0ODY5@www.grrrndzero.org>
 MIME-Version: 1.0
+Subject: Bad_redundant_subject
 Content-Type: multipart/alternative;
  boundary="b1_e376dc71bafc953c0b0fdeb9983a9956"
 Content-Transfer-Encoding: 7bit
+Content-Transfer-Encoding: bad_redundant
 
 This is a multi-part message in MIME format.
 
@@ -459,6 +488,11 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                             right: MessageIDRight::DotAtom(DotAtom("www.grrrndzero.org"[..].into())),
                         });
 
+                        imf.discarded.push(imf::field::Field::Subject(Unstructured(vec![
+                            UnstrToken::from_plain(" ", UnstrTxtKind::Fws),
+                            UnstrToken::from_plain("Bad_redundant_subject", UnstrTxtKind::Txt),
+                        ])));
+
                         imf
                     },
                     entries: vec![
@@ -492,8 +526,13 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                             },
                             fields: mime::CommonMIME {
                                 transfer_encoding: mime::mechanism::Mechanism::_7Bit,
+                                discarded: vec![
+                                    mime::field::Content::TransferEncoding(
+                                        mime::mechanism::Mechanism::Other(MIMEAtom(b"bad_redundant".into()))
+                                    ),
+                                ],
                                 ..mime::CommonMIME::default()
-                            }
+                            },
                         },
                         preamble: preamble.into(),
                         epilogue: vec![].into(),
@@ -551,7 +590,7 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                                 }),
                             },
                         ],
-                    })
+                    }),
                 };
 
         let reprinted: &[u8] = "Date: Sat, 8 Jul 2023 07:14:29 +0200\r

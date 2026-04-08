@@ -1,16 +1,22 @@
 #[cfg(feature = "arbitrary")]
-use arbitrary::Arbitrary;
+use {
+    arbitrary::Arbitrary,
+    crate::fuzz_eq::FuzzEq,
+};
+#[cfg(feature = "tracing")]
+use tracing::warn;
+#[cfg(feature = "tracing-recover")]
+use crate::utils::bytes_to_trace_string;
+use eml_codec_derives::instrument_input;
 use bounded_static::ToStatic;
-#[cfg(feature = "arbitrary")]
-use crate::fuzz_eq::FuzzEq;
 use crate::i18n::ContainsUtf8;
 use crate::print::{Print, Formatter, ToStringFromPrint};
 use crate::text::whitespace::cfws;
-use crate::text::words::{mime_atom as token, MIMEAtom};
+use crate::text::words::{mime_atom, MIMEAtom};
 use nom::{
     branch::alt,
     bytes::complete::tag_no_case,
-    combinator::{map, opt, value},
+    combinator::{consumed, map, opt, value},
     sequence::delimited,
     IResult,
 };
@@ -56,17 +62,22 @@ impl<'a> Mechanism<'a> {
     // This converts a `Mechanism` to ensure it belongs to
     // one of these three encodings, returning the default mechanism
     // in case of an invalid value.
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub fn to_part_encoding(&self) -> Mechanism<'static> {
         use bounded_static::ToBoundedStatic;
         match self {
             Mechanism::_7Bit | Mechanism::_8Bit | Mechanism::Binary =>
                 self.to_static(),
-            _ =>
-                Mechanism::default(),
+            _ => {
+                #[cfg(feature = "tracing-unsupported")]
+                warn!(mechanism = ?self, "to_part_encoding: invalid mechanism");
+                Mechanism::default()
+            }
         }
     }
 }
 
+#[instrument_input("tracing")]
 pub fn mechanism(input: &[u8]) -> IResult<&[u8], Mechanism<'_>> {
     use Mechanism::*;
 
@@ -82,7 +93,11 @@ pub fn mechanism(input: &[u8]) -> IResult<&[u8], Mechanism<'_>> {
             )),
             opt(cfws),
         ),
-        map(token, Other),
+        map(consumed(mime_atom), |(_i, tok)| {
+            #[cfg(feature = "tracing-recover")]
+            warn!(input = %bytes_to_trace_string(_i), "unknown mechanism");
+            Other(tok)
+        }),
     ))(input)
 }
 

@@ -5,13 +5,6 @@ pub(crate) fn set_opt<T>(o: &mut Option<T>, x: T) -> bool {
     }
 }
 
-pub(crate) fn append_opt<T>(o: &mut Option<Vec<T>>, x: Vec<T>) -> bool {
-    match o {
-        None => { *o = Some(x); true },
-        Some(v) => { v.extend(x); false },
-    }
-}
-
 pub(crate) fn vec_filter_none_nonempty<T>(v: Vec<Option<T>>) -> Option<Vec<T>> {
     let v: Vec<T> = v.into_iter().flatten().collect();
     if v.is_empty() {
@@ -40,5 +33,18 @@ pub fn bytes_to_display_string(bs: &[u8]) -> String {
         }
     }
     s.push('"');
+    s
+}
+
+#[allow(dead_code)]
+pub fn bytes_to_trace_string(bs: &[u8]) -> String {
+    let mut s = String::new();
+    for b in bs {
+        match b {
+            b'\\' => s.push_str("\\\\"),
+            b if b.is_ascii() => s.push(*b as char),
+            _ => s.push_str(&format!("\\{}", b)),
+        }
+    }
     s
 }

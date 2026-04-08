@@ -12,6 +12,7 @@ use nom::{
 
 #[cfg(feature = "arbitrary")]
 use crate::fuzz_eq::FuzzEq;
+use eml_codec_derives::instrument_input;
 use crate::i18n::ContainsUtf8;
 use crate::print::{print_seq, Print, Formatter, ToStringFromPrint};
 use crate::imf::mailbox::{dtext, Dtext};
@@ -49,6 +50,7 @@ impl<'a> Print for MessageIDList<'a> {
 /// ```abnf
 ///    msg-id          =   [CFWS] "<" id-left "@" id-right ">" [CFWS]
 /// ```
+#[instrument_input("tracing")]
 pub fn msg_id(input: &[u8]) -> IResult<&[u8], MessageID<'_>> {
     let (input, (left, _, right)) = delimited(
         pair(opt(cfws), tag("<")),
@@ -58,11 +60,13 @@ pub fn msg_id(input: &[u8]) -> IResult<&[u8], MessageID<'_>> {
     Ok((input, MessageID { left, right }))
 }
 
+#[instrument_input("tracing")]
 pub fn msg_list(input: &[u8]) -> IResult<&[u8], MessageIDList<'_>> {
     many1(msg_id)(input)
 }
 
 // @FIXME Missing obsolete
+#[instrument_input("tracing")]
 fn id_left(input: &[u8]) -> IResult<&[u8], DotAtom<'_>> {
     dot_atom_text(input)
 }
@@ -87,6 +91,7 @@ impl<'a> Print for MessageIDRight<'a> {
 }
 
 // @FIXME Missing obsolete
+#[instrument_input("tracing")]
 fn id_right(input: &[u8]) -> IResult<&[u8], MessageIDRight<'_>> {
     alt((
         map(dot_atom_text, MessageIDRight::DotAtom),
@@ -94,6 +99,7 @@ fn id_right(input: &[u8]) -> IResult<&[u8], MessageIDRight<'_>> {
     ))(input)
 }
 
+#[instrument_input("tracing")]
 fn no_fold_literal(input: &[u8]) -> IResult<&[u8], Dtext<'_>> {
     delimited(tag("["), dtext, tag("]"))(input)
 }
@@ -116,4 +122,7 @@ mod tests {
             )),
         );
     }
+
+    // TODO: non-compliant but found in aero100
+    // <523C50DA-160C-4550-A44E-7E192513CF91>
 }

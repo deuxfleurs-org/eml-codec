@@ -11,6 +11,7 @@ use nom::{
 
 #[cfg(feature = "arbitrary")]
 use crate::fuzz_eq::FuzzEq;
+use eml_codec_derives::instrument_input;
 use crate::print::{Print, Formatter, ToStringFromPrint};
 use crate::text::whitespace::cfws;
 
@@ -33,6 +34,7 @@ impl FuzzEq for Version {
     }
 }
 
+#[instrument_input("tracing")]
 pub fn version(input: &[u8]) -> IResult<&[u8], Version> {
     let (rest, (_, major, _, _, _, minor, _)) = tuple((
         opt(cfws),
