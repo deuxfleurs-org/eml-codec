@@ -1,7 +1,10 @@
 # eml-codec
 
+This library implements parsing and printing of emails. Its aim is to be a swiss
+army knife to encode and decode emails, whether it is to build an IMAP/JMAP
+server, a mail filter (like an antispam), or a mail client.
+
 `eml-codec` is a child project of [Aerogramme](https://aerogramme.deuxfleurs.fr), a distributed and encrypted IMAP server developped by the non-profit organization [Deuxfleurs](https://deuxfleurs.fr).
-Its aim is to be a swiss army knife to handle emails, whether it is to build an IMAP/JMAP server, a mail filter (like an antispam), or a mail client.
 
 ## Example
 
@@ -22,60 +25,14 @@ println!(
     email.imf.from_or_sender().to_string(),
     email.imf.subject.unwrap().to_string(),
 );
+let bytes = eml_codec::print_message(email, None);
+println!(
+    "reformatted email:\n{}",
+    String::from_utf8_lossy(&bytes),
+);
 ```
 
-[See more examples in the examples/ folder](./examples/)
-
-### Email roundtrip
-
-The provided `eml_parse` binary can be used to test email parsing and printing.
-The binary takes parses its standard input as an email (on a best-effort basis),
-and reprints the parsed email on its standard output.
-When passed the `--show-ast` option, it also prints a debugging
-view of the parsed AST on the standard error output. The printed email is
-guaranteed to be RFC compliant; parts of the input using obsolete or invalid
-syntax will be reprinted using valid syntax when possible, or dropped otherwise.
-
-Usage example:
-```shell
-$ cargo run --bin eml_parse -- --show-ast <<EOF
-hello: barrr
-date: uhh
-
-hello??
-EOF
-```
-
-outputs:
-
-```shell
---- message structure ---
-Message {
-    imf: Imf {
-        date: 1970-01-01T00:00:00+00:00,
-        from: Single {
-            from: MailboxRef {
-                addrspec: AddrSpec(
-                    "unknown@unknown",
-                ),
-                name: None,
-            },
-            sender: None,
-        },
-[...]
-}
---- message structure end ---
-hello: barrr
-Date: 1 Jan 1970 00:00:00 +0000
-From: unknown@unknown
-MIME-Version: 1.0
-
-hello??
-```
-
-## About the name
-
-This library does not aim at implementing a specific RFC, but to be a swiss-army knife to decode and encode ("codec") what is generaly considered an email (generally abbreviated "eml"), hence the name: **eml-codec**.
+[See more examples and helper tools in the examples/ folder.](./examples/README.md)
 
 ## Goals
 
@@ -84,7 +41,9 @@ This library does not aim at implementing a specific RFC, but to be a swiss-army
 - Exhaustivity - serve as a common project to encode knowledge about emails (existing mime types, existing headers, etc.).
 - Type safe - do not manipulate only strings/bytes but leverage Rust type system instead so you benefit from its safety checks at compile time.
 
-[See more about this library goals in the doc/ folder](./doc/goals.md)
+(TODO: update)
+
+[Read more about the design of this library.](./doc/DESIGN.md)
 
 ## Missing / known bugs
 
@@ -95,49 +54,19 @@ Current known limitations/bugs:
  - Comments contained in the email headers are dropped during parsing
  - No support is provided for message/external-body (read data from local computer) and message/partial (aggregate multiple fragmented emails) as they seem obsolete and dangerous to implement.
 
-## Design
+## Testing methodology
 
-High-level overview of the datastructures (inspired by the UML class diagram conventions):
+We have been testing `eml-codec` using different complementary techniques:
+- extensive unit tests, for both parsing and printing functions;
+- fuzzing/property testing, checking for absence of crashes and serialization/deserialization roundtrip properties;
+- testing on real-world email corpuses, to improve the parser recovery strategies on non-RFC-compliant emails.
 
-![Diagram of class made on Draw.io](./doc/class-uml.png)
+This crate is also tested as part of
+[Aerogramme](https://git.deuxfleurs.fr/deuxfleurs/aerogramme) where its parsing
+capabilitites are compared at the IMAP level against Dovecot, Cyrus, Maddy and
+other IMAP servers.
 
-## Testing strategy
-
-Currently this crate has some unit tests on most of its parsing and printing functions.
-
-It is also tested as part of Aerogramme, its parent project where it handles email parsing.
-In this project,  `eml-codec` parsing capabilities are compared to Dovecot, Cyrus, Maddy and other IMAP servers.
-
-This library has also been fuzz tested, both for crashes and serialization/deserialization roundtrip properties. See [the `fuzz` directory](fuzz/README.md) for more information on fuzzing targets.
-
-It is planned to test it on large email datasets (like Enron, jpbush, mailing lists, etc.) but it's not done yet.
-
-### Tracing parser recovery decisions
-
-The `eml-codec` parser never fails on non-compliant inputs. (Non-compliant input
-refers to input whose syntax is outside of RFC definitions; use of the
-"obsolete" syntax defined in the RFCs is considered compliant.)
-
-Instead, the `eml-codec` parser implements various *recovery* strategies that
-allow it to continue and return a best-effort result. In a number of cases, the 
-parser can recover from ill-formed input and interpret it in a plausible fashion.
-In the remaining cases where the parser cannot recognize a part of the input,
-this part is then discarded, allowing parsing to continue.
-
-The library provides two optional feature flags that make it *output a trace of
-the recovery strategies it applied* during parsing:
-- `tracing-recover`: emit an event each time a recovery strategy was applied to
-  interpret non-compliant data;
-- `tracing-unsupported`: emit an event each time some data could not be
-  interpreted and was discarded as last resort.
-
-Parsing a fully RFC-compliant email should not emit any event. In practice,
-`tracing-recover` tends to be quite verbose on real-world emails, and using
-`tracing-unsupported` is more useful to detect occurrences of real-world syntax
-that could possibly be handled better by the parser.
-
-See the [trace](examples/README.md#trace-tool) example for more info on
-collecting tracing events.
+[Read more about our testing methodology.](doc/TESTING.md)
 
 ## RFC and IANA references
 
