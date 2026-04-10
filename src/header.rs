@@ -24,7 +24,7 @@ use crate::i18n::ContainsUtf8;
 use crate::print::{Print, Formatter};
 use crate::text::misc_token;
 use crate::text::whitespace::{foldable_line, obs_crlf};
-#[cfg(feature = "tracing-recover")]
+#[cfg(feature = "tracing")]
 use crate::utils::bytes_to_trace_string;
 
 // A valid header field name.
@@ -116,7 +116,7 @@ pub fn header_kv(input: &[u8]) -> (&[u8], Vec<FieldRaw<'_>>) {
             Some(FieldRaw { name, body })
         }),
         map(rest, |_i: &[u8]| {
-            #[cfg(feature = "tracing-recover")]
+            #[cfg(feature = "tracing-unsupported")]
             warn!(input = %bytes_to_trace_string(_i), "raw bytes before EOF");
             None
         }),
@@ -149,7 +149,11 @@ fn field_raw_opt(input: &[u8]) -> IResult<&[u8], Option<FieldRaw<'_>>> {
         map(field_raw, Some),
         // best-effort: a (non-empty) foldable line that cannot even be parsed as
         // a field name and body. We drop it afterwards.
-        map(foldable_line(true), |_| None),
+        map(foldable_line(true), |_i| {
+            #[cfg(feature = "tracing-unsupported")]
+            warn!(input = %bytes_to_trace_string(_i), "malformed raw header line");
+            None
+        }),
     ))(input)
 }
 
