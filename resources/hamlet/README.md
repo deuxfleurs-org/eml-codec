@@ -16,6 +16,8 @@ a much more unconstrained syntax than what the RFC allows (typically, they use
 `unstructured` instead of the more precise RFC grammar). Our parser reads the
 RFC grammar and thus drops these headers; we filter out the corresponding
 headers from the trace.
+- the corpus does not respect the RFC syntax for parameter names in MIME
+parameter lists; we filter errors caused by invalid parameters.
 - the corpus also does not obey the RFC restriction on content-encoding for
 multiparts, which results in a recovery event on our end (`to_part_encoding:
 invalid mechanism`); we also filter it out.
