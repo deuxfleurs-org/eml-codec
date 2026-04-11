@@ -6,7 +6,7 @@ use nom::{
     bytes::complete::tag,
     combinator::{map, opt},
     multi::many0,
-    sequence::{delimited, preceded, separated_pair, terminated, tuple},
+    sequence::{delimited, pair, preceded, separated_pair, terminated, tuple},
     IResult,
 };
 #[cfg(feature = "tracing")]
@@ -21,7 +21,7 @@ use crate::print::{Print, Formatter, ToStringFromPrint};
 use crate::text::charset::EmailCharset;
 use crate::text::misc_token::{mime_word, MIMEWord};
 use crate::text::quoted::print_quoted;
-use crate::text::recovery::take_quoted_or_until1;
+use crate::text::recovery::take_quoted_or_until;
 use crate::text::whitespace::cfws;
 use crate::text::words::{mime_atom, MIMEAtom};
 
@@ -115,21 +115,24 @@ impl<'a> Print for Parameter<'a> {
 pub fn parameter_list(input: &[u8]) -> IResult<&[u8], Vec<Parameter<'_>>> {
     // recovery parser: skips over junk until the next ';'
     let junk = |input| {
-        map(take_quoted_or_until1(|c| c == b';'), |i| {
-            #[cfg(feature = "tracing-unsupported")]
-            if !i.iter().all(|c| c.is_ascii_whitespace() || c.is_ascii_control()) {
-                warn!(input = %bytes_to_trace_string(i),
-                      "unsupported segment in parameter list");
-            }
-            i
-        })(input)
+        pair(
+            opt(cfws),
+            map(take_quoted_or_until(|c| c == b';'), |i| {
+                #[cfg(feature = "tracing-unsupported")]
+                if !i.is_empty() {
+                    warn!(input = %bytes_to_trace_string(i),
+                          "unsupported segment in parameter list");
+                }
+                i
+            })
+        )(input)
     };
     let (input, params) = terminated(
-        many0(preceded(tag(";"), alt((
-            map(terminated(parameter, opt(junk)), Some),
-            map(junk, |_| None),
-        )))),
-        opt(tag(";")),
+        many0(preceded(
+            pair(junk, tag(";")),
+            opt(parameter),
+        )),
+        pair(opt(tag(";")), junk),
     )(input)?;
 
     Ok((input, params.into_iter().flatten().collect()))
@@ -690,6 +693,26 @@ mod tests {
                 charset: EmailCharset::from(b"us-ascii"),
                 params: vec![],
             })
+        );
+    }
+
+    #[test]
+    fn test_broken_content_type() {
+        let (rest, nt) = naive_type(b"abc/def/ghi; charset=us-ascii").unwrap();
+        assert_eq!(rest, &[]);
+
+        assert_eq!(
+            nt,
+            NaiveType {
+                main: MIMEAtom(b"abc".into()),
+                sub: MIMEAtom(b"def".into()),
+                params: vec![
+                    Parameter {
+                        name: MIMEAtom(b"charset"[..].into()),
+                        value: MIMEWord::Atom(MIMEAtom(b"us-ascii"[..].into())),
+                    }
+                ],
+            }
         );
     }
 
