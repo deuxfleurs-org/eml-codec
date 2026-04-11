@@ -239,13 +239,13 @@ impl<'a> NaiveMIME<'a> {
         match typ {
             AnyType::Multipart(ctype) => {
                 // Ensure we are using an encoding allowed for multipart
-                fields.transfer_encoding = fields.transfer_encoding.to_part_encoding();
+                fields.transfer_encoding = fields.transfer_encoding.to_multipart_encoding();
                 AnyMIME::Mult(MIME { ctype, fields })
             },
             AnyType::Message(ctype) => {
                 // Ensure we are using an encoding allowed for message/rfc822
                 // TODO: enforce corresponding restrictions for other message subtypes
-                fields.transfer_encoding = fields.transfer_encoding.to_part_encoding();
+                fields.transfer_encoding = fields.transfer_encoding.to_message_encoding();
                 AnyMIME::Msg(MIME { ctype, fields })
             },
             AnyType::Text(ctype) => AnyMIME::Txt(MIME { ctype, fields }),
