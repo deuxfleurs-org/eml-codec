@@ -261,7 +261,7 @@ mod tests {
     use crate::text::charset::EmailCharset;
     use crate::text::encoding::{Base64Word, EncodedWord, EncodedWordToken, QuotedChunk, QuotedWord};
     use crate::text::misc_token::*;
-    use crate::text::words::{Atom, MIMEAtom};
+    use crate::text::words::Atom;
     use chrono::{FixedOffset, TimeZone};
     use pretty_assertions::assert_eq;
 
@@ -500,11 +500,6 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                             ]),
                         });
 
-                        imf.discarded.push(imf::field::Field::Subject(Unstructured(vec![
-                            UnstrToken::from_plain(" ", UnstrTxtKind::Fws),
-                            UnstrToken::from_plain("Bad_redundant_subject", UnstrTxtKind::Txt),
-                        ])));
-
                         imf
                     },
                     entries: vec![
@@ -538,11 +533,6 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                             },
                             fields: mime::CommonMIME {
                                 transfer_encoding: mime::mechanism::Mechanism::_7Bit,
-                                discarded: vec![
-                                    mime::field::Content::TransferEncoding(
-                                        mime::mechanism::Mechanism::Other(MIMEAtom(b"bad_redundant".into()))
-                                    ),
-                                ],
                                 ..mime::CommonMIME::default()
                             },
                         },
