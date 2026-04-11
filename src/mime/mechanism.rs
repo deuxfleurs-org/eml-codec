@@ -85,9 +85,10 @@ impl<'a> Mechanism<'a> {
     // We implement the same logic as for multipart entities, but define a
     // separate function to allow defining recovery logic specific to each case,
     // if needed. In particular, this is traced as tracing-unsupported for now
-    // for lack of enough real-world data.
+    // as we lack enough real-world data to know if this is an acceptable
+    // recovery strategy.
     #[cfg_attr(feature = "tracing", tracing::instrument)]
-    pub fn to_message_encoding(&self) -> Mechanism<'static> {
+    pub fn to_message_rfc822_encoding(&self) -> Mechanism<'static> {
         use bounded_static::ToBoundedStatic;
         match self {
             Mechanism::_7Bit | Mechanism::_8Bit | Mechanism::Binary =>

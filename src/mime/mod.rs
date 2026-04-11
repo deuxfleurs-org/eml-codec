@@ -19,7 +19,7 @@ use crate::i18n::ContainsUtf8;
 use crate::imf::identification::MessageID;
 use crate::mime::field::{Content, Entry as FieldEntry};
 use crate::mime::mechanism::Mechanism;
-use crate::mime::r#type::{AnyType, NaiveType};
+use crate::mime::r#type::{AnyType, NaiveType, MessageSubtype};
 use crate::print::Formatter;
 use crate::text::misc_token::Unstructured;
 use crate::utils::set_opt;
@@ -244,8 +244,10 @@ impl<'a> NaiveMIME<'a> {
             },
             AnyType::Message(ctype) => {
                 // Ensure we are using an encoding allowed for message/rfc822
-                // TODO: enforce corresponding restrictions for other message subtypes
-                fields.transfer_encoding = fields.transfer_encoding.to_message_encoding();
+                if let MessageSubtype::RFC822 = ctype.subtype {
+                    fields.transfer_encoding = fields.transfer_encoding.to_message_rfc822_encoding();
+                }
+                // TODO: enforce corresponding restrictions for other message subtypes?
                 AnyMIME::Msg(MIME { ctype, fields })
             },
             AnyType::Text(ctype) => AnyMIME::Txt(MIME { ctype, fields }),
