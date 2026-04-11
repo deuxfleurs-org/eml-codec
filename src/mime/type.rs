@@ -13,7 +13,7 @@ use tracing::warn;
 
 #[cfg(feature = "arbitrary")]
 use crate::fuzz_eq::FuzzEq;
-#[cfg(feature = "tracing-unsupported")]
+#[cfg(feature = "tracing")]
 use crate::utils::bytes_to_trace_string;
 use crate::i18n::ContainsUtf8;
 use crate::print::{Print, Formatter, ToStringFromPrint};
@@ -128,8 +128,20 @@ pub fn parameter_list(input: &[u8]) -> IResult<&[u8], Vec<Parameter<'_>>> {
     Ok((b"", params))
 }
 pub fn parameter(input: &[u8]) -> IResult<&[u8], Parameter<'_>> {
+    // We handle both '=' and ':' as separators. ':' is not valid but
+    // occurs in some emails we want to support...
+    let separator = alt((
+        tag("="),
+        map(tag(":"), |i| {
+            #[cfg(feature = "tracing-recover")]
+            warn!(input = %bytes_to_trace_string(input),
+                  "non-compliant use of ':' instead of '=' in parameter");
+            i
+        })
+    ));
+
     map(
-        tuple((mime_atom, tag(b"="), mime_word)),
+        tuple((mime_atom, separator, mime_word)),
         |(name, _, value)| Parameter { name, value },
     )(input)
 }
@@ -735,12 +747,30 @@ mod tests {
             ))
         );
 
+        // Anytime emits emails with 'charset: UTF-8'; we add support for those...
         assert_eq!(
-            // an extra space was inserted before the Content-Transfer-Encoding
-            // header name, making it a continuation of the previous
-            // Content-Type header as per line folding rules... We don't try to
-            // recover the Content-Transfer-Encoding email, but at least we read
-            // can read the parameter list before dropping the rest.
+            parameter_list(b"; charset: UTF-8; foo=bar"),
+            Ok((
+                &b""[..],
+                vec![
+                    Parameter {
+                        name: MIMEAtom(b"charset".into()),
+                        value: MIMEWord::Atom(MIMEAtom(b"UTF-8".into())),
+                    },
+                    Parameter {
+                        name: MIMEAtom(b"foo".into()),
+                        value: MIMEWord::Atom(MIMEAtom(b"bar".into())),
+                    },
+                ]
+            ))
+        );
+
+        assert_eq!(
+            // Example emitted by inria CASA. An extra space was inserted before
+            // the Content-Transfer-Encoding header name, making it a
+            // continuation of the previous Content-Type header as per line
+            // folding rules... This ends up being read as an extra parameter
+            // "thanks" to the recovery of ':' as '='...
             parameter_list(b"; name=\"calendar.ics\";method=REQUEST;\n Content-Transfer-Encoding: 8bit;"),
             Ok((
                 &b""[..],
@@ -752,6 +782,10 @@ mod tests {
                     Parameter {
                         name: MIMEAtom(b"method".into()),
                         value: MIMEWord::Atom(MIMEAtom(b"REQUEST".into())),
+                    },
+                    Parameter {
+                        name: MIMEAtom(b"Content-Transfer-Encoding".into()),
+                        value: MIMEWord::Atom(MIMEAtom(b"8bit".into())),
                     },
                 ]
             ))
