@@ -4,6 +4,7 @@ pub mod charset;
 pub mod encoding;
 pub mod misc_token;
 pub mod quoted;
+pub mod recovery;
 pub mod utf8;
 pub mod whitespace;
 pub mod words;

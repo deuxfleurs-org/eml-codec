@@ -4,8 +4,9 @@ use bounded_static::{ToBoundedStatic, ToStatic};
 use nom::{
     branch::alt,
     bytes::complete::tag,
-    combinator::{all_consuming, map, opt},
-    sequence::{delimited, preceded, tuple},
+    combinator::{map, opt},
+    multi::many0,
+    sequence::{delimited, preceded, terminated, tuple},
     IResult,
 };
 #[cfg(feature = "tracing")]
@@ -20,6 +21,7 @@ use crate::print::{Print, Formatter, ToStringFromPrint};
 use crate::text::charset::EmailCharset;
 use crate::text::misc_token::{mime_word, MIMEWord};
 use crate::text::quoted::print_quoted;
+use crate::text::recovery::take_quoted_or_until1;
 use crate::text::whitespace::cfws;
 use crate::text::words::{mime_atom, MIMEAtom};
 
@@ -109,23 +111,26 @@ impl<'a> Print for Parameter<'a> {
 /// ```
 /// As a consequence, this combinator always consumes all of its input.
 pub fn parameter_list(input: &[u8]) -> IResult<&[u8], Vec<Parameter<'_>>> {
-    let mut params = vec![];
-    let mut parse_segment = alt((
-        map(all_consuming(parameter), Some),
-        map(all_consuming(opt(cfws)), |_| None),
-    ));
-    for input in input.split(|c: &u8| *c == b';') {
-        match parse_segment(input) {
-            Ok((_, None)) => (),
-            Ok((_, Some(param))) => params.push(param),
-            Err(_) => {
-                #[cfg(feature = "tracing-unsupported")]
-                warn!(segment = %bytes_to_trace_string(input),
-                      "discarding segment in parameter list");
+    // recovery parser: skips over junk until the next ';'
+    let junk = |input| {
+        map(take_quoted_or_until1(|c| c == b';'), |i| {
+            #[cfg(feature = "tracing-unsupported")]
+            if !i.iter().all(|c| c.is_ascii_whitespace() || c.is_ascii_control()) {
+                warn!(input = %bytes_to_trace_string(i),
+                      "unsupported segment in parameter list");
             }
-        }
-    }
-    Ok((b"", params))
+            i
+        })(input)
+    };
+    let (input, params) = terminated(
+        many0(preceded(tag(";"), alt((
+            map(terminated(parameter, opt(junk)), Some),
+            map(junk, |_| None),
+        )))),
+        opt(tag(";")),
+    )(input)?;
+
+    Ok((input, params.into_iter().flatten().collect()))
 }
 pub fn parameter(input: &[u8]) -> IResult<&[u8], Parameter<'_>> {
     // We handle both '=' and ':' as separators. ':' is not valid but
@@ -701,7 +706,8 @@ mod tests {
     }
 
     #[test]
-    fn test_parameter_terminated_with_semi_colon() {
+    fn test_parameter_list_semicolons() {
+        // we allow final semicolons
         assert_eq!(
             parameter_list(b";boundary=\"festivus\";"),
             Ok((
@@ -725,6 +731,25 @@ mod tests {
                     Parameter {
                         name: MIMEAtom(b"format"[..].into()),
                         value: MIMEWord::Atom(MIMEAtom(b"flowed"[..].into())),
+                    },
+                ],
+            ))
+        );
+
+        // semicolons can appear between quotes, this is part of the normal
+        // quote syntax
+        assert_eq!(
+            parameter_list(b"; boundary=\"abc;def\"; foo=bar"),
+            Ok((
+                &b""[..],
+                vec![
+                    Parameter {
+                        name: MIMEAtom(b"boundary"[..].into()),
+                        value: MIMEWord::Quoted(QuotedString(vec!["abc;def"[..].into()])),
+                    },
+                    Parameter {
+                        name: MIMEAtom(b"foo"[..].into()),
+                        value: MIMEWord::Atom(MIMEAtom(b"bar"[..].into())),
                     },
                 ],
             ))
@@ -796,6 +821,10 @@ mod tests {
             Ok((
                 &b""[..],
                 vec![
+                    Parameter {
+                        name: MIMEAtom(b"name".into()),
+                        value: MIMEWord::Atom(MIMEAtom(b"threadTest.ml".into())),
+                    },
                     Parameter {
                         name: MIMEAtom(b"baz".into()),
                         value: MIMEWord::Atom(MIMEAtom(b"qux".into())),

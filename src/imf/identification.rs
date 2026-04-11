@@ -5,7 +5,7 @@ use tracing::warn;
 use bounded_static::ToStatic;
 use nom::{
     branch::alt,
-    bytes::complete::{is_not, tag},
+    bytes::complete::tag,
     combinator::{eof, map, opt, recognize},
     multi::{many0, separated_list1},
     sequence::{delimited, pair, preceded, tuple},
@@ -17,14 +17,13 @@ use crate::{
     arbitrary_utils::arbitrary_vec_nonempty,
     fuzz_eq::FuzzEq,
 };
-#[cfg(feature = "tracing-unsupported")]
+#[cfg(any(feature = "tracing-recover", feature = "tracing-unsupported"))]
 use crate::utils::bytes_to_trace_string;
 use eml_codec_derives::instrument_input;
 use crate::i18n::ContainsUtf8;
 use crate::print::{print_seq, Print, Formatter, ToStringFromPrint};
 use crate::imf::mailbox::{domain, dtext, local_part, Domain, Dtext, LocalPart};
-use crate::text::encoding::{encoded_word, Context};
-use crate::text::quoted::quoted_string;
+use crate::text::recovery::{take_quoted_or_until, take_quoted_encoded_or_until1};
 use crate::text::whitespace::cfws;
 use crate::text::words::{dot_atom, DotAtom};
 
@@ -144,29 +143,34 @@ where F: for<'a> Fn(&'a [u8]) -> IResult<&'a [u8], &'a [u8]>
 /// resort, any bytes until encountering something that could be the start of
 /// one of the more "structured" tokens (msg-id, encoded word, quoted string).
 ///
-/// Additionally, we try to recover from broken msg-ids: after reading a
-/// '<', if we can't parse a valid msg-id, we skip to the next '>' and
-/// continue parsing.
+/// Additionally, we try to recover from broken msg-ids: after reading a '<', if
+/// we can't parse a valid msg-id, we skip to the next '>' and continue parsing.
 #[instrument_input("tracing")]
 pub fn nullable_msg_list(input: &[u8]) -> IResult<&[u8], MessageIDList<'_>> {
     let (input, tokens) = many0(alt((
         map(msg_id_angle, Some),
-        // NOTE: looking syntactically for the next > is somewhat naive, as
-        // msg-ids can contain quoted or encoded words; but at least this is
-        // better than nothing...
-        map(recognize(tuple((tag("<"), many0(is_not(">")), tag(">")))), |_i| {
-            #[cfg(feature = "tracing-unsupported")]
+        // recovery: recognize a broken msg-id, skipping to the next >
+        map(
+            recognize(tuple((tag("<"),
+                             take_quoted_or_until(|c| c == b'>'),
+                             // use opt() since we might also be at end of input...
+                             opt(tag(">"))))),
+            |_i| {
+                #[cfg(feature = "tracing-unsupported")]
+                warn!(input = %bytes_to_trace_string(_i),
+                      "unsupported msg-id in msg-list");
+                None
+            }
+        ),
+        // compliant CFWS in between msg-ids
+        map(cfws, |_| None),
+        // recovery: recognize junk in between msg-ids, skipping to the next <
+        map(take_quoted_encoded_or_until1(|c| c == b'<'), |_i| {
+            #[cfg(feature = "tracing-recover")]
             warn!(input = %bytes_to_trace_string(_i),
-                  "unsupported msg-id in msg-list");
+                  "non-compliant text between msg-ids");
             None
         }),
-        map(cfws, |_| None),
-        map(quoted_string, |_| None),
-        map(encoded_word(Context::Phrase), |_| None),
-        // skip until encountering either a < (for the beginning of msg-id), a =
-        // (for the beginning of encoded-word), or a \" (beginning of quoted
-        // string).
-        map(is_not("<=\""), |_| None),
     )))(input)?;
 
     Ok((input, tokens.into_iter().flatten().collect()))
@@ -385,6 +389,23 @@ mod tests {
         assert_msg_list_reprinted(
             b"<abc@def>,<foo\n\tbar@outlook.com>,<baz@outlook.com>",
             b"<abc@def> <baz@outlook.com>",
+        );
+
+        // worse offenders, not found IRL but demonstrate the behavior of our
+        // recovery strategy
+        assert_msg_list_reprinted(
+            b"<abc@def>,<foo\n\tbar@outlook.com ",
+            b"<abc@def>",
+        );
+
+        assert_msg_list_reprinted(
+            b"<abc@def>,random\"garbage=?utf-8?q?aabb?= <uuu@jjj>",
+            b"<abc@def> <uuu@jjj>",
+        );
+
+        assert_msg_list_reprinted(
+            b"<abc@def>,<randomgarbage\">\" <uuu@jjj>",
+            b"<abc@def>",
         );
     }
 }
