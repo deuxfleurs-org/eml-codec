@@ -7,7 +7,7 @@ use crate::fuzz_eq::FuzzEq;
 #[cfg(feature = "tracing-unsupported")]
 use crate::utils::bytes_to_trace_string;
 use crate::header;
-use crate::imf::address::{address_list, nullable_address_list, AddressList};
+use crate::imf::address::{nullable_address_list, AddressList};
 use crate::imf::datetime::{date_time, DateTime};
 use crate::imf::identification::{msg_id, nullable_msg_list, MessageID, MessageIDList};
 use crate::imf::mailbox::{mailbox, mailbox_list, MailboxList, MailboxRef};
@@ -124,7 +124,13 @@ impl<'a> TryFrom<&header::FieldRaw<'a>> for Field<'a> {
                     Ok(Field::ReplyTo(addrs))
                 }
             }),
-            b"to" => map_res(address_list(f.body), Field::To),
+            b"to" => bind_res(nullable_address_list(f.body), |addrs| {
+                if addrs.is_empty() {
+                    Err(InvalidField::NeedsDiscard)
+                } else {
+                    Ok(Field::To(addrs))
+                }
+            }),
             b"cc" => bind_res(nullable_address_list(f.body), |addrs| {
                 if addrs.is_empty() {
                     Err(InvalidField::NeedsDiscard)
