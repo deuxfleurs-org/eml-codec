@@ -8,7 +8,7 @@ use nom::{
     bytes::complete::{tag, take, take_while1},
     combinator::{map, opt, verify},
     multi::many0,
-    sequence::{pair, preceded},
+    sequence::{delimited, pair, preceded},
     IResult,
 };
 use std::borrow::Cow;
@@ -209,12 +209,13 @@ fn qcontent(input: &[u8]) -> IResult<&[u8], Option<Cow<'_, str>>> {
 /// ```
 #[instrument_input("tracing")]
 pub fn quoted_string(input: &[u8]) -> IResult<&[u8], QuotedString<'_>> {
-    let (input, _) = opt(cfws)(input)?;
+    delimited(opt(cfws), quoted_string_plain, opt(cfws))(input)
+}
+pub fn quoted_string_plain(input: &[u8]) -> IResult<&[u8], QuotedString<'_>> {
     let (input, _) = tag("\"")(input)?;
     let (input, content) = many0(pair(opt(fws), qcontent))(input)?;
     let (input, maybe_wsp) = opt(fws)(input)?;
     let (input, _) = tag("\"")(input)?;
-    let (input, _) = opt(cfws)(input)?;
 
     // Rebuild string
     let mut qstring = content

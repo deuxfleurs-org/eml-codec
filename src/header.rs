@@ -125,7 +125,7 @@ pub fn header_kv(input: &[u8]) -> (&[u8], Vec<FieldRaw<'_>>) {
     fields.push(terminator);
 
     // drop `None`s ("bad" fields)
-    let fields = fields.into_iter().filter_map(|f| f).collect();
+    let fields = fields.into_iter().flatten().collect();
 
     (input, fields)
 }
