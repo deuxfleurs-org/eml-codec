@@ -13,7 +13,7 @@ use tracing::warn;
 
 #[cfg(feature = "arbitrary")]
 use crate::fuzz_eq::FuzzEq;
-#[cfg(feature = "tracing")]
+#[cfg(any(feature = "tracing-recover", feature = "tracing-unsupported"))]
 use crate::utils::bytes_to_trace_string;
 use crate::i18n::ContainsUtf8;
 use crate::print::{Print, Formatter, ToStringFromPrint};

@@ -24,7 +24,7 @@ use crate::i18n::ContainsUtf8;
 use crate::print::{Print, Formatter};
 use crate::text::misc_token;
 use crate::text::whitespace::{foldable_line, obs_crlf};
-#[cfg(feature = "tracing")]
+#[cfg(any(feature = "tracing-recover", feature = "tracing-unsupported"))]
 use crate::utils::bytes_to_trace_string;
 
 // A valid header field name.

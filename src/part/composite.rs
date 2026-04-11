@@ -56,7 +56,7 @@ pub fn multipart<'a>(
 
     move |input| {
         #[cfg(feature = "tracing")]
-        let span = span!(Level::TRACE, "part::composite::multipart", ?m);
+        let span = span!(Level::DEBUG, "part::composite::multipart", ?m);
         #[cfg(feature = "tracing")]
         let _enter = span.enter();
 
@@ -178,7 +178,7 @@ pub fn message<'a>(
 ) -> impl Fn(&'a [u8]) -> Message<'a> {
     move |input: &[u8]| {
         #[cfg(feature = "tracing")]
-        let span = span!(Level::TRACE, "part::composite::message", ?m);
+        let span = span!(Level::DEBUG, "part::composite::message", ?m);
         #[cfg(feature = "tracing")]
         let _enter = span.enter();
 
