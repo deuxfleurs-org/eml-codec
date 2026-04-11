@@ -1,11 +1,11 @@
 #[cfg(feature = "arbitrary")]
 use arbitrary::Arbitrary;
-#[cfg(feature = "tracing-recover")]
+#[cfg(any(feature = "tracing-recover", feature = "tracing-unsupported"))]
 use tracing::warn;
 use bounded_static::ToStatic;
 use nom::{
     branch::alt,
-    bytes::complete::tag,
+    bytes::complete::{is_not, tag},
     combinator::{eof, map, opt, recognize},
     multi::{many0, separated_list1},
     sequence::{delimited, pair, preceded, tuple},
@@ -17,10 +17,14 @@ use crate::{
     arbitrary_utils::arbitrary_vec_nonempty,
     fuzz_eq::FuzzEq,
 };
+#[cfg(feature = "tracing-unsupported")]
+use crate::utils::bytes_to_trace_string;
 use eml_codec_derives::instrument_input;
 use crate::i18n::ContainsUtf8;
 use crate::print::{print_seq, Print, Formatter, ToStringFromPrint};
 use crate::imf::mailbox::{domain, dtext, local_part, Domain, Dtext, LocalPart};
+use crate::text::encoding::{encoded_word, Context};
+use crate::text::quoted::quoted_string;
 use crate::text::whitespace::cfws;
 use crate::text::words::{dot_atom, DotAtom};
 
@@ -133,24 +137,36 @@ where F: for<'a> Fn(&'a [u8]) -> IResult<&'a [u8], &'a [u8]>
 /// ```
 /// In the obs- syntax, the phrase tokens must be ignored.
 ///
-/// However, historical emails seem to contain a lot of nonsense in between msg-id,
-/// a lot of it not part of the "phrase" syntax. We implement a more lenient parser
-/// that skips quoted strings, encoded words (both part of the phrase syntax), and
-/// as a last resort, any bytes until encountering something that could be the start
-/// of one of the more "structured" tokens (msg-id, encoded word, quoted string).
+/// However, historical emails seem to contain a lot of nonsense in between
+/// msg-id, and a lot of it is not part of the "phrase" syntax. We implement a
+/// more lenient parser that skips "everything" in-between msg-ids: quoted
+/// strings, encoded words (both part of the phrase syntax), and as a last
+/// resort, any bytes until encountering something that could be the start of
+/// one of the more "structured" tokens (msg-id, encoded word, quoted string).
+///
+/// Additionally, we try to recover from broken msg-ids: after reading a
+/// '<', if we can't parse a valid msg-id, we skip to the next '>' and
+/// continue parsing.
 #[instrument_input("tracing")]
 pub fn nullable_msg_list(input: &[u8]) -> IResult<&[u8], MessageIDList<'_>> {
-    use crate::text::quoted::quoted_string;
-    use crate::text::encoding::{encoded_word, Context};
     let (input, tokens) = many0(alt((
         map(msg_id_angle, Some),
+        // NOTE: looking syntactically for the next > is somewhat naive, as
+        // msg-ids can contain quoted or encoded words; but at least this is
+        // better than nothing...
+        map(recognize(tuple((tag("<"), many0(is_not(">")), tag(">")))), |_i| {
+            #[cfg(feature = "tracing-unsupported")]
+            warn!(input = %bytes_to_trace_string(_i),
+                  "unsupported msg-id in msg-list");
+            None
+        }),
         map(cfws, |_| None),
         map(quoted_string, |_| None),
         map(encoded_word(Context::Phrase), |_| None),
         // skip until encountering either a < (for the beginning of msg-id), a =
         // (for the beginning of encoded-word), or a \" (beginning of quoted
         // string).
-        map(nom::bytes::complete::is_not("<=\""), |_| None),
+        map(is_not("<=\""), |_| None),
     )))(input)?;
 
     Ok((input, tokens.into_iter().flatten().collect()))
@@ -358,6 +374,17 @@ mod tests {
         assert_msg_list_reprinted(
             b"<3AB624F9.5B6C6680@example.com> from \"Foo bar\" on Mon, Mar 19, 2001 at 04:25:45 AM",
             b"<3AB624F9.5B6C6680@example.com>"
+        );
+    }
+
+    #[test]
+    fn test_msg_list_recover() {
+        // The second msg-id is broken (incorrect line folding). Skip it and
+        // allow parsing to continue.
+        // (Found in URSSAF emails.)
+        assert_msg_list_reprinted(
+            b"<abc@def>,<foo\n\tbar@outlook.com>,<baz@outlook.com>",
+            b"<abc@def> <baz@outlook.com>",
         );
     }
 }
