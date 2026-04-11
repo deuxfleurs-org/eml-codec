@@ -6,7 +6,7 @@ use nom::{
     bytes::complete::tag,
     combinator::{map, opt},
     multi::many0,
-    sequence::{delimited, preceded, terminated, tuple},
+    sequence::{delimited, preceded, separated_pair, terminated, tuple},
     IResult,
 };
 #[cfg(feature = "tracing")]
@@ -39,29 +39,31 @@ impl<'a> NaiveType<'a> {
     }
 }
 pub fn naive_type(input: &[u8]) -> IResult<&[u8], NaiveType<'_>> {
-    alt((
+    let (input, (main, sub)) = alt((
+        separated_pair(mime_atom, tag("/"), mime_atom),
+        // Recognize some broken content-types found in the real world:
+        recover_broken_type(b"text", b"text", b"plain"),
+        recover_broken_type(b".pdf", b"application", b"pdf"),
+    ))(input)?;
+    let (input, params) = parameter_list(input)?;
+    Ok((input, NaiveType { main, sub, params }))
+}
+pub fn recover_broken_type<'a>(broken_name: &'a [u8], main: &'a [u8], sub: &'a[u8]) ->
+  impl FnMut(&'a [u8]) -> IResult<&'a [u8], (MIMEAtom<'a>, MIMEAtom<'a>)>
+{
+    move |input: &[u8]| {
         map(
-            tuple((mime_atom, tag("/"), mime_atom, parameter_list)),
-            |(main, _, sub, params)| NaiveType { main, sub, params }
-        ),
-        // outside of RFCs but found in old emails: recognize "text"
-        // as alias for "text/plain"
-        map(
-            preceded(
-                delimited(opt(cfws), tag("text"), opt(cfws)),
-                parameter_list,
-            ),
-            |params| {
+            delimited(opt(cfws), tag(broken_name), opt(cfws)),
+            |_| {
                 #[cfg(feature = "tracing-recover")]
-                warn!("bare 'text' content-type instead of text/plain");
-                NaiveType {
-                    main: MIMEAtom(b"text".into()),
-                    sub: MIMEAtom(b"plain".into()),
-                    params,
-                }
+                warn!("use of broken content-type {}, interpreted as {}/{}",
+                      String::from_utf8_lossy(broken_name),
+                      String::from_utf8_lossy(main),
+                      String::from_utf8_lossy(sub));
+                (MIMEAtom(main.into()), MIMEAtom(sub.into()))
             }
-        ),
-    ))(input)
+        )(input)
+    }
 }
 
 // XXX we allow printing content types without further validation;
