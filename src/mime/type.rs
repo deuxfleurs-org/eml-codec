@@ -163,7 +163,7 @@ pub fn parameter(input: &[u8]) -> IResult<&[u8], Parameter<'_>> {
 pub enum AnyType<'a> {
     // Composite types
     Multipart(Multipart<'a>),         // multipart/*
-    Message(Message<'a>),             // message/*
+    Message(Message<'a>),             // message/{rfc822, global}
 
     // Discrete types
     Text(Text<'a>),                   // text/*
@@ -178,7 +178,11 @@ impl<'a> From<&NaiveType<'a>> for AnyType<'a> {
                 Multipart::try_from(nt)
                 .map(Self::Multipart)
                 .unwrap_or(Self::Binary(Binary::from(nt))),
-            b"message" => Self::Message(Message::from(nt)),
+            b"message" =>
+                // fails if this the subtype is not supported
+                Message::try_from(nt)
+                .map(Self::Message)
+                .unwrap_or(Self::Binary(Binary::from(nt))),
             b"text" => Self::Text(Text::from(nt)),
             _ => Self::Binary(Binary::from(nt)),
         }
@@ -344,20 +348,12 @@ pub enum MessageSubtype {
     #[default]
     RFC822,
     Global, // RFC6532 subtype (message containing UTF-8 headers)
-    Partial,
-    External,
-    // neither of the above (ignoring capitalization).
-    // should be treated as the Binary type
-    Unknown(MIMEAtom<'static>),
 }
 impl MessageSubtype {
     fn as_bytes(&self) -> &[u8] {
         match self {
             Self::RFC822 => b"rfc822",
             Self::Global => b"global",
-            Self::Partial => b"partial",
-            Self::External => b"external",
-            Self::Unknown(b) => &b.0,
         }
     }
 }
@@ -367,15 +363,15 @@ impl Print for MessageSubtype {
     }
 }
 
-impl<'a> From<&NaiveType<'a>> for MessageSubtype {
-    fn from(nt: &NaiveType<'a>) -> Self {
+impl<'a> TryFrom<&NaiveType<'a>> for MessageSubtype {
+    type Error = ();
+
+    fn try_from(nt: &NaiveType<'a>) -> Result<Self, ()> {
         let sub = nt.sub.0.to_ascii_lowercase();
         match sub.as_slice() {
-            b"rfc822" => MessageSubtype::RFC822,
-            b"global" => MessageSubtype::Global,
-            b"partial" => MessageSubtype::Partial,
-            b"external" => MessageSubtype::External,
-            _ => MessageSubtype::Unknown(nt.sub.to_static()),
+            b"rfc822" => Ok(MessageSubtype::RFC822),
+            b"global" => Ok(MessageSubtype::Global),
+            _ => Err(()),
         }
     }
 }
@@ -383,19 +379,9 @@ impl<'a> From<&NaiveType<'a>> for MessageSubtype {
 #[cfg(feature = "arbitrary")]
 impl<'a> Arbitrary<'a> for MessageSubtype {
     fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
-        match u.int_in_range(0..=4)? {
+        match u.int_in_range(0..=1)? {
             0 => Ok(MessageSubtype::RFC822),
             1 => Ok(MessageSubtype::Global),
-            2 => Ok(MessageSubtype::Partial),
-            3 => Ok(MessageSubtype::External),
-            4 => {
-                let a: MIMEAtom = u.arbitrary()?;
-                if matches!(a.0.to_ascii_lowercase().as_slice(),
-                            b"rfc822" | b"global" | b"partial" | b"external") {
-                    return Err(arbitrary::Error::IncorrectFormat)
-                }
-                Ok(MessageSubtype::Unknown(a))
-            },
             _ => unreachable!(),
         }
     }
@@ -420,12 +406,13 @@ impl<'a> Print for Message<'a> {
     }
 }
 
-impl<'a> From<&NaiveType<'a>> for Message<'a> {
-    fn from(nt: &NaiveType<'a>) -> Self {
-        Self {
-            subtype: MessageSubtype::from(nt),
+impl<'a> TryFrom<&NaiveType<'a>> for Message<'a> {
+    type Error = ();
+    fn try_from(nt: &NaiveType<'a>) -> Result<Self, ()> {
+        Ok(Self {
+            subtype: MessageSubtype::try_from(nt)?,
             params: nt.params.clone(),
-        }
+        })
     }
 }
 
@@ -671,12 +658,26 @@ mod tests {
     fn test_content_type_message() {
         let (rest, nt) = naive_type(b"message/rfc822").unwrap();
         assert_eq!(rest, &[]);
-
         assert_eq!(
             nt.to_type(),
             AnyType::Message(Message {
                 subtype: MessageSubtype::RFC822,
                 params: vec![],
+            })
+        );
+
+        // unknown message subtype: treat it as "application/octet-stream"
+        // (i.e. opaque Binary part)
+        let (rest, nt) = naive_type(b"message/delivery-status").unwrap();
+        assert_eq!(rest, &[]);
+        assert_eq!(
+            nt.to_type(),
+            AnyType::Binary(Binary {
+                ctype: NaiveType {
+                    main: MIMEAtom(b"message"[..].into()),
+                    sub: MIMEAtom(b"delivery-status"[..].into()),
+                    params: vec![],
+                }
             })
         );
     }
