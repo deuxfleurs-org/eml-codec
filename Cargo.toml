@@ -35,7 +35,6 @@ path = "examples/parse.rs"
 [[example]]
 name = "trace"
 path = "examples/trace.rs"
-required-features = ["tracing"]
 
 [dependencies]
 nom = "7"
