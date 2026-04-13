@@ -86,3 +86,14 @@ pub fn arbitrary_shuffle<T>(u: &mut Unstructured, v: &mut Vec<T>) -> Result<()> 
     }
     Ok(())
 }
+
+pub fn arbitrary_part_body(u: &mut Unstructured) -> Result<Vec<u8>> {
+    // XXX one or two final \r may get eaten by the best-effort parsing strategy...
+    // (see also the comment in the test `test_multipart_cr` in part/composite.rs)
+    // as a workaround, avoid this case for now...
+    let mut body: Vec<_> = u.arbitrary()?;
+    if let Some(b'\r') = body.last() {
+        body.push(b'X')
+    }
+    Ok(body)
+}
