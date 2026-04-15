@@ -13,7 +13,7 @@ between the header information and the body of the message."#;
     let (_, imf) = eml_codec::parse_imf(input);
     println!(
         "{} just sent you an email with subject \"{}\"",
-        imf.from_or_sender().to_string(),
+        imf.from_or_sender().unwrap().to_string(),
         imf.subject.unwrap().to_string(),
     );
 
