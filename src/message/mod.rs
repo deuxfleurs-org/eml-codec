@@ -304,9 +304,10 @@ between the header information and the body of the message.";
                         domain: Domain::Atoms(vec![Atom("example"[..].into()), Atom("com"[..].into())]),
                     }
                 };
-                let mut imf = Imf::new(
-                    From::Single { from, sender: None },
-                    DateTime(FixedOffset::east_opt(2 * 3600).unwrap().with_ymd_and_hms(2023, 3, 7, 8, 0, 0).unwrap()),
+                let mut imf = Imf::new();
+                imf.from = From::Single { from, sender: None };
+                imf.date = imf::DateTimeOpt::Some(
+                    DateTime(FixedOffset::east_opt(2 * 3600).unwrap().with_ymd_and_hms(2023, 3, 7, 8, 0, 0).unwrap())
                 );
                 imf.to = vec![AddressRef::Single(MailboxRef {
                     name: None,
@@ -431,8 +432,9 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                             .with_ymd_and_hms(2023, 07, 8, 7, 14, 29)
                             .unwrap());
 
-                        let mut imf = imf::Imf::new(imf::From::Single { from, sender: None }, date);
-
+                        let mut imf = imf::Imf::new();
+                        imf.from = imf::From::Single { from, sender: None };
+                        imf.date = imf::DateTimeOpt::Some(date);
                         imf.to = vec![imf::address::AddressRef::Single(imf::mailbox::MailboxRef {
                                 name: Some(Phrase(vec![
                                     PhraseToken::Word(Word::Atom(Atom("John"[..].into()))),
@@ -648,11 +650,7 @@ hello: yolo
 
 hello??",
             {
-                let from = imf::mailbox::MailboxRef::placeholder();
-                let imf = Imf::new(
-                    From::Single { from, sender: None },
-                    imf::datetime::DateTime::placeholder(),
-                );
+                let imf = Imf::new();
 
                 let mime_body = part::MimeBody::Txt(
                     part::discrete::Text {
@@ -672,8 +670,6 @@ hello??",
                             UnstrToken::from_plain("yolo", UnstrTxtKind::Txt),
                         ]),
                     }),
-                    MessageEntry::Imf(imf::field::Entry::Date),
-                    MessageEntry::Imf(imf::field::Entry::From),
                     MessageEntry::Imf(imf::field::Entry::MIMEVersion),
                 ];
 
@@ -684,8 +680,6 @@ hello??",
                 }
             },
             b"hello: yolo\r
-Date: Thu, 1 Jan 1970 00:00:00 +0000\r
-From: unknown@unknown\r
 MIME-Version: 1.0\r
 \r
 hello??",
@@ -730,8 +724,6 @@ Received: from sympa.lmf.cnrs.fr (sympa.lmf.cnrs.fr [10.0.0.2])        (using\r
  DC88D214EA;        Mon,  2 Mar 2026 15:43:37 +0000 (UTC)\r
 Received: by sympa.lmf.cnrs.fr (Postfix, from userid 106)        id\r
  ACE8B4A03ED; Mon,  2 Mar 2026 16:43:37 +0100 (CET)\r
-Date: Thu, 1 Jan 1970 00:00:00 +0000\r
-From: unknown@unknown\r
 MIME-Version: 1.0\r
 \r
 "

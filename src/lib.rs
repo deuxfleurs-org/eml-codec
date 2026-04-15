@@ -59,7 +59,7 @@ mod arbitrary_utils;
 /// let email = eml_codec::parse_message(input);
 /// println!(
 ///     "{} message structure is:\n{:#?}",
-///     email.imf.from_or_sender().to_string(),
+///     email.imf.from_or_sender().unwrap().to_string(),
 ///     email,
 /// );
 /// ```
@@ -108,7 +108,7 @@ pub fn print_message(msg: message::Message<'_>, seed: Option<u64>) -> Vec<u8> {
 /// let (_, imf) = eml_codec::parse_imf(input);
 /// println!(
 ///     "{} just sent you an email with subject \"{}\"",
-///     imf.from_or_sender().to_string(),
+///     imf.from_or_sender().unwrap().to_string(),
 ///     imf.subject.unwrap().to_string(),
 /// );
 /// ```
