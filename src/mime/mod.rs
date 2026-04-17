@@ -14,13 +14,11 @@ use std::collections::HashSet;
 
 #[cfg(feature = "arbitrary")]
 use crate::fuzz_eq::FuzzEq;
-use crate::header;
 use crate::i18n::ContainsUtf8;
 use crate::imf::identification::MessageID;
-use crate::mime::field::{Field, Entry as FieldEntry};
+use crate::mime::field::NaiveField;
 use crate::mime::mechanism::Mechanism;
 use crate::mime::r#type::{AnyType, NaiveType, MessageSubtype};
-use crate::print::Formatter;
 use crate::text::misc_token::Unstructured;
 use crate::utils::set_opt;
 
@@ -126,26 +124,16 @@ impl<'a> AnyMIME<'a> {
         }
     }
 
-    pub fn print_field(&self, f: FieldEntry, fmt: &mut impl Formatter) {
+    pub fn get_field(&self, f: field::Entry) -> Option<field::Field<'a>> {
         match f {
-            FieldEntry::Type =>
-                header::print(fmt, b"Content-Type", self.ctype()),
-            FieldEntry::TransferEncoding =>
-                header::print(
-                    fmt,
-                    b"Content-Transfer-Encoding",
-                    &self.common().transfer_encoding
-                ),
-            FieldEntry::ID => {
-                if let Some(id) = &self.common().id {
-                    header::print(fmt, b"Content-Id", id)
-                }
-            },
-            FieldEntry::Description => {
-                if let Some(desc) = &self.common().description {
-                    header::print_unstructured(fmt, b"Content-Description", desc)
-                }
-            },
+            field::Entry::Type =>
+                Some(field::Field::Type(self.ctype())),
+            field::Entry::TransferEncoding =>
+                Some(field::Field::TransferEncoding(self.common().transfer_encoding.clone())),
+            field::Entry::ID =>
+                self.common().id.clone().map(field::Field::ID),
+            field::Entry::Description =>
+                self.common().description.clone().map(field::Field::Description),
         }
     }
 
@@ -210,16 +198,16 @@ pub struct NaiveMIME<'a> {
 }
 
 impl<'a> NaiveMIME<'a> {
-    pub fn add_field(&mut self, f: Field<'a>) -> Option<FieldEntry> {
+    pub fn add_field(&mut self, f: NaiveField<'a>) -> Option<field::Entry> {
         match f {
-            Field::Type(ctype) =>
-                set_opt(&mut self.ctype, ctype).then_some(FieldEntry::Type),
-            Field::TransferEncoding(enc) =>
-                set_opt(&mut self.transfer_encoding, enc).then_some(FieldEntry::TransferEncoding),
-            Field::ID(id) =>
-                set_opt(&mut self.id, id).then_some(FieldEntry::ID),
-            Field::Description(desc) =>
-                set_opt(&mut self.description, desc).then_some(FieldEntry::Description),
+            NaiveField::Type(ctype) =>
+                set_opt(&mut self.ctype, ctype).then_some(field::Entry::Type),
+            NaiveField::TransferEncoding(enc) =>
+                set_opt(&mut self.transfer_encoding, enc).then_some(field::Entry::TransferEncoding),
+            NaiveField::ID(id) =>
+                set_opt(&mut self.id, id).then_some(field::Entry::ID),
+            NaiveField::Description(desc) =>
+                set_opt(&mut self.description, desc).then_some(field::Entry::Description),
         }
     }
 

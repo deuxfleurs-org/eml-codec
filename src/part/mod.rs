@@ -24,7 +24,7 @@ use crate::part::{
     composite::{message, multipart, Message, Multipart},
     discrete::{Binary, Text},
 };
-use crate::print::{Print, Formatter};
+use crate::print::{print_seq, Print, Formatter};
 
 #[derive(Clone, Debug, PartialEq, ToStatic)]
 #[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
@@ -51,6 +51,25 @@ impl<'a> AnyPart<'a> {
         }).is_some()
         ||
         self.mime_body.mime().contains_utf8()
+    }
+
+    // TODO: return an iterator instead of a Vec?
+    pub fn field_list(&self) -> Vec<field::EntityField<'a>> {
+        let mime = self.mime_body.mime();
+        let mut v = vec![];
+        for e in &self.entries {
+            let field = match e {
+                field::EntityEntry::MIME(e) => {
+                    // SAFETY: `self.entries` must only contain entries for
+                    // fields that are actually present in `mime`.
+                    field::EntityField::MIME(mime.get_field(*e).unwrap())
+                },
+                field::EntityEntry::Unstructured(u) =>
+                    field::EntityField::Unstructured(u.clone()),
+            };
+            v.push(field);
+        }
+        v
     }
 }
 
@@ -157,13 +176,7 @@ impl<'a> From<Message<'a>> for MimeBody<'a> {
 impl<'a> Print for AnyPart<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
         fmt.begin_line_folding();
-        let mime = self.mime_body.mime();
-        for entry in &self.entries {
-            match entry {
-                field::EntityEntry::Unstructured(u) => u.print(fmt),
-                field::EntityEntry::MIME(f) => mime.print_field(*f, fmt),
-            }
-        }
+        print_seq(fmt, &self.field_list(), |_| ());
         fmt.end_line_folding();
         fmt.write_crlf();
         self.mime_body.print_body(fmt);

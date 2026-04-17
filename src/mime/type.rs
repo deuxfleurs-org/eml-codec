@@ -158,7 +158,7 @@ pub fn parameter(input: &[u8]) -> IResult<&[u8], Parameter<'_>> {
 
 // MIME TYPES TRANSLATED TO RUST TYPING SYSTEM
 
-#[derive(Debug, PartialEq, ToStatic)]
+#[derive(Clone, Debug, PartialEq, ToStatic)]
 #[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
 pub enum AnyType<'a> {
     // Composite types
