@@ -31,7 +31,7 @@ impl<'a> FromIterator<header::FieldRaw<'a>> for EntityFields<'a> {
     fn from_iter<I: IntoIterator<Item = header::FieldRaw<'a>>>(it: I) -> Self {
         let mut e: EntityFields<'a> = Default::default();
         for f in it {
-            match mime::field::Content::try_from(&f) {
+            match mime::field::Field::try_from(&f) {
                 Ok(mimef) => {
                     if let Some(entry) = e.mime.add_field(mimef) {
                         e.entries.push(EntityEntry::MIME(entry))
