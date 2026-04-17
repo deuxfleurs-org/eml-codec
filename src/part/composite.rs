@@ -11,7 +11,7 @@ use crate::fuzz_eq::FuzzEq;
 use crate::i18n::ContainsUtf8;
 use crate::header;
 use crate::mime;
-use crate::part::{self, AnyPart, field::EntityFields};
+use crate::part::{self, AnyPart, field::NaiveEntityFields};
 use crate::text::boundary::{boundary, Delimiter};
 
 //--- Multipart
@@ -98,7 +98,8 @@ pub fn multipart<'a>(
 
             // parse mime headers, otherwise pick default mime
             let (input, fields_raw) = header::header_kv(input);
-            let EntityFields { entries, mime } = fields_raw.into_iter().collect::<EntityFields>();
+            let NaiveEntityFields { entries, mime } =
+                fields_raw.into_iter().collect::<NaiveEntityFields>();
 
             // interpret mime according to context
             let mime = match m.ctype.subtype {
@@ -182,7 +183,7 @@ pub fn message<'a>(
         let (input, headers) = header::header_kv(input);
         // detect UTF-8 use in headers
         let has_utf8 = headers.iter().any(|f| f.contains_utf8());
-        let fields: EntityFields = headers.into_iter().collect();
+        let fields: NaiveEntityFields = headers.into_iter().collect();
 
         let mut msg_mime = m.clone();
         // If the headers contain non-ascii UTF8 and if this is a

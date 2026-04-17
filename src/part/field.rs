@@ -6,16 +6,27 @@ use tracing::warn;
 use crate::fuzz_eq::FuzzEq;
 use crate::header;
 use crate::mime;
+use crate::print::{Print, Formatter};
 
-/// Header fields of a generic MIME entity (a MIME entity that is not a toplevel
-/// message). Contains either MIME-defined fields or unstructured fields.
-#[derive(Debug, Default, PartialEq, ToStatic)]
+/// Header field of a generic MIME entity (a MIME entity that is not a toplevel
+/// message). Is either a MIME-defined field or an unstructured field.
+#[derive(Clone, Debug, PartialEq, ToStatic)]
 #[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
-pub(crate) struct EntityFields<'a> {
-    pub mime: mime::NaiveMIME<'a>,
-    pub entries: Vec<EntityEntry<'a>>,
+pub enum EntityField<'a> {
+    MIME(mime::field::Field<'a>),
+    Unstructured(header::Unstructured<'a>),
 }
 
+impl<'a> Print for EntityField<'a> {
+    fn print(&self, fmt: &mut impl Formatter) {
+        match self {
+            EntityField::MIME(f) => f.print(fmt),
+            EntityField::Unstructured(u) => u.print(fmt),
+        }
+    }
+}
+
+/// Entry for an entity field.
 #[derive(Clone, Debug, PartialEq, ToStatic)]
 #[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
 pub enum EntityEntry<'a> {
@@ -23,15 +34,24 @@ pub enum EntityEntry<'a> {
     Unstructured(header::Unstructured<'a>),
 }
 
-impl<'a> FromIterator<header::FieldRaw<'a>> for EntityFields<'a> {
+/// Collects fields and entries for a generic MIME entity. Only for eml-codec's
+/// internal use.
+#[derive(Debug, Default, PartialEq, ToStatic)]
+#[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
+pub(crate) struct NaiveEntityFields<'a> {
+    pub mime: mime::NaiveMIME<'a>,
+    pub entries: Vec<EntityEntry<'a>>,
+}
+
+impl<'a> FromIterator<header::FieldRaw<'a>> for NaiveEntityFields<'a> {
     #[cfg_attr(
         feature = "tracing",
         tracing::instrument(name = "EntityFields::from_iter", skip(it))
     )]
     fn from_iter<I: IntoIterator<Item = header::FieldRaw<'a>>>(it: I) -> Self {
-        let mut e: EntityFields<'a> = Default::default();
+        let mut e: NaiveEntityFields<'a> = Default::default();
         for f in it {
-            match mime::field::Field::try_from(&f) {
+            match mime::field::NaiveField::try_from(&f) {
                 Ok(mimef) => {
                     if let Some(entry) = e.mime.add_field(mimef) {
                         e.entries.push(EntityEntry::MIME(entry))

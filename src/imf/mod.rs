@@ -14,7 +14,6 @@ use std::collections::HashSet;
 
 #[cfg(feature = "arbitrary")]
 use crate::fuzz_eq::FuzzEq;
-use crate::header;
 use crate::imf::address::AddressRef;
 use crate::imf::datetime::DateTime;
 use crate::imf::field::{Field, Entry};
@@ -22,7 +21,6 @@ use crate::imf::identification::MessageID;
 use crate::imf::mailbox::{MailboxRef, MailboxList};
 use crate::imf::mime::Version;
 use crate::imf::trace::ReturnPath;
-use crate::print::Formatter;
 use crate::text::misc_token::{PhraseList, Unstructured};
 
 #[derive(Clone, Debug, PartialEq, ToStatic)]
@@ -189,75 +187,63 @@ impl<'a> Imf<'a> {
         }
     }
 
-    pub fn print_field(&self, f: field::Entry, fmt: &mut impl Formatter) {
+    pub fn get_field(&self, f: field::Entry) -> Option<field::Field<'a>> {
         match f {
-            field::Entry::Date => {
-                if let DateTimeOpt::Some(date) = &self.date {
-                    header::print(fmt, b"Date", date)
-                }
-            },
-            field::Entry::From => {
-                if let Some(from) = self.from() {
-                    header::print(fmt, b"From", from)
-                }
-            },
-            field::Entry::Sender => {
-                if let Some(sender) = self.sender() {
-                    header::print(fmt, b"Sender", sender)
-                }
-            },
-            field::Entry::ReplyTo => {
+            field::Entry::Date =>
+                match &self.date {
+                    DateTimeOpt::Some(d) => Some(field::Field::Date(d.clone())),
+                    DateTimeOpt::InvalidMissing => None,
+                },
+            field::Entry::From => self.from().map(field::Field::From),
+            field::Entry::Sender => self.sender().map(field::Field::Sender),
+            field::Entry::ReplyTo =>
                 if !self.reply_to.is_empty() {
-                    header::print(fmt, b"Reply-To", &self.reply_to)
-                }
-            },
-            field::Entry::To => {
+                    Some(field::Field::ReplyTo(self.reply_to.clone()))
+                } else {
+                    None
+                },
+            field::Entry::To =>
                 if !self.to.is_empty() {
-                    header::print(fmt, b"To", &self.to)
-                }
-            },
-            field::Entry::Cc => {
+                    Some(field::Field::To(self.to.clone()))
+                } else {
+                    None
+                },
+            field::Entry::Cc =>
                 if !self.cc.is_empty() {
-                    header::print(fmt, b"Cc", &self.cc)
-                }
-            },
-            field::Entry::Bcc => {
-                if let Some(bcc) = &self.bcc {
-                    header::print(fmt, b"Bcc", bcc)
-                }
-            },
-            field::Entry::MessageId => {
-                if let Some(msg_id) = &self.msg_id {
-                    header::print(fmt, b"Message-ID", msg_id)
-                }
-            },
-            field::Entry::InReplyTo => {
+                    Some(field::Field::Cc(self.cc.clone()))
+                } else {
+                    None
+                },
+            field::Entry::Bcc =>
+                self.bcc.clone().map(field::Field::Bcc),
+            field::Entry::MessageID =>
+                self.msg_id.clone().map(field::Field::MessageID),
+            field::Entry::InReplyTo =>
                 if !self.in_reply_to.is_empty() {
-                    header::print(fmt, b"In-Reply-To", &self.in_reply_to)
-                }
-            },
-            field::Entry::References => {
+                    Some(field::Field::InReplyTo(self.in_reply_to.clone()))
+                } else {
+                    None
+                },
+            field::Entry::References =>
                 if !self.references.is_empty() {
-                    header::print(fmt, b"References", &self.references)
-                }
-            },
-            field::Entry::Subject => {
-                if let Some(subject) = &self.subject {
-                    header::print_unstructured(fmt, b"Subject", subject)
-                }
-            },
+                    Some(field::Field::References(self.references.clone()))
+                } else {
+                    None
+                },
+            field::Entry::Subject =>
+                self.subject.clone().map(field::Field::Subject),
             field::Entry::Comments(i) =>
-                header::print_unstructured(fmt, b"Comments", &self.comments[i]),
+                Some(field::Field::Comments(self.comments[i].clone())),
             field::Entry::Keywords(i) =>
-                header::print(fmt, b"Keywords", &self.keywords[i]),
+                Some(field::Field::Keywords(self.keywords[i].clone())),
             field::Entry::MIMEVersion =>
-                header::print(fmt, b"MIME-Version", &self.mime_version),
+                Some(field::Field::MIMEVersion(self.mime_version.clone())),
             field::Entry::Trace(i) =>
                 match &self.trace[i] {
                     TraceField::Received(r) =>
-                        header::print_unstructured(fmt, b"Received", r),
+                        Some(field::Field::Received(r.clone())),
                     TraceField::ReturnPath(p) =>
-                        header::print(fmt, b"Return-Path", p),
+                        Some(field::Field::ReturnPath(p.clone())),
                 }
         }
     }
@@ -311,7 +297,7 @@ impl<'a> Imf<'a> {
             fs.insert(field::Entry::Bcc);
         }
         if self.msg_id.is_some() {
-            fs.insert(field::Entry::MessageId);
+            fs.insert(field::Entry::MessageID);
         }
         if !self.in_reply_to.is_empty() {
             fs.insert(field::Entry::InReplyTo);
@@ -401,7 +387,7 @@ impl<'a> PartialImf<'a> {
             Field::Bcc(bcc) =>
                 set_or_extend(&mut self.bcc, bcc, Entry::Bcc),
             Field::MessageID(id) =>
-                set_if_new(&mut self.msg_id, id, Entry::MessageId),
+                set_if_new(&mut self.msg_id, id, Entry::MessageID),
             Field::InReplyTo(in_reply_to) =>
                 set_if_new(&mut self.in_reply_to, in_reply_to, Entry::InReplyTo),
             Field::References(refs) =>

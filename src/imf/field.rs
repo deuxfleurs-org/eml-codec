@@ -13,6 +13,7 @@ use crate::imf::identification::{msg_id, nullable_msg_list, MessageID, MessageID
 use crate::imf::mailbox::{mailbox, mailbox_list, MailboxList, MailboxRef};
 use crate::imf::mime::{version, Version};
 use crate::imf::trace::{return_path, ReturnPath};
+use crate::print::{Print, Formatter};
 use crate::text::misc_token::{phrase_list, unstructured, PhraseList, Unstructured};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, ToStatic)]
@@ -25,7 +26,7 @@ pub enum Entry {
     To,
     Cc,
     Bcc,
-    MessageId,
+    MessageID,
     InReplyTo,
     References,
     Subject,
@@ -39,6 +40,7 @@ pub enum Entry {
 }
 
 #[derive(Clone, Debug, PartialEq, ToStatic)]
+#[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
 pub enum Field<'a> {
     // 3.6.1.  The Origination Date Field
     Date(DateTime),
@@ -70,6 +72,29 @@ pub enum Field<'a> {
 
     // MIME
     MIMEVersion(Version),
+}
+
+impl<'a> Print for Field<'a> {
+    fn print(&self, fmt: &mut impl Formatter) {
+        match self {
+            Self::Date(d) => header::print(fmt, b"Date", d),
+            Self::From(mboxl) => header::print(fmt, b"From", mboxl),
+            Self::Sender(mbox) => header::print(fmt, b"Sender", mbox),
+            Self::ReplyTo(addrs) => header::print(fmt, b"Reply-To", addrs),
+            Self::To(addrs) => header::print(fmt, b"To", addrs),
+            Self::Cc(addrs) => header::print(fmt, b"Cc", addrs),
+            Self::Bcc(addrs) => header::print(fmt, b"Bcc", addrs),
+            Self::MessageID(id) => header::print(fmt, b"Message-ID", id),
+            Self::InReplyTo(ids) => header::print(fmt, b"In-Reply-To", ids),
+            Self::References(ids) => header::print(fmt, b"References", ids),
+            Self::Subject(u) => header::print_unstructured(fmt, b"Subject", u),
+            Self::Comments(u) => header::print_unstructured(fmt, b"Comments", u),
+            Self::Keywords(l) => header::print(fmt, b"Keywords", l),
+            Self::Received(u) => header::print_unstructured(fmt, b"Received", u),
+            Self::ReturnPath(p) => header::print(fmt, b"Return-Path", p),
+            Self::MIMEVersion(v) => header::print(fmt, b"MIME-Version", v),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy)]

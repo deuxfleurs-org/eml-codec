@@ -1,8 +1,9 @@
+/// Representation of all headers in a toplevel message
+pub mod field;
+
 #[cfg(feature = "arbitrary")]
 use arbitrary::Arbitrary;
 use bounded_static::ToStatic;
-#[cfg(feature = "tracing")]
-use tracing::warn;
 
 #[cfg(feature = "arbitrary")]
 use crate::{
@@ -13,9 +14,10 @@ use crate::{
 };
 use crate::header;
 use crate::imf;
+use crate::message::field::{MessageEntry, MessageField, NaiveMessageFields};
 use crate::mime;
 use crate::part;
-use crate::print::{Print, Formatter};
+use crate::print::{print_seq, Print, Formatter};
 
 /// A complete **toplevel message**.
 /// This represent a complete "email" that can be send and received over the wire, for example.
@@ -34,17 +36,32 @@ pub struct Message<'a> {
     pub entries: Vec<MessageEntry<'a>>,
 }
 
+impl<'a> Message<'a> {
+    // TODO: return an iterator instead of a Vec?
+    pub fn field_list(&self) -> Vec<MessageField<'a>> {
+        let mime = self.mime_body.mime();
+        let mut v = vec![];
+        for e in &self.entries {
+            // SAFETY: `self.entries` must only contain entries that actually
+            // appear in self.imf/self.mime_body.mime()
+            let field = match e {
+                MessageEntry::MIME(e) =>
+                    MessageField::MIME(mime.get_field(*e).unwrap()),
+                MessageEntry::Imf(e) =>
+                    MessageField::Imf(self.imf.get_field(*e).unwrap()),
+                MessageEntry::Unstructured(u) =>
+                    MessageField::Unstructured(u.clone()),
+            };
+            v.push(field);
+        }
+        v
+    }
+}
+
 impl<'a> Print for Message<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
         fmt.begin_line_folding();
-        let mime = self.mime_body.mime();
-        for entry in &self.entries {
-            match entry {
-                MessageEntry::Unstructured(u) => u.print(fmt),
-                MessageEntry::MIME(f) => mime.print_field(*f, fmt),
-                MessageEntry::Imf(f) => self.imf.print_field(*f, fmt),
-            }
-        }
+        print_seq(fmt, &self.field_list(), |_| ());
         fmt.end_line_folding();
         fmt.write_crlf();
         self.mime_body.print_body(fmt);
@@ -117,7 +134,7 @@ impl<'a> Arbitrary<'a> for Message<'a> {
 pub fn message<'a>(input: &'a [u8]) -> Message<'a> {
     // parse headers
     let (input_body, headers) = header::header_kv(input);
-    let fields: MessageFields = headers.into_iter().collect::<MessageFields>();
+    let fields: NaiveMessageFields = headers.into_iter().collect();
     let mime = fields.mime.to_interpreted(mime::DefaultType::Generic);
     // parse body
     let mime_body = part::part_body(mime)(input_body);
@@ -131,118 +148,8 @@ pub fn message<'a>(input: &'a [u8]) -> Message<'a> {
 pub fn imf<'a>(input: &'a [u8]) -> (&'a [u8], imf::Imf<'a>) {
     // parse headers
     let (input_body, headers) = header::header_kv(input);
-    let fields: MessageFields = headers.into_iter().collect::<MessageFields>();
+    let fields: NaiveMessageFields = headers.into_iter().collect();
     (input_body, fields.imf)
-}
-
-/// Header field of a toplevel message.
-/// Is either an Imf field (RFC 5322),
-/// MIME-defined fields (RFC 2045),
-/// or an unstructured field.
-#[derive(Clone, Debug, PartialEq, ToStatic)]
-#[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
-pub enum MessageEntry<'a> {
-    MIME(mime::field::Entry),
-    Imf(imf::field::Entry),
-    // invariant: has a field name that is different from IMF or MIME headers.
-    Unstructured(header::Unstructured<'a>),
-}
-
-#[derive(Debug, PartialEq, ToStatic)]
-struct MessageFields<'a> {
-    mime: mime::NaiveMIME<'a>,
-    imf: imf::Imf<'a>,
-    entries: Vec<MessageEntry<'a>>,
-}
-
-impl<'a> FromIterator<header::FieldRaw<'a>> for MessageFields<'a> {
-    #[cfg_attr(
-        feature = "tracing",
-        tracing::instrument(name = "MessageFields::from_iter", skip(it))
-    )]
-    fn from_iter<I: IntoIterator<Item = header::FieldRaw<'a>>>(it: I) -> Self {
-        let mut mime = mime::NaiveMIME::default();
-        let mut imf = imf::PartialImf::default();
-        let mut entries = vec![];
-        for f in it {
-            match mime::field::Field::try_from(&f) {
-                Ok(mimef) => {
-                    if let Some(entry) = mime.add_field(mimef) {
-                        entries.push(MessageEntry::MIME(entry))
-                    } else {
-                        // otherwise drop the field
-                        #[cfg(feature = "tracing-recover")]
-                        warn!(field = ?f, "dropping conflicting MIME field")
-                    }
-                    continue;
-                },
-                Err(mime::field::InvalidField::Body) => {
-                    // this is a MIME field but its body is invalid; drop it.
-                    #[cfg(feature = "tracing-unsupported")]
-                    warn!(field = ?f, "dropping MIME field with an invalid body");
-                    continue;
-                },
-                Err(mime::field::InvalidField::Name) => {
-                    // not a MIME field
-                    ()
-                }
-            };
-
-            match imf::field::Field::try_from(&f) {
-                Ok(imff) => {
-                    match imf.add_field(imff) {
-                        Ok(entry) =>
-                            entries.push(MessageEntry::Imf(entry)),
-                        Err(imf::AddFieldErr::NoEntry) => {
-                            #[cfg(feature = "tracing-recover")]
-                            warn!(field = ?f, "no new entry for IMF field");
-                        },
-                        Err(imf::AddFieldErr::Conflict) => {
-                            #[cfg(feature = "tracing-recover")]
-                            warn!(field = ?f, "discarding conflicting IMF field");
-                        },
-                    }
-                    continue;
-                },
-                Err(imf::field::InvalidField::NeedsDiscard) => {
-                    // this is an IMF field for which we recognized the body, but the
-                    // body isn't RFC compliant and the fields needs to be dropped.
-                    #[cfg(feature = "tracing-recover")]
-                    warn!(field = ?f, "dropping IMF field with a body to be discarded");
-                    continue;
-                }
-                Err(imf::field::InvalidField::Body) => {
-                    // this is an IMF field but its body is invalid; drop it.
-                    #[cfg(feature = "tracing-unsupported")]
-                    warn!(field = ?f, "dropping IMF field with an invalid body");
-                    continue;
-                }
-                Err(imf::field::InvalidField::Name) => {
-                    // not an IMF field
-                    ()
-                }
-            }
-
-            if let Some(u) = header::Unstructured::from_raw(&f) {
-                entries.push(MessageEntry::Unstructured(u));
-            } else {
-                // otherwise drop the field
-                #[cfg(feature = "tracing-unsupported")]
-                warn!(field = ?f, "dropping field that cannot be parsed as unstructured")
-            }
-        }
-        entries.extend(
-            imf.missing_mandatory_fields()
-               .into_iter()
-               .map(MessageEntry::Imf)
-        );
-
-        MessageFields {
-            mime,
-            imf: imf.to_imf(),
-            entries,
-        }
-    }
 }
 
 #[cfg(test)]
@@ -367,7 +274,7 @@ Subject: =?ISO-8859-1?B?SWYgeW91IGNhbiByZWFkIHRoaXMgeW8=?=
 X-Unknown: something something
 Bad entry
   on multiple lines
-Message-ID: <NTAxNzA2AC47634Y366BAMTY4ODc5MzQyODY0ODY5@www.grrrndzero.org>
+Message-Id: <NTAxNzA2AC47634Y366BAMTY4ODc5MzQyODY0ODY5@www.grrrndzero.org>
 MIME-Version: 1.0
 Subject: Bad_redundant_subject
 Content-Type: multipart/alternative;
@@ -521,7 +428,7 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                                 ]),
                             }
                         ),
-                        MessageEntry::Imf(imf::field::Entry::MessageId),
+                        MessageEntry::Imf(imf::field::Entry::MessageID),
                         MessageEntry::Imf(imf::field::Entry::MIMEVersion),
                         MessageEntry::MIME(mime::field::Entry::Type),
                         MessageEntry::MIME(mime::field::Entry::TransferEncoding),

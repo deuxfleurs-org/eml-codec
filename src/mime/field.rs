@@ -8,7 +8,8 @@ use crate::fuzz_eq::FuzzEq;
 use crate::header;
 use crate::imf::identification::{msg_id, MessageID};
 use crate::mime::mechanism::{mechanism, Mechanism};
-use crate::mime::r#type::{naive_type, NaiveType};
+use crate::mime::r#type::{naive_type, AnyType, NaiveType};
+use crate::print::{Print, Formatter};
 use crate::text::misc_token::{unstructured, Unstructured};
 #[cfg(feature = "tracing-unsupported")]
 use crate::utils::bytes_to_trace_string;
@@ -23,38 +24,34 @@ pub enum Entry {
 }
 
 #[derive(Clone, Debug, PartialEq, ToStatic)]
+#[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
 pub enum Field<'a> {
-    Type(NaiveType<'a>),
+    Type(AnyType<'a>),
     TransferEncoding(Mechanism<'a>),
     ID(MessageID<'a>),
     Description(Unstructured<'a>),
 }
-#[allow(dead_code)]
-impl<'a> Field<'a> {
-    pub fn ctype(&'a self) -> Option<&'a NaiveType<'a>> {
+impl<'a> Print for Field<'a> {
+    fn print(&self, fmt: &mut impl Formatter) {
         match self {
-            Self::Type(v) => Some(v),
-            _ => None,
+            Self::Type(nt) =>
+                header::print(fmt, b"Content-Type", nt),
+            Self::TransferEncoding(enc) =>
+                header::print(fmt, b"Content-Transfer-Encoding", enc),
+            Self::ID(id) =>
+                header::print(fmt, b"Content-Id", id),
+            Self::Description(desc) =>
+                header::print_unstructured(fmt, b"Content-Description", desc),
         }
     }
-    pub fn transfer_encoding(&'a self) -> Option<&'a Mechanism<'a>> {
-        match self {
-            Self::TransferEncoding(v) => Some(v),
-            _ => None,
-        }
-    }
-    pub fn id(&'a self) -> Option<&'a MessageID<'a>> {
-        match self {
-            Self::ID(v) => Some(v),
-            _ => None,
-        }
-    }
-    pub fn description(&'a self) -> Option<&'a Unstructured<'a>> {
-        match self {
-            Self::Description(v) => Some(v),
-            _ => None,
-        }
-    }
+}
+
+#[derive(Clone, Debug, PartialEq, ToStatic)]
+pub enum NaiveField<'a> {
+    Type(NaiveType<'a>),
+    TransferEncoding(Mechanism<'a>),
+    ID(MessageID<'a>),
+    Description(Unstructured<'a>),
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -63,7 +60,7 @@ pub enum InvalidField {
     Body,
 }
 
-impl<'a> TryFrom<&header::FieldRaw<'a>> for Field<'a> {
+impl<'a> TryFrom<&header::FieldRaw<'a>> for NaiveField<'a> {
     type Error = InvalidField;
 
     #[cfg_attr(
@@ -72,10 +69,10 @@ impl<'a> TryFrom<&header::FieldRaw<'a>> for Field<'a> {
     )]
     fn try_from(f: &header::FieldRaw<'a>) -> Result<Self, Self::Error> {
         let content = match f.name.bytes().to_ascii_lowercase().as_slice() {
-            b"content-type" => map(naive_type, Field::Type)(f.body),
-            b"content-transfer-encoding" => map(mechanism, Field::TransferEncoding)(f.body),
-            b"content-id" => map(msg_id, Field::ID)(f.body),
-            b"content-description" => map(unstructured, Field::Description)(f.body),
+            b"content-type" => map(naive_type, NaiveField::Type)(f.body),
+            b"content-transfer-encoding" => map(mechanism, NaiveField::TransferEncoding)(f.body),
+            b"content-id" => map(msg_id, NaiveField::ID)(f.body),
+            b"content-description" => map(unstructured, NaiveField::Description)(f.body),
             _ => return Err(InvalidField::Name),
         };
 
@@ -132,11 +129,11 @@ This is a multipart message.
         let (input, hdrs) = header::header_kv(fullmail);
 
         assert_eq!(
-            (input, hdrs.iter().flat_map(Field::try_from).collect()),
+            (input, hdrs.iter().flat_map(NaiveField::try_from).collect()),
             (
                 &b"This is a multipart message.\n\n"[..],
                 vec![
-                    Field::Type(NaiveType {
+                    NaiveField::Type(NaiveType {
                         main: MIMEAtom(b"multipart"[..].into()),
                         sub: MIMEAtom(b"alternative"[..].into()),
                         params: vec![Parameter {
@@ -146,7 +143,7 @@ This is a multipart message.
                             ])),
                         }]
                     }),
-                    Field::TransferEncoding(Mechanism::_7Bit),
+                    NaiveField::TransferEncoding(Mechanism::_7Bit),
                 ],
             ),
         );
