@@ -165,7 +165,7 @@ impl<'a> FromIterator<header::FieldRaw<'a>> for MessageFields<'a> {
         let mut imf = imf::PartialImf::default();
         let mut entries = vec![];
         for f in it {
-            match mime::field::Content::try_from(&f) {
+            match mime::field::Field::try_from(&f) {
                 Ok(mimef) => {
                     if let Some(entry) = mime.add_field(mimef) {
                         entries.push(MessageEntry::MIME(entry))

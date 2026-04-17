@@ -17,7 +17,7 @@ use crate::fuzz_eq::FuzzEq;
 use crate::header;
 use crate::i18n::ContainsUtf8;
 use crate::imf::identification::MessageID;
-use crate::mime::field::{Content, Entry as FieldEntry};
+use crate::mime::field::{Field, Entry as FieldEntry};
 use crate::mime::mechanism::Mechanism;
 use crate::mime::r#type::{AnyType, NaiveType, MessageSubtype};
 use crate::print::Formatter;
@@ -210,15 +210,15 @@ pub struct NaiveMIME<'a> {
 }
 
 impl<'a> NaiveMIME<'a> {
-    pub fn add_field(&mut self, f: Content<'a>) -> Option<FieldEntry> {
+    pub fn add_field(&mut self, f: Field<'a>) -> Option<FieldEntry> {
         match f {
-            Content::Type(ctype) =>
+            Field::Type(ctype) =>
                 set_opt(&mut self.ctype, ctype).then_some(FieldEntry::Type),
-            Content::TransferEncoding(enc) =>
+            Field::TransferEncoding(enc) =>
                 set_opt(&mut self.transfer_encoding, enc).then_some(FieldEntry::TransferEncoding),
-            Content::ID(id) =>
+            Field::ID(id) =>
                 set_opt(&mut self.id, id).then_some(FieldEntry::ID),
-            Content::Description(desc) =>
+            Field::Description(desc) =>
                 set_opt(&mut self.description, desc).then_some(FieldEntry::Description),
         }
     }

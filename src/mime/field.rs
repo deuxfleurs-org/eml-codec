@@ -23,35 +23,35 @@ pub enum Entry {
 }
 
 #[derive(Clone, Debug, PartialEq, ToStatic)]
-pub enum Content<'a> {
+pub enum Field<'a> {
     Type(NaiveType<'a>),
     TransferEncoding(Mechanism<'a>),
     ID(MessageID<'a>),
     Description(Unstructured<'a>),
 }
 #[allow(dead_code)]
-impl<'a> Content<'a> {
+impl<'a> Field<'a> {
     pub fn ctype(&'a self) -> Option<&'a NaiveType<'a>> {
         match self {
-            Content::Type(v) => Some(v),
+            Self::Type(v) => Some(v),
             _ => None,
         }
     }
     pub fn transfer_encoding(&'a self) -> Option<&'a Mechanism<'a>> {
         match self {
-            Content::TransferEncoding(v) => Some(v),
+            Self::TransferEncoding(v) => Some(v),
             _ => None,
         }
     }
     pub fn id(&'a self) -> Option<&'a MessageID<'a>> {
         match self {
-            Content::ID(v) => Some(v),
+            Self::ID(v) => Some(v),
             _ => None,
         }
     }
     pub fn description(&'a self) -> Option<&'a Unstructured<'a>> {
         match self {
-            Content::Description(v) => Some(v),
+            Self::Description(v) => Some(v),
             _ => None,
         }
     }
@@ -63,19 +63,19 @@ pub enum InvalidField {
     Body,
 }
 
-impl<'a> TryFrom<&header::FieldRaw<'a>> for Content<'a> {
+impl<'a> TryFrom<&header::FieldRaw<'a>> for Field<'a> {
     type Error = InvalidField;
 
     #[cfg_attr(
         feature = "tracing",
-        tracing::instrument(name = "mime::field::Content::try_from")
+        tracing::instrument(name = "mime::field::Field::try_from")
     )]
     fn try_from(f: &header::FieldRaw<'a>) -> Result<Self, Self::Error> {
         let content = match f.name.bytes().to_ascii_lowercase().as_slice() {
-            b"content-type" => map(naive_type, Content::Type)(f.body),
-            b"content-transfer-encoding" => map(mechanism, Content::TransferEncoding)(f.body),
-            b"content-id" => map(msg_id, Content::ID)(f.body),
-            b"content-description" => map(unstructured, Content::Description)(f.body),
+            b"content-type" => map(naive_type, Field::Type)(f.body),
+            b"content-transfer-encoding" => map(mechanism, Field::TransferEncoding)(f.body),
+            b"content-id" => map(msg_id, Field::ID)(f.body),
+            b"content-description" => map(unstructured, Field::Description)(f.body),
             _ => return Err(InvalidField::Name),
         };
 
@@ -132,11 +132,11 @@ This is a multipart message.
         let (input, hdrs) = header::header_kv(fullmail);
 
         assert_eq!(
-            (input, hdrs.iter().flat_map(Content::try_from).collect()),
+            (input, hdrs.iter().flat_map(Field::try_from).collect()),
             (
                 &b"This is a multipart message.\n\n"[..],
                 vec![
-                    Content::Type(NaiveType {
+                    Field::Type(NaiveType {
                         main: MIMEAtom(b"multipart"[..].into()),
                         sub: MIMEAtom(b"alternative"[..].into()),
                         params: vec![Parameter {
@@ -146,7 +146,7 @@ This is a multipart message.
                             ])),
                         }]
                     }),
-                    Content::TransferEncoding(Mechanism::_7Bit),
+                    Field::TransferEncoding(Mechanism::_7Bit),
                 ],
             ),
         );

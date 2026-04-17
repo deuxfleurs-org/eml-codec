@@ -34,7 +34,7 @@ pub enum Entry {
     #[cfg_attr(feature = "arbitrary", fuzz_eq(use_eq))]
     Keywords(usize),
     #[cfg_attr(feature = "arbitrary", fuzz_eq(use_eq))]
-    Trace(usize),
+    Trace(usize), // either a Received or ReturnPath field
     MIMEVersion,
 }
 
