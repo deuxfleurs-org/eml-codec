@@ -18,6 +18,7 @@ use crate::message::field::{MessageEntry, MessageField, NaiveMessageFields};
 use crate::mime;
 use crate::part;
 use crate::print::{print_seq, Print, Formatter};
+use crate::raw_input::RawInput;
 
 /// A complete **toplevel message**.
 /// This represent a complete "email" that can be send and received over the wire, for example.
@@ -34,6 +35,8 @@ pub struct Message<'a> {
     pub imf: imf::Imf<'a>,
     pub mime_body: part::MimeBody<'a>,
     pub entries: Vec<MessageEntry<'a>>,
+    pub raw: RawInput<'a>,
+    pub raw_headers: RawInput<'a>,
 }
 
 impl<'a> Message<'a> {
@@ -126,7 +129,13 @@ impl<'a> Arbitrary<'a> for Message<'a> {
         // concatenate both sections
         entries.extend(rest.into_iter());
 
-        Ok(Message { imf, mime_body, entries })
+        Ok(Message {
+            imf,
+            mime_body,
+            entries,
+            raw: RawInput::none(),
+            raw_headers: RawInput::none(),
+        })
     }
 }
 
@@ -142,6 +151,8 @@ pub fn message<'a>(input: &'a [u8]) -> Message<'a> {
         imf: fields.imf,
         mime_body,
         entries: fields.entries,
+        raw: input.into(),
+        raw_headers: input[0..input.len() - input_body.len()].into(),
     }
 }
 
@@ -243,6 +254,7 @@ between the header information and the body of the message.";
                             fields: CommonMIME::default(),
                         },
                         body: b"This is the plain text body of the message. Note the blank line\nbetween the header information and the body of the message."[..].into(),
+                        raw_body: RawInput::between(fullmail, b"This is the", b"and the body of the message."),
                     }
                 );
 
@@ -258,6 +270,8 @@ between the header information and the body of the message.";
                     imf,
                     mime_body,
                     entries,
+                    raw: fullmail.into(),
+                    raw_headers: RawInput::between(fullmail, b"Date", b"MIME-Version: 1.0\r\n\r\n"),
                 }
             }
         );
@@ -466,7 +480,10 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                                         }
                                     },
                                     body: b"GZ\nOoOoO\noOoOoOoOo\noOoOoOoOoOoOoOoOo\noOoOoOoOoOoOoOoOoOoOoOo\noOoOoOoOoOoOoOoOoOoOoOoOoOoOo\nOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO\n"[..].into(),
+                                    raw_body: RawInput::between(fullmail, b"GZ\nOoOoO", b"OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO\n"),
                                 }),
+                                raw: RawInput::between(fullmail, b"Content-Type: text/plain", b"OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO\n"),
+                                raw_headers: b"Content-Type: text/plain; charset=utf-8\nContent-Transfer-Encoding: quoted-printable\n\n".into(),
                             },
                             AnyPart {
                                 entries: vec![
@@ -498,11 +515,17 @@ oOoOoOoOoOoOoOoOoOoOoOoOoOoOo<br />
 OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
 </div>
 "#[..].into(),
+                                    raw_body: RawInput::between(fullmail, b"<div style", b"</div>\n"),
                                 }),
+                                raw: RawInput::between(fullmail, b"X-Custom", b"</div>\n"),
+                                raw_headers: b"X-Custom: foobar\nContent-Type: text/html; charset=us-ascii\n\n".into(),
                             },
                         ],
+                        raw_body: RawInput::between(fullmail, b"This is a multi-part", b"b1_e376dc71bafc953c0b0fdeb9983a9956--\n"),
                     }),
-                };
+                raw: fullmail.into(),
+                raw_headers: RawInput::between(fullmail, b"Date:", b"bad_redundant\n\n"),
+            };
 
         let reprinted: &[u8] = "Date: Sat, 8 Jul 2023 07:14:29 +0200\r
 From: Grrrnd Zero <grrrndzero@example.org>\r
@@ -551,11 +574,12 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
 
     #[test]
     fn test_best_effort() {
-        test_message_parse_print(
-            b"date: uhh
+        let input = b"date: uhh
 hello: yolo
 
-hello??",
+hello??";
+        test_message_parse_print(
+            input,
             {
                 let imf = Imf::new();
 
@@ -565,7 +589,8 @@ hello??",
                             ctype: mime::r#type::Text::default(),
                             fields: CommonMIME::default(),
                         },
-                        body: b"hello??"[..].into(),
+                        body: b"hello??".into(),
+                        raw_body: b"hello??".into(),
                     }
                 );
 
@@ -584,6 +609,8 @@ hello??",
                     imf,
                     mime_body,
                     entries,
+                    raw: input.into(),
+                    raw_headers: b"date: uhh\nhello: yolo\n\n".into(),
                 }
             },
             b"hello: yolo\r

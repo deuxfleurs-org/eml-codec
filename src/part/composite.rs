@@ -12,6 +12,7 @@ use crate::i18n::ContainsUtf8;
 use crate::header;
 use crate::mime;
 use crate::part::{self, AnyPart, field::NaiveEntityFields};
+use crate::raw_input::RawInput;
 use crate::text::boundary::{boundary, Delimiter};
 
 //--- Multipart
@@ -24,6 +25,7 @@ pub struct Multipart<'a> {
     pub preamble: Cow<'a, [u8]>,
     #[cfg_attr(feature = "arbitrary", fuzz_eq(ignore))]
     pub epilogue: Cow<'a, [u8]>,
+    pub raw_body: RawInput<'a>,
 }
 impl<'a> fmt::Debug for Multipart<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -32,6 +34,7 @@ impl<'a> fmt::Debug for Multipart<'a> {
             .field("children", &self.children)
             .field("preamble", &String::from_utf8_lossy(&self.preamble))
             .field("epilogue", &String::from_utf8_lossy(&self.epilogue))
+            .field("raw_body", &self.raw_body)
             .finish()
     }
 }
@@ -43,6 +46,7 @@ impl<'a> Arbitrary<'a> for Multipart<'a> {
             children: u.arbitrary()?,
             preamble: b"".into(),
             epilogue: b"".into(),
+            raw_body: RawInput::none(),
         })
     }
 }
@@ -58,6 +62,8 @@ pub fn multipart<'a>(
         #[cfg(feature = "tracing")]
         let _span = span!(Level::DEBUG, "part::composite::multipart", ?m).entered();
 
+        let full_input = input;
+
         // init
         // NOTE: the `.unwrap()` cannot fail as long as `m` is produced by
         // the parser, which always specifies a `boundary` (the boundary
@@ -72,7 +78,8 @@ pub fn multipart<'a>(
         loop {
             let input = match boundary(bound)(input_loop) {
                 Err(_) => {
-                    // We read a malformed boundary
+                    // We encountered a malformed boundary, stop parsing.
+                    let raw_body = &full_input[0..full_input.len() - input_loop.len()];
                     return (
                         input_loop,
                         Multipart {
@@ -80,6 +87,7 @@ pub fn multipart<'a>(
                             children: mparts,
                             preamble: preamble.into(),
                             epilogue: [][..].into(),
+                            raw_body: raw_body.into(),
                         },
                     )
                 }
@@ -91,6 +99,7 @@ pub fn multipart<'a>(
                             children: mparts,
                             preamble: preamble.into(),
                             epilogue: inp.into(),
+                            raw_body: full_input.into(),
                         },
                     )
                 }
@@ -98,7 +107,7 @@ pub fn multipart<'a>(
             };
 
             // parse mime headers, otherwise pick default mime
-            let (input, fields_raw) = header::header_kv(input);
+            let (input_body, fields_raw) = header::header_kv(input);
             let NaiveEntityFields { entries, mime } =
                 fields_raw.into_iter().collect::<NaiveEntityFields>();
 
@@ -110,18 +119,21 @@ pub fn multipart<'a>(
                     mime.to_interpreted(mime::DefaultType::Generic).into(),
             };
 
-            // parse raw part
-            let (input, rpart) = part_raw(input);
+            // parse raw part for the body
+            let (input_next, rpart) = part_raw(input_body);
 
             // parse mime body
-            // -- we do not keep the input as we are using the
-            // part_raw function as our cursor here.
             // XXX this can be an (indirect) recursive call;
             // -> risk of stack overflow
             let mime_body = part::part_body(mime)(rpart);
-            mparts.push(AnyPart { entries, mime_body });
+            mparts.push(AnyPart {
+                entries,
+                mime_body,
+                raw: input[0..input.len() - input_next.len()].into(),
+                raw_headers: input[0..input.len() - input_body.len()].into(),
+            });
 
-            input_loop = input;
+            input_loop = input_next;
         }
     }
 }
@@ -182,6 +194,7 @@ pub struct Message<'a> {
     // of information, so further parsing is possible, just not zero-copy
     // anymore.
     pub child: Box<AnyPart<'a>>,
+    pub raw_body: RawInput<'a>,
 }
 
 #[cfg(feature = "arbitrary")]
@@ -196,7 +209,7 @@ impl<'a> Arbitrary<'a> for Message<'a> {
         {
             mime.ctype.subtype = mime::r#type::MessageSubtype::Global
         }
-        Ok(Message { mime, child })
+        Ok(Message { mime, child, raw_body: RawInput::none() })
     }
 }
 
@@ -211,7 +224,7 @@ pub fn message<'a>(
         let _span = span!(Level::DEBUG, "part::composite::message", ?m).entered();
 
         // parse header fields
-        let (input, headers) = header::header_kv(input);
+        let (input_body, headers) = header::header_kv(input);
         // detect UTF-8 use in headers
         let has_utf8 = headers.iter().any(|f| f.contains_utf8());
         let fields: NaiveEntityFields = headers.into_iter().collect();
@@ -230,11 +243,17 @@ pub fn message<'a>(
         //---------------
 
         // parse the body following this mime specification
-        let mime_body = part::part_body(in_mime)(input);
+        let mime_body = part::part_body(in_mime)(input_body);
 
         Message {
             mime: msg_mime,
-            child: Box::new(AnyPart { entries: fields.entries, mime_body }),
+            child: Box::new(AnyPart {
+                entries: fields.entries,
+                mime_body,
+                raw: input.into(),
+                raw_headers: input[0..input.len() - input_body.len()].into(),
+            }),
+            raw_body: input_body.into(),
         }
     }
 }
@@ -343,8 +362,11 @@ This is the epilogue. It is also to be ignored.
                                  ctype: mime::r#type::Text::default(),
                                  fields: mime::CommonMIME::default(),
                              },
-                             body: b"This is implicitly typed plain US-ASCII text.\nIt does NOT end with a linebreak."[..].into(),
+                             body: b"This is implicitly typed plain US-ASCII text.\nIt does NOT end with a linebreak.".into(),
+                             raw_body: RawInput::between(input, b"This is implicitly", b"NOT end with a linebreak."),
                          }),
+                         raw: RawInput::between(input, b"\nThis is implicitly", b"NOT end with a linebreak."),
+                         raw_headers: b"\n".into(),
                      },
                      AnyPart {
                          entries: vec![EntityEntry::MIME(Entry::Type)],
@@ -357,10 +379,14 @@ This is the epilogue. It is also to be ignored.
                                  },
                                  fields: mime::CommonMIME::default(),
                              },
-                             body: b"This is explicitly typed plain US-ASCII text.\nIt DOES end with a linebreak.\n"[..].into(),
+                             body: b"This is explicitly typed plain US-ASCII text.\nIt DOES end with a linebreak.\n".into(),
+                             raw_body: RawInput::between(input, b"This is explicitly", b"DOES end with a linebreak.\n"),
                          }),
+                         raw: RawInput::between(input, b"Content-type", b"DOES end with a linebreak.\n"),
+                         raw_headers: b"Content-type: text/plain; charset=us-ascii\n\n".into(),
                      },
                  ],
+                 raw_body: input.into(),
              },
             )
         );
@@ -421,11 +447,17 @@ This is implicitly typed plain US-ASCII text.
                                              ctype: mime::r#type::Text::default(),
                                              fields: mime::CommonMIME::default(),
                                          },
-                                         body: b"This is the inner part; it misses its terminator"[..].into(),
+                                         body: b"This is the inner part; it misses its terminator".into(),
+                                         raw_body: RawInput::between(input, b"This is the inner", b"terminator"),
                                      }),
+                                     raw: RawInput::between(input, b"\nThis is the inner", b"terminator"),
+                                     raw_headers: b"\n".into(),
                                  },
                              ],
+                             raw_body: RawInput::between(input, b"--inner boundary\n\nThis is the inner", b"terminator"),
                          }),
+                         raw: RawInput::between(input, b"Content-Type", b"terminator"),
+                         raw_headers: b"Content-Type: multipart/mixed; boundary=\"inner boundary\"\n\n".into(),
                      },
                      AnyPart {
                          entries: vec![],
@@ -434,10 +466,14 @@ This is implicitly typed plain US-ASCII text.
                                  ctype: mime::r#type::Text::default(),
                                  fields: mime::CommonMIME::default(),
                              },
-                             body: b"This is implicitly typed plain US-ASCII text."[..].into(),
+                             body: b"This is implicitly typed plain US-ASCII text.".into(),
+                             raw_body: b"This is implicitly typed plain US-ASCII text.".into(),
                          }),
+                         raw: b"\nThis is implicitly typed plain US-ASCII text.".into(),
+                         raw_headers: b"\n".into(),
                      },
                  ],
+                 raw_body: input.into(),
              },
             )
         );
@@ -481,10 +517,14 @@ leftovers";
                                  ctype: mime::r#type::Text::default(),
                                  fields: mime::CommonMIME::default(),
                              },
-                             body: b"Part text"[..].into(),
+                             body: b"Part text".into(),
+                             raw_body: b"Part text".into(),
                          }),
+                         raw: b"\nPart text".into(),
+                         raw_headers: b"\n".into(),
                      },
                  ],
+                 raw_body: b"\n--boundary\n\nPart text".into(),
              },
             )
         );
@@ -522,10 +562,14 @@ leftovers";
                                  ctype: mime::r#type::Text::default(),
                                  fields: mime::CommonMIME::default(),
                              },
-                             body: b"\r"[..].into(),
+                             body: b"\r".into(),
+                             raw_body: b"\r".into(),
                          }),
+                         raw: b"\n\r".into(),
+                         raw_headers: b"\n".into(),
                      },
                  ],
+                 raw_body: input.into(),
              },
             )
         );

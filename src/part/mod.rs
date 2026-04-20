@@ -29,6 +29,7 @@ use crate::part::{
     discrete::{Binary, Text},
 };
 use crate::print::{print_seq, Print, Formatter};
+use crate::raw_input::RawInput;
 
 #[derive(Clone, Debug, PartialEq, ToStatic)]
 #[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
@@ -43,6 +44,8 @@ pub struct AnyPart<'a> {
     // Invariant: `fields` must contain no duplicates.
     pub entries: Vec<field::EntityEntry<'a>>,
     pub mime_body: MimeBody<'a>,
+    pub raw: RawInput<'a>,
+    pub raw_headers: RawInput<'a>,
 }
 
 impl<'a> AnyPart<'a> {
@@ -92,7 +95,12 @@ impl<'a> Arbitrary<'a> for AnyPart<'a> {
         })?;
         entries.extend(unstr.into_iter().map(field::EntityEntry::Unstructured));
         arbitrary_shuffle(u, &mut entries)?;
-        Ok(AnyPart { entries, mime_body })
+        Ok(AnyPart {
+            entries,
+            mime_body,
+            raw: RawInput::none(),
+            raw_headers: RawInput::none(),
+        })
     }
 }
 
@@ -135,6 +143,14 @@ impl<'a> MimeBody<'a> {
             Self::Msg(v) => v.mime.clone().into(),
             Self::Txt(v) => v.mime.clone().into(),
             Self::Bin(v) => v.mime.clone().into(),
+        }
+    }
+    pub fn raw_body(&self) -> RawInput<'a> {
+        match self {
+            Self::Mult(v) => v.raw_body.clone(),
+            Self::Msg(v) => v.raw_body.clone(),
+            Self::Txt(v) => v.raw_body.clone(),
+            Self::Bin(v) => v.raw_body.clone(),
         }
     }
     pub fn print_body(&self, fmt: &mut impl Formatter) {
@@ -212,10 +228,12 @@ pub fn part_body<'a>(m: AnyMIME<'a>) -> impl FnOnce(&'a [u8]) -> MimeBody<'a> {
             AnyMIME::Txt(a) => MimeBody::Txt(Text {
                 mime: a,
                 body: Cow::Borrowed(input),
+                raw_body: input.into(),
             }),
             AnyMIME::Bin(a) => MimeBody::Bin(Binary {
                 mime: a,
                 body: Cow::Borrowed(input),
+                raw_body: input.into(),
             }),
         };
 

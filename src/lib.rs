@@ -24,6 +24,9 @@ pub mod print;
 /// Helpers related to UTF-8 support in headers (RFC 6532)
 pub mod i18n;
 
+/// Support for storing references to raw input slices in AST nodes.
+pub mod raw_input;
+
 /// Custom equality trait used for fuzz-checking
 #[cfg(feature = "arbitrary")]
 pub mod fuzz_eq;
