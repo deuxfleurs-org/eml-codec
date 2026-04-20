@@ -9,6 +9,8 @@ pub mod field;
 
 #[cfg(feature = "arbitrary")]
 use arbitrary::Arbitrary;
+#[cfg(feature = "tracing-unsupported")]
+use tracing::warn;
 use bounded_static::ToStatic;
 use std::borrow::Cow;
 #[cfg(feature = "arbitrary")]
@@ -18,6 +20,8 @@ use crate::{
     fuzz_eq::FuzzEq,
     mime,
 };
+#[cfg(feature = "tracing-unsupported")]
+use crate::utils::bytes_to_trace_string;
 use crate::i18n::ContainsUtf8;
 use crate::mime::AnyMIME;
 use crate::part::{
@@ -194,10 +198,15 @@ impl<'a> Print for AnyPart<'a> {
 pub fn part_body<'a>(m: AnyMIME<'a>) -> impl FnOnce(&'a [u8]) -> MimeBody<'a> {
     move |input| {
         let part = match m {
-            AnyMIME::Mult(a) =>
-                // NOTE: we drop any input found after the closing multipart
-                // boundary and not parsed by `multipart`.
-                multipart(a)(input).1.into(),
+            AnyMIME::Mult(a) => {
+                let (_rest, part) = multipart(a)(input);
+                #[cfg(feature = "tracing-unsupported")]
+                if !_rest.is_empty() {
+                    warn!(rest = %bytes_to_trace_string(_rest),
+                          "leftover input after multipart parsing")
+                }
+                part.into()
+            },
             AnyMIME::Msg(a) =>
                 message(a)(input).into(),
             AnyMIME::Txt(a) => MimeBody::Txt(Text {
