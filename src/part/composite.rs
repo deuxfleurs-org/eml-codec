@@ -63,7 +63,7 @@ pub fn multipart<'a>(
         // the parser, which always specifies a `boundary` (the boundary
         // used by the input).
         let bound = m.ctype.boundary.as_ref().unwrap().as_bytes();
-        let part_raw = part::part_raw(bound);
+        let part_raw = part_raw(bound);
         let mut mparts: Vec<AnyPart> = vec![];
 
         // preamble
@@ -122,6 +122,35 @@ pub fn multipart<'a>(
 
             input_loop = input;
         }
+    }
+}
+
+// Recognizes bytes for the next part, until the next boundary or the end of the input.
+fn part_raw<'a, 'b>(bound: &[u8]) -> impl Fn(&'a [u8]) -> (&'a [u8], &'a [u8]) + 'b {
+    use memchr::memmem::Finder;
+    // This low-level implementation (which basically just calls `memmem`) is faster
+    // than trying to express this using parser combinators.
+
+    let mut needle = b"--".to_vec();
+    needle.extend(bound.iter());
+    let finder = Finder::new(&needle).into_owned();
+
+    move |input| {
+        for i in finder.find_iter(input) {
+            // a boundary can be at the beginning of the input
+            if i == 0 {
+                return (&input, &[])
+            }
+
+            // or it can be after a newline
+            if i.checked_sub(1).is_some_and(|j| input[j] == b'\n') {
+                // best-effort: recognize both \n and \r\n before the boundary
+                let i = i.checked_sub(2).filter(|j| input[*j] == b'\r').unwrap_or(i-1);
+                return (&input[i..], &input[0..i])
+            }
+        }
+        // no matching boundary found; return the entire input
+        (&[], input)
     }
 }
 
@@ -217,6 +246,46 @@ mod tests {
     use crate::part::field::EntityEntry;
     use crate::text::charset::EmailCharset;
     use pretty_assertions::assert_eq;
+
+    #[test]
+    fn test_preamble() {
+        assert_eq!(
+            part_raw(b"hello")(
+                b"blip
+bloup
+
+blip
+bloup--
+--bim
+--bim--
+
+--hello
+Field: Body
+"
+            ),
+            (
+                &b"\n--hello\nField: Body\n"[..],
+                &b"blip\nbloup\n\nblip\nbloup--\n--bim\n--bim--\n"[..],
+            )
+        );
+    }
+
+    #[test]
+    fn test_part_raw() {
+        assert_eq!(
+            part_raw(b"simple boundary")(b"Content-type: text/plain; charset=us-ascii
+
+This is explicitly typed plain US-ASCII text.
+It DOES end with a linebreak.
+
+--simple boundary--
+"),
+            (
+                &b"\n--simple boundary--\n"[..],
+                &b"Content-type: text/plain; charset=us-ascii\n\nThis is explicitly typed plain US-ASCII text.\nIt DOES end with a linebreak.\n"[..],
+            )
+        );
+    }
 
     #[test]
     fn test_multipart() {
