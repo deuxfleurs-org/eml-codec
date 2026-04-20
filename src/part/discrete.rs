@@ -10,6 +10,7 @@ use crate::{
     fuzz_eq::FuzzEq,
 };
 use crate::mime;
+use crate::raw_input::RawInput;
 
 #[derive(Clone, PartialEq, ToStatic)]
 #[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
@@ -17,6 +18,7 @@ pub struct Text<'a> {
     pub mime: mime::MIME<'a, mime::r#type::Text<'a>>,
     #[cfg_attr(feature = "arbitrary", fuzz_eq(use_eq))]
     pub body: Cow<'a, [u8]>,
+    pub raw_body: RawInput<'a>,
 }
 
 impl<'a> fmt::Debug for Text<'a> {
@@ -24,6 +26,7 @@ impl<'a> fmt::Debug for Text<'a> {
         fmt.debug_struct("part::Text")
             .field("mime", &self.mime)
             .field("body", &String::from_utf8_lossy(&self.body))
+            .field("raw_body", &self.raw_body)
             .finish()
     }
 }
@@ -34,6 +37,7 @@ impl<'a> Arbitrary<'a> for Text<'a> {
         Ok(Self {
             mime: u.arbitrary()?,
             body: arbitrary_part_body(u)?.into(),
+            raw_body: RawInput::none(),
         })
     }
 }
@@ -44,6 +48,7 @@ pub struct Binary<'a> {
     pub mime: mime::MIME<'a, mime::r#type::Binary<'a>>,
     #[cfg_attr(feature = "arbitrary", fuzz_eq(use_eq))]
     pub body: Cow<'a, [u8]>,
+    pub raw_body: RawInput<'a>,
 }
 
 impl<'a> fmt::Debug for Binary<'a> {
@@ -51,6 +56,7 @@ impl<'a> fmt::Debug for Binary<'a> {
         fmt.debug_struct("part::Binary")
             .field("mime", &self.mime)
             .field("body", &String::from_utf8_lossy(&self.body))
+            .field("raw_body", &self.raw_body)
             .finish()
     }
 }
@@ -61,6 +67,7 @@ impl<'a> Arbitrary<'a> for Binary<'a> {
         Ok(Self {
             mime: u.arbitrary()?,
             body: arbitrary_part_body(u)?.into(),
+            raw_body: RawInput::none(),
         })
     }
 }
