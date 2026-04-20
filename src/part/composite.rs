@@ -72,6 +72,7 @@ pub fn multipart<'a>(
         loop {
             let input = match boundary(bound)(input_loop) {
                 Err(_) => {
+                    // We read a malformed boundary
                     return (
                         input_loop,
                         Multipart {
@@ -131,6 +132,7 @@ fn part_raw<'a, 'b>(bound: &[u8]) -> impl Fn(&'a [u8]) -> (&'a [u8], &'a [u8]) +
     // This low-level implementation (which basically just calls `memmem`) is faster
     // than trying to express this using parser combinators.
 
+    // search for "--{bound}"
     let mut needle = b"--".to_vec();
     needle.extend(bound.iter());
     let finder = Finder::new(&needle).into_owned();
@@ -433,6 +435,53 @@ This is implicitly typed plain US-ASCII text.
                                  fields: mime::CommonMIME::default(),
                              },
                              body: b"This is implicitly typed plain US-ASCII text."[..].into(),
+                         }),
+                     },
+                 ],
+             },
+            )
+        );
+    }
+
+    // Parsing stops on a broken boundary that starts with the correct boundary
+    // but is followed by a suffix containing junk
+    // FIXME: the RFC requires that we handle whitespace characters as a suffix,
+    // but this is not done currently.
+    #[test]
+    fn test_broken_boundary() {
+        let base_mime = mime::MIME {
+            ctype: mime::r#type::Multipart {
+                subtype: mime::r#type::MultipartSubtype::Mixed,
+                boundary: Some("boundary".to_string()),
+                params: vec![],
+            },
+            fields: mime::CommonMIME::default(),
+        };
+
+        let input = b"
+--boundary
+
+Part text
+--boundary+++out of cheese
+
+leftovers";
+
+        assert_eq!(
+            multipart(base_mime.clone())(input),
+            (&b"\n--boundary+++out of cheese\n\nleftovers"[..],
+             Multipart {
+                 mime: base_mime,
+                 preamble: b"".into(),
+                 epilogue: b"".into(),
+                 children: vec![
+                     AnyPart {
+                         entries: vec![],
+                         mime_body: MimeBody::Txt(Text {
+                             mime: mime::MIME {
+                                 ctype: mime::r#type::Text::default(),
+                                 fields: mime::CommonMIME::default(),
+                             },
+                             body: b"Part text"[..].into(),
                          }),
                      },
                  ],
