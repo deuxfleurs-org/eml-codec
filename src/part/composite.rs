@@ -84,7 +84,7 @@ pub fn multipart<'a>(
                 }
                 Ok((inp, Delimiter::Last)) => {
                     return (
-                        inp,
+                        &[],
                         Multipart {
                             mime: m.clone(),
                             children: mparts,
@@ -259,7 +259,7 @@ This is the epilogue. It is also to be ignored.
 
         assert_eq!(
             multipart(base_mime.clone())(input),
-            (&b"\nThis is the epilogue. It is also to be ignored.\n"[..],
+            (&b""[..],
              Multipart {
                  mime: base_mime,
                  preamble: preamble.into(),
@@ -297,7 +297,7 @@ This is the epilogue. It is also to be ignored.
 
     // The terminator of a multipart entity can be missing.
     // This should be properly handled even for nested multiparts
-    // (RFC2046 specifies that this in sec 5.1.2).
+    // (RFC2046 specifies this in sec 5.1.2).
     #[test]
     fn test_nested_multipart_inner_broken() {
         let base_mime = mime::MIME {
