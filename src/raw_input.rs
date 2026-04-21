@@ -5,6 +5,7 @@ use std::borrow::Cow;
 use std::fmt;
 #[cfg(feature = "arbitrary")]
 use crate::fuzz_eq::FuzzEq;
+use crate::i18n::ContainsUtf8;
 
 #[derive(Clone, PartialEq)]
 pub struct RawInput<'a>(pub Option<&'a [u8]>);
@@ -89,6 +90,13 @@ impl<'a> ToBoundedStatic for RawInput<'a> {
     }
 }
 
+// Ignore RawInput values wrt ContainsUtf8
+impl<'a> ContainsUtf8 for RawInput<'a> {
+    fn contains_utf8(&self) -> bool {
+        false
+    }
+}
+
 #[cfg(test)]
 impl<'a> RawInput<'a> {
     pub(crate) fn between(input: &'a [u8], prefix: &[u8], suffix: &[u8]) -> RawInput<'a> {
@@ -106,5 +114,22 @@ impl<'a> RawInput<'a> {
         }
         let suffix_pos = suffix_matches[0] + prefix_pos + prefix.len();
         RawInput(Some(&input[prefix_pos..suffix_pos + suffix.len()]))
+    }
+
+    pub(crate) fn between_excl(input: &'a [u8], before: &[u8], after: &[u8]) -> RawInput<'a> {
+        use memchr::memmem;
+        let before_matches: Vec<_> =
+            memmem::find_iter(input, before).collect();
+        if before_matches.len() != 1 {
+            panic!("{} before matches (expected: 1)", before_matches.len());
+        }
+        let before_pos = before_matches[0];
+        let after_matches: Vec<_> =
+            memmem::find_iter(&input[before_pos + before.len()..], after).collect();
+        if after_matches.len() != 1 {
+            panic!("{} after matches (expected: 1)", after_matches.len());
+        }
+        let after_pos = after_matches[0] + before_pos + before.len();
+        RawInput(Some(&input[before_pos + before.len()..after_pos]))
     }
 }

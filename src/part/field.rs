@@ -7,20 +7,21 @@ use crate::fuzz_eq::FuzzEq;
 use crate::header;
 use crate::mime;
 use crate::print::{Print, Formatter};
+use crate::raw_input::RawInput;
 
 /// Header field of a generic MIME entity (a MIME entity that is not a toplevel
 /// message). Is either a MIME-defined field or an unstructured field.
 #[derive(Clone, Debug, PartialEq, ToStatic)]
 #[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
 pub enum EntityField<'a> {
-    MIME(mime::field::Field<'a>),
+    MIME { f: mime::field::Field<'a>, raw_body: RawInput<'a> },
     Unstructured(header::Unstructured<'a>),
 }
 
 impl<'a> Print for EntityField<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
         match self {
-            EntityField::MIME(f) => f.print(fmt),
+            EntityField::MIME { f, .. } => f.print(fmt),
             EntityField::Unstructured(u) => u.print(fmt),
         }
     }
@@ -30,7 +31,7 @@ impl<'a> Print for EntityField<'a> {
 #[derive(Clone, Debug, PartialEq, ToStatic)]
 #[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
 pub enum EntityEntry<'a> {
-    MIME(mime::field::Entry),
+    MIME { e: mime::field::Entry, raw_body: RawInput<'a> },
     Unstructured(header::Unstructured<'a>),
 }
 
@@ -54,7 +55,7 @@ impl<'a> FromIterator<header::FieldRaw<'a>> for NaiveEntityFields<'a> {
             match mime::field::NaiveField::try_from(&f) {
                 Ok(mimef) => {
                     if let Some(entry) = e.mime.add_field(mimef) {
-                        e.entries.push(EntityEntry::MIME(entry))
+                        e.entries.push(EntityEntry::MIME { e: entry, raw_body: f.body.into() })
                     } else {
                         // otherwise drop the field
                         #[cfg(feature = "tracing-recover")]
