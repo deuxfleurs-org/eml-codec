@@ -54,7 +54,7 @@ pub struct Imf<'a> {
     pub trace: Vec<TraceField<'a>>,
 
     // MIME
-    pub mime_version: Version,
+    pub mime_version: Option<Version>,
 }
 
 #[derive(Clone, Debug, PartialEq, ToStatic)]
@@ -153,7 +153,7 @@ impl<'a> Imf<'a> {
             comments: vec![],
             keywords: vec![],
             trace: vec![],
-            mime_version: Version::default(),
+            mime_version: None,
         }
     }
 
@@ -235,7 +235,7 @@ impl<'a> Imf<'a> {
             field::Entry::Keywords(i) =>
                 Some(field::Field::Keywords(self.keywords[i].clone())),
             field::Entry::MIMEVersion =>
-                Some(field::Field::MIMEVersion(self.mime_version.clone())),
+                self.mime_version.clone().map(field::Field::MIMEVersion),
             field::Entry::Trace(i) =>
                 match &self.trace[i] {
                     TraceField::Received(r) =>
@@ -417,15 +417,6 @@ impl<'a> PartialImf<'a> {
         }
     }
 
-    pub fn missing_mandatory_fields(&self) -> Vec<Entry> {
-        let mut entries = Vec::new();
-        // always add MIME-Version as a field if it wasn't provided
-        if self.mime_version.is_none() {
-            entries.push(Entry::MIMEVersion)
-        }
-        entries
-    }
-
     pub fn to_imf(self) -> Imf<'a> {
         let date = match self.date {
             Some(dt) => DateTimeOpt::Some(dt),
@@ -460,10 +451,7 @@ impl<'a> PartialImf<'a> {
             comments: self.comments,
             keywords: self.keywords,
             trace: self.trace,
-            // XXX we don't support reading non-MIME compliant emails
-            // currently, so we always turn a missing MIME-Version field
-            // into the default supported version
-            mime_version: self.mime_version.unwrap_or_default(),
+            mime_version: self.mime_version,
         }
     }
 }

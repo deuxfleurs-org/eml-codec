@@ -125,11 +125,6 @@ impl<'a> FromIterator<header::FieldRaw<'a>> for NaiveMessageFields<'a> {
                 warn!(field = ?f, "dropping field that cannot be parsed as unstructured")
             }
         }
-        entries.extend(
-            imf.missing_mandatory_fields()
-               .into_iter()
-               .map(MessageEntry::Imf)
-        );
 
         NaiveMessageFields {
             mime,
