@@ -65,6 +65,14 @@ impl<'a> Print for Message<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
         fmt.begin_line_folding();
         print_seq(fmt, &self.field_list(), |_| ());
+        if self.imf.mime_version.is_none() {
+            // The RFC requires that an implementation that obeys the MIME RFC
+            // always outputs a MIME-Version header. We do this at printing time
+            // to avoid having to insert a synthetic header in the AST that does
+            // not exist in the input.
+            imf::field::Field::MIMEVersion(imf::mime::Version::default())
+                .print(fmt);
+        }
         fmt.end_line_folding();
         fmt.write_crlf();
         self.mime_body.print_body(fmt);
@@ -74,7 +82,15 @@ impl<'a> Print for Message<'a> {
 #[cfg(feature = "arbitrary")]
 impl<'a> Arbitrary<'a> for Message<'a> {
     fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
-        let imf: Imf = u.arbitrary()?;
+        let mut imf: Imf = u.arbitrary()?;
+        // hack: because the printer (see above) prints a MIME-Version header if
+        // it is missing, if we start with an AST without such a header, print
+        // it and parse it, we will get a different AST, which breaks the
+        // roundtrip property that the fuzzer checks. As a workaround we thus
+        // avoid generating such ASTs...
+        if imf.mime_version.is_none() {
+            imf.mime_version = Some(imf::mime::Version::default());
+        }
         let (trace_entries, imf_entries) = imf.field_entries();
         let mime_body: MimeBody = u.arbitrary()?;
 
@@ -246,6 +262,7 @@ between the header information and the body of the message.";
                     UnstrToken::from_plain(" ", UnstrTxtKind::Fws),
                     UnstrToken::from_plain("message", UnstrTxtKind::Txt),
                 ]));
+                imf.mime_version = Some(imf::mime::Version::default());
 
                 let mime_body = part::MimeBody::Txt(
                     part::discrete::Text {
@@ -422,6 +439,8 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                                 Atom("org".into()),
                             ]),
                         });
+
+                        imf.mime_version = Some(imf::mime::Version::default());
 
                         imf
                     },
@@ -602,7 +621,6 @@ hello??";
                             UnstrToken::from_plain("yolo", UnstrTxtKind::Txt),
                         ]),
                     }),
-                    MessageEntry::Imf(imf::field::Entry::MIMEVersion),
                 ];
 
                 Message {
