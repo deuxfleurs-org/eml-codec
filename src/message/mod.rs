@@ -48,10 +48,16 @@ impl<'a> Message<'a> {
             // SAFETY: `self.entries` must only contain entries that actually
             // appear in self.imf/self.mime_body.mime()
             let field = match e {
-                MessageEntry::MIME(e) =>
-                    MessageField::MIME(mime.get_field(*e).unwrap()),
-                MessageEntry::Imf(e) =>
-                    MessageField::Imf(self.imf.get_field(*e).unwrap()),
+                MessageEntry::MIME { e, raw_body } =>
+                    MessageField::MIME {
+                        f: mime.get_field(*e).unwrap(),
+                        raw_body: raw_body.clone(),
+                    },
+                MessageEntry::Imf { e, raw_body } =>
+                    MessageField::Imf {
+                        f: self.imf.get_field(*e).unwrap(),
+                        raw_body: raw_body.clone(),
+                    },
                 MessageEntry::Unstructured(u) =>
                     MessageField::Unstructured(u.clone()),
             };
@@ -103,15 +109,17 @@ impl<'a> Arbitrary<'a> for Message<'a> {
         }
 
         // compute the trace section (which includes unstructured headers)
-        let mut entries: Vec<_> = trace_entries.into_iter().map(MessageEntry::Imf).collect();
+        let mut entries: Vec<_> = trace_entries.into_iter().map(|e| {
+            MessageEntry::Imf { e, raw_body: RawInput::none() }
+        }).collect();
         entries.extend(arbitrary_unstructured(u)?.into_iter().map(MessageEntry::Unstructured));
         arbitrary_shuffle(u, &mut entries)?;
         // Renumber Trace entries so that their index is in order.
         {
             let mut id = 0;
-            for e in entries.iter_mut() {
-                if let MessageEntry::Imf(imf::field::Entry::Trace(_)) = e {
-                    *e = MessageEntry::Imf(imf::field::Entry::Trace(id));
+            for ent in entries.iter_mut() {
+                if let MessageEntry::Imf { e: e @ imf::field::Entry::Trace(_), .. } = ent {
+                    *e = imf::field::Entry::Trace(id);
                     id += 1
                 }
             }
@@ -122,21 +130,23 @@ impl<'a> Arbitrary<'a> for Message<'a> {
             mime_body.mime()
                      .field_entries()
                      .into_iter()
-                     .map(MessageEntry::MIME)
+                     .map(|e| MessageEntry::MIME { e, raw_body: RawInput::none() })
                      .collect();
-        rest.extend(imf_entries.into_iter().map(MessageEntry::Imf));
+        rest.extend(imf_entries.into_iter().map(|e| {
+            MessageEntry::Imf { e, raw_body: RawInput::none() }
+        }));
         rest.extend(arbitrary_unstructured(u)?.into_iter().map(MessageEntry::Unstructured));
         arbitrary_shuffle(u, &mut rest)?;
         // Renumber `Comments` and `Keywords` entries.
         {
             let mut comments_id = 0;
             let mut keywords_id = 0;
-            for e in rest.iter_mut() {
-                if let MessageEntry::Imf(imf::field::Entry::Comments(_)) = e {
-                    *e = MessageEntry::Imf(imf::field::Entry::Comments(comments_id));
+            for ent in rest.iter_mut() {
+                if let MessageEntry::Imf { e: e @ imf::field::Entry::Comments(_), .. } = ent {
+                    *e = imf::field::Entry::Comments(comments_id);
                     comments_id += 1
-                } else if let MessageEntry::Imf(imf::field::Entry::Keywords(_)) = e {
-                    *e = MessageEntry::Imf(imf::field::Entry::Keywords(keywords_id));
+                } else if let MessageEntry::Imf { e: e @ imf::field::Entry::Keywords(_), .. } = ent {
+                    *e = imf::field::Entry::Keywords(keywords_id);
                     keywords_id += 1
                 }
             }
@@ -276,11 +286,26 @@ between the header information and the body of the message.";
                 );
 
                 let entries = vec![
-                    MessageEntry::Imf(imf::field::Entry::Date),
-                    MessageEntry::Imf(imf::field::Entry::From),
-                    MessageEntry::Imf(imf::field::Entry::To),
-                    MessageEntry::Imf(imf::field::Entry::Subject),
-                    MessageEntry::Imf(imf::field::Entry::MIMEVersion),
+                    MessageEntry::Imf {
+                        e: imf::field::Entry::Date,
+                        raw_body: RawInput::between_excl(fullmail, b"Date:", b"\r\nFrom:"),
+                    },
+                    MessageEntry::Imf {
+                        e: imf::field::Entry::From,
+                        raw_body: RawInput::between_excl(fullmail, b"From:", b"\r\nTo:"),
+                    },
+                    MessageEntry::Imf {
+                        e: imf::field::Entry::To,
+                        raw_body: RawInput::between_excl(fullmail, b"To:", b"\r\nSubject:"),
+                    },
+                    MessageEntry::Imf {
+                        e: imf::field::Entry::Subject,
+                        raw_body: RawInput::between_excl(fullmail, b"Subject:", b"\r\nMIME-Version:"),
+                    },
+                    MessageEntry::Imf {
+                        e: imf::field::Entry::MIMEVersion,
+                        raw_body: b" 1.0".into(),
+                    }
                 ];
 
                 Message {
@@ -445,11 +470,26 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                         imf
                     },
                     entries: vec![
-                        MessageEntry::Imf(imf::field::Entry::Date),
-                        MessageEntry::Imf(imf::field::Entry::From),
-                        MessageEntry::Imf(imf::field::Entry::To),
-                        MessageEntry::Imf(imf::field::Entry::Cc),
-                        MessageEntry::Imf(imf::field::Entry::Subject),
+                        MessageEntry::Imf {
+                            e: imf::field::Entry::Date,
+                            raw_body: RawInput::between_excl(fullmail, b"Date:", b"\nFrom:"),
+                        },
+                        MessageEntry::Imf {
+                            e: imf::field::Entry::From,
+                            raw_body: RawInput::between_excl(fullmail, b"From:", b"\nTo:"),
+                        },
+                        MessageEntry::Imf {
+                            e: imf::field::Entry::To,
+                            raw_body: RawInput::between_excl(fullmail, b"To:", b"\nCC:"),
+                        },
+                        MessageEntry::Imf {
+                            e: imf::field::Entry::Cc,
+                            raw_body: RawInput::between_excl(fullmail, b"CC:", b"\nSubject: =?"),
+                        },
+                        MessageEntry::Imf {
+                            e: imf::field::Entry::Subject,
+                            raw_body: RawInput::between_excl(fullmail, b".be>\nSubject:", b"\nX-Unknown:"),
+                        },
                         MessageEntry::Unstructured(
                             header::Unstructured {
                                 name: header::FieldName(b"X-Unknown"[..].into()),
@@ -459,12 +499,25 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                                     UnstrToken::from_plain(" ", UnstrTxtKind::Fws),
                                     UnstrToken::from_plain("something", UnstrTxtKind::Txt),
                                 ]),
+                                raw_body: RawInput::between_excl(fullmail, b"X-Unknown:", b"\nBad entry"),
                             }
                         ),
-                        MessageEntry::Imf(imf::field::Entry::MessageId),
-                        MessageEntry::Imf(imf::field::Entry::MIMEVersion),
-                        MessageEntry::MIME(mime::field::Entry::Type),
-                        MessageEntry::MIME(mime::field::Entry::TransferEncoding),
+                        MessageEntry::Imf {
+                            e: imf::field::Entry::MessageId,
+                            raw_body: RawInput::between_excl(fullmail, b"Message-Id:", b"\nMIME-Version:"),
+                        },
+                        MessageEntry::Imf {
+                            e: imf::field::Entry::MIMEVersion,
+                            raw_body: RawInput::between_excl(fullmail, b"MIME-Version:", b"\nSubject: Bad"),
+                        },
+                        MessageEntry::MIME {
+                            e: mime::field::Entry::Type,
+                            raw_body: b" multipart/alternative;\n boundary=\"b1_e376dc71bafc953c0b0fdeb9983a9956\"".into(),
+                        },
+                        MessageEntry::MIME {
+                            e: mime::field::Entry::TransferEncoding,
+                            raw_body: b" 7bit".into()
+                        },
                     ],
                     mime_body: MimeBody::Mult(Multipart {
                         mime: mime::MIME {
@@ -483,8 +536,14 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                         children: vec![
                             AnyPart {
                                 entries: vec![
-                                    EntityEntry::MIME(mime::field::Entry::Type),
-                                    EntityEntry::MIME(mime::field::Entry::TransferEncoding),
+                                    EntityEntry::MIME {
+                                        e: mime::field::Entry::Type,
+                                        raw_body: b" text/plain; charset=utf-8".into(),
+                                    },
+                                    EntityEntry::MIME {
+                                        e: mime::field::Entry::TransferEncoding,
+                                        raw_body: b" quoted-printable".into(),
+                                    }
                                 ],
                                 mime_body: MimeBody::Txt(Text {
                                     mime: mime::MIME {
@@ -512,8 +571,12 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                                             UnstrToken::from_plain(" ", UnstrTxtKind::Fws),
                                             UnstrToken::from_plain("foobar", UnstrTxtKind::Txt),
                                         ]),
+                                        raw_body: b" foobar".into(),
                                     }),
-                                    EntityEntry::MIME(mime::field::Entry::Type),
+                                    EntityEntry::MIME {
+                                        e: mime::field::Entry::Type,
+                                        raw_body: b" text/html; charset=us-ascii".into(),
+                                    },
                                 ],
                                 mime_body: MimeBody::Txt(Text {
                                     mime: mime::MIME {
@@ -620,6 +683,7 @@ hello??";
                             UnstrToken::from_plain(" ", UnstrTxtKind::Fws),
                             UnstrToken::from_plain("yolo", UnstrTxtKind::Txt),
                         ]),
+                        raw_body: b" yolo".into(),
                     }),
                 ];
 

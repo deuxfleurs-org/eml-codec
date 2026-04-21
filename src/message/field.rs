@@ -6,6 +6,7 @@ use tracing::warn;
 use crate::fuzz_eq::FuzzEq;
 use crate::{header, imf, mime};
 use crate::print::{Print, Formatter};
+use crate::raw_input::RawInput;
 
 /// Header field of a toplevel message.
 /// Is either an Imf field (RFC 5322),
@@ -14,8 +15,8 @@ use crate::print::{Print, Formatter};
 #[derive(Clone, Debug, PartialEq, ToStatic)]
 #[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
 pub enum MessageField<'a> {
-    MIME(mime::field::Field<'a>),
-    Imf(imf::field::Field<'a>),
+    MIME { f: mime::field::Field<'a>, raw_body: RawInput<'a> },
+    Imf { f: imf::field::Field<'a>, raw_body: RawInput<'a> },
     // invariant: has a field name that is different from IMF or MIME headers.
     Unstructured(header::Unstructured<'a>),
 }
@@ -23,8 +24,8 @@ pub enum MessageField<'a> {
 impl<'a> Print for MessageField<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
         match self {
-            MessageField::MIME(f) => f.print(fmt),
-            MessageField::Imf(f) => f.print(fmt),
+            MessageField::MIME { f, .. } => f.print(fmt),
+            MessageField::Imf { f, .. } => f.print(fmt),
             MessageField::Unstructured(u) => u.print(fmt),
         }
     }
@@ -34,8 +35,8 @@ impl<'a> Print for MessageField<'a> {
 #[derive(Clone, Debug, PartialEq, ToStatic)]
 #[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
 pub enum MessageEntry<'a> {
-    MIME(mime::field::Entry),
-    Imf(imf::field::Entry),
+    MIME { e: mime::field::Entry, raw_body: RawInput<'a> },
+    Imf { e: imf::field::Entry, raw_body: RawInput<'a> },
     // invariant: has a field name that is different from IMF or MIME headers.
     Unstructured(header::Unstructured<'a>),
 }
@@ -62,7 +63,7 @@ impl<'a> FromIterator<header::FieldRaw<'a>> for NaiveMessageFields<'a> {
             match mime::field::NaiveField::try_from(&f) {
                 Ok(mimef) => {
                     if let Some(entry) = mime.add_field(mimef) {
-                        entries.push(MessageEntry::MIME(entry))
+                        entries.push(MessageEntry::MIME { e: entry, raw_body: f.body.into() })
                     } else {
                         // otherwise drop the field
                         #[cfg(feature = "tracing-recover")]
@@ -86,7 +87,7 @@ impl<'a> FromIterator<header::FieldRaw<'a>> for NaiveMessageFields<'a> {
                 Ok(imff) => {
                     match imf.add_field(imff) {
                         Ok(entry) =>
-                            entries.push(MessageEntry::Imf(entry)),
+                            entries.push(MessageEntry::Imf { e: entry, raw_body: f.body.into() }),
                         Err(imf::AddFieldErr::NoEntry) => {
                             #[cfg(feature = "tracing-recover")]
                             warn!(field = ?f, "no new entry for IMF field");

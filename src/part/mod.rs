@@ -66,10 +66,13 @@ impl<'a> AnyPart<'a> {
         let mut v = vec![];
         for e in &self.entries {
             let field = match e {
-                field::EntityEntry::MIME(e) => {
+                field::EntityEntry::MIME { e, raw_body } => {
                     // SAFETY: `self.entries` must only contain entries for
                     // fields that are actually present in `mime`.
-                    field::EntityField::MIME(mime.get_field(*e).unwrap())
+                    field::EntityField::MIME {
+                        f: mime.get_field(*e).unwrap(),
+                        raw_body: raw_body.clone(),
+                    }
                 },
                 field::EntityEntry::Unstructured(u) =>
                     field::EntityField::Unstructured(u.clone()),
@@ -88,7 +91,7 @@ impl<'a> Arbitrary<'a> for AnyPart<'a> {
             mime_body.mime()
                      .field_entries()
                      .into_iter()
-                     .map(field::EntityEntry::MIME)
+                     .map(|e| field::EntityEntry::MIME { e, raw_body: RawInput::none() })
                      .collect();
         let unstr: Vec<header::Unstructured> = arbitrary_vec_where(u, |f: &header::Unstructured| {
             !mime::field::is_mime_header(&f.name)

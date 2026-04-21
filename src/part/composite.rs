@@ -369,7 +369,7 @@ This is the epilogue. It is also to be ignored.
                          raw_headers: b"\n".into(),
                      },
                      AnyPart {
-                         entries: vec![EntityEntry::MIME(Entry::Type)],
+                         entries: vec![EntityEntry::MIME { e: Entry::Type, raw_body: b" text/plain; charset=us-ascii".into() }],
                          mime_body: MimeBody::Txt(Text {
                              mime: mime::MIME {
                                  ctype: mime::r#type::Text {
@@ -427,7 +427,12 @@ This is implicitly typed plain US-ASCII text.
                  epilogue: b"".into(),
                  children: vec![
                      AnyPart {
-                         entries: vec![EntityEntry::MIME(Entry::Type)],
+                         entries: vec![
+                             EntityEntry::MIME {
+                                 e: Entry::Type,
+                                 raw_body: b" multipart/mixed; boundary=\"inner boundary\"".into(),
+                             },
+                         ],
                          mime_body: MimeBody::Mult(Multipart {
                              mime: mime::MIME {
                                  ctype: mime::r#type::Multipart {

@@ -22,6 +22,7 @@ use crate::{
 };
 use crate::i18n::ContainsUtf8;
 use crate::print::{Print, Formatter};
+use crate::raw_input::RawInput;
 use crate::text::misc_token;
 use crate::text::whitespace::{foldable_line, obs_crlf};
 #[cfg(any(feature = "tracing-recover", feature = "tracing-unsupported"))]
@@ -183,13 +184,14 @@ fn is_ftext(c: u8) -> bool {
 pub struct Unstructured<'a> {
     pub name: FieldName<'a>,
     pub body: misc_token::Unstructured<'a>,
+    pub raw_body: RawInput<'a>,
 }
 
 impl<'a> Unstructured<'a> {
     // TODO: don't throw away the errors
     pub fn from_raw(f: &FieldRaw<'a>) -> Option<Unstructured<'a>> {
         let (_, body) = all_consuming(misc_token::unstructured)(f.body).ok()?;
-        Some(Unstructured { name: f.name.clone(), body })
+        Some(Unstructured { name: f.name.clone(), body, raw_body: f.body.into() })
     }
 }
 impl<'a> Print for Unstructured<'a> {
@@ -272,7 +274,8 @@ mod tests {
                     UnstrToken::from_plain("something", UnstrTxtKind::Txt),
                     UnstrToken::from_plain(" ", UnstrTxtKind::Fws),
                     UnstrToken::from_plain("something", UnstrTxtKind::Txt),
-                ])
+                ]),
+                raw_body: b" something something".into(),
             }
         )
     }
