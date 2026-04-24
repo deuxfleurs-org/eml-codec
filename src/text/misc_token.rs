@@ -442,6 +442,17 @@ impl<'a> Print for Unstructured<'a> {
 }
 
 impl<'a> Unstructured<'a> {
+    pub fn to_string_keep_obs(&self) -> String {
+        let mut s = String::new();
+        for tok in &self.0 {
+            match tok {
+                UnstrToken::Encoded(e) => s.push_str(&e.to_string()),
+                UnstrToken::Plain(txt, _) => s.push_str(&txt),
+            }
+        }
+        s
+    }
+
     // Merges consecutive tokens of the same kind.
     // Used to define fuzz_eq.
     #[cfg(feature = "arbitrary")]
