@@ -8,8 +8,8 @@ use tracing::{Level, span};
 
 #[cfg(feature = "arbitrary")]
 use crate::fuzz_eq::FuzzEq;
-use crate::i18n::ContainsUtf8;
 use crate::header;
+use crate::message;
 use crate::mime;
 use crate::part::{self, AnyPart, field::NaiveEntityFields};
 use crate::raw_input::RawInput;
@@ -177,23 +177,21 @@ fn part_raw<'a, 'b>(bound: &[u8]) -> impl Fn(&'a [u8]) -> (&'a [u8], &'a [u8]) +
 pub struct Message<'a> {
     pub mime: mime::MIME<'a, mime::r#type::Message<'a>>,
 
-    // NOTE: RFC2046 does not define the contents of an encapsulated message to
-    // be a "part" (instead parts are the children of a multipart entity).
-    // Intuitively, the contents of an encapsulated message should be a toplevel
-    // message (`message::Message`) in most cases.
-    //
-    // However, RFC2046 specifies that an encapsulated message "isn't restricted
+    // NOTE: RFC2046 specifies that an encapsulated message "isn't restricted
     // to material in strict conformance to RFC822" and that it "could well be a
     // News article or a MIME message".
     //
-    // We thus decide to parse the contents as a generic MIME entity using
-    // AnyPart. A downside of this approach is that we parse non-MIME headers as
-    // "unstructured", even though it could make more sense to keep them as raw
-    // bytes so that they could easily be parsed further. In any case,
-    // unstructured headers can always be printed back to bytes without any loss
-    // of information, so further parsing is possible, just not zero-copy
-    // anymore.
-    pub child: Box<AnyPart<'a>>,
+    // This could be interpreted as saying that we shouldn't parse the embedded
+    // message as a toplevel message. However, it is not clear whether there
+    // actually exist embedded messages that are not actually toplevel messages.
+    //
+    // Additionally, IMAP requires that we are able to construct an IMF enveloppe
+    // for an embedded message, and our AST for messages is able to handle missing
+    // fields that wouldn't be strictly compliant.
+    //
+    // We thus decide to parse the contents as a toplevel message, i.e. an
+    // `message::Message`, which involves interpreting IMF headers.
+    pub child: Box<message::Message<'a>>,
     pub raw_body: RawInput<'a>,
 }
 
@@ -201,7 +199,7 @@ pub struct Message<'a> {
 impl<'a> Arbitrary<'a> for Message<'a> {
     fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
         let mut mime: mime::MIME<'a, mime::r#type::Message<'a>> = u.arbitrary()?;
-        let child: Box<AnyPart<'a>> = u.arbitrary()?;
+        let child: Box<message::Message<'a>> = u.arbitrary()?;
         // TODO: clarify whether we should take the body into account as well, and
         // not just the headers (for later when we start interpreting bodies?)
         if matches!(mime.ctype.subtype, mime::r#type::MessageSubtype::RFC822) &&
@@ -223,37 +221,21 @@ pub fn message<'a>(
         #[cfg(feature = "tracing")]
         let _span = span!(Level::DEBUG, "part::composite::message", ?m).entered();
 
-        // parse header fields
-        let (input_body, headers) = header::header_kv(input);
-        // detect UTF-8 use in headers
-        let has_utf8 = headers.iter().any(|f| f.contains_utf8());
-        let fields: NaiveEntityFields = headers.into_iter().collect();
-
+        // parse the input as a toplevel message
+        let msg = message::message(input);
         let mut msg_mime = m.clone();
         // If the headers contain non-ascii UTF8 and if this is a
         // message/RFC822, promote the message outer MIME to message/global
-        if has_utf8 &&
+        if msg.contains_utf8_headers() &&
             matches!(msg_mime.ctype.subtype, mime::r#type::MessageSubtype::RFC822)
         {
             msg_mime.ctype.subtype = mime::r#type::MessageSubtype::Global;
         }
 
-        // interpret headers to choose the child mime type
-        let in_mime = fields.mime.to_interpreted(mime::DefaultType::Generic).into();
-        //---------------
-
-        // parse the body following this mime specification
-        let mime_body = part::part_body(in_mime)(input_body);
-
         Message {
             mime: msg_mime,
-            child: Box::new(AnyPart {
-                entries: fields.entries,
-                mime_body,
-                raw: input.into(),
-                raw_headers: input[0..input.len() - input_body.len()].into(),
-            }),
-            raw_body: input_body.into(),
+            child: Box::new(msg),
+            raw_body: input.into(),
         }
     }
 }

@@ -13,6 +13,7 @@ use crate::{
     part::MimeBody,
 };
 use crate::header;
+use crate::i18n::ContainsUtf8;
 use crate::imf;
 use crate::message::field::{MessageEntry, MessageField, NaiveMessageFields};
 use crate::mime;
@@ -40,6 +41,17 @@ pub struct Message<'a> {
 }
 
 impl<'a> Message<'a> {
+    pub fn contains_utf8_headers(&self) -> bool {
+        self.entries.iter().find(|f| {
+            match f {
+                field::MessageEntry::Unstructured(u) => u.contains_utf8(),
+                _ => false,
+            }
+        }).is_some()
+        || self.imf.contains_utf8()
+        || self.mime_body.mime().contains_utf8()
+    }
+
     // TODO: return an iterator instead of a Vec?
     pub fn field_list(&self) -> Vec<MessageField<'a>> {
         let mime = self.mime_body.mime();
@@ -889,6 +901,7 @@ From: \"Armaël\" <armaël@example.com>\r
 To: \"Müller\" <müller@example.test>\r
 Subject: Café? ☕\r
 Content-Type: text/plain; charset=UTF-8\r
+MIME-Version: 1.0\r
 \r
 ☕?".as_bytes()
         );
