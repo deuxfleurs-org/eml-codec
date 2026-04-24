@@ -12,11 +12,13 @@ use nom::{
 #[cfg(feature = "arbitrary")]
 use crate::fuzz_eq::FuzzEq;
 use eml_codec_derives::instrument_input;
+use crate::i18n::ContainsUtf8;
 use crate::print::{Print, Formatter, ToStringFromPrint};
 use crate::text::whitespace::cfws;
 
-#[derive(Clone, Debug, PartialEq, ToStatic, ToStringFromPrint)]
+#[derive(Clone, ContainsUtf8, Debug, PartialEq, ToStatic, ToStringFromPrint)]
 #[cfg_attr(feature = "arbitrary", derive(Arbitrary))]
+#[contains_utf8(false)]
 pub struct Version {
     pub major: u64,
     pub minor: u64,

@@ -14,6 +14,7 @@ use std::collections::HashSet;
 
 #[cfg(feature = "arbitrary")]
 use crate::fuzz_eq::FuzzEq;
+use crate::i18n::ContainsUtf8;
 use crate::imf::address::AddressRef;
 use crate::imf::datetime::DateTime;
 use crate::imf::field::{Field, Entry};
@@ -23,7 +24,7 @@ use crate::imf::mime::Version;
 use crate::imf::trace::ReturnPath;
 use crate::text::misc_token::{PhraseList, Unstructured};
 
-#[derive(Clone, Debug, PartialEq, ToStatic)]
+#[derive(Clone, ContainsUtf8, Debug, PartialEq, ToStatic)]
 #[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
 pub struct Imf<'a> {
     // 3.6.1.  The Origination Date Field
@@ -57,7 +58,7 @@ pub struct Imf<'a> {
     pub mime_version: Option<Version>,
 }
 
-#[derive(Clone, Debug, PartialEq, ToStatic)]
+#[derive(Clone, ContainsUtf8, Debug, PartialEq, ToStatic)]
 #[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
 pub enum DateTimeOpt {
     Some(DateTime),
@@ -68,7 +69,7 @@ pub enum DateTimeOpt {
     InvalidMissing,
 }
 
-#[derive(Clone, Debug, PartialEq, ToStatic)]
+#[derive(Clone, ContainsUtf8, Debug, PartialEq, ToStatic)]
 #[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
 pub enum From<'a> {
     Single {
@@ -124,7 +125,7 @@ impl<'a> Arbitrary<'a> for From<'a> {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, ToStatic)]
+#[derive(Clone, ContainsUtf8, Debug, PartialEq, ToStatic)]
 #[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
 pub enum TraceField<'a> {
     // At the moment, we do not try to parse the structure of Received fields.
