@@ -201,6 +201,21 @@ impl<'a> TryFrom<&header::FieldRaw<'a>> for Field<'a> {
     }
 }
 
+impl<'a> TryFrom<&header::Unstructured<'a>> for Field<'static> {
+    type Error = InvalidField;
+
+    fn try_from(u: &header::Unstructured<'a>) -> Result<Self, Self::Error> {
+        use bounded_static::IntoBoundedStatic;
+        use std::borrow::Cow;
+        let bytes_body: Cow<[u8]> = match u.raw_body.0 {
+            Some(s) => s.into(),
+            None => u.body.to_string_keep_obs().into_bytes().into(),
+        };
+        let hdr = header::FieldRaw { name: u.name.clone(), body: &bytes_body };
+        Field::try_from(&hdr).map(IntoBoundedStatic::into_static)
+    }
+}
+
 pub fn is_imf_header(name: &header::FieldName) -> bool {
     match name.bytes().to_ascii_lowercase().as_slice() {
         b"date" |
