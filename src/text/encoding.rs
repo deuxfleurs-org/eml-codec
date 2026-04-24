@@ -15,7 +15,6 @@ use nom::{
 };
 use std::borrow::Cow;
 use std::fmt;
-use std::io::Write;
 
 #[cfg(feature = "arbitrary")]
 use crate::{
@@ -123,17 +122,75 @@ pub fn encoded_word_token_base64(input: &[u8]) -> IResult<&[u8], EncodedWordToke
     Ok((rest, parsed))
 }
 
-// Represents an encoded word.
-//
-// Is always printed back as UTF-8 text (using, for now, the quoted encoding in
-// all cases).
+/// Represents an encoded word.
 #[derive(PartialEq, Debug, Clone, ToStatic, ToStringFromPrint)]
+#[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
 pub struct EncodedWord<'a>(pub Vec<EncodedWordToken<'a>>); // must be non-empty
 
 impl<'a> EncodedWord<'a> {
     /// Returns the data represented by this `EncodedWord`, encoded into UTF8
     pub fn data(&self) -> String {
         self.0.iter().map(|tok| tok.data()).collect::<Vec<_>>().join("")
+    }
+
+    /// Build an encoded word from UTF-8 chars. Uses the UTF-8 charset and
+    /// quoted encoding.
+    pub fn from_chars<I>(chars: I) -> Self
+    where
+        I: IntoIterator<Item = char>
+    {
+        const HEADER: &[u8] = b"=?UTF-8?Q?";
+        const FOOTER: &[u8] = b"?=";
+        // specified in RFC2047
+        const MAX_LEN: usize = 75;
+
+        let mut tokens: Vec<EncodedWordToken> = vec![];
+        let mut cur_chunks: Vec<QuotedChunk> = vec![];
+        let mut cur_word_len = 0;
+        let mut char_bytes: [u8; 4] = [0; 4];
+
+        for c in chars {
+            if HEADER.len()
+                + cur_word_len
+                + FOOTER.len() > MAX_LEN - 3 /* max size minus room for the next encoded byte */
+            {
+                let mut w = QuotedWord { enc: EmailCharset::utf8(), chunks: vec![] };
+                std::mem::swap(&mut w.chunks, &mut cur_chunks);
+                tokens.push(EncodedWordToken::Quoted(w));
+                cur_word_len = 0;
+            }
+
+            if c.is_ascii() && is_qchar_safe_strict(c as u8) {
+                if let Some(QuotedChunk::Safe(s)) = cur_chunks.last_mut() {
+                    let s = s.to_mut();
+                    s.push(c as u8)
+                } else {
+                    cur_chunks.push(QuotedChunk::Safe(vec![c as u8].into()));
+                }
+                cur_word_len += 1;
+            } else if c == char::from(ascii::SP) {
+                // space has a special treatment (RFC2047, 4.2, (2))
+                cur_chunks.push(QuotedChunk::Space);
+                cur_word_len += 1;
+            } else {
+                c.encode_utf8(&mut char_bytes);
+                let c_bytes = &char_bytes[0..c.len_utf8()];
+                if let Some(QuotedChunk::Encoded(e)) = cur_chunks.last_mut() {
+                    e.extend_from_slice(c_bytes)
+                } else {
+                    cur_chunks.push(QuotedChunk::Encoded(c_bytes.to_vec()))
+                }
+                // each encoded byte uses three characters (=XX)
+                cur_word_len += 3 * c.len_utf8();
+            }
+        }
+
+        tokens.push(EncodedWordToken::Quoted(QuotedWord {
+            enc: EmailCharset::utf8(),
+            chunks: cur_chunks,
+        }));
+
+        EncodedWord(tokens)
     }
 }
 impl<'a> Print for EncodedWord<'a> {
@@ -149,19 +206,8 @@ impl<'a> Arbitrary<'a> for EncodedWord<'a> {
     }
 }
 
-// The `Arbitrary` instance for `EncodedWord` generates tokens with random
-// encodings and bytes, but the printer for `EncodedWord` always prints using
-// the UTF-8 encoding (after converting to utf-8).
-// To check for roundtrip we thus can't check for equal AST, only equal contents.
-#[cfg(feature = "arbitrary")]
-impl<'a> FuzzEq for EncodedWord<'a> {
-    fn fuzz_eq(&self, other: &Self) -> bool {
-        self.data() == other.data()
-    }
-}
-
 #[derive(PartialEq, Debug, Clone, ToStatic)]
-#[cfg_attr(feature = "arbitrary", derive(Arbitrary))]
+#[cfg_attr(feature = "arbitrary", derive(FuzzEq, Arbitrary))]
 pub enum EncodedWordToken<'a> {
     Quoted(QuotedWord<'a>),
     Base64(Base64Word<'a>),
@@ -176,15 +222,20 @@ impl<'a> EncodedWordToken<'a> {
 }
 impl<'a> Print for EncodedWordToken<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
-        print_utf8_encoded(fmt, self.data().chars())
+        match self {
+            EncodedWordToken::Quoted(q) => q.print(fmt),
+            EncodedWordToken::Base64(b) => b.print(fmt),
+        }
     }
 }
 
 #[derive(PartialEq, Clone, ToStatic)]
+#[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
 pub struct Base64Word<'a> {
     pub enc: EmailCharset,
     // `content` must represent base64-encoded data. In particular,
     // all bytes in `content` must satisfy `is_bchar`.
+    #[cfg_attr(feature = "arbitrary", fuzz_eq(use_eq))]
     pub content: Cow<'a, [u8]>,
 }
 impl<'a> fmt::Debug for Base64Word<'a> {
@@ -202,6 +253,16 @@ impl<'a> Base64Word<'a> {
             .decode(&self.content)
             .map(|d| self.enc.decode(d.as_slice()).to_string())
             .unwrap_or("".into())
+    }
+}
+
+impl<'a> Print for Base64Word<'a> {
+    fn print(&self, fmt: &mut impl Formatter) {
+        fmt.write_bytes(b"=?");
+        fmt.write_bytes(self.enc.as_bytes());
+        fmt.write_bytes(b"?B?");
+        fmt.write_bytes(&self.content);
+        fmt.write_bytes(b"?=");
     }
 }
 
@@ -240,6 +301,24 @@ impl<'a> QuotedWord<'a> {
     }
 }
 
+impl<'a> Print for QuotedWord<'a> {
+    fn print(&self, fmt: &mut impl Formatter) {
+        fmt.write_bytes(b"=?");
+        fmt.write_bytes(self.enc.as_bytes());
+        fmt.write_bytes(b"?Q?");
+        print_seq(fmt, &self.chunks, |_| ());
+        fmt.write_bytes(b"?=");
+    }
+}
+
+#[cfg(feature = "arbitrary")]
+impl<'a> FuzzEq for QuotedWord<'a> {
+    fn fuzz_eq(&self, other: &QuotedWord<'a>) -> bool {
+        self.enc.fuzz_eq(&other.enc) &&
+        normalize_quoted_chunks(&self.chunks) == normalize_quoted_chunks(&other.chunks)
+    }
+}
+
 #[derive(PartialEq, Clone, ToStatic)]
 pub enum QuotedChunk<'a> {
     Safe(Cow<'a, [u8]>), // must satisfy `is_safe_char2`
@@ -260,6 +339,20 @@ impl<'a> fmt::Debug for QuotedChunk<'a> {
             QuotedChunk::Space =>
                 fmt.debug_tuple("QuotedChunk::Space")
                    .finish(),
+        }
+    }
+}
+
+impl<'a> Print for QuotedChunk<'a> {
+    fn print(&self, fmt: &mut impl Formatter) {
+        match self {
+            QuotedChunk::Safe(b) => fmt.write_bytes(&b),
+            QuotedChunk::Encoded(e) => {
+                for c in e {
+                    fmt.write_bytes(format!("={:02X}", c).as_bytes());
+                }
+            },
+            QuotedChunk::Space => fmt.write_bytes(b"_")
         }
     }
 }
@@ -323,6 +416,7 @@ fn many_hex_octet(input: &[u8]) -> IResult<&[u8], QuotedChunk<'_>> {
 }
 
 //base64 (maybe use a crate)
+//TODO: this strips off padding chars (final '='s). is this ok?
 pub fn btext(input: &[u8]) -> IResult<&[u8], &[u8]> {
     terminated(take_while(is_bchar), many0(tag("=")))(input)
 }
@@ -349,63 +443,20 @@ fn is_qchar_safe_strict(b: u8) -> bool {
         b == ascii::SLASH
 }
 
-// XXX: how can we enforce that encoded words are always preceded with linear
-// space (or beginning of header body)?
-fn print_utf8_encoded<I>(fmt: &mut impl Formatter, data: I)
-where
-    I: IntoIterator<Item = char>
-{
-    const HEADER: &[u8] = b"=?UTF-8?Q?";
-    const FOOTER: &[u8] = b"?=";
-    const MAX_LEN: usize = 75; // specified in RFC2047
-
-    let mut buf: Vec<u8> = Vec::with_capacity(MAX_LEN);
-    let mut char_bytes: [u8; 4] = [0; 4];
-    let mut char_encoded: Vec<u8> = Vec::new();
-    let mut data_is_empty = true;
-
-    for c in data {
-        data_is_empty = false;
-        if c.is_ascii() && is_qchar_safe_strict(c as u8) {
-            char_encoded.push(c as u8);
-        } else if c == char::from(ascii::SP) {
-            // space has a special treatment (RFC2047, 4.2, (2))
-            char_encoded.push(ascii::UNDERSCORE);
-        } else {
-            c.encode_utf8(&mut char_bytes);
-            for i in 0..c.len_utf8() {
-                write!(&mut char_encoded, "={:02X}", char_bytes[i]).unwrap();
-            }
-        }
-
-        if HEADER.len()
-            + buf.len()
-            + char_encoded.len()
-            + FOOTER.len() > MAX_LEN
-        {
-            fmt.write_bytes(HEADER);
-            fmt.write_bytes(&buf);
-            fmt.write_bytes(FOOTER);
-            fmt.write_fws();
-            buf.truncate(0);
-        }
-
-        buf.extend_from_slice(&char_encoded);
-        char_encoded.truncate(0);
-    }
-
-    if data_is_empty {
-        // output an empty encoded word
-        fmt.write_bytes(HEADER);
-        fmt.write_bytes(FOOTER);
-    } else {
-        // write any leftover data in buf
-        if !buf.is_empty() {
-            fmt.write_bytes(HEADER);
-            fmt.write_bytes(&buf);
-            fmt.write_bytes(FOOTER);
+#[cfg(feature = "arbitrary")]
+fn normalize_quoted_chunks<'a>(chunks: &Vec<QuotedChunk<'a>>) -> Vec<QuotedChunk<'static>> {
+    use bounded_static::ToBoundedStatic;
+    let mut new_chunks: Vec<QuotedChunk<'static>> = vec![];
+    for chunk in chunks {
+        match (new_chunks.last_mut(), chunk) {
+            (Some(QuotedChunk::Safe(b1)), QuotedChunk::Safe(b2)) =>
+                b1.to_mut().extend(b2.into_iter()),
+            (Some(QuotedChunk::Encoded(v1)), QuotedChunk::Encoded(v2)) =>
+                v1.extend(v2.into_iter()),
+            (_, _) => new_chunks.push(chunk.to_static()),
         }
     }
+    new_chunks
 }
 
 #[cfg(test)]
@@ -530,15 +581,15 @@ mod tests {
     #[test]
     fn test_encode() {
         let out = print_to_vec_with(|f| {
-            print_utf8_encoded(f, "Accusé de réception (affiché)".chars());
+            EncodedWord::from_chars("Accusé de réception (affiché)".chars()).print(f);
         });
         assert_eq!(
-            out,
-            b"=?UTF-8?Q?Accus=C3=A9_de_r=C3=A9ception_=28affich=C3=A9=29?="
+            String::from_utf8_lossy(&out),
+            "=?UTF-8?Q?Accus=C3=A9_de_r=C3=A9ception_=28affich=C3=A9=29?="
         );
 
         let out = print_to_vec_with(|f| {
-            print_utf8_encoded(f, "John Smîth".chars());
+            EncodedWord::from_chars("John Smîth".chars()).print(f);
         });
         assert_eq!(
             out,
@@ -550,18 +601,18 @@ mod tests {
     fn test_encode_folding() {
         let out = print_to_vec_with(|f| {
             f.begin_line_folding();
-            print_utf8_encoded(f, "Accusé de réception (affiché) Accusé de réception (affiché)".chars());
+            EncodedWord::from_chars("Accusé de réception (affiché) Accusé de réception (affiché)".chars()).print(f);
         });
         assert_eq!(
-            out,
-            b"=?UTF-8?Q?Accus=C3=A9_de_r=C3=A9ception_=28affich=C3=A9=29_Accus=C3=A9_de?=\r\n =?UTF-8?Q?_r=C3=A9ception_=28affich=C3=A9=29?="
+            String::from_utf8_lossy(&out),
+            "=?UTF-8?Q?Accus=C3=A9_de_r=C3=A9ception_=28affich=C3=A9=29_Accus=C3=A9_?=\r\n =?UTF-8?Q?de_r=C3=A9ception_=28affich=C3=A9=29?="
         );
     }
 
     #[test]
     fn test_encode_empty() {
         let out = print_to_vec_with(|f| {
-            print_utf8_encoded(f, "".chars());
+            EncodedWord::from_chars("".chars()).print(f);
         });
         assert_eq!(
             out,

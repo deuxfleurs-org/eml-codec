@@ -612,9 +612,9 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
         let reprinted: &[u8] = "Date: Sat, 8 Jul 2023 07:14:29 +0200\r
 From: Grrrnd Zero <grrrndzero@example.org>\r
 To: John Doe <jdoe@machine.example>\r
-Cc: =?UTF-8?Q?Andr=C3=A9?= Pirard <PIRARD@vm1.ulg.ac.be>\r
-Subject: =?UTF-8?Q?If_you_can_read_this_yo?=\r
- =?UTF-8?Q?u_understand_the_example=2E?=\r
+Cc: =?windows-1252?Q?Andr=E9?= Pirard <PIRARD@vm1.ulg.ac.be>\r
+Subject: =?windows-1252?B?SWYgeW91IGNhbiByZWFkIHRoaXMgeW8?=\r
+ =?ISO-8859-2?B?dSB1bmRlcnN0YW5kIHRoZSBleGFtcGxlLg?=\r
 X-Unknown: something something\r
 Message-ID: <NTAxNzA2AC47634Y366BAMTY4ODc5MzQyODY0ODY5@www.grrrndzero.org>\r
 MIME-Version: 1.0\r
