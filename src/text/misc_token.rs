@@ -35,7 +35,7 @@ use crate::text::{
     words::{atom, is_vchar, mime_atom, Atom, MIMEAtom, MIMEAtomChars},
 };
 
-#[derive(Clone, Debug, PartialEq, Default, ToStatic)]
+#[derive(Clone, ContainsUtf8, Debug, PartialEq, Default, ToStatic)]
 #[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
 pub struct PhraseList<'a>(pub Vec<Phrase<'a>>); // must be nonempty
 
@@ -187,7 +187,7 @@ pub fn word(input: &[u8]) -> IResult<&[u8], Word<'_>> {
     ))(input)
 }
 
-#[derive(Clone, Debug, PartialEq, ToStatic, ToStringFromPrint)]
+#[derive(Clone, ContainsUtf8, Debug, PartialEq, ToStatic, ToStringFromPrint)]
 #[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
 pub enum PhraseToken<'a> {
     // Word MUST NOT be a Word::Atom that represents an encoded
@@ -246,7 +246,7 @@ pub fn phrase_token(input: &[u8]) -> IResult<&[u8], PhraseToken<'_>> {
 }
 
 // Must be a non-empty list.
-#[derive(Clone, Debug, PartialEq, ToStatic, ToStringFromPrint)]
+#[derive(Clone, ContainsUtf8, Debug, PartialEq, ToStatic, ToStringFromPrint)]
 pub struct Phrase<'a>(pub Vec<PhraseToken<'a>>);
 
 impl<'a> Print for Phrase<'a> {

@@ -18,6 +18,7 @@ use std::fmt::{Debug, Formatter};
 #[cfg(feature = "arbitrary")]
 use crate::fuzz_eq::FuzzEq;
 use eml_codec_derives::instrument_input;
+use crate::i18n::ContainsUtf8;
 use crate::print::{Print, Formatter as PFmt};
 use crate::text::whitespace::{cfws, fws};
 
@@ -42,7 +43,8 @@ const MONTHS: &[&[u8]] = &[
 // NOTE: must satisfy the following properties:
 // - timezone offset: must be a round hours+minutes (no seconds)
 // - year must be after 1900 or later
-#[derive(Clone, PartialEq)]
+#[derive(Clone, ContainsUtf8, PartialEq)]
+#[contains_utf8(false)]
 pub struct DateTime(pub chrono::DateTime<FixedOffset>);
 
 impl DateTime {

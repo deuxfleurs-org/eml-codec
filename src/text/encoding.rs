@@ -21,6 +21,7 @@ use crate::{
     arbitrary_utils::{arbitrary_vec_nonempty, arbitrary_vec_where},
     fuzz_eq::FuzzEq,
 };
+use crate::i18n::ContainsUtf8;
 use crate::print::{print_seq, Print, Formatter, ToStringFromPrint};
 use crate::text::ascii;
 use crate::text::charset::EmailCharset;
@@ -123,8 +124,9 @@ pub fn encoded_word_token_base64(input: &[u8]) -> IResult<&[u8], EncodedWordToke
 }
 
 /// Represents an encoded word.
-#[derive(PartialEq, Debug, Clone, ToStatic, ToStringFromPrint)]
+#[derive(Clone, ContainsUtf8, Debug, PartialEq, ToStatic, ToStringFromPrint)]
 #[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
+#[contains_utf8(false)]
 pub struct EncodedWord<'a>(pub Vec<EncodedWordToken<'a>>); // must be non-empty
 
 impl<'a> EncodedWord<'a> {

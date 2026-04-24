@@ -16,11 +16,12 @@ use crate::fuzz_eq::FuzzEq;
 #[cfg(feature = "tracing-recover")]
 use crate::utils::bytes_to_trace_string;
 use eml_codec_derives::instrument_input;
-use crate::print::{Print, Formatter, ToStringFromPrint};
+use crate::i18n::ContainsUtf8;
 use crate::imf::mailbox;
+use crate::print::{Print, Formatter, ToStringFromPrint};
 use crate::text::{ascii, whitespace};
 
-#[derive(Debug, Clone, PartialEq, ToStatic, ToStringFromPrint)]
+#[derive(Clone, ContainsUtf8, Debug, PartialEq, ToStatic, ToStringFromPrint)]
 #[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
 pub struct ReturnPath<'a>(pub Option<mailbox::AddrSpec<'a>>);
 
