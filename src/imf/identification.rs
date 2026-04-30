@@ -7,14 +7,15 @@ use nom::{
     branch::alt,
     bytes::complete::tag,
     combinator::{eof, map, opt, recognize},
-    multi::{many0, separated_list1},
+    multi::many0,
     sequence::{delimited, pair, preceded, tuple},
     IResult,
 };
+use std::borrow::Cow;
 
 #[cfg(feature = "arbitrary")]
 use crate::{
-    arbitrary_utils::arbitrary_vec_nonempty,
+    arbitrary_utils::arbitrary_string_nonempty_where,
     fuzz_eq::FuzzEq,
 };
 #[cfg(any(feature = "tracing-recover", feature = "tracing-unsupported"))]
@@ -24,8 +25,8 @@ use crate::i18n::ContainsUtf8;
 use crate::print::{print_seq, Print, Formatter, ToStringFromPrint};
 use crate::imf::mailbox::{domain, dtext, local_part, Domain, Dtext, LocalPart};
 use crate::text::recovery::{take_quoted_or_until, take_quoted_encoded_or_until1};
+use crate::text::utf8::{is_nonascii_or, take_utf8_while1};
 use crate::text::whitespace::cfws;
-use crate::text::words::{dot_atom, DotAtom};
 
 // NOTE: MessageID is not strictly RFC-compliant, printing it may use obsolete
 // or non-compliant syntax.
@@ -34,8 +35,9 @@ use crate::text::words::{dot_atom, DotAtom};
 pub enum MessageID<'a> {
     // The compliant (but possibly obsolete) syntax
     ObsLeftRight { left: LocalPart<'a>, right: Domain<'a> },
-    // Non-compliant non-empty sequence of dot-atoms separated by '@'s
-    InvalidAtoms(Vec<DotAtom<'a>>),
+    // Non-compliant char sequence (must be non-empty and satisfy is_invalid_msgid_text)
+    #[cfg_attr(feature = "arbitrary", fuzz_eq(use_eq))]
+    Invalid(Cow<'a, str>),
 }
 impl<'a> Print for MessageID<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
@@ -46,8 +48,8 @@ impl<'a> Print for MessageID<'a> {
                 fmt.write_bytes(b"@");
                 right.print(fmt);
             },
-            MessageID::InvalidAtoms(a) =>
-                print_seq(fmt, a, |fmt| fmt.write_bytes(b"@")),
+            MessageID::Invalid(txt) =>
+                fmt.write_bytes(txt.as_bytes()),
         }
         fmt.write_bytes(b">");
     }
@@ -58,8 +60,10 @@ impl<'a> Arbitrary<'a> for MessageID<'a> {
         match u.int_in_range(0..=1)? {
             0 =>
                 Ok(MessageID::ObsLeftRight { left: u.arbitrary()?, right: u.arbitrary()? }),
-            1 =>
-                Ok(MessageID::InvalidAtoms(arbitrary_vec_nonempty(u)?)),
+            1 => {
+                let s = arbitrary_string_nonempty_where(u, is_invalid_msgid_text, 'X')?;
+                Ok(MessageID::Invalid(s.into()))
+            },
             _ =>
                 unreachable!(),
         }
@@ -86,12 +90,12 @@ impl<'a> Print for MessageIDList<'a> {
 /// ```abnf
 ///    our-msg-id        = our-msg-id-angle / our-msg-id-bare
 ///    our-msg-id-angle  = "<" our-msg-id-bare ">"
-///    our-msg-id-bare   = id-left "@" id-right / dot-atom *("@" dot-atom)
+///    our-msg-id-bare   = id-left "@" id-right / 1*(not <>")
 /// ```
-/// The grammar above is ambiguous since "id-left @ id-right" and "dot-atom @
-/// dot-atom" intersect. To work around this problem, our parsers for our-msg-id
-/// and our-msg-id-bare assume that they consume all of their input. If this is
-/// not the case, our-msg-id-angle should be used instead (as it is properly
+/// The grammar above is ambiguous since "id-left @ id-right" and "1*(not <>")"
+/// intersect. To work around this problem, our parsers for our-msg-id and
+/// our-msg-id-bare assume that they consume all of their input. If this is not
+/// the case, our-msg-id-angle should be used instead (as it is properly
 /// delimited).
 #[instrument_input("tracing")]
 pub fn msg_id(input: &[u8]) -> IResult<&[u8], MessageID<'_>> {
@@ -118,13 +122,22 @@ where F: for<'a> Fn(&'a [u8]) -> IResult<&'a [u8], &'a [u8]>
             map(tuple((id_left, tag("@"), id_right, &terminator)), |(left, _, right, _)| {
                 MessageID::ObsLeftRight { left, right }
             }),
-            map(pair(separated_list1(tag("@"), dot_atom), &terminator), |(a, _)| {
-                #[cfg(feature = "tracing-recover")]
-                warn!("message-id: @-separated dot-atoms instead of id-left@id-right");
-                MessageID::InvalidAtoms(a)
-            }),
+            map(tuple((opt(cfws), take_utf8_while1(is_invalid_msgid_text), opt(cfws), &terminator)),
+                |(_, s, _, _)| {
+                    #[cfg(feature = "tracing-recover")]
+                    warn!("message-id: bare string instead of id-left@id-right");
+                    MessageID::Invalid(s)
+                }),
         ))(input)
     }
+}
+
+// This is VERY lenient
+fn is_invalid_msgid_text(c: char) -> bool {
+    is_nonascii_or(|c| {
+        c.is_ascii_graphic() &&
+        c != b'<' && c != b'>' && c != b'"'
+    })(c)
 }
 
 /// A *very* lenient parser for lists of msg_id as used by In-Reply-To and References
@@ -295,16 +308,12 @@ mod tests {
     fn test_noncompliant_msg_id() {
         assert_eq!(
             msg_id(b" <523C50DA-160C-4550-A44E-7E192513CF91> "),
-            Ok((&b""[..], MessageID::InvalidAtoms(vec![
-                DotAtom("523C50DA-160C-4550-A44E-7E192513CF91".into())
-            ])))
+            Ok((&b""[..], MessageID::Invalid("523C50DA-160C-4550-A44E-7E192513CF91".into())))
         );
 
         assert_eq!(
             msg_id(b" foo "),
-            Ok((&b""[..], MessageID::InvalidAtoms(vec![
-                DotAtom("foo".into())
-            ])))
+            Ok((&b""[..], MessageID::Invalid("foo".into())))
         );
 
         assert_eq!(
@@ -329,11 +338,12 @@ mod tests {
 
         assert_eq!(
             msg_id(b" <aAdGYiJBX0VZF2TI@millmess@rouba.net> "),
-            Ok((&b""[..], MessageID::InvalidAtoms(vec![
-                DotAtom("aAdGYiJBX0VZF2TI".into()),
-                DotAtom("millmess".into()),
-                DotAtom("rouba.net".into()),
-            ])))
+            Ok((&b""[..], MessageID::Invalid("aAdGYiJBX0VZF2TI@millmess@rouba.net".into())))
+        );
+
+        assert_eq!(
+            msg_id(b"<md5:xqmIG/sV8WoSG9UzafBCGw==>"),
+            Ok((&b""[..], MessageID::Invalid("md5:xqmIG/sV8WoSG9UzafBCGw==".into())))
         );
     }
 
@@ -383,9 +393,9 @@ mod tests {
 
     #[test]
     fn test_msg_list_recover() {
-        // The second msg-id is broken (incorrect line folding). Skip it and
-        // allow parsing to continue.
-        // (Found in URSSAF emails.)
+        // The second msg-id is broken (incorrect line folding). (Found in
+        // URSSAF emails.) It is parsed as MessageID::Invalid and reprinted
+        // as-is. We skip it and continue parsing.
         assert_msg_list_reprinted(
             b"<abc@def>,<foo\n\tbar@outlook.com>,<baz@outlook.com>",
             b"<abc@def> <baz@outlook.com>",
