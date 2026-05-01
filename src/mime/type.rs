@@ -1,6 +1,6 @@
 #[cfg(feature = "arbitrary")]
 use arbitrary::Arbitrary;
-use bounded_static::{ToBoundedStatic, ToStatic};
+use bounded_static::{ToBoundedStatic, ToStatic, IntoBoundedStatic};
 use nom::{
     branch::alt,
     bytes::complete::tag,
@@ -20,7 +20,7 @@ use crate::i18n::ContainsUtf8;
 use crate::print::{Print, Formatter, ToStringFromPrint};
 use crate::text::charset::EmailCharset;
 use crate::text::misc_token::{mime_word, MIMEWord};
-use crate::text::quoted::print_quoted;
+use crate::text::quoted::{QuotedString, print_quoted};
 use crate::text::recovery::take_quoted_or_until;
 use crate::text::whitespace::cfws;
 use crate::text::words::{mime_atom, MIMEAtom};
@@ -170,6 +170,17 @@ pub enum AnyType<'a> {
     Binary(Binary<'a>),               // everything else
 }
 
+impl<'a> AnyType<'a> {
+    pub fn params(&self) -> Vec<Parameter<'a>> {
+        match self {
+            AnyType::Multipart(t) => t.params(),
+            AnyType::Message(t) => t.params.clone(),
+            AnyType::Text(t) => t.params(),
+            AnyType::Binary(t) => t.ctype.params.clone(),
+        }
+    }
+}
+
 impl<'a> From<&NaiveType<'a>> for AnyType<'a> {
     fn from(nt: &NaiveType<'a>) -> Self {
         match nt.main.0.to_ascii_lowercase().as_slice() {
@@ -206,19 +217,41 @@ impl<'a> Print for AnyType<'a> {
 #[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
 pub struct Multipart<'a> {
     pub subtype: MultipartSubtype,
-    // XXX: this is a hack, it is used to propagate information during parsing,
-    // but is ignored by the printer.
     #[cfg_attr(feature = "arbitrary", fuzz_eq(ignore))]
-    // boundary is always ascii
-    #[contains_utf8(ignore)]
+    #[contains_utf8(ignore)] // boundary is always ascii
+    // XXX: the fact that `boundary` is an Option is a hack;
+    // it is used to propagate information during parsing,
+    // but is ignored by the printer.
     pub boundary: Option<String>,
-    pub params: Vec<Parameter<'a>>,
+    // Invariant: parameters with .name != "boundary"
+    pub other_params: Vec<Parameter<'a>>,
+}
+
+impl<'a> Multipart<'a> {
+    pub fn params(&self) -> Vec<Parameter<'a>> {
+        let mut params = self.other_params.clone();
+        match &self.boundary {
+            Some(b) => params.push(Parameter {
+                name: MIMEAtom(b"boundary".into()),
+                value: MIMEWord::Quoted(QuotedString(vec![b.into()])).into_static(),
+            }),
+            None =>
+            // XXX in this case there is no boundary parameter returned,
+            // even the final email will contain one...
+                ()
+        };
+        params
+    }
 }
 
 #[cfg(feature = "arbitrary")]
 impl<'a> Arbitrary<'a> for Multipart<'a> {
-    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Multipart<'a>> {
-        Ok(Multipart { subtype: u.arbitrary()?, boundary: None, params: u.arbitrary()? })
+    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
+        let other_params: Vec<Parameter> = u.arbitrary()?;
+        if other_params.iter().any(|p| p.name.0.as_ref() == b"boundary") {
+            return Err(arbitrary::Error::IncorrectFormat)
+        }
+        Ok(Self { subtype: u.arbitrary()?, boundary: None, other_params })
     }
 }
 
@@ -233,7 +266,7 @@ impl<'a> Print for Multipart<'a> {
         fmt.write_bytes(b"boundary=\"");
         fmt.write_current_boundary();
         fmt.write_bytes(b"\"");
-        for param in &self.params {
+        for param in &self.other_params {
             fmt.write_bytes(b";");
             fmt.write_fws();
             param.print(fmt);
@@ -249,7 +282,7 @@ impl<'a> TryFrom<&NaiveType<'a>> for Multipart<'a> {
         tracing::instrument(name = "type::Multipart::try_from")
     )]
     fn try_from(nt: &NaiveType<'a>) -> Result<Self, Self::Error> {
-        let mut params = vec![];
+        let mut other_params = vec![];
         let mut boundary = None;
         for param in &nt.params {
             if param.name.0.to_ascii_lowercase().as_slice() == b"boundary" {
@@ -262,14 +295,14 @@ impl<'a> TryFrom<&NaiveType<'a>> for Multipart<'a> {
                     warn!(boundary = s, "dropping redundant boundary parameter")
                 }
             } else {
-                params.push(param.clone())
+                other_params.push(param.clone())
             }
         }
         match boundary {
             Some(boundary) => Ok(Multipart {
                 subtype: MultipartSubtype::from(nt),
                 boundary: Some(boundary),
-                params,
+                other_params,
             }),
             None => Err(()),
         }
@@ -417,13 +450,38 @@ impl<'a> TryFrom<&NaiveType<'a>> for Message<'a> {
 }
 
 #[derive(Clone, ContainsUtf8, Debug, PartialEq, Default, ToStatic)]
-#[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
+#[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
 pub struct Text<'a> {
     // NOTE: an unknown subtype combined with an unknown charset should
     // result in this type be treated as equivalent to the Binary type.
     pub subtype: TextSubtype,
     pub charset: EmailCharset,
-    pub params: Vec<Parameter<'a>>,
+    // Invariant: parameters with .name != "charset"
+    pub other_params: Vec<Parameter<'a>>,
+}
+
+impl<'a> Text<'a> {
+    pub fn params(&self) -> Vec<Parameter<'a>> {
+        let mut params = self.other_params.clone();
+        params.push(Parameter {
+            name: MIMEAtom(b"charset".into()),
+            value: MIMEWord::Quoted(QuotedString(vec![
+                self.charset.as_str().into()
+            ])).into_static(),
+        });
+        params
+    }
+}
+
+#[cfg(feature = "arbitrary")]
+impl<'a> Arbitrary<'a> for Text<'a> {
+    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
+        let other_params: Vec<Parameter> = u.arbitrary()?;
+        if other_params.iter().any(|p| p.name.0.as_ref() == b"charset") {
+            return Err(arbitrary::Error::IncorrectFormat)
+        }
+        Ok(Self { subtype: u.arbitrary()?, charset: u.arbitrary()?, other_params })
+    }
 }
 
 impl<'a> Print for Text<'a> {
@@ -440,7 +498,7 @@ impl<'a> Print for Text<'a> {
             _ =>
                 fmt.write_bytes(&self.charset.as_bytes())
         }
-        for param in &self.params {
+        for param in &self.other_params {
             fmt.write_bytes(b";");
             fmt.write_fws();
             param.print(fmt);
@@ -451,7 +509,7 @@ impl<'a> Print for Text<'a> {
 impl<'a> From<&NaiveType<'a>> for Text<'a> {
     #[cfg_attr(feature = "tracing", tracing::instrument)]
     fn from(nt: &NaiveType<'a>) -> Self {
-        let mut params = vec![];
+        let mut other_params = vec![];
         let mut charset = None;
         for param in &nt.params {
             if param.name.0.to_ascii_lowercase().as_slice() == b"charset" {
@@ -464,14 +522,14 @@ impl<'a> From<&NaiveType<'a>> for Text<'a> {
                     warn!(param = value, "dropping redundant charset parameter");
                 }
             } else {
-                params.push(param.clone())
+                other_params.push(param.clone())
             }
         }
 
         Self {
             subtype: TextSubtype::from(nt),
             charset: charset.unwrap_or_default(),
-            params,
+            other_params,
         }
     }
 }
@@ -600,7 +658,7 @@ mod tests {
             AnyType::Text(Text {
                 charset: EmailCharset::utf8(),
                 subtype: TextSubtype::Plain,
-                params: vec![Parameter {
+                other_params: vec![Parameter {
                     name: MIMEAtom(b"hello"[..].into()),
                     value: MIMEWord::Atom(MIMEAtom(b"yolo"[..].into())),
                 }],
@@ -618,7 +676,7 @@ mod tests {
             AnyType::Text(Text {
                 charset: EmailCharset::US_ASCII,
                 subtype: TextSubtype::Plain,
-                params: vec![],
+                other_params: vec![],
             })
         );
 
@@ -629,7 +687,7 @@ mod tests {
             AnyType::Text(Text {
                 charset: EmailCharset::utf8(),
                 subtype: TextSubtype::Plain,
-                params: vec![Parameter {
+                other_params: vec![Parameter {
                     name: MIMEAtom(b"hello"[..].into()),
                     value: MIMEWord::Atom(MIMEAtom(b"yolo"[..].into())),
                 }],
@@ -646,7 +704,7 @@ mod tests {
             AnyType::Multipart(Multipart {
                 subtype: MultipartSubtype::Mixed,
                 boundary: Some("--==_mimepart_64a3f2c69114f_2a13d020975fe".into()),
-                params: vec![Parameter {
+                other_params: vec![Parameter {
                     name: MIMEAtom(b"charset"[..].into()),
                     value: MIMEWord::Atom(MIMEAtom(b"UTF-8"[..].into())),
                 }],
@@ -692,7 +750,7 @@ mod tests {
             AnyType::Text(Text {
                 subtype: TextSubtype::Plain,
                 charset: EmailCharset::from(b"us-ascii"),
-                params: vec![],
+                other_params: vec![],
             })
         );
     }
