@@ -1,17 +1,30 @@
 use rayon::prelude::*;
 
-use tracing::{Event, Id, Subscriber};
-use tracing::span::{Attributes, Record};
-use tracing::field::{Field, Visit};
-use tracing_subscriber::layer::{Context, Layer, SubscriberExt};
-use tracing_subscriber::registry::LookupSpan;
-use tracing_subscriber::util::SubscriberInitExt;
-use tracing::{Level, span};
+#[cfg(feature = "tracing")]
+use tracing::{
+    Event, Id, Level, Subscriber,
+    span,
+    span::{Attributes, Record},
+    field::{Field, Visit},
+};
+#[cfg(feature = "tracing")]
+use tracing_subscriber::{
+    layer::{Context, Layer, SubscriberExt},
+    registry::LookupSpan,
+    util::SubscriberInitExt,
+};
 
-use std::collections::{HashMap, HashSet};
-use std::fs::File;
-use std::io::{Write, Read};
-use std::sync::{Arc, Mutex};
+#[cfg(feature = "tracing")]
+use std::{
+    collections::{HashSet, HashMap},
+    io::Write,
+    sync::Arc,
+};
+use std::{
+    fs::File,
+    io::Read,
+    sync::Mutex,
+};
 
 // This small tool implements:
 // - a collector for the `tracing` events and spans emitted from the parser,
@@ -22,16 +35,19 @@ use std::sync::{Arc, Mutex};
 // etc), to allow tracing events on large email corpuses.
 
 #[derive(Default)]
+#[cfg(feature = "tracing")]
 struct FieldVisitor {
     fields: Vec<(&'static str, String)>,
 }
 
+#[cfg(feature = "tracing")]
 impl Visit for FieldVisitor {
     fn record_debug(&mut self, field: &Field, value: &dyn std::fmt::Debug) {
         self.fields.push((field.name(), format!("{:?}", value)));
     }
 }
 
+#[cfg(feature = "tracing")]
 struct SpanData {
     name: String,
     fields: Vec<(&'static str, String)>,
@@ -39,16 +55,19 @@ struct SpanData {
 
 // The "pruning layer" performs tail sampling, filtering out spans that do not
 // contain any event.
+#[cfg(feature = "tracing")]
 struct PruningLayer {
     spans: Mutex<HashMap<Id, SpanData>>,
     relevant_spans: Mutex<HashSet<Id>>,
     file: Arc<Mutex<Box<dyn Write + Send>>>,
 }
 
+#[cfg(feature = "tracing")]
 struct PruningGuard {
     file: Arc<Mutex<Box<dyn Write + Send>>>,
 }
 
+#[cfg(feature = "tracing")]
 impl Drop for PruningGuard {
     fn drop(&mut self) {
         if let Ok(mut file) = self.file.lock() {
@@ -57,6 +76,7 @@ impl Drop for PruningGuard {
     }
 }
 
+#[cfg(feature = "tracing")]
 impl PruningLayer {
     fn new(path: Option<&str>) -> (Self, PruningGuard) {
         let writer = match path {
@@ -74,6 +94,7 @@ impl PruningLayer {
     }
 }
 
+#[cfg(feature = "tracing")]
 impl<S> Layer<S> for PruningLayer
 where
     S: Subscriber + for<'a> LookupSpan<'a>,
@@ -146,6 +167,7 @@ where
 // Items of the output trace (list of json records, one `LogEvent` record per
 // line)
 #[derive(serde::Serialize)]
+#[cfg(feature = "tracing")]
 struct LogEvent {
     event: String,
     #[serde(flatten)]
@@ -155,6 +177,7 @@ struct LogEvent {
 
 
 #[derive(serde::Serialize)]
+#[cfg(feature = "tracing")]
 struct LogSpan {
     span: String,
     #[serde(flatten)]
@@ -200,7 +223,9 @@ fn dir_entries(path: &std::path::Path, v: &mut Vec<std::path::PathBuf>) -> std::
 }
 
 fn main() {
+    #[cfg(feature = "tracing")]
     let (layer, _guard) = PruningLayer::new(None);
+    #[cfg(feature = "tracing")]
     tracing_subscriber::registry()
         .with(layer)
         .init();
@@ -212,18 +237,17 @@ fn main() {
             dir_entries(&std::path::PathBuf::from(path.clone()), &mut entries)
                 .expect(&format!("failed listing files in {}", path));
             entries.par_iter().for_each(|path| {
-                let span = span!(Level::TRACE, "file email", path = %path.display());
-                let _enter = span.enter();
+                #[cfg(feature = "tracing")]
+                let _span = span!(Level::TRACE, "file email", path = %path.display()).entered();
                 eprintln!("parsing email {}", path.display());
                 let mut input = Vec::new();
                 File::open(&path).unwrap().read_to_end(&mut input).unwrap();
                 let _eml = eml_codec::parse_message(&input);
             });
         } else {
-
             if path.ends_with(".mbox") {
-                let span = span!(Level::TRACE, "mailbox", %path);
-                let _enter = span.enter();
+                #[cfg(feature = "tracing")]
+                let _span = span!(Level::TRACE, "mailbox", %path).entered();
                 eprintln!("parsing mailbox: {}", path);
                 let mut input = Vec::new();
                 File::open(&path).unwrap().read_to_end(&mut input).unwrap();
@@ -231,36 +255,50 @@ fn main() {
                 eprintln!("{} emails found", raw_emails.len());
 
                 raw_emails.par_iter().enumerate().for_each(|(idx, raw_email)| {
-                    let span = span!(Level::TRACE, "mailbox email", idx);
-                    let _enter = span.enter();
+                    #[cfg(feature = "tracing")]
+                    let _span = span!(Level::TRACE, "mailbox email", %path, idx).entered();
                     eprintln!("parsing mbox email {}", idx);
                     let _eml = eml_codec::parse_message(raw_email);
                 })
             } else if path.ends_with(".zip") {
-                let span = span!(Level::TRACE, "zip", %path);
-                let _enter = span.enter();
+                #[cfg(feature = "tracing")]
+                let _span = span!(Level::TRACE, "zip", %path).entered();
                 eprintln!("parsing zip file: {}", path);
                 let archive = zip::ZipArchive::new(File::open(&path).unwrap()).unwrap();
                 let nb_items = archive.len();
                 let archive_lck = Mutex::new(archive);
                 (0..nb_items).into_par_iter().for_each(|i| {
                     let mut input = Vec::new();
-                    #[allow(unused_assignments)]
-                    let mut path = None;
+                    let mut _fpath = None;
                     {
                         let mut archive = archive_lck.lock().unwrap();
                         let mut file = archive.by_index(i).unwrap();
                         eprintln!("parsing email {}", file.name());
-                        path = Some(file.name().to_string());
+                        _fpath = Some(file.name().to_string());
                         file.read_to_end(&mut input).unwrap();
                     }
-                    let span = span!(Level::TRACE, "zip email", path = %path.unwrap());
-                    let _enter = span.enter();
+                    #[cfg(feature = "tracing")]
+                    let _span = span!(Level::TRACE, "zip email", %path, fpath = %_fpath.unwrap()).entered();
                     let _eml = eml_codec::parse_message(&input);
                 })
+            } else if path.ends_with(".tar") {
+                #[cfg(feature = "tracing")]
+                let _span = span!(Level::TRACE, "tar", %path).entered();
+                eprintln!("parsing tar file: {}", path);
+                let mut archive = tar::Archive::new(File::open(&path).unwrap());
+                for ent in archive.entries_with_seek().unwrap() {
+                    let mut input = Vec::new();
+                    let mut ent = ent.unwrap();
+                    let fpath = ent.path().unwrap().into_owned();
+                    let _ = ent.read_to_end(&mut input).unwrap();
+                    eprintln!("parsing email {}", fpath.display());
+                    #[cfg(feature = "tracing")]
+                    let _span = span!(Level::TRACE, "tar email", %path, fpath = %fpath.display()).entered();
+                    let _eml = eml_codec::parse_message(&input);
+                }
             } else {
-                let span = span!(Level::TRACE, "eml", %path);
-                let _enter = span.enter();
+                #[cfg(feature = "tracing")]
+                let _span = span!(Level::TRACE, "eml", %path).entered();
                 eprintln!("parsing single email: {}", path);
                 let mut input = Vec::new();
                 File::open(&path).unwrap().read_to_end(&mut input).unwrap();

@@ -13,6 +13,7 @@ where `<emails>` can be:
 - a directory containing individual email files (subdirectories are supported)
 - a `.mbox` file (see the [mbox format](https://en.wikipedia.org/wiki/Mbox))
 - a `.zip` file containing individual email files
+- a `.tar` file containing individual email files
 - a single email file
 
 The tool writes on its standard output the trace of recovery events, as json records (on per line). 
