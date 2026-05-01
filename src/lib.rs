@@ -36,6 +36,9 @@ mod utils;
 #[cfg(feature = "arbitrary")]
 mod arbitrary_utils;
 
+// Re-export bounded_static because we implement its traits
+pub use bounded_static;
+
 /// Parse a whole email including its (MIME) body
 ///
 /// # Arguments
