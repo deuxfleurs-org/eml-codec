@@ -22,6 +22,7 @@ pub enum EmailCharset {
     #[default]
     US_ASCII,
     Charset(Charset),
+    // Invariant: must contain ASCII characters satisfying is_vchar
     Unknown(String),
 }
 
@@ -59,6 +60,14 @@ impl EmailCharset {
             EmailCharset::US_ASCII => b"us-ascii",
             EmailCharset::Charset(c) => c.name().as_bytes(),
             EmailCharset::Unknown(s) => s.as_bytes(),
+        }
+    }
+
+    pub fn as_str(&self) -> &str {
+        match self {
+            EmailCharset::US_ASCII => "us-ascii",
+            EmailCharset::Charset(c) => c.name(),
+            EmailCharset::Unknown(s) => s.as_str(),
         }
     }
 

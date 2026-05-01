@@ -524,7 +524,7 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                             ctype: mime::r#type::Multipart {
                                 subtype: mime::r#type::MultipartSubtype::Alternative,
                                 boundary: Some("b1_e376dc71bafc953c0b0fdeb9983a9956".to_string()),
-                                params: vec![],
+                                other_params: vec![],
                             },
                             fields: mime::CommonMIME {
                                 transfer_encoding: mime::mechanism::Mechanism::_7Bit,
@@ -550,7 +550,7 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                                         ctype: mime::r#type::Text {
                                             subtype: mime::r#type::TextSubtype::Plain,
                                             charset: EmailCharset::utf8(),
-                                            params: vec![],
+                                            other_params: vec![],
                                         },
                                         fields: mime::CommonMIME {
                                             transfer_encoding: mime::mechanism::Mechanism::QuotedPrintable,
@@ -583,7 +583,7 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                                         ctype: mime::r#type::Text {
                                             subtype: mime::r#type::TextSubtype::Html,
                                             charset: EmailCharset::US_ASCII,
-                                            params: vec![],
+                                            other_params: vec![],
                                         },
 
                                         fields: mime::CommonMIME::default(),

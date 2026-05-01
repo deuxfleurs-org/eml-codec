@@ -314,7 +314,7 @@ It DOES end with a linebreak.
             ctype: mime::r#type::Multipart {
                 subtype: mime::r#type::MultipartSubtype::Alternative,
                 boundary: Some("simple boundary".to_string()),
-                params: vec![],
+                other_params: vec![],
             },
             fields: mime::CommonMIME::default(),
         };
@@ -375,7 +375,7 @@ This is the epilogue. It is also to be ignored.
                                  ctype: mime::r#type::Text {
                                      subtype: mime::r#type::TextSubtype::Plain,
                                      charset: EmailCharset::US_ASCII,
-                                     params: vec![],
+                                     other_params: vec![],
                                  },
                                  fields: mime::CommonMIME::default(),
                              },
@@ -401,7 +401,7 @@ This is the epilogue. It is also to be ignored.
             ctype: mime::r#type::Multipart {
                 subtype: mime::r#type::MultipartSubtype::Mixed,
                 boundary: Some("outer boundary".to_string()),
-                params: vec![],
+                other_params: vec![],
             },
             fields: mime::CommonMIME::default(),
         };
@@ -438,7 +438,7 @@ This is implicitly typed plain US-ASCII text.
                                  ctype: mime::r#type::Multipart {
                                      subtype: mime::r#type::MultipartSubtype::Mixed,
                                      boundary: Some("inner boundary".to_string()),
-                                     params: vec![],
+                                     other_params: vec![],
                                  },
                                  fields: mime::CommonMIME::default(),
                              },
@@ -494,7 +494,7 @@ This is implicitly typed plain US-ASCII text.
             ctype: mime::r#type::Multipart {
                 subtype: mime::r#type::MultipartSubtype::Mixed,
                 boundary: Some("boundary".to_string()),
-                params: vec![],
+                other_params: vec![],
             },
             fields: mime::CommonMIME::default(),
         };
@@ -541,7 +541,7 @@ leftovers";
             ctype: mime::r#type::Multipart {
                 subtype: mime::r#type::MultipartSubtype::Alternative,
                 boundary: Some("boundary".to_string()),
-                params: vec![],
+                other_params: vec![],
             },
             fields: mime::CommonMIME::default(),
         };
