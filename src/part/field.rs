@@ -18,6 +18,22 @@ pub enum EntityField<'a> {
     Unstructured(header::Unstructured<'a>),
 }
 
+impl<'a> EntityField<'a> {
+    pub fn raw_name(&self) -> header::FieldName<'a> {
+        match self {
+            EntityField::MIME { f, .. } => f.raw_name(),
+            EntityField::Unstructured(u) => u.name.clone(),
+        }
+    }
+
+    pub fn raw_body(&self) -> RawInput<'a> {
+        match self {
+            EntityField::MIME { raw_body, .. } => raw_body.clone(),
+            EntityField::Unstructured(u) => u.raw_body.clone(),
+        }
+    }
+}
+
 impl<'a> Print for EntityField<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
         match self {

@@ -74,6 +74,28 @@ pub enum Field<'a> {
     MIMEVersion(Version),
 }
 
+impl<'a> Field<'a> {
+    pub fn raw_name(&self) -> header::FieldName<'static> {
+        match self {
+            Self::Date(_) => header::FieldName(b"Date".into()),
+            Self::From(_) => header::FieldName(b"From".into()),
+            Self::Sender(_) => header::FieldName(b"Sender".into()),
+            Self::ReplyTo(_) => header::FieldName(b"Reply-To".into()),
+            Self::To(_) => header::FieldName(b"To".into()),
+            Self::Cc(_) => header::FieldName(b"Cc".into()),
+            Self::Bcc(_) => header::FieldName(b"Bcc".into()),
+            Self::MessageID(_) => header::FieldName(b"Message-Id".into()),
+            Self::InReplyTo(_) => header::FieldName(b"In-Reply-To".into()),
+            Self::References(_) => header::FieldName(b"References".into()),
+            Self::Subject(_) => header::FieldName(b"Subject".into()),
+            Self::Comments(_) => header::FieldName(b"Comments".into()),
+            Self::Keywords(_) => header::FieldName(b"Keywords".into()),
+            Self::Received(_) => header::FieldName(b"Received".into()),
+            Self::ReturnPath(_) => header::FieldName(b"Return-Path".into()),
+            Self::MIMEVersion(_) => header::FieldName(b"MIME-Version".into()),
+        }
+    }
+}
 impl<'a> Print for Field<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
         match self {
