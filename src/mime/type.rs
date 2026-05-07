@@ -592,7 +592,7 @@ impl<'a> Arbitrary<'a> for TextSubtype {
 #[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
 pub struct Binary<'a> {
     // invariant: ctype.main is neither "multipart", "message" or "text"
-    ctype: NaiveType<'a>,
+    pub ctype: NaiveType<'a>,
 }
 
 impl<'a> Print for Binary<'a> {
