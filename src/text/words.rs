@@ -11,7 +11,7 @@ use crate::{
 };
 use eml_codec_derives::instrument_input;
 use crate::i18n::ContainsUtf8;
-use crate::print::{Print, Formatter};
+use crate::print::{Print, Formatter, ToStringFromPrint};
 use crate::text::ascii;
 use crate::text::utf8::{is_nonascii_or, take_utf8_while1};
 use crate::text::whitespace::cfws;
@@ -35,7 +35,7 @@ pub fn is_vchar(c: char) -> bool {
 
 /// A MIME atom.
 // Contains a non-zero amount of bytes that satisfy `is_mime_atom_text`.
-#[derive(Clone, ContainsUtf8, PartialEq, Default, ToStatic)]
+#[derive(Clone, ContainsUtf8, PartialEq, Default, ToStatic, ToStringFromPrint)]
 #[contains_utf8(false)]
 pub struct MIMEAtom<'a>(pub Cow<'a, [u8]>);
 
@@ -126,7 +126,7 @@ pub fn mime_atom_plain(input: &[u8]) -> IResult<&[u8], MIMEAtom<'_>> {
 
 /// An IMF atom.
 // Contains a non-zero amount of bytes that satisfy `is_atext`.
-#[derive(Clone, ContainsUtf8, Debug, PartialEq, ToStatic)]
+#[derive(Clone, ContainsUtf8, Debug, PartialEq, ToStatic, ToStringFromPrint)]
 pub struct Atom<'a>(pub Cow<'a, str>);
 
 impl<'a> Print for Atom<'a> {
@@ -191,7 +191,7 @@ pub fn atom(input: &[u8]) -> IResult<&[u8], Atom<'_>> {
 
 /// An IMF dot-atom.
 // Only contains bytes that satisfy is_atext or are '.'.
-#[derive(Clone, ContainsUtf8, Debug, PartialEq, ToStatic)]
+#[derive(Clone, ContainsUtf8, Debug, PartialEq, ToStatic, ToStringFromPrint)]
 pub struct DotAtom<'a>(pub Cow<'a, str>);
 
 impl<'a> Print for DotAtom<'a> {

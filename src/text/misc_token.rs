@@ -35,7 +35,7 @@ use crate::text::{
     words::{atom, is_vchar, mime_atom, Atom, MIMEAtom, MIMEAtomChars},
 };
 
-#[derive(Clone, ContainsUtf8, Debug, PartialEq, Default, ToStatic)]
+#[derive(Clone, ContainsUtf8, Debug, PartialEq, Default, ToStatic, ToStringFromPrint)]
 #[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
 pub struct PhraseList<'a>(pub Vec<Phrase<'a>>); // must be nonempty
 
