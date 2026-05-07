@@ -22,7 +22,7 @@ use crate::{
 };
 #[cfg(feature = "tracing-unsupported")]
 use crate::utils::bytes_to_trace_string;
-use crate::mime::AnyMIME;
+use crate::mime::{AnyMIME, MIME};
 use crate::part::{
     composite::{message, multipart, Message, Multipart},
     discrete::{Binary, Text},
@@ -68,6 +68,24 @@ impl<'a> AnyPart<'a> {
             v.push(field);
         }
         v
+    }
+}
+
+impl Default for AnyPart<'static> {
+    fn default() -> Self {
+        Self {
+            entries: vec![],
+            mime_body: MimeBody::Txt(discrete::Text {
+                mime: MIME {
+                    ctype: Default::default(),
+                    fields: Default::default(),
+                },
+                body: b"".into(),
+                raw_body: RawInput(Some(b"")),
+            }),
+            raw: RawInput(Some(b"")),
+            raw_headers: RawInput(Some(b"")),
+        }
     }
 }
 

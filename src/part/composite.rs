@@ -5,9 +5,14 @@ use std::borrow::Cow;
 use std::fmt;
 #[cfg(feature = "tracing")]
 use tracing::{Level, span};
+#[cfg(feature = "tracing-recover")]
+use tracing::warn;
 
 #[cfg(feature = "arbitrary")]
-use crate::fuzz_eq::FuzzEq;
+use crate::{
+    arbitrary_utils::arbitrary_vec_nonempty,
+    fuzz_eq::FuzzEq
+};
 use crate::header;
 use crate::message;
 use crate::mime;
@@ -20,6 +25,7 @@ use crate::text::boundary::{boundary, Delimiter};
 #[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
 pub struct Multipart<'a> {
     pub mime: mime::MIME<'a, mime::r#type::Multipart<'a>>,
+    // Invariant: `children` is non-empty 
     pub children: Vec<AnyPart<'a>>,
     #[cfg_attr(feature = "arbitrary", fuzz_eq(ignore))]
     pub preamble: Cow<'a, [u8]>,
@@ -43,7 +49,7 @@ impl<'a> Arbitrary<'a> for Multipart<'a> {
     fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
         Ok(Multipart {
             mime: u.arbitrary()?,
-            children: u.arbitrary()?,
+            children: arbitrary_vec_nonempty(u)?,
             preamble: b"".into(),
             epilogue: b"".into(),
             raw_body: RawInput::none(),
@@ -75,12 +81,12 @@ pub fn multipart<'a>(
         // preamble
         let (mut input_loop, preamble) = part_raw(input);
 
-        loop {
+        let (rest, mut multipart) = loop {
             let input = match boundary(bound)(input_loop) {
                 Err(_) => {
                     // We encountered a malformed boundary, stop parsing.
                     let raw_body = &full_input[0..full_input.len() - input_loop.len()];
-                    return (
+                    break (
                         input_loop,
                         Multipart {
                             mime: m.clone(),
@@ -92,7 +98,7 @@ pub fn multipart<'a>(
                     )
                 }
                 Ok((inp, Delimiter::Last)) => {
-                    return (
+                    break (
                         &[],
                         Multipart {
                             mime: m.clone(),
@@ -134,7 +140,17 @@ pub fn multipart<'a>(
             });
 
             input_loop = input_next;
+        };
+
+        // RFC2064 specifies that a multipart must have at least one child part.
+        // If there is no child part, insert an empty part as recovery strategy.
+        if multipart.children.is_empty() {
+            #[cfg(feature = "tracing-recover")]
+            warn!("multipart containing zero parts");
+            multipart.children.push(AnyPart::default());
         }
+
+        (rest, multipart)
     }
 }
 
@@ -556,6 +572,33 @@ leftovers";
                          raw_headers: b"\n".into(),
                      },
                  ],
+                 raw_body: input.into(),
+             },
+            )
+        );
+    }
+
+    #[test]
+    fn test_multipart_no_parts() {
+        let base_mime = mime::MIME {
+            ctype: mime::r#type::Multipart {
+                subtype: mime::r#type::MultipartSubtype::Alternative,
+                boundary: Some("boundary".to_string()),
+                other_params: vec![],
+            },
+            fields: mime::CommonMIME::default(),
+        };
+
+        let input = b"--boundary--";
+
+        assert_eq!(
+            multipart(base_mime.clone())(input),
+            (&b""[..],
+             Multipart {
+                 mime: base_mime,
+                 preamble: b"".into(),
+                 epilogue: b"".into(),
+                 children: vec![AnyPart::default()],
                  raw_body: input.into(),
              },
             )
