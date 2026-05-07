@@ -341,7 +341,7 @@ pub enum MultipartSubtype {
     Unknown(MIMEAtom<'static>),
 }
 impl MultipartSubtype {
-    fn as_bytes(&self) -> &[u8] {
+    pub fn as_bytes(&self) -> &[u8] {
         match self {
             Self::Alternative => b"alternative",
             Self::Mixed => b"mixed",
@@ -402,7 +402,7 @@ pub enum MessageSubtype {
     Global, // RFC6532 subtype (message containing UTF-8 headers)
 }
 impl MessageSubtype {
-    fn as_bytes(&self) -> &[u8] {
+    pub fn as_bytes(&self) -> &[u8] {
         match self {
             Self::RFC822 => b"rfc822",
             Self::Global => b"global",
@@ -563,7 +563,7 @@ pub enum TextSubtype {
     Unknown(MIMEAtom<'static>),
 }
 impl TextSubtype {
-    fn as_bytes(&self) -> &[u8] {
+    pub fn as_bytes(&self) -> &[u8] {
         use TextSubtype::*;
         match self {
             Plain => b"plain",
