@@ -31,6 +31,17 @@ pub enum Field<'a> {
     ID(MessageID<'a>),
     Description(Unstructured<'a>),
 }
+
+impl<'a> Field<'a> {
+    pub fn raw_name(&self) -> header::FieldName<'static> {
+        match self {
+            Field::Type(_) => header::FieldName(b"Content-Type".into()),
+            Field::TransferEncoding(_) => header::FieldName(b"Content-Transfer-Encoding".into()),
+            Field::ID(_) => header::FieldName(b"Content-Id".into()),
+            Field::Description(_) => header::FieldName(b"Content-Description".into()),
+        }
+    }
+}
 impl<'a> Print for Field<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
         match self {

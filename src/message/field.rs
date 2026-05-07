@@ -21,6 +21,24 @@ pub enum MessageField<'a> {
     Unstructured(header::Unstructured<'a>),
 }
 
+impl<'a> MessageField<'a> {
+    pub fn raw_name(&self) -> header::FieldName<'a> {
+        match self {
+            MessageField::MIME { f, .. } => f.raw_name(),
+            MessageField::Imf { f, .. } => f.raw_name(),
+            MessageField::Unstructured(u) => u.name.clone(),
+        }
+    }
+
+    pub fn raw_body(&self) -> RawInput<'a> {
+        match self {
+            MessageField::MIME { raw_body, .. } => raw_body.clone(),
+            MessageField::Imf { raw_body, .. } => raw_body.clone(),
+            MessageField::Unstructured(u) => u.raw_body.clone(),
+        }
+    }
+}
+
 impl<'a> Print for MessageField<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
         match self {
