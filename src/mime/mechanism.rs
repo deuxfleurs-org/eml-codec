@@ -15,9 +15,9 @@ use crate::text::whitespace::cfws;
 use crate::text::words::{mime_atom, MIMEAtom};
 use nom::{
     branch::alt,
-    bytes::complete::tag_no_case,
+    bytes::complete::{tag, tag_no_case},
     combinator::{consumed, map, opt, value},
-    sequence::delimited,
+    sequence::{delimited, tuple},
     IResult,
 };
 
@@ -57,20 +57,45 @@ impl<'a> ContainsUtf8 for Mechanism<'a> {
     }
 }
 impl<'a> Mechanism<'a> {
-    // RFC2046: for entities of type "multipart" or "message/rfc822",
-    // no encoding other than 7bit, 8bit and binary is permitted.
-    // This converts a `Mechanism` to ensure it belongs to
-    // one of these three encodings, returning the default mechanism
-    // in case of an invalid value.
+    // RFC2046: for entities of type "multipart", no encoding other than 7bit,
+    // 8bit and binary is permitted.
+    //
+    // Real-world emails do sometimes specify other encodings, but test data
+    // suggests that each time the incorrect encoding should just be ignored.
+    // This function thus converts a `Mechanism` to ensure it belongs to one of
+    // these three encodings by returning the default mechanism in case of an
+    // invalid value.
     #[cfg_attr(feature = "tracing", tracing::instrument)]
-    pub fn to_part_encoding(&self) -> Mechanism<'static> {
+    pub fn to_multipart_encoding(&self) -> Mechanism<'static> {
+        use bounded_static::ToBoundedStatic;
+        match self {
+            Mechanism::_7Bit | Mechanism::_8Bit | Mechanism::Binary =>
+                self.to_static(),
+            _ => {
+                #[cfg(feature = "tracing-recover")]
+                warn!(mechanism = ?self, "to_multipart_encoding: ignoring invalid mechanism");
+                Mechanism::default()
+            }
+        }
+    }
+
+    // RFC2046: for entities of type "message/rfc822", no encoding other than
+    // 7bit, 8bit and binary is permitted.
+    //
+    // We implement the same logic as for multipart entities, but define a
+    // separate function to allow defining recovery logic specific to each case,
+    // if needed. In particular, this is traced as tracing-unsupported for now
+    // as we lack enough real-world data to know if this is an acceptable
+    // recovery strategy.
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
+    pub fn to_message_rfc822_encoding(&self) -> Mechanism<'static> {
         use bounded_static::ToBoundedStatic;
         match self {
             Mechanism::_7Bit | Mechanism::_8Bit | Mechanism::Binary =>
                 self.to_static(),
             _ => {
                 #[cfg(feature = "tracing-unsupported")]
-                warn!(mechanism = ?self, "to_part_encoding: invalid mechanism");
+                warn!(mechanism = ?self, "to_message_encoding: ignoring invalid mechanism");
                 Mechanism::default()
             }
         }
@@ -91,7 +116,8 @@ pub fn mechanism(input: &[u8]) -> IResult<&[u8], Mechanism<'_>> {
                 value(QuotedPrintable, tag_no_case("quoted-printable")),
                 value(Base64, tag_no_case("base64")),
             )),
-            opt(cfws),
+            // the ";" is not in the RFC but was found in some emails
+            tuple((opt(cfws), opt(tag(";")), opt(cfws))),
         ),
         map(consumed(mime_atom), |(_i, tok)| {
             #[cfg(feature = "tracing-recover")]
@@ -110,6 +136,11 @@ mod tests {
 
         assert_eq!(
             mechanism(b"(youhou) 8bit"),
+            Ok((&b""[..], Mechanism::_8Bit)),
+        );
+
+        assert_eq!(
+            mechanism(b"8Bit;"),
             Ok((&b""[..], Mechanism::_8Bit)),
         );
 

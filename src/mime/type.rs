@@ -2,10 +2,11 @@
 use arbitrary::Arbitrary;
 use bounded_static::{ToBoundedStatic, ToStatic};
 use nom::{
+    branch::alt,
     bytes::complete::tag,
     combinator::{map, opt},
     multi::many0,
-    sequence::{preceded, terminated, tuple},
+    sequence::{delimited, pair, preceded, separated_pair, terminated, tuple},
     IResult,
 };
 #[cfg(feature = "tracing")]
@@ -13,11 +14,15 @@ use tracing::warn;
 
 #[cfg(feature = "arbitrary")]
 use crate::fuzz_eq::FuzzEq;
+#[cfg(any(feature = "tracing-recover", feature = "tracing-unsupported"))]
+use crate::utils::bytes_to_trace_string;
 use crate::i18n::ContainsUtf8;
 use crate::print::{Print, Formatter, ToStringFromPrint};
 use crate::text::charset::EmailCharset;
 use crate::text::misc_token::{mime_word, MIMEWord};
 use crate::text::quoted::print_quoted;
+use crate::text::recovery::take_quoted_or_until;
+use crate::text::whitespace::cfws;
 use crate::text::words::{mime_atom, MIMEAtom};
 
 // --------- NAIVE TYPE
@@ -34,10 +39,31 @@ impl<'a> NaiveType<'a> {
     }
 }
 pub fn naive_type(input: &[u8]) -> IResult<&[u8], NaiveType<'_>> {
-    map(
-        tuple((mime_atom, tag("/"), mime_atom, parameter_list)),
-        |(main, _, sub, params)| NaiveType { main, sub, params },
-    )(input)
+    let (input, (main, sub)) = alt((
+        separated_pair(mime_atom, tag("/"), mime_atom),
+        // Recognize some broken content-types found in the real world:
+        recover_broken_type(b"text", b"text", b"plain"),
+        recover_broken_type(b".pdf", b"application", b"pdf"),
+    ))(input)?;
+    let (input, params) = parameter_list(input)?;
+    Ok((input, NaiveType { main, sub, params }))
+}
+pub fn recover_broken_type<'a>(broken_name: &'a [u8], main: &'a [u8], sub: &'a[u8]) ->
+  impl FnMut(&'a [u8]) -> IResult<&'a [u8], (MIMEAtom<'a>, MIMEAtom<'a>)>
+{
+    move |input: &[u8]| {
+        map(
+            delimited(opt(cfws), tag(broken_name), opt(cfws)),
+            |_| {
+                #[cfg(feature = "tracing-recover")]
+                warn!("use of broken content-type {}, interpreted as {}/{}",
+                      String::from_utf8_lossy(broken_name),
+                      String::from_utf8_lossy(main),
+                      String::from_utf8_lossy(sub));
+                (MIMEAtom(main.into()), MIMEAtom(sub.into()))
+            }
+        )(input)
+    }
 }
 
 // XXX we allow printing content types without further validation;
@@ -70,15 +96,64 @@ impl<'a> Print for Parameter<'a> {
     }
 }
 
+/// Parses a parameter list that follows a content-type.
+///
+/// The RFC parameter-list syntax is:
+/// ```abnf
+///   parameter-list   =  *(";" mime-atom "=" mime-word)
+/// ```
+///
+/// Additionally, we handle partially broken parameter lists, where some
+/// segments (delimited by ";") contain invalid data. We drop invalid segments
+/// and keep the rest.
+///
+/// We thus parse the following grammar:
+/// ```abnf
+///   parameter-list   =   *(";" (mime-atom "=" mime-word / any-not-semicolon)) [";"]
+/// ```
+/// As a consequence, this combinator always consumes all of its input.
+pub fn parameter_list(input: &[u8]) -> IResult<&[u8], Vec<Parameter<'_>>> {
+    // recovery parser: skips over junk until the next ';'
+    let junk = |input| {
+        pair(
+            opt(cfws),
+            map(take_quoted_or_until(|c| c == b';'), |i| {
+                #[cfg(feature = "tracing-unsupported")]
+                if !i.is_empty() {
+                    warn!(input = %bytes_to_trace_string(i),
+                          "unsupported segment in parameter list");
+                }
+                i
+            })
+        )(input)
+    };
+    let (input, params) = terminated(
+        many0(preceded(
+            pair(junk, tag(";")),
+            opt(parameter),
+        )),
+        pair(opt(tag(";")), junk),
+    )(input)?;
+
+    Ok((input, params.into_iter().flatten().collect()))
+}
 pub fn parameter(input: &[u8]) -> IResult<&[u8], Parameter<'_>> {
+    // We handle both '=' and ':' as separators. ':' is not valid but
+    // occurs in some emails we want to support...
+    let separator = alt((
+        tag("="),
+        map(tag(":"), |i| {
+            #[cfg(feature = "tracing-recover")]
+            warn!(input = %bytes_to_trace_string(input),
+                  "non-compliant use of ':' instead of '=' in parameter");
+            i
+        })
+    ));
+
     map(
-        tuple((mime_atom, tag(b"="), mime_word)),
+        tuple((mime_atom, separator, mime_word)),
         |(name, _, value)| Parameter { name, value },
     )(input)
-}
-// XXX the final optional ; is not specified in RFC2045
-pub fn parameter_list(input: &[u8]) -> IResult<&[u8], Vec<Parameter<'_>>> {
-    terminated(many0(preceded(tag(";"), parameter)), opt(tag(";")))(input)
 }
 
 // MIME TYPES TRANSLATED TO RUST TYPING SYSTEM
@@ -88,7 +163,7 @@ pub fn parameter_list(input: &[u8]) -> IResult<&[u8], Vec<Parameter<'_>>> {
 pub enum AnyType<'a> {
     // Composite types
     Multipart(Multipart<'a>),         // multipart/*
-    Message(Message<'a>),             // message/*
+    Message(Message<'a>),             // message/{rfc822, global}
 
     // Discrete types
     Text(Text<'a>),                   // text/*
@@ -103,7 +178,11 @@ impl<'a> From<&NaiveType<'a>> for AnyType<'a> {
                 Multipart::try_from(nt)
                 .map(Self::Multipart)
                 .unwrap_or(Self::Binary(Binary::from(nt))),
-            b"message" => Self::Message(Message::from(nt)),
+            b"message" =>
+                // fails if this the subtype is not supported
+                Message::try_from(nt)
+                .map(Self::Message)
+                .unwrap_or(Self::Binary(Binary::from(nt))),
             b"text" => Self::Text(Text::from(nt)),
             _ => Self::Binary(Binary::from(nt)),
         }
@@ -269,20 +348,12 @@ pub enum MessageSubtype {
     #[default]
     RFC822,
     Global, // RFC6532 subtype (message containing UTF-8 headers)
-    Partial,
-    External,
-    // neither of the above (ignoring capitalization).
-    // should be treated as the Binary type
-    Unknown(MIMEAtom<'static>),
 }
 impl MessageSubtype {
     fn as_bytes(&self) -> &[u8] {
         match self {
             Self::RFC822 => b"rfc822",
             Self::Global => b"global",
-            Self::Partial => b"partial",
-            Self::External => b"external",
-            Self::Unknown(b) => &b.0,
         }
     }
 }
@@ -292,15 +363,15 @@ impl Print for MessageSubtype {
     }
 }
 
-impl<'a> From<&NaiveType<'a>> for MessageSubtype {
-    fn from(nt: &NaiveType<'a>) -> Self {
+impl<'a> TryFrom<&NaiveType<'a>> for MessageSubtype {
+    type Error = ();
+
+    fn try_from(nt: &NaiveType<'a>) -> Result<Self, ()> {
         let sub = nt.sub.0.to_ascii_lowercase();
         match sub.as_slice() {
-            b"rfc822" => MessageSubtype::RFC822,
-            b"global" => MessageSubtype::Global,
-            b"partial" => MessageSubtype::Partial,
-            b"external" => MessageSubtype::External,
-            _ => MessageSubtype::Unknown(nt.sub.to_static()),
+            b"rfc822" => Ok(MessageSubtype::RFC822),
+            b"global" => Ok(MessageSubtype::Global),
+            _ => Err(()),
         }
     }
 }
@@ -308,19 +379,9 @@ impl<'a> From<&NaiveType<'a>> for MessageSubtype {
 #[cfg(feature = "arbitrary")]
 impl<'a> Arbitrary<'a> for MessageSubtype {
     fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
-        match u.int_in_range(0..=4)? {
+        match u.int_in_range(0..=1)? {
             0 => Ok(MessageSubtype::RFC822),
             1 => Ok(MessageSubtype::Global),
-            2 => Ok(MessageSubtype::Partial),
-            3 => Ok(MessageSubtype::External),
-            4 => {
-                let a: MIMEAtom = u.arbitrary()?;
-                if matches!(a.0.to_ascii_lowercase().as_slice(),
-                            b"rfc822" | b"global" | b"partial" | b"external") {
-                    return Err(arbitrary::Error::IncorrectFormat)
-                }
-                Ok(MessageSubtype::Unknown(a))
-            },
             _ => unreachable!(),
         }
     }
@@ -345,12 +406,13 @@ impl<'a> Print for Message<'a> {
     }
 }
 
-impl<'a> From<&NaiveType<'a>> for Message<'a> {
-    fn from(nt: &NaiveType<'a>) -> Self {
-        Self {
-            subtype: MessageSubtype::from(nt),
+impl<'a> TryFrom<&NaiveType<'a>> for Message<'a> {
+    type Error = ();
+    fn try_from(nt: &NaiveType<'a>) -> Result<Self, ()> {
+        Ok(Self {
+            subtype: MessageSubtype::try_from(nt)?,
             params: nt.params.clone(),
-        }
+        })
     }
 }
 
@@ -546,6 +608,35 @@ mod tests {
         );
     }
 
+    // old invalid form of text/plain
+    #[test]
+    fn test_content_type_plaintext_old() {
+        let (rest, nt) = naive_type(b"  text ").unwrap();
+        assert_eq!(rest, &b""[..]);
+        assert_eq!(
+            nt.to_type(),
+            AnyType::Text(Text {
+                charset: EmailCharset::US_ASCII,
+                subtype: TextSubtype::Plain,
+                params: vec![],
+            })
+        );
+
+        let (rest, nt) = naive_type(b"text;\r\n charset=utf-8 ; hello=yolo").unwrap();
+        assert_eq!(rest, &b""[..]);
+        assert_eq!(
+            nt.to_type(),
+            AnyType::Text(Text {
+                charset: EmailCharset::utf8(),
+                subtype: TextSubtype::Plain,
+                params: vec![Parameter {
+                    name: MIMEAtom(b"hello"[..].into()),
+                    value: MIMEWord::Atom(MIMEAtom(b"yolo"[..].into())),
+                }],
+            })
+        );
+    }
+
     #[test]
     fn test_content_type_multipart() {
         let (rest, nt) = naive_type(b"multipart/mixed;\r\n\tboundary=\"--==_mimepart_64a3f2c69114f_2a13d020975fe\";\r\n\tcharset=UTF-8").unwrap();
@@ -567,12 +658,26 @@ mod tests {
     fn test_content_type_message() {
         let (rest, nt) = naive_type(b"message/rfc822").unwrap();
         assert_eq!(rest, &[]);
-
         assert_eq!(
             nt.to_type(),
             AnyType::Message(Message {
                 subtype: MessageSubtype::RFC822,
                 params: vec![],
+            })
+        );
+
+        // unknown message subtype: treat it as "application/octet-stream"
+        // (i.e. opaque Binary part)
+        let (rest, nt) = naive_type(b"message/delivery-status").unwrap();
+        assert_eq!(rest, &[]);
+        assert_eq!(
+            nt.to_type(),
+            AnyType::Binary(Binary {
+                ctype: NaiveType {
+                    main: MIMEAtom(b"message"[..].into()),
+                    sub: MIMEAtom(b"delivery-status"[..].into()),
+                    params: vec![],
+                }
             })
         );
     }
@@ -593,6 +698,26 @@ mod tests {
     }
 
     #[test]
+    fn test_broken_content_type() {
+        let (rest, nt) = naive_type(b"abc/def/ghi; charset=us-ascii").unwrap();
+        assert_eq!(rest, &[]);
+
+        assert_eq!(
+            nt,
+            NaiveType {
+                main: MIMEAtom(b"abc".into()),
+                sub: MIMEAtom(b"def".into()),
+                params: vec![
+                    Parameter {
+                        name: MIMEAtom(b"charset"[..].into()),
+                        value: MIMEWord::Atom(MIMEAtom(b"us-ascii"[..].into())),
+                    }
+                ],
+            }
+        );
+    }
+
+    #[test]
     fn test_parameter_ascii() {
         assert_eq!(
             parameter(b"charset = (simple) us-ascii (Plain text)"),
@@ -607,7 +732,8 @@ mod tests {
     }
 
     #[test]
-    fn test_parameter_terminated_with_semi_colon() {
+    fn test_parameter_list_semicolons() {
+        // we allow final semicolons
         assert_eq!(
             parameter_list(b";boundary=\"festivus\";"),
             Ok((
@@ -616,6 +742,120 @@ mod tests {
                     name: MIMEAtom(b"boundary"[..].into()),
                     value: MIMEWord::Quoted(QuotedString(vec!["festivus"[..].into()])),
                 }],
+            ))
+        );
+
+        assert_eq!(
+            parameter_list(b"; charset=UTF-8; format=flowed; "),
+            Ok((
+                &b""[..],
+                vec![
+                    Parameter {
+                        name: MIMEAtom(b"charset"[..].into()),
+                        value: MIMEWord::Atom(MIMEAtom(b"UTF-8"[..].into())),
+                    },
+                    Parameter {
+                        name: MIMEAtom(b"format"[..].into()),
+                        value: MIMEWord::Atom(MIMEAtom(b"flowed"[..].into())),
+                    },
+                ],
+            ))
+        );
+
+        // semicolons can appear between quotes, this is part of the normal
+        // quote syntax
+        assert_eq!(
+            parameter_list(b"; boundary=\"abc;def\"; foo=bar"),
+            Ok((
+                &b""[..],
+                vec![
+                    Parameter {
+                        name: MIMEAtom(b"boundary"[..].into()),
+                        value: MIMEWord::Quoted(QuotedString(vec!["abc;def"[..].into()])),
+                    },
+                    Parameter {
+                        name: MIMEAtom(b"foo"[..].into()),
+                        value: MIMEWord::Atom(MIMEAtom(b"bar"[..].into())),
+                    },
+                ],
+            ))
+        );
+    }
+
+    #[test]
+    fn test_parameter_list_broken() {
+        // these test cases come from real-world emails with broken parameter lists
+        assert_eq!(
+            parameter_list(b"; name=threadTest.ml; charset="),
+            Ok((
+                &b""[..],
+                vec![
+                    Parameter {
+                        name: MIMEAtom(b"name".into()),
+                        value: MIMEWord::Atom(MIMEAtom(b"threadTest.ml".into())),
+                    },
+                ]
+            ))
+        );
+
+        // Anytime emits emails with 'charset: UTF-8'; we add support for those...
+        assert_eq!(
+            parameter_list(b"; charset: UTF-8; foo=bar"),
+            Ok((
+                &b""[..],
+                vec![
+                    Parameter {
+                        name: MIMEAtom(b"charset".into()),
+                        value: MIMEWord::Atom(MIMEAtom(b"UTF-8".into())),
+                    },
+                    Parameter {
+                        name: MIMEAtom(b"foo".into()),
+                        value: MIMEWord::Atom(MIMEAtom(b"bar".into())),
+                    },
+                ]
+            ))
+        );
+
+        assert_eq!(
+            // Example emitted by inria CASA. An extra space was inserted before
+            // the Content-Transfer-Encoding header name, making it a
+            // continuation of the previous Content-Type header as per line
+            // folding rules... This ends up being read as an extra parameter
+            // "thanks" to the recovery of ':' as '='...
+            parameter_list(b"; name=\"calendar.ics\";method=REQUEST;\n Content-Transfer-Encoding: 8bit;"),
+            Ok((
+                &b""[..],
+                vec![
+                    Parameter {
+                        name: MIMEAtom(b"name".into()),
+                        value: MIMEWord::Quoted(QuotedString(vec!["calendar.ics".into()])),
+                    },
+                    Parameter {
+                        name: MIMEAtom(b"method".into()),
+                        value: MIMEWord::Atom(MIMEAtom(b"REQUEST".into())),
+                    },
+                    Parameter {
+                        name: MIMEAtom(b"Content-Transfer-Encoding".into()),
+                        value: MIMEWord::Atom(MIMEAtom(b"8bit".into())),
+                    },
+                ]
+            ))
+        );
+
+        assert_eq!(
+            parameter_list(b"; name=threadTest.ml foo=bar; baz=qux"),
+            Ok((
+                &b""[..],
+                vec![
+                    Parameter {
+                        name: MIMEAtom(b"name".into()),
+                        value: MIMEWord::Atom(MIMEAtom(b"threadTest.ml".into())),
+                    },
+                    Parameter {
+                        name: MIMEAtom(b"baz".into()),
+                        value: MIMEWord::Atom(MIMEAtom(b"qux".into())),
+                    },
+                ]
             ))
         );
     }

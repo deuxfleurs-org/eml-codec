@@ -1,5 +1,7 @@
 #[cfg(feature = "arbitrary")]
 use arbitrary::Arbitrary;
+#[cfg(feature = "tracing")]
+use tracing::warn;
 use bounded_static::{IntoBoundedStatic, ToBoundedStatic};
 use chrono::{Datelike, FixedOffset, NaiveDate, NaiveTime, Timelike};
 use nom::{
@@ -7,8 +9,8 @@ use nom::{
     bytes::complete::{is_a, tag, tag_no_case, take_while_m_n},
     character,
     character::complete::{alphanumeric1, digit0},
-    combinator::{map, map_opt, opt, value},
-    sequence::{delimited, preceded, terminated, tuple},
+    combinator::{eof, map, map_opt, opt, value},
+    sequence::{delimited, pair, preceded, terminated, tuple},
     IResult,
 };
 use std::fmt::{Debug, Formatter};
@@ -130,10 +132,14 @@ impl Print for DateTime {
 
 /// Read datetime
 ///
+/// RFC grammar:
 /// ```abnf
 /// date-time       =   [ day-of-week "," ] date time [CFWS]
 /// time            =   time-of-day zone
 /// ```
+///
+/// We additionally allow dates with a missing zone (followed by end of input),
+/// which appear in some real world emails.
 ///
 /// ## @FIXME - known bugs
 ///  
@@ -146,19 +152,11 @@ impl Print for DateTime {
 pub fn date_time(input: &[u8]) -> IResult<&[u8], DateTime> {
     map_opt(
         terminated(
-            alt((
-                tuple((
-                    opt(terminated(strict_day_of_week, tag(","))),
-                    strict_date,
-                    strict_time_of_day,
-                    strict_zone,
-                )),
-                tuple((
-                    opt(terminated(obs_day_of_week, tag(","))),
-                    obs_date,
-                    obs_time_of_day,
-                    alt((strict_zone, obs_zone)),
-                )),
+            tuple((
+                opt(terminated(alt((strict_day_of_week, obs_day_of_week)), tag(","))),
+                alt((strict_date, obs_date)),
+                alt((strict_time_of_day, obs_time_of_day)),
+                alt((strict_zone, obs_zone, no_zone_eof)),
             )),
             opt(cfws),
         ),
@@ -381,68 +379,62 @@ fn strict_zone(input: &[u8]) -> IResult<&[u8], FixedOffset> {
 fn obs_zone(input: &[u8]) -> IResult<&[u8], FixedOffset> {
     // The writing of this function is volontarily verbose
     // to keep it straightforward to understand.
-    map_opt(
-        preceded(
-            opt(fws),
-            alt((
+    preceded(
+        opt(fws),
+        map_opt(alphanumeric1, |zname: &[u8]| {
+            let zname = zname.to_ascii_lowercase();
+            match zname.as_slice() {
                 // Legacy UTC/GMT
-                value(
-                    FixedOffset::west_opt(0 * HOUR),
-                    alt((tag_no_case(b"UTC"), tag_no_case(b"UT"), tag_no_case(b"GMT"))),
-                ),
+                b"utc" | b"ut" | b"gmt" => FixedOffset::west_opt(0 * HOUR),
                 // USA Timezones
-                value(FixedOffset::west_opt(4 * HOUR), tag_no_case(b"EDT")),
-                value(
-                    FixedOffset::west_opt(5 * HOUR),
-                    alt((tag_no_case(b"EST"), tag_no_case(b"CDT"))),
-                ),
-                value(
-                    FixedOffset::west_opt(6 * HOUR),
-                    alt((tag_no_case(b"CST"), tag_no_case(b"MDT"))),
-                ),
-                value(
-                    FixedOffset::west_opt(7 * HOUR),
-                    alt((tag_no_case(b"MST"), tag_no_case(b"PDT"))),
-                ),
-                value(FixedOffset::west_opt(8 * HOUR), tag_no_case(b"PST")),
+                b"edt" => FixedOffset::west_opt(4 * HOUR),
+                b"est" | b"cdt" => FixedOffset::west_opt(5 * HOUR),
+                b"cst" | b"mdt" => FixedOffset::west_opt(6 * HOUR),
+                b"mst" | b"pdt" => FixedOffset::west_opt(7 * HOUR),
+                b"pst" => FixedOffset::west_opt(8 * HOUR),
                 // Military Timezone UTC
-                value(FixedOffset::west_opt(0 * HOUR), tag_no_case(b"Z")),
+                b"z" => FixedOffset::west_opt(0 * HOUR),
                 // Military Timezones East
-                alt((
-                    value(FixedOffset::east_opt(HOUR), tag_no_case(b"A")),
-                    value(FixedOffset::east_opt(2 * HOUR), tag_no_case(b"B")),
-                    value(FixedOffset::east_opt(3 * HOUR), tag_no_case(b"C")),
-                    value(FixedOffset::east_opt(4 * HOUR), tag_no_case(b"D")),
-                    value(FixedOffset::east_opt(5 * HOUR), tag_no_case(b"E")),
-                    value(FixedOffset::east_opt(6 * HOUR), tag_no_case(b"F")),
-                    value(FixedOffset::east_opt(7 * HOUR), tag_no_case(b"G")),
-                    value(FixedOffset::east_opt(8 * HOUR), tag_no_case(b"H")),
-                    value(FixedOffset::east_opt(9 * HOUR), tag_no_case(b"I")),
-                    value(FixedOffset::east_opt(10 * HOUR), tag_no_case(b"K")),
-                    value(FixedOffset::east_opt(11 * HOUR), tag_no_case(b"L")),
-                    value(FixedOffset::east_opt(12 * HOUR), tag_no_case(b"M")),
-                )),
+                b"a" => FixedOffset::east_opt(1 * HOUR),
+                b"b" => FixedOffset::east_opt(2 * HOUR),
+                b"c" => FixedOffset::east_opt(3 * HOUR),
+                b"d" => FixedOffset::east_opt(4 * HOUR),
+                b"e" => FixedOffset::east_opt(5 * HOUR),
+                b"f" => FixedOffset::east_opt(6 * HOUR),
+                b"g" => FixedOffset::east_opt(7 * HOUR),
+                b"h" => FixedOffset::east_opt(8 * HOUR),
+                b"i" => FixedOffset::east_opt(9 * HOUR),
+                b"k" => FixedOffset::east_opt(10 * HOUR),
+                b"l" => FixedOffset::east_opt(11 * HOUR),
+                b"m" => FixedOffset::east_opt(12 * HOUR),
                 // Military Timezones West
-                alt((
-                    value(FixedOffset::west_opt(HOUR), tag_no_case(b"N")),
-                    value(FixedOffset::west_opt(2 * HOUR), tag_no_case(b"O")),
-                    value(FixedOffset::west_opt(3 * HOUR), tag_no_case(b"P")),
-                    value(FixedOffset::west_opt(4 * HOUR), tag_no_case(b"Q")),
-                    value(FixedOffset::west_opt(5 * HOUR), tag_no_case(b"R")),
-                    value(FixedOffset::west_opt(6 * HOUR), tag_no_case(b"S")),
-                    value(FixedOffset::west_opt(7 * HOUR), tag_no_case(b"T")),
-                    value(FixedOffset::west_opt(8 * HOUR), tag_no_case(b"U")),
-                    value(FixedOffset::west_opt(9 * HOUR), tag_no_case(b"V")),
-                    value(FixedOffset::west_opt(10 * HOUR), tag_no_case(b"W")),
-                    value(FixedOffset::west_opt(11 * HOUR), tag_no_case(b"X")),
-                    value(FixedOffset::west_opt(12 * HOUR), tag_no_case(b"Y")),
-                )),
+                b"n" => FixedOffset::west_opt(1 * HOUR),
+                b"o" => FixedOffset::west_opt(2 * HOUR),
+                b"p" => FixedOffset::west_opt(3 * HOUR),
+                b"q" => FixedOffset::west_opt(4 * HOUR),
+                b"r" => FixedOffset::west_opt(5 * HOUR),
+                b"s" => FixedOffset::west_opt(6 * HOUR),
+                b"t" => FixedOffset::west_opt(7 * HOUR),
+                b"u" => FixedOffset::west_opt(8 * HOUR),
+                b"v" => FixedOffset::west_opt(9 * HOUR),
+                b"w" => FixedOffset::west_opt(10 * HOUR),
+                b"x" => FixedOffset::west_opt(11 * HOUR),
+                b"y" => FixedOffset::west_opt(12 * HOUR),
                 // Unknown timezone
-                value(FixedOffset::west_opt(0 * HOUR), alphanumeric1),
-            )),
-        ),
-        |tz| tz)(input)
+                _ => FixedOffset::west_opt(0 * HOUR),
+            }
+        })
+    )(input)
 }
+
+// This is a hack to handle dates that do not specify a timezone. Unfortunately
+// this is quite common.
+fn no_zone_eof(input: &[u8]) -> IResult<&[u8], FixedOffset> {
+    #[cfg(feature = "tracing-recover")]
+    warn!("missing zone from date-time");
+    map_opt(value(FixedOffset::west_opt(0 * HOUR), pair(opt(cfws), eof)), |tz| tz)(input)
+}
+
 
 #[cfg(test)]
 mod tests {
@@ -698,5 +690,33 @@ mod tests {
     #[test]
     fn test_date_time_oob_zone_mins() {
         assert!(date_time(b"26 Aug 2316 09:06:21 -2160").is_err());
+    }
+
+    #[test]
+    fn test_date_time_no_zone() {
+        date_parsed_printed(
+            b"21 Nov 2023 07:07:07 ",
+            b"Tue, 21 Nov 2023 07:07:07 +0000",
+            DateTime(
+                FixedOffset::east_opt(0)
+                    .unwrap()
+                    .with_ymd_and_hms(2023, 11, 21, 7, 7, 7)
+                    .unwrap()
+            )
+        );
+    }
+
+    #[test]
+    fn test_date_time_unknown_zone() {
+        date_parsed_printed(
+            b" Mon, 20 Nov 1995 16:54:06 MET",
+            b"Mon, 20 Nov 1995 16:54:06 +0000",
+            DateTime(
+                FixedOffset::east_opt(0)
+                    .unwrap()
+                    .with_ymd_and_hms(1995, 11, 20, 16, 54, 06)
+                    .unwrap()
+            )
+        );
     }
 }

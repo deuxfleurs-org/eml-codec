@@ -8,7 +8,7 @@ use nom::{
     bytes::complete::{tag, take, take_while1},
     combinator::{map, opt, verify},
     multi::many0,
-    sequence::{pair, preceded},
+    sequence::{delimited, pair, preceded},
     IResult,
 };
 use std::borrow::Cow;
@@ -44,8 +44,12 @@ impl<'a> fmt::Debug for QuotedString<'a> {
 }
 
 impl<'a> QuotedString<'a> {
-    pub fn push(&mut self, e: &'a str) {
+    pub fn push_str(&mut self, e: &'a str) {
         self.0.push(Cow::Borrowed(e))
+    }
+
+    pub fn push(&mut self, e: Cow<'a, str>) {
+        self.0.push(e)
     }
 
     pub fn chars<'b>(&'b self) -> QuotedStringChars<'a, 'b> {
@@ -188,11 +192,11 @@ fn is_obs_qtext(c: u8) -> bool {
 /// Like for `quoted_pair`, this supports the obsolete syntax but
 /// returns `None` in this case.
 #[instrument_input("tracing")]
-fn qcontent(input: &[u8]) -> IResult<&[u8], Option<&str>> {
+fn qcontent(input: &[u8]) -> IResult<&[u8], Option<Cow<'_, str>>> {
     alt((
         map(take_utf8_while1(is_strict_qtext), Some),
         map(take_while1(is_obs_qtext), |_| None),
-        quoted_pair,
+        map(quoted_pair, |qp| qp.map(|s| Cow::Borrowed(s))),
     ))(input)
 }
 
@@ -205,19 +209,20 @@ fn qcontent(input: &[u8]) -> IResult<&[u8], Option<&str>> {
 /// ```
 #[instrument_input("tracing")]
 pub fn quoted_string(input: &[u8]) -> IResult<&[u8], QuotedString<'_>> {
-    let (input, _) = opt(cfws)(input)?;
+    delimited(opt(cfws), quoted_string_plain, opt(cfws))(input)
+}
+pub fn quoted_string_plain(input: &[u8]) -> IResult<&[u8], QuotedString<'_>> {
     let (input, _) = tag("\"")(input)?;
     let (input, content) = many0(pair(opt(fws), qcontent))(input)?;
     let (input, maybe_wsp) = opt(fws)(input)?;
     let (input, _) = tag("\"")(input)?;
-    let (input, _) = opt(cfws)(input)?;
 
     // Rebuild string
     let mut qstring = content
-        .iter()
+        .into_iter()
         .fold(QuotedString::default(), |mut acc, (maybe_wsp, c)| {
             for wsp in maybe_wsp.into_iter().flat_map(|v| v.into_iter()) {
-                acc.push(wsp);
+                acc.push_str(wsp);
             }
             if let Some(c) = c {
                 acc.push(c);
@@ -226,7 +231,7 @@ pub fn quoted_string(input: &[u8]) -> IResult<&[u8], QuotedString<'_>> {
         });
 
     for wsp in maybe_wsp.into_iter().flat_map(|v| v.into_iter()) {
-        qstring.push(wsp);
+        qstring.push_str(wsp);
     }
 
     Ok((input, qstring))

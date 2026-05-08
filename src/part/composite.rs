@@ -56,9 +56,7 @@ pub fn multipart<'a>(
 
     move |input| {
         #[cfg(feature = "tracing")]
-        let span = span!(Level::TRACE, "part::composite::multipart", ?m);
-        #[cfg(feature = "tracing")]
-        let _enter = span.enter();
+        let _span = span!(Level::DEBUG, "part::composite::multipart", ?m).entered();
 
         // init
         // NOTE: the `.unwrap()` cannot fail as long as `m` is produced by
@@ -178,9 +176,7 @@ pub fn message<'a>(
 ) -> impl Fn(&'a [u8]) -> Message<'a> {
     move |input: &[u8]| {
         #[cfg(feature = "tracing")]
-        let span = span!(Level::TRACE, "part::composite::message", ?m);
-        #[cfg(feature = "tracing")]
-        let _enter = span.enter();
+        let _span = span!(Level::DEBUG, "part::composite::message", ?m).entered();
 
         // parse header fields
         let (input, headers) = header::header_kv(input);

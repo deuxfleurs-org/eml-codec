@@ -204,6 +204,13 @@ impl<'a> FromIterator<header::FieldRaw<'a>> for MessageFields<'a> {
                     }
                     continue;
                 },
+                Err(imf::field::InvalidField::NeedsDiscard) => {
+                    // this is an IMF field for which we recognized the body, but the
+                    // body isn't RFC compliant and the fields needs to be dropped.
+                    #[cfg(feature = "tracing-recover")]
+                    warn!(field = ?f, "dropping IMF field with a body to be discarded");
+                    continue;
+                }
                 Err(imf::field::InvalidField::Body) => {
                     // this is an IMF field but its body is invalid; drop it.
                     #[cfg(feature = "tracing-unsupported")]
@@ -244,7 +251,6 @@ mod tests {
     use crate::imf::datetime::DateTime;
     use crate::imf::{Imf, From};
     use crate::imf::address::*;
-    use crate::imf::identification::MessageIDRight;
     use crate::imf::mailbox::*;
     use crate::mime::{CommonMIME, MIME};
     use crate::part::composite::Multipart;
@@ -255,7 +261,7 @@ mod tests {
     use crate::text::charset::EmailCharset;
     use crate::text::encoding::{Base64Word, EncodedWord, EncodedWordToken, QuotedChunk, QuotedWord};
     use crate::text::misc_token::*;
-    use crate::text::words::{Atom, DotAtom, MIMEAtom};
+    use crate::text::words::Atom;
     use chrono::{FixedOffset, TimeZone};
     use pretty_assertions::assert_eq;
 
@@ -483,15 +489,16 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                             ])),
                         ]));
 
-                        imf.msg_id = Some(imf::identification::MessageID {
-                            left: DotAtom("NTAxNzA2AC47634Y366BAMTY4ODc5MzQyODY0ODY5"[..].into()),
-                            right: MessageIDRight::DotAtom(DotAtom("www.grrrndzero.org"[..].into())),
+                        imf.msg_id = Some(imf::identification::MessageID::ObsLeftRight {
+                            left: LocalPart(vec![
+                                LocalPartToken::Word(Word::Atom(Atom("NTAxNzA2AC47634Y366BAMTY4ODc5MzQyODY0ODY5".into()))),
+                            ]),
+                            right: Domain::Atoms(vec![
+                                Atom("www".into()),
+                                Atom("grrrndzero".into()),
+                                Atom("org".into()),
+                            ]),
                         });
-
-                        imf.discarded.push(imf::field::Field::Subject(Unstructured(vec![
-                            UnstrToken::from_plain(" ", UnstrTxtKind::Fws),
-                            UnstrToken::from_plain("Bad_redundant_subject", UnstrTxtKind::Txt),
-                        ])));
 
                         imf
                     },
@@ -526,11 +533,6 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                             },
                             fields: mime::CommonMIME {
                                 transfer_encoding: mime::mechanism::Mechanism::_7Bit,
-                                discarded: vec![
-                                    mime::field::Content::TransferEncoding(
-                                        mime::mechanism::Mechanism::Other(MIMEAtom(b"bad_redundant".into()))
-                                    ),
-                                ],
                                 ..mime::CommonMIME::default()
                             },
                         },
@@ -690,7 +692,6 @@ hello??",
         );
     }
 
-    // FIXME: the received header before last got dropped
     #[test]
     fn test_trace_unstructured() {
         test_message_reprint(
@@ -715,15 +716,20 @@ Received: by sympa.lmf.cnrs.fr (Postfix, from userid 106)
             b"X-Mozilla-Status: 0001\r
 X-Mozilla-Status2: 00000000\r
 Return-Path: <hello@sympa.lmf.cnrs.fr>\r
-Received: from mx.lmf.cnrs.fr by mx.lmf.cnrs.fr with LMTP id\r
- oFAUKCuwpWmTPRAAFSOJEQ; Mon, 2 Mar 2026 15:43:39 +0000\r
+Received: from mx.lmf.cnrs.fr ([127.0.0.1])        by mx.lmf.cnrs.fr with LMTP\r
+        id oFAUKCuwpWmTPRAAFSOJEQ        (envelope-from\r
+ <infos-gs-owner@sympa.lmf.cnrs.fr>); Mon, 02 Mar 2026 15:43:39 +0000\r
 X-Spam-Checker-Version: SpamAssassin 3.4.6 (2021-04-09) on mx.lmf.cnrs.fr\r
 Received-SPF: Pass (mailfrom) identity=mailfrom; client-ip=10.0.0.2;\r
  helo=sympa.lmf.cnrs.fr; envelope-from=hello@sympa.lmf.cnrs.fr;\r
  receiver=<UNKNOWN>\r
-Received: from sympa.lmf.cnrs.fr by mx.lmf.cnrs.fr with ESMTPS id DC88D214EA;\r
- Mon, 2 Mar 2026 15:43:37 +0000\r
-Received: by sympa.lmf.cnrs.fr id ACE8B4A03ED; Mon, 2 Mar 2026 16:43:37 +0100\r
+Received: from sympa.lmf.cnrs.fr (sympa.lmf.cnrs.fr [10.0.0.2])        (using\r
+ TLSv1.3 with cipher TLS_AES_256_GCM_SHA384 (256/256 bits)        \r
+ key-exchange X25519 server-signature RSA-PSS (2048 bits))        (No client\r
+ certificate requested)        by mx.lmf.cnrs.fr (Postfix) with ESMTPS id\r
+ DC88D214EA;        Mon,  2 Mar 2026 15:43:37 +0000 (UTC)\r
+Received: by sympa.lmf.cnrs.fr (Postfix, from userid 106)        id\r
+ ACE8B4A03ED; Mon,  2 Mar 2026 16:43:37 +0100 (CET)\r
 Date: Thu, 1 Jan 1970 00:00:00 +0000\r
 From: unknown@unknown\r
 MIME-Version: 1.0\r

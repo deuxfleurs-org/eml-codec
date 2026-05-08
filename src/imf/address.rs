@@ -121,6 +121,8 @@ pub fn group_list(input: &[u8]) -> IResult<&[u8], Option<MailboxList<'_>>> {
 /// ```
 #[instrument_input("tracing")]
 pub fn address_list(input: &[u8]) -> IResult<&[u8], Vec<AddressRef<'_>>> {
+    // NOTE: should we try to recover from individually broken addresses?
+    // (see e.g. identification::nullable_msg_list)
     map_opt(
         separated_list1(
             tag(","),
@@ -134,16 +136,13 @@ pub fn address_list(input: &[u8]) -> IResult<&[u8], Vec<AddressRef<'_>>> {
 }
 
 #[instrument_input("tracing")]
-pub fn address_list_cfws(input: &[u8]) -> IResult<&[u8], Vec<AddressRef<'_>>> {
-    let (input, _) = cfws(input)?;
-    Ok((input, vec![]))
+pub fn empty_address_list(input: &[u8]) -> IResult<&[u8], Vec<AddressRef<'_>>> {
+    map(opt(cfws), |_| vec![])(input)
 }
 
 #[instrument_input("tracing")]
 pub fn nullable_address_list(input: &[u8]) -> IResult<&[u8], Vec<AddressRef<'_>>> {
-    map(opt(alt((address_list, address_list_cfws))), |v| {
-        v.unwrap_or(vec![])
-    })(input)
+    alt((address_list, empty_address_list))(input)
 }
 
 #[cfg(test)]

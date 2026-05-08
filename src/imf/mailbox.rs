@@ -47,6 +47,7 @@ impl<'a> Print for AddrSpec<'a> {
 pub struct MailboxRef<'a> {
     // The actual "email address" like hello@example.com
     pub addrspec: AddrSpec<'a>,
+    // The optional name
     pub name: Option<Phrase<'a>>,
 }
 impl MailboxRef<'static> {
@@ -185,9 +186,12 @@ pub fn angle_addr(input: &[u8]) -> IResult<&[u8], AddrSpec<'_>> {
 ///    obs-route       =   obs-domain-list ":"
 #[instrument_input("tracing")]
 fn obs_route(input: &[u8]) -> IResult<&[u8], Vec<Option<Domain<'_>>>> {
-    terminated(obs_domain_list, tag(&[ascii::COL]))(input)
+    terminated(domain_list, tag(&[ascii::COL]))(input)
 }
 
+/// Domain list.
+///
+/// This implement a relaxed version of the obsolete syntax:
 /// ```abnf
 ///    obs-domain-list =   *(CFWS / ",") "@" domain
 ///                        *("," [CFWS] ["@" domain])
@@ -195,13 +199,13 @@ fn obs_route(input: &[u8]) -> IResult<&[u8], Vec<Option<Domain<'_>>>> {
 /// The parser below is slightly more lenient as it allows domains list that
 /// contain no real domains (e.g. only commas).
 #[instrument_input("tracing")]
-fn obs_domain_list(input: &[u8]) -> IResult<&[u8], Vec<Option<Domain<'_>>>> {
+fn domain_list(input: &[u8]) -> IResult<&[u8], Vec<Option<Domain<'_>>>> {
     preceded(
         opt(cfws),
         separated_list1(
             tag(&[ascii::COMMA]),
             alt((
-                map(preceded(pair(opt(cfws), tag(&[ascii::AT])), obs_domain), |d| Some(d)),
+                map(preceded(pair(opt(cfws), tag(&[ascii::AT])), domain), |d| Some(d)),
                 map(opt(cfws), |_| None),
             ))
         )
@@ -217,16 +221,21 @@ fn obs_domain_list(input: &[u8]) -> IResult<&[u8], Vec<Option<Domain<'_>>>> {
 pub fn addr_spec(input: &[u8]) -> IResult<&[u8], AddrSpec<'_>> {
     map(
         tuple((
-            obs_local_part,
+            local_part,
             tag(&[ascii::AT]),
-            obs_domain,
-            many0(pair(tag(&[ascii::AT]), obs_domain)), // for compatibility reasons with ENRON
+            domain,
+            opt(map(
+                many1(pair(tag(&[ascii::AT]), domain)), // for compatibility reasons with ENRON
+                |_| {
+                    #[cfg(feature = "tracing-recover")]
+                    warn!("addr_spec with multiple @ parts")
+                }))
         )),
         |(local_part, _, domain, _)| AddrSpec { local_part, domain },
     )(input)
 }
 
-#[derive(Clone, Debug, PartialEq, ToStatic, ToStringFromPrint)]
+#[derive(Clone, ContainsUtf8, Debug, PartialEq, ToStatic, ToStringFromPrint)]
 pub struct LocalPart<'a>(pub Vec<LocalPartToken<'a>>); // non-empty vec
 
 #[derive(Clone, Debug, PartialEq, ToStatic)]
@@ -234,6 +243,14 @@ pub struct LocalPart<'a>(pub Vec<LocalPartToken<'a>>); // non-empty vec
 pub enum LocalPartToken<'a> {
     Dot,
     Word(Word<'a>),
+}
+impl<'a> ContainsUtf8 for LocalPartToken<'a> {
+    fn contains_utf8(&self) -> bool {
+        match self {
+            Self::Dot => false,
+            Self::Word(w) => w.contains_utf8(),
+        }
+    }
 }
 
 impl<'a> LocalPart<'a> {
@@ -315,22 +332,23 @@ impl<'a> Print for LocalPart<'a> {
     }
 }
 
-/// Obsolete local part
+/// Local part
 ///
 /// Compared to the RFC, we allow multiple dots.
 /// This is found in Enron emails and supported by Gmail.
 /// We also allow dots at the beginning and end.
 ///
-/// This "obsolete local part" syntax is a superset of both the RFC's
+/// This "local part" syntax is a superset of both the RFC's
 /// local-part and obs-local-part.
 ///
 /// ```abnf
 /// local-part          = dot-atom / quoted-string / obs-local-part
 /// obs-local-part      = word *("." word)
-/// our-obs-local-part  =  *"." word *(1*"." word) *"."
+/// our-local-part      =  *"." word *(1*"." word) *"."
 /// ```
 #[instrument_input("tracing")]
-fn obs_local_part(input: &[u8]) -> IResult<&[u8], LocalPart<'_>> {
+pub fn local_part(input: &[u8]) -> IResult<&[u8], LocalPart<'_>> {
+    let (input, _) = opt(cfws)(input)?;
     let (input, prefix) = many0(local_part_dot)(input)?;
     let (input, w) = local_part_word(input)?;
     let (input, ws) = many0(pair(many1(local_part_dot), local_part_word))(input)?;
@@ -366,7 +384,7 @@ fn local_part_word(input: &[u8]) -> IResult<&[u8], LocalPartToken<'_>> {
     map(word, LocalPartToken::Word)(input)
 }
 
-#[derive(Clone, Debug, PartialEq, ToStatic, ToStringFromPrint)]
+#[derive(Clone, ContainsUtf8, Debug, PartialEq, ToStatic, ToStringFromPrint)]
 #[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
 pub enum Domain<'a> {
     Atoms(Vec<Atom<'a>>), // non-empty vec
@@ -398,25 +416,39 @@ impl<'a> Arbitrary<'a> for Domain<'a> {
     }
 }
 
-/// Obsolete domain
+/// Domain
 ///
-/// Rewritten so that obs_domain is a superset
-/// of strict_domain.
+/// Rewritten so that domain is a superset of RFC-strict domain and obs_domain.
+///
+/// We also allow a final dot, which is not part of the RFC but occurs in
+/// old emails.
 ///
 /// RFC5322:
 /// ```abnf
 ///  domain          =   dot-atom / domain-literal / obs-domain
 ///  obs-domain      =   atom *("." atom)
-/// ```
 ///
-/// we implement the equivalent form:
+/// which is equivalent to:
+///
+/// domain           =   atom *("." atom) / domain-literal
+/// ```
+/// We implement:
 /// ```abnf
-///  obs-domain      = atom *("." atom) / domain-literal
+///  our-domain      =   atom *("." atom) [.] / domain-literal
 /// ```
 #[instrument_input("tracing")]
-pub fn obs_domain(input: &[u8]) -> IResult<&[u8], Domain<'_>> {
+pub fn domain(input: &[u8]) -> IResult<&[u8], Domain<'_>> {
     alt((
-        map(separated_list1(tag("."), atom), Domain::Atoms),
+        map(
+            terminated(
+                separated_list1(tag("."), atom),
+                opt(map(tag("."), |i| {
+                    #[cfg(feature = "tracing-recover")]
+                    warn!("trailing dot in domain");
+                    i
+                }))),
+            Domain::Atoms
+        ),
         domain_litteral,
     ))(input)
 }
@@ -515,7 +547,7 @@ fn is_obs_dtext(c: char) -> bool {
 
 #[instrument_input("tracing")]
 pub fn dtext<'a>(input: &'a [u8]) -> IResult<&'a [u8], Dtext<'a>> {
-    map(take_utf8_while1(is_dtext), |b| Dtext(Cow::Borrowed(b)))(input)
+    map(take_utf8_while1(is_dtext), Dtext)(input)
 }
 
 #[cfg(test)]
@@ -708,6 +740,24 @@ mod tests {
             }
         );
 
+        // UTF-8 with invalid bytes
+        assert_eq!(
+            mailbox(b"a\xD4\xC6z\xE7 <tigermeeting@mail.net>"),
+            Ok((&b""[..],
+                MailboxRef {
+                    name: Some(Phrase(vec![
+                        PhraseToken::Word(Word::Atom(Atom("a\u{FFFD}\u{FFFD}z\u{FFFD}".into()))),
+                    ])),
+                    addrspec: AddrSpec {
+                        local_part: LocalPart(vec![
+                            LocalPartToken::Word(Word::Atom(Atom("tigermeeting".into())))
+                        ]),
+                        domain: Domain::Atoms(vec![Atom("mail".into()), Atom("net".into())]),
+                    },
+                }
+            ))
+        );
+
         mailbox_roundtrip_as(
             r#"Mary Smith <mary@x.test>"#.as_bytes(),
             MailboxRef {
@@ -801,9 +851,9 @@ mod tests {
     }
 
     #[test]
-    fn test_obs_domain_list() {
+    fn test_domain_list() {
         assert_eq!(
-            obs_domain_list(
+            domain_list(
                 r#"(shhh it's coming)
  ,
  (not yet)
@@ -837,7 +887,7 @@ mod tests {
         );
 
         assert_eq!(
-            obs_domain_list(b",, ,@foo,"),
+            domain_list(b",, ,@foo,"),
             Ok((
                 &b""[..],
                 vec![
@@ -881,6 +931,19 @@ mod tests {
             },
             r#"".nelson"@enron.com"#.as_bytes(),
         );
+
+        // variant with leading whitespace
+        addr_parsed_printed(
+            "  .nelson@enron.com".as_bytes(),
+            AddrSpec {
+                local_part: LocalPart(vec![
+                    LocalPartToken::Dot,
+                    LocalPartToken::Word(Word::Atom(Atom("nelson"[..].into()))),
+                ]),
+                domain: Domain::Atoms(vec![Atom("enron"[..].into()), Atom("com"[..].into())]),
+            },
+            r#"".nelson"@enron.com"#.as_bytes(),
+        );
     }
 
     #[test]
@@ -915,6 +978,20 @@ mod tests {
                 }
             },
             b"mark_kopinski/intl/acim/americancentury@americancentury.com",
+        );
+    }
+
+    #[test]
+    fn test_final_dot() {
+        addr_parsed_printed(
+            "201102080055@viruhosting.eu.".as_bytes(),
+            AddrSpec {
+                local_part: LocalPart(vec![
+                    LocalPartToken::Word(Word::Atom(Atom("201102080055"[..].into()))),
+                ]),
+                domain: Domain::Atoms(vec![Atom("viruhosting"[..].into()), Atom("eu"[..].into())]),
+            },
+            r#"201102080055@viruhosting.eu"#.as_bytes(),
         );
     }
 
