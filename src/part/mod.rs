@@ -9,6 +9,8 @@ pub mod field;
 
 #[cfg(feature = "arbitrary")]
 use arbitrary::Arbitrary;
+#[cfg(feature = "tracing-unsupported")]
+use tracing::warn;
 use bounded_static::ToStatic;
 use std::borrow::Cow;
 #[cfg(feature = "arbitrary")]
@@ -18,13 +20,15 @@ use crate::{
     fuzz_eq::FuzzEq,
     mime,
 };
-use crate::i18n::ContainsUtf8;
-use crate::mime::AnyMIME;
+#[cfg(feature = "tracing-unsupported")]
+use crate::utils::bytes_to_trace_string;
+use crate::mime::{AnyMIME, MIME};
 use crate::part::{
     composite::{message, multipart, Message, Multipart},
     discrete::{Binary, Text},
 };
-use crate::print::{Print, Formatter};
+use crate::print::{print_seq, Print, Formatter};
+use crate::raw_input::RawInput;
 
 #[derive(Clone, Debug, PartialEq, ToStatic)]
 #[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
@@ -39,18 +43,49 @@ pub struct AnyPart<'a> {
     // Invariant: `fields` must contain no duplicates.
     pub entries: Vec<field::EntityEntry<'a>>,
     pub mime_body: MimeBody<'a>,
+    pub raw: RawInput<'a>,
+    pub raw_headers: RawInput<'a>,
 }
 
 impl<'a> AnyPart<'a> {
-    pub fn contains_utf8_headers(&self) -> bool {
-        self.entries.iter().find(|f| {
-            match f {
-                field::EntityEntry::Unstructured(u) => u.contains_utf8(),
-                _ => false,
-            }
-        }).is_some()
-        ||
-        self.mime_body.mime().contains_utf8()
+    // TODO: return an iterator instead of a Vec?
+    pub fn field_list(&self) -> Vec<field::EntityField<'a>> {
+        let mime = self.mime_body.mime();
+        let mut v = vec![];
+        for e in &self.entries {
+            let field = match e {
+                field::EntityEntry::MIME { e, raw_body } => {
+                    // SAFETY: `self.entries` must only contain entries for
+                    // fields that are actually present in `mime`.
+                    field::EntityField::MIME {
+                        f: mime.get_field(*e).unwrap(),
+                        raw_body: raw_body.clone(),
+                    }
+                },
+                field::EntityEntry::Unstructured(u) =>
+                    field::EntityField::Unstructured(u.clone()),
+            };
+            v.push(field);
+        }
+        v
+    }
+}
+
+impl Default for AnyPart<'static> {
+    fn default() -> Self {
+        Self {
+            entries: vec![],
+            mime_body: MimeBody::Txt(discrete::Text {
+                mime: MIME {
+                    ctype: Default::default(),
+                    fields: Default::default(),
+                },
+                body: b"".into(),
+                raw_body: RawInput(Some(b"")),
+            }),
+            raw: RawInput(Some(b"")),
+            raw_headers: RawInput(Some(b"")),
+        }
     }
 }
 
@@ -62,14 +97,19 @@ impl<'a> Arbitrary<'a> for AnyPart<'a> {
             mime_body.mime()
                      .field_entries()
                      .into_iter()
-                     .map(field::EntityEntry::MIME)
+                     .map(|e| field::EntityEntry::MIME { e, raw_body: RawInput::none() })
                      .collect();
         let unstr: Vec<header::Unstructured> = arbitrary_vec_where(u, |f: &header::Unstructured| {
             !mime::field::is_mime_header(&f.name)
         })?;
         entries.extend(unstr.into_iter().map(field::EntityEntry::Unstructured));
         arbitrary_shuffle(u, &mut entries)?;
-        Ok(AnyPart { entries, mime_body })
+        Ok(AnyPart {
+            entries,
+            mime_body,
+            raw: RawInput::none(),
+            raw_headers: RawInput::none(),
+        })
     }
 }
 
@@ -112,6 +152,14 @@ impl<'a> MimeBody<'a> {
             Self::Msg(v) => v.mime.clone().into(),
             Self::Txt(v) => v.mime.clone().into(),
             Self::Bin(v) => v.mime.clone().into(),
+        }
+    }
+    pub fn raw_body(&self) -> RawInput<'a> {
+        match self {
+            Self::Mult(v) => v.raw_body.clone(),
+            Self::Msg(v) => v.raw_body.clone(),
+            Self::Txt(v) => v.raw_body.clone(),
+            Self::Bin(v) => v.raw_body.clone(),
         }
     }
     pub fn print_body(&self, fmt: &mut impl Formatter) {
@@ -157,13 +205,7 @@ impl<'a> From<Message<'a>> for MimeBody<'a> {
 impl<'a> Print for AnyPart<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
         fmt.begin_line_folding();
-        let mime = self.mime_body.mime();
-        for entry in &self.entries {
-            match entry {
-                field::EntityEntry::Unstructured(u) => u.print(fmt),
-                field::EntityEntry::MIME(f) => mime.print_field(*f, fmt),
-            }
-        }
+        print_seq(fmt, &self.field_list(), |_| ());
         fmt.end_line_folding();
         fmt.write_crlf();
         self.mime_body.print_body(fmt);
@@ -181,96 +223,29 @@ impl<'a> Print for AnyPart<'a> {
 pub fn part_body<'a>(m: AnyMIME<'a>) -> impl FnOnce(&'a [u8]) -> MimeBody<'a> {
     move |input| {
         let part = match m {
-            AnyMIME::Mult(a) =>
-                // NOTE: we drop any input found after the closing multipart
-                // boundary and not parsed by `multipart`.
-                multipart(a)(input).1.into(),
+            AnyMIME::Mult(a) => {
+                let (_rest, part) = multipart(a)(input);
+                #[cfg(feature = "tracing-unsupported")]
+                if !_rest.is_empty() {
+                    warn!(rest = %bytes_to_trace_string(_rest),
+                          "leftover input after multipart parsing")
+                }
+                part.into()
+            },
             AnyMIME::Msg(a) =>
                 message(a)(input).into(),
             AnyMIME::Txt(a) => MimeBody::Txt(Text {
                 mime: a,
                 body: Cow::Borrowed(input),
+                raw_body: input.into(),
             }),
             AnyMIME::Bin(a) => MimeBody::Bin(Binary {
                 mime: a,
                 body: Cow::Borrowed(input),
+                raw_body: input.into(),
             }),
         };
 
         part
-    }
-}
-
-// Recognizes bytes for the next part, until the next boundary or the end of the input.
-pub fn part_raw<'a, 'b>(bound: &[u8]) -> impl Fn(&'a [u8]) -> (&'a [u8], &'a [u8]) + 'b {
-    use memchr::memmem::Finder;
-    // This low-level implementation (which basically just calls `memmem`) is faster
-    // than trying to express this using parser combinators.
-
-    let mut needle = b"--".to_vec();
-    needle.extend(bound.iter());
-    let finder = Finder::new(&needle).into_owned();
-
-    move |input| {
-        for i in finder.find_iter(input) {
-            // a boundary can be at the beginning of the input
-            if i == 0 {
-                return (&input, &[])
-            }
-
-            // or it can be after a newline
-            if i.checked_sub(1).is_some_and(|j| input[j] == b'\n') {
-                // best-effort: recognize both \n and \r\n before the boundary
-                let i = i.checked_sub(2).filter(|j| input[*j] == b'\r').unwrap_or(i-1);
-                return (&input[i..], &input[0..i])
-            }
-        }
-        // no matching boundary found; return the entire input
-        (&[], input)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_preamble() {
-        assert_eq!(
-            part_raw(b"hello")(
-                b"blip
-bloup
-
-blip
-bloup--
---bim
---bim--
-
---hello
-Field: Body
-"
-            ),
-            (
-                &b"\n--hello\nField: Body\n"[..],
-                &b"blip\nbloup\n\nblip\nbloup--\n--bim\n--bim--\n"[..],
-            )
-        );
-    }
-
-    #[test]
-    fn test_part_raw() {
-        assert_eq!(
-            part_raw(b"simple boundary")(b"Content-type: text/plain; charset=us-ascii
-
-This is explicitly typed plain US-ASCII text.
-It DOES end with a linebreak.
-
---simple boundary--
-"),
-            (
-                &b"\n--simple boundary--\n"[..], 
-                &b"Content-type: text/plain; charset=us-ascii\n\nThis is explicitly typed plain US-ASCII text.\nIt DOES end with a linebreak.\n"[..],
-            )
-        );
     }
 }

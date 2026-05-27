@@ -13,6 +13,7 @@ use crate::imf::identification::{msg_id, nullable_msg_list, MessageID, MessageID
 use crate::imf::mailbox::{mailbox, mailbox_list, MailboxList, MailboxRef};
 use crate::imf::mime::{version, Version};
 use crate::imf::trace::{return_path, ReturnPath};
+use crate::print::{Print, Formatter};
 use crate::text::misc_token::{phrase_list, unstructured, PhraseList, Unstructured};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, ToStatic)]
@@ -25,7 +26,7 @@ pub enum Entry {
     To,
     Cc,
     Bcc,
-    MessageId,
+    MessageID,
     InReplyTo,
     References,
     Subject,
@@ -34,11 +35,12 @@ pub enum Entry {
     #[cfg_attr(feature = "arbitrary", fuzz_eq(use_eq))]
     Keywords(usize),
     #[cfg_attr(feature = "arbitrary", fuzz_eq(use_eq))]
-    Trace(usize),
+    Trace(usize), // either a Received or ReturnPath field
     MIMEVersion,
 }
 
 #[derive(Clone, Debug, PartialEq, ToStatic)]
+#[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
 pub enum Field<'a> {
     // 3.6.1.  The Origination Date Field
     Date(DateTime),
@@ -70,6 +72,51 @@ pub enum Field<'a> {
 
     // MIME
     MIMEVersion(Version),
+}
+
+impl<'a> Field<'a> {
+    pub fn raw_name(&self) -> header::FieldName<'static> {
+        match self {
+            Self::Date(_) => header::FieldName(b"Date".into()),
+            Self::From(_) => header::FieldName(b"From".into()),
+            Self::Sender(_) => header::FieldName(b"Sender".into()),
+            Self::ReplyTo(_) => header::FieldName(b"Reply-To".into()),
+            Self::To(_) => header::FieldName(b"To".into()),
+            Self::Cc(_) => header::FieldName(b"Cc".into()),
+            Self::Bcc(_) => header::FieldName(b"Bcc".into()),
+            Self::MessageID(_) => header::FieldName(b"Message-Id".into()),
+            Self::InReplyTo(_) => header::FieldName(b"In-Reply-To".into()),
+            Self::References(_) => header::FieldName(b"References".into()),
+            Self::Subject(_) => header::FieldName(b"Subject".into()),
+            Self::Comments(_) => header::FieldName(b"Comments".into()),
+            Self::Keywords(_) => header::FieldName(b"Keywords".into()),
+            Self::Received(_) => header::FieldName(b"Received".into()),
+            Self::ReturnPath(_) => header::FieldName(b"Return-Path".into()),
+            Self::MIMEVersion(_) => header::FieldName(b"MIME-Version".into()),
+        }
+    }
+}
+impl<'a> Print for Field<'a> {
+    fn print(&self, fmt: &mut impl Formatter) {
+        match self {
+            Self::Date(d) => header::print(fmt, b"Date", d),
+            Self::From(mboxl) => header::print(fmt, b"From", mboxl),
+            Self::Sender(mbox) => header::print(fmt, b"Sender", mbox),
+            Self::ReplyTo(addrs) => header::print(fmt, b"Reply-To", addrs),
+            Self::To(addrs) => header::print(fmt, b"To", addrs),
+            Self::Cc(addrs) => header::print(fmt, b"Cc", addrs),
+            Self::Bcc(addrs) => header::print(fmt, b"Bcc", addrs),
+            Self::MessageID(id) => header::print(fmt, b"Message-ID", id),
+            Self::InReplyTo(ids) => header::print(fmt, b"In-Reply-To", ids),
+            Self::References(ids) => header::print(fmt, b"References", ids),
+            Self::Subject(u) => header::print_unstructured(fmt, b"Subject", u),
+            Self::Comments(u) => header::print_unstructured(fmt, b"Comments", u),
+            Self::Keywords(l) => header::print(fmt, b"Keywords", l),
+            Self::Received(u) => header::print_unstructured(fmt, b"Received", u),
+            Self::ReturnPath(p) => header::print(fmt, b"Return-Path", p),
+            Self::MIMEVersion(v) => header::print(fmt, b"MIME-Version", v),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -173,6 +220,21 @@ impl<'a> TryFrom<&header::FieldRaw<'a>> for Field<'a> {
             b"mime-version" => map_res(version(f.body), Field::MIMEVersion),
             _ => return Err(InvalidField::Name),
         }
+    }
+}
+
+impl<'a> TryFrom<&header::Unstructured<'a>> for Field<'static> {
+    type Error = InvalidField;
+
+    fn try_from(u: &header::Unstructured<'a>) -> Result<Self, Self::Error> {
+        use bounded_static::IntoBoundedStatic;
+        use std::borrow::Cow;
+        let bytes_body: Cow<[u8]> = match u.raw_body.0 {
+            Some(s) => s.into(),
+            None => u.body.to_string_keep_obs().into_bytes().into(),
+        };
+        let hdr = header::FieldRaw { name: u.name.clone(), body: &bytes_body };
+        Field::try_from(&hdr).map(IntoBoundedStatic::into_static)
     }
 }
 

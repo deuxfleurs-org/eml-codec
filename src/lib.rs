@@ -24,6 +24,9 @@ pub mod print;
 /// Helpers related to UTF-8 support in headers (RFC 6532)
 pub mod i18n;
 
+/// Support for storing references to raw input slices in AST nodes.
+pub mod raw_input;
+
 /// Custom equality trait used for fuzz-checking
 #[cfg(feature = "arbitrary")]
 pub mod fuzz_eq;
@@ -32,6 +35,9 @@ mod utils;
 
 #[cfg(feature = "arbitrary")]
 mod arbitrary_utils;
+
+// Re-export bounded_static because we implement its traits
+pub use bounded_static;
 
 /// Parse a whole email including its (MIME) body
 ///
@@ -59,7 +65,7 @@ mod arbitrary_utils;
 /// let email = eml_codec::parse_message(input);
 /// println!(
 ///     "{} message structure is:\n{:#?}",
-///     email.imf.from_or_sender().to_string(),
+///     email.imf.from_or_sender().unwrap().to_string(),
 ///     email,
 /// );
 /// ```
@@ -108,10 +114,21 @@ pub fn print_message(msg: message::Message<'_>, seed: Option<u64>) -> Vec<u8> {
 /// let (_, imf) = eml_codec::parse_imf(input);
 /// println!(
 ///     "{} just sent you an email with subject \"{}\"",
-///     imf.from_or_sender().to_string(),
+///     imf.from_or_sender().unwrap().to_string(),
 ///     imf.subject.unwrap().to_string(),
 /// );
 /// ```
 pub fn parse_imf(input: &[u8]) -> (&[u8], imf::Imf<'_>) {
     message::imf(input)
+}
+
+/// Get the raw subslice of the input that corresponds to the header section.
+///
+/// It can be later parsed using `parse_imf` or `parse_message` (resulting in an
+/// empty body). This is equivalent to directly parsing the full input, but
+/// allows the header section to e.g. be stored separately without storing the
+/// body.
+pub fn raw_headers(input: &[u8]) -> &[u8] {
+    let (rest, _) = header::header_kv(input);
+    &input[0..input.len() - rest.len()]
 }

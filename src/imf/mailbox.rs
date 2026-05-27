@@ -28,7 +28,7 @@ use crate::text::utf8::{is_ascii_and, is_nonascii_or, take_utf8_while1};
 use crate::text::whitespace::{cfws, fws, is_obs_no_ws_ctl};
 use crate::text::words::{dot_atom_text, atom, Atom};
 
-#[derive(Clone, Debug, PartialEq, ToStatic, ToStringFromPrint)]
+#[derive(Clone, ContainsUtf8, Debug, PartialEq, ToStatic, ToStringFromPrint)]
 #[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
 pub struct AddrSpec<'a> {
     pub local_part: LocalPart<'a>,
@@ -42,7 +42,7 @@ impl<'a> Print for AddrSpec<'a> {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, ToStatic, ToStringFromPrint)]
+#[derive(Clone, ContainsUtf8, Debug, PartialEq, ToStatic, ToStringFromPrint)]
 #[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
 pub struct MailboxRef<'a> {
     // The actual "email address" like hello@example.com
@@ -90,7 +90,7 @@ impl<'a> Print for MailboxRef<'a> {
 }
 
 /// A non-empty list of mailboxes.
-#[derive(Clone, Debug, PartialEq, ToStatic, ToStringFromPrint)]
+#[derive(Clone, ContainsUtf8, Debug, PartialEq, ToStatic, ToStringFromPrint)]
 #[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
 pub struct MailboxList<'a>(pub Vec<MailboxRef<'a>>);
 

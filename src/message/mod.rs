@@ -1,8 +1,9 @@
+/// Representation of all headers in a toplevel message
+pub mod field;
+
 #[cfg(feature = "arbitrary")]
 use arbitrary::Arbitrary;
 use bounded_static::ToStatic;
-#[cfg(feature = "tracing")]
-use tracing::warn;
 
 #[cfg(feature = "arbitrary")]
 use crate::{
@@ -12,10 +13,13 @@ use crate::{
     part::MimeBody,
 };
 use crate::header;
+use crate::i18n::ContainsUtf8;
 use crate::imf;
+use crate::message::field::{MessageEntry, MessageField, NaiveMessageFields};
 use crate::mime;
 use crate::part;
-use crate::print::{Print, Formatter};
+use crate::print::{print_seq, Print, Formatter};
+use crate::raw_input::RawInput;
 
 /// A complete **toplevel message**.
 /// This represent a complete "email" that can be send and received over the wire, for example.
@@ -32,18 +36,60 @@ pub struct Message<'a> {
     pub imf: imf::Imf<'a>,
     pub mime_body: part::MimeBody<'a>,
     pub entries: Vec<MessageEntry<'a>>,
+    pub raw: RawInput<'a>,
+    pub raw_headers: RawInput<'a>,
+}
+
+impl<'a> Message<'a> {
+    pub fn contains_utf8_headers(&self) -> bool {
+        self.entries.iter().find(|f| {
+            match f {
+                field::MessageEntry::Unstructured(u) => u.contains_utf8(),
+                _ => false,
+            }
+        }).is_some()
+        || self.imf.contains_utf8()
+        || self.mime_body.mime().contains_utf8()
+    }
+
+    // TODO: return an iterator instead of a Vec?
+    pub fn field_list(&self) -> Vec<MessageField<'a>> {
+        let mime = self.mime_body.mime();
+        let mut v = vec![];
+        for e in &self.entries {
+            // SAFETY: `self.entries` must only contain entries that actually
+            // appear in self.imf/self.mime_body.mime()
+            let field = match e {
+                MessageEntry::MIME { e, raw_body } =>
+                    MessageField::MIME {
+                        f: mime.get_field(*e).unwrap(),
+                        raw_body: raw_body.clone(),
+                    },
+                MessageEntry::Imf { e, raw_body } =>
+                    MessageField::Imf {
+                        f: self.imf.get_field(*e).unwrap(),
+                        raw_body: raw_body.clone(),
+                    },
+                MessageEntry::Unstructured(u) =>
+                    MessageField::Unstructured(u.clone()),
+            };
+            v.push(field);
+        }
+        v
+    }
 }
 
 impl<'a> Print for Message<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
         fmt.begin_line_folding();
-        let mime = self.mime_body.mime();
-        for entry in &self.entries {
-            match entry {
-                MessageEntry::Unstructured(u) => u.print(fmt),
-                MessageEntry::MIME(f) => mime.print_field(*f, fmt),
-                MessageEntry::Imf(f) => self.imf.print_field(*f, fmt),
-            }
+        print_seq(fmt, &self.field_list(), |_| ());
+        if self.imf.mime_version.is_none() {
+            // The RFC requires that an implementation that obeys the MIME RFC
+            // always outputs a MIME-Version header. We do this at printing time
+            // to avoid having to insert a synthetic header in the AST that does
+            // not exist in the input.
+            imf::field::Field::MIMEVersion(imf::mime::Version::default())
+                .print(fmt);
         }
         fmt.end_line_folding();
         fmt.write_crlf();
@@ -54,7 +100,15 @@ impl<'a> Print for Message<'a> {
 #[cfg(feature = "arbitrary")]
 impl<'a> Arbitrary<'a> for Message<'a> {
     fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
-        let imf: Imf = u.arbitrary()?;
+        let mut imf: Imf = u.arbitrary()?;
+        // hack: because the printer (see above) prints a MIME-Version header if
+        // it is missing, if we start with an AST without such a header, print
+        // it and parse it, we will get a different AST, which breaks the
+        // roundtrip property that the fuzzer checks. As a workaround we thus
+        // avoid generating such ASTs...
+        if imf.mime_version.is_none() {
+            imf.mime_version = Some(imf::mime::Version::default());
+        }
         let (trace_entries, imf_entries) = imf.field_entries();
         let mime_body: MimeBody = u.arbitrary()?;
 
@@ -67,15 +121,17 @@ impl<'a> Arbitrary<'a> for Message<'a> {
         }
 
         // compute the trace section (which includes unstructured headers)
-        let mut entries: Vec<_> = trace_entries.into_iter().map(MessageEntry::Imf).collect();
+        let mut entries: Vec<_> = trace_entries.into_iter().map(|e| {
+            MessageEntry::Imf { e, raw_body: RawInput::none() }
+        }).collect();
         entries.extend(arbitrary_unstructured(u)?.into_iter().map(MessageEntry::Unstructured));
         arbitrary_shuffle(u, &mut entries)?;
         // Renumber Trace entries so that their index is in order.
         {
             let mut id = 0;
-            for e in entries.iter_mut() {
-                if let MessageEntry::Imf(imf::field::Entry::Trace(_)) = e {
-                    *e = MessageEntry::Imf(imf::field::Entry::Trace(id));
+            for ent in entries.iter_mut() {
+                if let MessageEntry::Imf { e: e @ imf::field::Entry::Trace(_), .. } = ent {
+                    *e = imf::field::Entry::Trace(id);
                     id += 1
                 }
             }
@@ -86,21 +142,23 @@ impl<'a> Arbitrary<'a> for Message<'a> {
             mime_body.mime()
                      .field_entries()
                      .into_iter()
-                     .map(MessageEntry::MIME)
+                     .map(|e| MessageEntry::MIME { e, raw_body: RawInput::none() })
                      .collect();
-        rest.extend(imf_entries.into_iter().map(MessageEntry::Imf));
+        rest.extend(imf_entries.into_iter().map(|e| {
+            MessageEntry::Imf { e, raw_body: RawInput::none() }
+        }));
         rest.extend(arbitrary_unstructured(u)?.into_iter().map(MessageEntry::Unstructured));
         arbitrary_shuffle(u, &mut rest)?;
         // Renumber `Comments` and `Keywords` entries.
         {
             let mut comments_id = 0;
             let mut keywords_id = 0;
-            for e in rest.iter_mut() {
-                if let MessageEntry::Imf(imf::field::Entry::Comments(_)) = e {
-                    *e = MessageEntry::Imf(imf::field::Entry::Comments(comments_id));
+            for ent in rest.iter_mut() {
+                if let MessageEntry::Imf { e: e @ imf::field::Entry::Comments(_), .. } = ent {
+                    *e = imf::field::Entry::Comments(comments_id);
                     comments_id += 1
-                } else if let MessageEntry::Imf(imf::field::Entry::Keywords(_)) = e {
-                    *e = MessageEntry::Imf(imf::field::Entry::Keywords(keywords_id));
+                } else if let MessageEntry::Imf { e: e @ imf::field::Entry::Keywords(_), .. } = ent {
+                    *e = imf::field::Entry::Keywords(keywords_id);
                     keywords_id += 1
                 }
             }
@@ -109,7 +167,13 @@ impl<'a> Arbitrary<'a> for Message<'a> {
         // concatenate both sections
         entries.extend(rest.into_iter());
 
-        Ok(Message { imf, mime_body, entries })
+        Ok(Message {
+            imf,
+            mime_body,
+            entries,
+            raw: RawInput::none(),
+            raw_headers: RawInput::none(),
+        })
     }
 }
 
@@ -117,7 +181,7 @@ impl<'a> Arbitrary<'a> for Message<'a> {
 pub fn message<'a>(input: &'a [u8]) -> Message<'a> {
     // parse headers
     let (input_body, headers) = header::header_kv(input);
-    let fields: MessageFields = headers.into_iter().collect::<MessageFields>();
+    let fields: NaiveMessageFields = headers.into_iter().collect();
     let mime = fields.mime.to_interpreted(mime::DefaultType::Generic);
     // parse body
     let mime_body = part::part_body(mime)(input_body);
@@ -125,124 +189,16 @@ pub fn message<'a>(input: &'a [u8]) -> Message<'a> {
         imf: fields.imf,
         mime_body,
         entries: fields.entries,
+        raw: input.into(),
+        raw_headers: input[0..input.len() - input_body.len()].into(),
     }
 }
 
 pub fn imf<'a>(input: &'a [u8]) -> (&'a [u8], imf::Imf<'a>) {
     // parse headers
     let (input_body, headers) = header::header_kv(input);
-    let fields: MessageFields = headers.into_iter().collect::<MessageFields>();
+    let fields: NaiveMessageFields = headers.into_iter().collect();
     (input_body, fields.imf)
-}
-
-/// Header field of a toplevel message.
-/// Is either an Imf field (RFC 5322),
-/// MIME-defined fields (RFC 2045),
-/// or an unstructured field.
-#[derive(Clone, Debug, PartialEq, ToStatic)]
-#[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
-pub enum MessageEntry<'a> {
-    MIME(mime::field::Entry),
-    Imf(imf::field::Entry),
-    // invariant: has a field name that is different from IMF or MIME headers.
-    Unstructured(header::Unstructured<'a>),
-}
-
-#[derive(Debug, PartialEq, ToStatic)]
-struct MessageFields<'a> {
-    mime: mime::NaiveMIME<'a>,
-    imf: imf::Imf<'a>,
-    entries: Vec<MessageEntry<'a>>,
-}
-
-impl<'a> FromIterator<header::FieldRaw<'a>> for MessageFields<'a> {
-    #[cfg_attr(
-        feature = "tracing",
-        tracing::instrument(name = "MessageFields::from_iter", skip(it))
-    )]
-    fn from_iter<I: IntoIterator<Item = header::FieldRaw<'a>>>(it: I) -> Self {
-        let mut mime = mime::NaiveMIME::default();
-        let mut imf = imf::PartialImf::default();
-        let mut entries = vec![];
-        for f in it {
-            match mime::field::Content::try_from(&f) {
-                Ok(mimef) => {
-                    if let Some(entry) = mime.add_field(mimef) {
-                        entries.push(MessageEntry::MIME(entry))
-                    } else {
-                        // otherwise drop the field
-                        #[cfg(feature = "tracing-recover")]
-                        warn!(field = ?f, "dropping conflicting MIME field")
-                    }
-                    continue;
-                },
-                Err(mime::field::InvalidField::Body) => {
-                    // this is a MIME field but its body is invalid; drop it.
-                    #[cfg(feature = "tracing-unsupported")]
-                    warn!(field = ?f, "dropping MIME field with an invalid body");
-                    continue;
-                },
-                Err(mime::field::InvalidField::Name) => {
-                    // not a MIME field
-                    ()
-                }
-            };
-
-            match imf::field::Field::try_from(&f) {
-                Ok(imff) => {
-                    match imf.add_field(imff) {
-                        Ok(entry) =>
-                            entries.push(MessageEntry::Imf(entry)),
-                        Err(imf::AddFieldErr::NoEntry) => {
-                            #[cfg(feature = "tracing-recover")]
-                            warn!(field = ?f, "no new entry for IMF field");
-                        },
-                        Err(imf::AddFieldErr::Conflict) => {
-                            #[cfg(feature = "tracing-recover")]
-                            warn!(field = ?f, "discarding conflicting IMF field");
-                        },
-                    }
-                    continue;
-                },
-                Err(imf::field::InvalidField::NeedsDiscard) => {
-                    // this is an IMF field for which we recognized the body, but the
-                    // body isn't RFC compliant and the fields needs to be dropped.
-                    #[cfg(feature = "tracing-recover")]
-                    warn!(field = ?f, "dropping IMF field with a body to be discarded");
-                    continue;
-                }
-                Err(imf::field::InvalidField::Body) => {
-                    // this is an IMF field but its body is invalid; drop it.
-                    #[cfg(feature = "tracing-unsupported")]
-                    warn!(field = ?f, "dropping IMF field with an invalid body");
-                    continue;
-                }
-                Err(imf::field::InvalidField::Name) => {
-                    // not an IMF field
-                    ()
-                }
-            }
-
-            if let Some(u) = header::Unstructured::from_raw(&f) {
-                entries.push(MessageEntry::Unstructured(u));
-            } else {
-                // otherwise drop the field
-                #[cfg(feature = "tracing-unsupported")]
-                warn!(field = ?f, "dropping field that cannot be parsed as unstructured")
-            }
-        }
-        entries.extend(
-            imf.missing_mandatory_fields()
-               .into_iter()
-               .map(MessageEntry::Imf)
-        );
-
-        MessageFields {
-            mime,
-            imf: imf.to_imf(),
-            entries,
-        }
-    }
 }
 
 #[cfg(test)]
@@ -304,9 +260,10 @@ between the header information and the body of the message.";
                         domain: Domain::Atoms(vec![Atom("example"[..].into()), Atom("com"[..].into())]),
                     }
                 };
-                let mut imf = Imf::new(
-                    From::Single { from, sender: None },
-                    DateTime(FixedOffset::east_opt(2 * 3600).unwrap().with_ymd_and_hms(2023, 3, 7, 8, 0, 0).unwrap()),
+                let mut imf = Imf::new();
+                imf.from = From::Single { from, sender: None };
+                imf.date = imf::DateTimeOpt::Some(
+                    DateTime(FixedOffset::east_opt(2 * 3600).unwrap().with_ymd_and_hms(2023, 3, 7, 8, 0, 0).unwrap())
                 );
                 imf.to = vec![AddressRef::Single(MailboxRef {
                     name: None,
@@ -327,6 +284,7 @@ between the header information and the body of the message.";
                     UnstrToken::from_plain(" ", UnstrTxtKind::Fws),
                     UnstrToken::from_plain("message", UnstrTxtKind::Txt),
                 ]));
+                imf.mime_version = Some(imf::mime::Version::default());
 
                 let mime_body = part::MimeBody::Txt(
                     part::discrete::Text {
@@ -335,21 +293,39 @@ between the header information and the body of the message.";
                             fields: CommonMIME::default(),
                         },
                         body: b"This is the plain text body of the message. Note the blank line\nbetween the header information and the body of the message."[..].into(),
+                        raw_body: RawInput::between(fullmail, b"This is the", b"and the body of the message."),
                     }
                 );
 
                 let entries = vec![
-                    MessageEntry::Imf(imf::field::Entry::Date),
-                    MessageEntry::Imf(imf::field::Entry::From),
-                    MessageEntry::Imf(imf::field::Entry::To),
-                    MessageEntry::Imf(imf::field::Entry::Subject),
-                    MessageEntry::Imf(imf::field::Entry::MIMEVersion),
+                    MessageEntry::Imf {
+                        e: imf::field::Entry::Date,
+                        raw_body: RawInput::between_excl(fullmail, b"Date:", b"\r\nFrom:"),
+                    },
+                    MessageEntry::Imf {
+                        e: imf::field::Entry::From,
+                        raw_body: RawInput::between_excl(fullmail, b"From:", b"\r\nTo:"),
+                    },
+                    MessageEntry::Imf {
+                        e: imf::field::Entry::To,
+                        raw_body: RawInput::between_excl(fullmail, b"To:", b"\r\nSubject:"),
+                    },
+                    MessageEntry::Imf {
+                        e: imf::field::Entry::Subject,
+                        raw_body: RawInput::between_excl(fullmail, b"Subject:", b"\r\nMIME-Version:"),
+                    },
+                    MessageEntry::Imf {
+                        e: imf::field::Entry::MIMEVersion,
+                        raw_body: b" 1.0".into(),
+                    }
                 ];
 
                 Message {
                     imf,
                     mime_body,
                     entries,
+                    raw: fullmail.into(),
+                    raw_headers: RawInput::between(fullmail, b"Date", b"MIME-Version: 1.0\r\n\r\n"),
                 }
             }
         );
@@ -366,7 +342,7 @@ Subject: =?ISO-8859-1?B?SWYgeW91IGNhbiByZWFkIHRoaXMgeW8=?=
 X-Unknown: something something
 Bad entry
   on multiple lines
-Message-ID: <NTAxNzA2AC47634Y366BAMTY4ODc5MzQyODY0ODY5@www.grrrndzero.org>
+Message-Id: <NTAxNzA2AC47634Y366BAMTY4ODc5MzQyODY0ODY5@www.grrrndzero.org>
 MIME-Version: 1.0
 Subject: Bad_redundant_subject
 Content-Type: multipart/alternative;
@@ -431,8 +407,9 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                             .with_ymd_and_hms(2023, 07, 8, 7, 14, 29)
                             .unwrap());
 
-                        let mut imf = imf::Imf::new(imf::From::Single { from, sender: None }, date);
-
+                        let mut imf = imf::Imf::new();
+                        imf.from = imf::From::Single { from, sender: None };
+                        imf.date = imf::DateTimeOpt::Some(date);
                         imf.to = vec![imf::address::AddressRef::Single(imf::mailbox::MailboxRef {
                                 name: Some(Phrase(vec![
                                     PhraseToken::Word(Word::Atom(Atom("John"[..].into()))),
@@ -500,14 +477,31 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                             ]),
                         });
 
+                        imf.mime_version = Some(imf::mime::Version::default());
+
                         imf
                     },
                     entries: vec![
-                        MessageEntry::Imf(imf::field::Entry::Date),
-                        MessageEntry::Imf(imf::field::Entry::From),
-                        MessageEntry::Imf(imf::field::Entry::To),
-                        MessageEntry::Imf(imf::field::Entry::Cc),
-                        MessageEntry::Imf(imf::field::Entry::Subject),
+                        MessageEntry::Imf {
+                            e: imf::field::Entry::Date,
+                            raw_body: RawInput::between_excl(fullmail, b"Date:", b"\nFrom:"),
+                        },
+                        MessageEntry::Imf {
+                            e: imf::field::Entry::From,
+                            raw_body: RawInput::between_excl(fullmail, b"From:", b"\nTo:"),
+                        },
+                        MessageEntry::Imf {
+                            e: imf::field::Entry::To,
+                            raw_body: RawInput::between_excl(fullmail, b"To:", b"\nCC:"),
+                        },
+                        MessageEntry::Imf {
+                            e: imf::field::Entry::Cc,
+                            raw_body: RawInput::between_excl(fullmail, b"CC:", b"\nSubject: =?"),
+                        },
+                        MessageEntry::Imf {
+                            e: imf::field::Entry::Subject,
+                            raw_body: RawInput::between_excl(fullmail, b".be>\nSubject:", b"\nX-Unknown:"),
+                        },
                         MessageEntry::Unstructured(
                             header::Unstructured {
                                 name: header::FieldName(b"X-Unknown"[..].into()),
@@ -517,19 +511,32 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                                     UnstrToken::from_plain(" ", UnstrTxtKind::Fws),
                                     UnstrToken::from_plain("something", UnstrTxtKind::Txt),
                                 ]),
+                                raw_body: RawInput::between_excl(fullmail, b"X-Unknown:", b"\nBad entry"),
                             }
                         ),
-                        MessageEntry::Imf(imf::field::Entry::MessageId),
-                        MessageEntry::Imf(imf::field::Entry::MIMEVersion),
-                        MessageEntry::MIME(mime::field::Entry::Type),
-                        MessageEntry::MIME(mime::field::Entry::TransferEncoding),
+                        MessageEntry::Imf {
+                            e: imf::field::Entry::MessageID,
+                            raw_body: RawInput::between_excl(fullmail, b"Message-Id:", b"\nMIME-Version:"),
+                        },
+                        MessageEntry::Imf {
+                            e: imf::field::Entry::MIMEVersion,
+                            raw_body: RawInput::between_excl(fullmail, b"MIME-Version:", b"\nSubject: Bad"),
+                        },
+                        MessageEntry::MIME {
+                            e: mime::field::Entry::Type,
+                            raw_body: b" multipart/alternative;\n boundary=\"b1_e376dc71bafc953c0b0fdeb9983a9956\"".into(),
+                        },
+                        MessageEntry::MIME {
+                            e: mime::field::Entry::TransferEncoding,
+                            raw_body: b" 7bit".into()
+                        },
                     ],
                     mime_body: MimeBody::Mult(Multipart {
                         mime: mime::MIME {
                             ctype: mime::r#type::Multipart {
                                 subtype: mime::r#type::MultipartSubtype::Alternative,
                                 boundary: Some("b1_e376dc71bafc953c0b0fdeb9983a9956".to_string()),
-                                params: vec![],
+                                other_params: vec![],
                             },
                             fields: mime::CommonMIME {
                                 transfer_encoding: mime::mechanism::Mechanism::_7Bit,
@@ -541,15 +548,21 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                         children: vec![
                             AnyPart {
                                 entries: vec![
-                                    EntityEntry::MIME(mime::field::Entry::Type),
-                                    EntityEntry::MIME(mime::field::Entry::TransferEncoding),
+                                    EntityEntry::MIME {
+                                        e: mime::field::Entry::Type,
+                                        raw_body: b" text/plain; charset=utf-8".into(),
+                                    },
+                                    EntityEntry::MIME {
+                                        e: mime::field::Entry::TransferEncoding,
+                                        raw_body: b" quoted-printable".into(),
+                                    }
                                 ],
                                 mime_body: MimeBody::Txt(Text {
                                     mime: mime::MIME {
                                         ctype: mime::r#type::Text {
                                             subtype: mime::r#type::TextSubtype::Plain,
                                             charset: EmailCharset::utf8(),
-                                            params: vec![],
+                                            other_params: vec![],
                                         },
                                         fields: mime::CommonMIME {
                                             transfer_encoding: mime::mechanism::Mechanism::QuotedPrintable,
@@ -557,7 +570,10 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                                         }
                                     },
                                     body: b"GZ\nOoOoO\noOoOoOoOo\noOoOoOoOoOoOoOoOo\noOoOoOoOoOoOoOoOoOoOoOo\noOoOoOoOoOoOoOoOoOoOoOoOoOoOo\nOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO\n"[..].into(),
+                                    raw_body: RawInput::between(fullmail, b"GZ\nOoOoO", b"OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO\n"),
                                 }),
+                                raw: RawInput::between(fullmail, b"Content-Type: text/plain", b"OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO\n"),
+                                raw_headers: b"Content-Type: text/plain; charset=utf-8\nContent-Transfer-Encoding: quoted-printable\n\n".into(),
                             },
                             AnyPart {
                                 entries: vec![
@@ -567,15 +583,19 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                                             UnstrToken::from_plain(" ", UnstrTxtKind::Fws),
                                             UnstrToken::from_plain("foobar", UnstrTxtKind::Txt),
                                         ]),
+                                        raw_body: b" foobar".into(),
                                     }),
-                                    EntityEntry::MIME(mime::field::Entry::Type),
+                                    EntityEntry::MIME {
+                                        e: mime::field::Entry::Type,
+                                        raw_body: b" text/html; charset=us-ascii".into(),
+                                    },
                                 ],
                                 mime_body: MimeBody::Txt(Text {
                                     mime: mime::MIME {
                                         ctype: mime::r#type::Text {
                                             subtype: mime::r#type::TextSubtype::Html,
                                             charset: EmailCharset::US_ASCII,
-                                            params: vec![],
+                                            other_params: vec![],
                                         },
 
                                         fields: mime::CommonMIME::default(),
@@ -589,18 +609,24 @@ oOoOoOoOoOoOoOoOoOoOoOoOoOoOo<br />
 OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
 </div>
 "#[..].into(),
+                                    raw_body: RawInput::between(fullmail, b"<div style", b"</div>\n"),
                                 }),
+                                raw: RawInput::between(fullmail, b"X-Custom", b"</div>\n"),
+                                raw_headers: b"X-Custom: foobar\nContent-Type: text/html; charset=us-ascii\n\n".into(),
                             },
                         ],
+                        raw_body: RawInput::between(fullmail, b"This is a multi-part", b"b1_e376dc71bafc953c0b0fdeb9983a9956--\n"),
                     }),
-                };
+                raw: fullmail.into(),
+                raw_headers: RawInput::between(fullmail, b"Date:", b"bad_redundant\n\n"),
+            };
 
         let reprinted: &[u8] = "Date: Sat, 8 Jul 2023 07:14:29 +0200\r
 From: Grrrnd Zero <grrrndzero@example.org>\r
 To: John Doe <jdoe@machine.example>\r
-Cc: =?UTF-8?Q?Andr=C3=A9?= Pirard <PIRARD@vm1.ulg.ac.be>\r
-Subject: =?UTF-8?Q?If_you_can_read_this_yo?=\r
- =?UTF-8?Q?u_understand_the_example=2E?=\r
+Cc: =?windows-1252?Q?Andr=E9?= Pirard <PIRARD@vm1.ulg.ac.be>\r
+Subject: =?windows-1252?B?SWYgeW91IGNhbiByZWFkIHRoaXMgeW8?=\r
+ =?ISO-8859-2?B?dSB1bmRlcnN0YW5kIHRoZSBleGFtcGxlLg?=\r
 X-Unknown: something something\r
 Message-ID: <NTAxNzA2AC47634Y366BAMTY4ODc5MzQyODY0ODY5@www.grrrndzero.org>\r
 MIME-Version: 1.0\r
@@ -642,17 +668,14 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
 
     #[test]
     fn test_best_effort() {
-        test_message_parse_print(
-            b"date: uhh
+        let input = b"date: uhh
 hello: yolo
 
-hello??",
+hello??";
+        test_message_parse_print(
+            input,
             {
-                let from = imf::mailbox::MailboxRef::placeholder();
-                let imf = Imf::new(
-                    From::Single { from, sender: None },
-                    imf::datetime::DateTime::placeholder(),
-                );
+                let imf = Imf::new();
 
                 let mime_body = part::MimeBody::Txt(
                     part::discrete::Text {
@@ -660,7 +683,8 @@ hello??",
                             ctype: mime::r#type::Text::default(),
                             fields: CommonMIME::default(),
                         },
-                        body: b"hello??"[..].into(),
+                        body: b"hello??".into(),
+                        raw_body: b"hello??".into(),
                     }
                 );
 
@@ -671,21 +695,19 @@ hello??",
                             UnstrToken::from_plain(" ", UnstrTxtKind::Fws),
                             UnstrToken::from_plain("yolo", UnstrTxtKind::Txt),
                         ]),
+                        raw_body: b" yolo".into(),
                     }),
-                    MessageEntry::Imf(imf::field::Entry::Date),
-                    MessageEntry::Imf(imf::field::Entry::From),
-                    MessageEntry::Imf(imf::field::Entry::MIMEVersion),
                 ];
 
                 Message {
                     imf,
                     mime_body,
                     entries,
+                    raw: input.into(),
+                    raw_headers: b"date: uhh\nhello: yolo\n\n".into(),
                 }
             },
             b"hello: yolo\r
-Date: Thu, 1 Jan 1970 00:00:00 +0000\r
-From: unknown@unknown\r
 MIME-Version: 1.0\r
 \r
 hello??",
@@ -730,8 +752,6 @@ Received: from sympa.lmf.cnrs.fr (sympa.lmf.cnrs.fr [10.0.0.2])        (using\r
  DC88D214EA;        Mon,  2 Mar 2026 15:43:37 +0000 (UTC)\r
 Received: by sympa.lmf.cnrs.fr (Postfix, from userid 106)        id\r
  ACE8B4A03ED; Mon,  2 Mar 2026 16:43:37 +0100 (CET)\r
-Date: Thu, 1 Jan 1970 00:00:00 +0000\r
-From: unknown@unknown\r
 MIME-Version: 1.0\r
 \r
 "
@@ -881,6 +901,7 @@ From: \"Armaël\" <armaël@example.com>\r
 To: \"Müller\" <müller@example.test>\r
 Subject: Café? ☕\r
 Content-Type: text/plain; charset=UTF-8\r
+MIME-Version: 1.0\r
 \r
 ☕?".as_bytes()
         );

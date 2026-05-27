@@ -14,7 +14,7 @@ use std::collections::HashSet;
 
 #[cfg(feature = "arbitrary")]
 use crate::fuzz_eq::FuzzEq;
-use crate::header;
+use crate::i18n::ContainsUtf8;
 use crate::imf::address::AddressRef;
 use crate::imf::datetime::DateTime;
 use crate::imf::field::{Field, Entry};
@@ -22,14 +22,13 @@ use crate::imf::identification::MessageID;
 use crate::imf::mailbox::{MailboxRef, MailboxList};
 use crate::imf::mime::Version;
 use crate::imf::trace::ReturnPath;
-use crate::print::Formatter;
 use crate::text::misc_token::{PhraseList, Unstructured};
 
-#[derive(Clone, Debug, PartialEq, ToStatic)]
+#[derive(Clone, ContainsUtf8, Debug, PartialEq, ToStatic)]
 #[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
 pub struct Imf<'a> {
     // 3.6.1.  The Origination Date Field
-    pub date: DateTime,
+    pub date: DateTimeOpt,
 
     // 3.6.2.  Originator Fields
     pub from: From<'a>, // combines 'from' and 'sender'
@@ -56,10 +55,21 @@ pub struct Imf<'a> {
     pub trace: Vec<TraceField<'a>>,
 
     // MIME
-    pub mime_version: Version,
+    pub mime_version: Option<Version>,
 }
 
-#[derive(Clone, Debug, PartialEq, ToStatic)]
+#[derive(Clone, ContainsUtf8, Debug, PartialEq, ToStatic)]
+#[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
+pub enum DateTimeOpt {
+    Some(DateTime),
+    // Following RFC5322, it is invalid for the Date header to be missing
+    // However, IMAP RFCs allow the Date header to be missing (e.g. for draft
+    // emails) (in particular, RFC9051 "IMAP4rev2" makes it clear in §7.5.2
+    // ENVELOPE).
+    InvalidMissing,
+}
+
+#[derive(Clone, ContainsUtf8, Debug, PartialEq, ToStatic)]
 #[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
 pub enum From<'a> {
     Single {
@@ -69,29 +79,55 @@ pub enum From<'a> {
     Multiple {
         from: MailboxList<'a>, // must contain at least two elements
         sender: MailboxRef<'a>,
-    }
+    },
+    // Following RFC5322, it is invalid for the From header to be missing.
+    // However, IMAP RFCs allow it to be missing (e.g. for draft emails).
+    // This also represents the case where both From and Sender are missing,
+    // as `InvalidMissingFrom { sender: None }`.
+    InvalidMissingFrom {
+        sender: Option<MailboxRef<'a>>,
+    },
+    // Following RFC5322, it is invalid for the Sender header to be missing
+    // if there are more than one From mailbox.
+    // However, IMAP RFCs allow it to be missing (e.g. for draft emails).
+    InvalidMissingSender {
+        from: MailboxList<'a>, // must contain at least two elements
+    },
 }
 
 #[cfg(feature = "arbitrary")]
 impl<'a> Arbitrary<'a> for From<'a> {
     fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
-        if u.arbitrary()? {
-            Ok(From::Single {
-                from: u.arbitrary()?,
-                sender: u.arbitrary()?,
-            })
-        } else {
-            let mut from: MailboxList = u.arbitrary()?;
-            from.0.push(u.arbitrary()?);
-            Ok(From::Multiple {
-                from,
-                sender: u.arbitrary()?,
-            })
+        match u.int_in_range(0..=3)? {
+            0 =>
+                Ok(From::Single {
+                    from: u.arbitrary()?,
+                    sender: u.arbitrary()?,
+                }),
+            1 => {
+                let mut from: MailboxList = u.arbitrary()?;
+                from.0.push(u.arbitrary()?);
+                Ok(From::Multiple {
+                    from,
+                    sender: u.arbitrary()?,
+                })
+            },
+            2 =>
+                Ok(From::InvalidMissingFrom {
+                    sender: u.arbitrary()?,
+                }),
+            3 => {
+                let mut from: MailboxList = u.arbitrary()?;
+                from.0.push(u.arbitrary()?);
+                Ok(From::InvalidMissingSender { from })
+            },
+            _ =>
+                unreachable!()
         }
     }
 }
 
-#[derive(Clone, Debug, PartialEq, ToStatic)]
+#[derive(Clone, ContainsUtf8, Debug, PartialEq, ToStatic)]
 #[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
 pub enum TraceField<'a> {
     // At the moment, we do not try to parse the structure of Received fields.
@@ -105,10 +141,10 @@ pub enum TraceField<'a> {
 }
 
 impl<'a> Imf<'a> {
-    pub fn new(from: From<'a>, date: DateTime) -> Imf<'a> {
+    pub fn new() -> Imf<'a> {
         Imf {
-            date,
-            from,
+            date: DateTimeOpt::InvalidMissing,
+            from: From::InvalidMissingFrom { sender: None },
             reply_to: vec![],
             to: vec![],
             cc: vec![],
@@ -120,22 +156,26 @@ impl<'a> Imf<'a> {
             comments: vec![],
             keywords: vec![],
             trace: vec![],
-            mime_version: Version::default(),
+            mime_version: None,
         }
     }
 
-    pub fn from_or_sender(&self) -> &MailboxRef<'a> {
+    pub fn from_or_sender(&self) -> Option<&MailboxRef<'a>> {
         match &self.from {
-            From::Single { from: _, sender: Some(sender) } => sender,
-            From::Single { from, sender: None } => from,
-            From::Multiple { from: _, sender } => sender,
+            From::Single { from: _, sender: Some(sender) } => Some(sender),
+            From::Single { from, sender: None } => Some(from),
+            From::Multiple { from: _, sender } => Some(sender),
+            From::InvalidMissingFrom { sender } => sender.as_ref(),
+            From::InvalidMissingSender { from: _ } => None,
         }
     }
 
-    pub fn from(&self) -> MailboxList<'a> {
+    pub fn from(&self) -> Option<MailboxList<'a>> {
         match &self.from {
-            From::Single { from, .. } => MailboxList(vec![from.clone()]),
-            From::Multiple { from, .. } => from.clone(),
+            From::Single { from, .. } => Some(MailboxList(vec![from.clone()])),
+            From::Multiple { from, .. } => Some(from.clone()),
+            From::InvalidMissingFrom { sender: _ } => None,
+            From::InvalidMissingSender { from } => Some(from.clone()),
         }
     }
 
@@ -143,72 +183,68 @@ impl<'a> Imf<'a> {
         match &self.from {
             From::Single { sender, .. } => sender.clone(),
             From::Multiple { sender, .. } => Some(sender.clone()),
+            From::InvalidMissingFrom { sender } => sender.clone(),
+            From::InvalidMissingSender { from: _ } => None,
         }
     }
 
-    pub fn print_field(&self, f: field::Entry, fmt: &mut impl Formatter) {
+    pub fn get_field(&self, f: field::Entry) -> Option<field::Field<'a>> {
         match f {
             field::Entry::Date =>
-                header::print(fmt, b"Date", &self.date),
-            field::Entry::From =>
-                header::print(fmt, b"From", self.from()),
-            field::Entry::Sender => {
-                if let Some(sender) = self.sender() {
-                    header::print(fmt, b"Sender", sender)
-                }
-            },
-            field::Entry::ReplyTo => {
+                match &self.date {
+                    DateTimeOpt::Some(d) => Some(field::Field::Date(d.clone())),
+                    DateTimeOpt::InvalidMissing => None,
+                },
+            field::Entry::From => self.from().map(field::Field::From),
+            field::Entry::Sender => self.sender().map(field::Field::Sender),
+            field::Entry::ReplyTo =>
                 if !self.reply_to.is_empty() {
-                    header::print(fmt, b"Reply-To", &self.reply_to)
-                }
-            },
-            field::Entry::To => {
+                    Some(field::Field::ReplyTo(self.reply_to.clone()))
+                } else {
+                    None
+                },
+            field::Entry::To =>
                 if !self.to.is_empty() {
-                    header::print(fmt, b"To", &self.to)
-                }
-            },
-            field::Entry::Cc => {
+                    Some(field::Field::To(self.to.clone()))
+                } else {
+                    None
+                },
+            field::Entry::Cc =>
                 if !self.cc.is_empty() {
-                    header::print(fmt, b"Cc", &self.cc)
-                }
-            },
-            field::Entry::Bcc => {
-                if let Some(bcc) = &self.bcc {
-                    header::print(fmt, b"Bcc", bcc)
-                }
-            },
-            field::Entry::MessageId => {
-                if let Some(msg_id) = &self.msg_id {
-                    header::print(fmt, b"Message-ID", msg_id)
-                }
-            },
-            field::Entry::InReplyTo => {
+                    Some(field::Field::Cc(self.cc.clone()))
+                } else {
+                    None
+                },
+            field::Entry::Bcc =>
+                self.bcc.clone().map(field::Field::Bcc),
+            field::Entry::MessageID =>
+                self.msg_id.clone().map(field::Field::MessageID),
+            field::Entry::InReplyTo =>
                 if !self.in_reply_to.is_empty() {
-                    header::print(fmt, b"In-Reply-To", &self.in_reply_to)
-                }
-            },
-            field::Entry::References => {
+                    Some(field::Field::InReplyTo(self.in_reply_to.clone()))
+                } else {
+                    None
+                },
+            field::Entry::References =>
                 if !self.references.is_empty() {
-                    header::print(fmt, b"References", &self.references)
-                }
-            },
-            field::Entry::Subject => {
-                if let Some(subject) = &self.subject {
-                    header::print_unstructured(fmt, b"Subject", subject)
-                }
-            },
+                    Some(field::Field::References(self.references.clone()))
+                } else {
+                    None
+                },
+            field::Entry::Subject =>
+                self.subject.clone().map(field::Field::Subject),
             field::Entry::Comments(i) =>
-                header::print_unstructured(fmt, b"Comments", &self.comments[i]),
+                Some(field::Field::Comments(self.comments[i].clone())),
             field::Entry::Keywords(i) =>
-                header::print(fmt, b"Keywords", &self.keywords[i]),
+                Some(field::Field::Keywords(self.keywords[i].clone())),
             field::Entry::MIMEVersion =>
-                header::print(fmt, b"MIME-Version", &self.mime_version),
+                self.mime_version.clone().map(field::Field::MIMEVersion),
             field::Entry::Trace(i) =>
                 match &self.trace[i] {
                     TraceField::Received(r) =>
-                        header::print_unstructured(fmt, b"Received", r),
+                        Some(field::Field::Received(r.clone())),
                     TraceField::ReturnPath(p) =>
-                        header::print(fmt, b"Return-Path", p),
+                        Some(field::Field::ReturnPath(p.clone())),
                 }
         }
     }
@@ -226,17 +262,28 @@ impl<'a> Imf<'a> {
         }
 
         let mut fs = HashSet::default();
-        fs.insert(field::Entry::Date);
-        fs.insert(field::Entry::From);
+        if let DateTimeOpt::Some(_) = &self.date {
+            fs.insert(field::Entry::Date);
+        }
         match &self.from {
             From::Single { from: _, sender } => {
+                fs.insert(field::Entry::From);
                 if sender.is_some() {
                     fs.insert(field::Entry::Sender);
                 }
             },
             From::Multiple { from: _, sender: _ } => {
+                fs.insert(field::Entry::From);
                 fs.insert(field::Entry::Sender);
             },
+            From::InvalidMissingFrom { sender } => {
+                if sender.is_some() {
+                    fs.insert(field::Entry::Sender);
+                }
+            },
+            From::InvalidMissingSender { from: _ } => {
+                fs.insert(field::Entry::From);
+            }
         }
         if !self.reply_to.is_empty() {
             fs.insert(field::Entry::ReplyTo);
@@ -251,7 +298,7 @@ impl<'a> Imf<'a> {
             fs.insert(field::Entry::Bcc);
         }
         if self.msg_id.is_some() {
-            fs.insert(field::Entry::MessageId);
+            fs.insert(field::Entry::MessageID);
         }
         if !self.in_reply_to.is_empty() {
             fs.insert(field::Entry::InReplyTo);
@@ -341,7 +388,7 @@ impl<'a> PartialImf<'a> {
             Field::Bcc(bcc) =>
                 set_or_extend(&mut self.bcc, bcc, Entry::Bcc),
             Field::MessageID(id) =>
-                set_if_new(&mut self.msg_id, id, Entry::MessageId),
+                set_if_new(&mut self.msg_id, id, Entry::MessageID),
             Field::InReplyTo(in_reply_to) =>
                 set_if_new(&mut self.in_reply_to, in_reply_to, Entry::InReplyTo),
             Field::References(refs) =>
@@ -373,44 +420,24 @@ impl<'a> PartialImf<'a> {
         }
     }
 
-    pub fn missing_mandatory_fields(&self) -> Vec<Entry> {
-        let mut entries = Vec::new();
-        if self.date.is_none() {
-            entries.push(Entry::Date)
-        }
-        match &self.from {
-            None => {
-                entries.push(Entry::From)
-            },
-            Some(v) => {
-                if v.0.is_empty() {
-                    entries.push(Entry::From)
-                } else if v.0.len() > 1 && self.sender.is_none() {
-                    entries.push(Entry::Sender)
-                }
-            },
-        }
-        if self.mime_version.is_none() {
-            entries.push(Entry::MIMEVersion)
-        }
-        entries
-    }
-
     pub fn to_imf(self) -> Imf<'a> {
-        let date = self.date.unwrap_or_else(DateTime::placeholder);
-        let from = {
-            let mut p_from = self.from.unwrap_or_else(|| MailboxList(vec![MailboxRef::placeholder()]));
-            if p_from.0.len() == 1 {
+        let date = match self.date {
+            Some(dt) => DateTimeOpt::Some(dt),
+            None => DateTimeOpt::InvalidMissing,
+        };
+        let from = match (self.from, self.sender) {
+            (None, sender) =>
+                From::InvalidMissingFrom { sender },
+            (Some(mut l), sender) if l.0.len() == 1 => {
                 From::Single {
-                    from: p_from.0.pop().unwrap(),
-                    sender: self.sender,
+                    from: l.0.pop().unwrap(),
+                    sender,
                 }
-            } else {
-                From::Multiple {
-                    from: p_from,
-                    sender: self.sender.unwrap_or_else(|| MailboxRef::placeholder()),
-                }
-            }
+            },
+            (Some(l), Some(sender)) =>
+                From::Multiple { from: l, sender },
+            (Some(l), None) =>
+                From::InvalidMissingSender { from: l },
         };
 
         Imf {
@@ -427,10 +454,7 @@ impl<'a> PartialImf<'a> {
             comments: self.comments,
             keywords: self.keywords,
             trace: self.trace,
-            // XXX we don't support reading non-MIME compliant emails
-            // currently, so we always turn a missing MIME-Version field
-            // into the default supported version
-            mime_version: self.mime_version.unwrap_or_default(),
+            mime_version: self.mime_version,
         }
     }
 }
