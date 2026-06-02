@@ -373,6 +373,8 @@ fn strict_zone(input: &[u8]) -> IResult<&[u8], FixedOffset> {
 ///                                          ;
 ///                       1*(ALPHA / DIGIT)  ; Unknown legacy timezones
 #[instrument_input("tracing")]
+#[expect(clippy::identity_op)]
+#[expect(clippy::erasing_op)]
 fn obs_zone(input: &[u8]) -> IResult<&[u8], FixedOffset> {
     // The writing of this function is volontarily verbose
     // to keep it straightforward to understand.
@@ -426,6 +428,7 @@ fn obs_zone(input: &[u8]) -> IResult<&[u8], FixedOffset> {
 
 // This is a hack to handle dates that do not specify a timezone. Unfortunately
 // this is quite common.
+#[expect(clippy::erasing_op)]
 fn no_zone_eof(input: &[u8]) -> IResult<&[u8], FixedOffset> {
     #[cfg(feature = "tracing-recover")]
     warn!("missing zone from date-time");
