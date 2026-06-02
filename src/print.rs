@@ -28,7 +28,7 @@ pub trait Print {
     fn print(&self, fmt: &mut impl Formatter);
 }
 
-pub fn print_seq<'a, T, Fmt>(fmt: &mut Fmt, s: &[T], sep: impl Fn(&mut Fmt))
+pub fn print_seq<T, Fmt>(fmt: &mut Fmt, s: &[T], sep: impl Fn(&mut Fmt))
 where
     T: Print,
     Fmt: Formatter,

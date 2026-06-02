@@ -266,7 +266,7 @@ mod tests {
         )
     }
 
-    fn test_message_reprint<'a>(txt: &[u8], printed: &[u8]) {
+    fn test_message_reprint(txt: &[u8], printed: &[u8]) {
         let parsed = message(txt);
         let reprinted = print_to_vec(parsed);
         assert_eq!(

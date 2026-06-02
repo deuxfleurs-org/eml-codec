@@ -22,7 +22,7 @@ impl<T: ContainsUtf8> ContainsUtf8 for Box<T> {
         <T as ContainsUtf8>::contains_utf8(self.as_ref())
     }
 }
-impl<'a, T: ContainsUtf8> ContainsUtf8 for Vec<T> {
+impl<T: ContainsUtf8> ContainsUtf8 for Vec<T> {
     fn contains_utf8(&self) -> bool {
         self.iter().any(|x| x.contains_utf8())
     }
