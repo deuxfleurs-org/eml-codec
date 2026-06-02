@@ -252,7 +252,7 @@ where
             // whitespace which helps performing line folding.
             fmt.write_fws_bytes(b);
         } else if is_vchar(c) {
-            fmt.write_bytes(&[b'\\']);
+            fmt.write_bytes(b"\\");
             fmt.write_bytes(b);
         } else {
             // RFC5322 does not allow escaping bytes other than VCHAR in
