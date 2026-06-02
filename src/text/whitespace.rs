@@ -287,22 +287,22 @@ mod tests {
 
     #[test]
     fn test_obs_crlf() {
-        assert_eq!(obs_crlf(b"\rworld"), Ok((&b"world"[..], &"\r"[..])));
-        assert_eq!(obs_crlf(b"\r\nworld"), Ok((&b"world"[..], &"\r\n"[..])));
-        assert_eq!(obs_crlf(b"\nworld"), Ok((&b"world"[..], &"\n"[..])));
+        assert_eq!(obs_crlf(b"\rworld"), Ok((&b"world"[..], "\r")));
+        assert_eq!(obs_crlf(b"\r\nworld"), Ok((&b"world"[..], "\r\n")));
+        assert_eq!(obs_crlf(b"\nworld"), Ok((&b"world"[..], "\n")));
     }
 
     #[test]
     fn test_fws() {
-        assert_eq!(fws(b"\r\n world"), Ok((&b"world"[..], vec![&" "[..]])));
+        assert_eq!(fws(b"\r\n world"), Ok((&b"world"[..], vec![" "])));
         assert_eq!(
             fws(b" \r\n \r\n world"),
-            Ok((&b"world"[..], vec![&" "[..], &" "[..], &" "[..]]))
+            Ok((&b"world"[..], vec![" ", " ", " "]))
         );
-        assert_eq!(fws(b" world"), Ok((&b"world"[..], vec![&" "[..]])));
+        assert_eq!(fws(b" world"), Ok((&b"world"[..], vec![" "])));
         assert_eq!(
             fws(b" \t  \r\n  world"),
-            Ok((&b"world"[..], vec![&" \t  "[..], &"  "[..]]))
+            Ok((&b"world"[..], vec![" \t  ", "  "]))
         );
         assert!(fws(b"\r\nFrom: test").is_err());
     }
