@@ -167,26 +167,26 @@ impl<'a> ContainsUtf8 for AnyMIME<'a> {
     }
 }
 
-impl<'a> Into<AnyMIME<'a>> for MIME<'a, r#type::Multipart<'a>> {
-    fn into(self) -> AnyMIME<'a> {
-        AnyMIME::Mult(self)
+impl<'a> From<MIME<'a, r#type::Multipart<'a>>> for AnyMIME<'a> {
+    fn from(val: MIME<'a, r#type::Multipart<'a>>) -> Self {
+        AnyMIME::Mult(val)
     }
 }
 
-impl<'a> Into<AnyMIME<'a>> for MIME<'a, r#type::Message<'a>> {
-    fn into(self) -> AnyMIME<'a> {
-        AnyMIME::Msg(self)
+impl<'a> From<MIME<'a, r#type::Message<'a>>> for AnyMIME<'a> {
+    fn from(val: MIME<'a, r#type::Message<'a>>) -> Self {
+        AnyMIME::Msg(val)
     }
 }
 
-impl<'a> Into<AnyMIME<'a>> for MIME<'a, r#type::Text<'a>> {
-    fn into(self) -> AnyMIME<'a> {
-        AnyMIME::Txt(self)
+impl<'a> From<MIME<'a, r#type::Text<'a>>> for AnyMIME<'a> {
+    fn from(val: MIME<'a, r#type::Text<'a>>) -> Self {
+        AnyMIME::Txt(val)
     }
 }
-impl<'a> Into<AnyMIME<'a>> for MIME<'a, r#type::Binary<'a>> {
-    fn into(self) -> AnyMIME<'a> {
-        AnyMIME::Bin(self)
+impl<'a> From<MIME<'a, r#type::Binary<'a>>> for AnyMIME<'a> {
+    fn from(val: MIME<'a, r#type::Binary<'a>>) -> Self {
+        AnyMIME::Bin(val)
     }
 }
 
