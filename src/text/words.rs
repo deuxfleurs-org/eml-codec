@@ -1,20 +1,17 @@
-#[cfg(feature = "arbitrary")]
-use arbitrary::Arbitrary;
-use bounded_static::ToStatic;
-#[cfg(feature = "arbitrary")]
-use crate::{
-    arbitrary_utils::{
-        arbitrary_vec_nonempty_where,
-        arbitrary_string_nonempty_where,
-    },
-    fuzz_eq::FuzzEq,
-};
-use eml_codec_derives::instrument_input;
 use crate::i18n::ContainsUtf8;
-use crate::print::{Print, Formatter, ToStringFromPrint};
+use crate::print::{Formatter, Print, ToStringFromPrint};
 use crate::text::ascii;
 use crate::text::utf8::{is_nonascii_or, take_utf8_while1};
 use crate::text::whitespace::cfws;
+#[cfg(feature = "arbitrary")]
+use crate::{
+    arbitrary_utils::{arbitrary_string_nonempty_where, arbitrary_vec_nonempty_where},
+    fuzz_eq::FuzzEq,
+};
+#[cfg(feature = "arbitrary")]
+use arbitrary::Arbitrary;
+use bounded_static::ToStatic;
+use eml_codec_derives::instrument_input;
 use nom::{
     bytes::complete::{tag, take_while1},
     character::is_alphanumeric,
@@ -121,7 +118,9 @@ pub fn mime_atom(input: &[u8]) -> IResult<&[u8], MIMEAtom<'_>> {
 
 /// `1*token_text`
 pub fn mime_atom_plain(input: &[u8]) -> IResult<&[u8], MIMEAtom<'_>> {
-    map(take_while1(is_mime_atom_text), |b: &[u8]| MIMEAtom(b.into()))(input)
+    map(take_while1(is_mime_atom_text), |b: &[u8]| {
+        MIMEAtom(b.into())
+    })(input)
 }
 
 /// An IMF atom.

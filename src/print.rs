@@ -1,9 +1,9 @@
 use rand::{Rng, SeedableRng};
 // Use a cryto secure RNG which is "portable" (we want the output of our tests
 // to be stable across platforms). Chacha20 provides such a RNG.
-use rand_chacha::ChaCha20Rng as RNG;
 use crate::text::ascii;
 pub use eml_codec_derives::ToStringFromPrint;
+use rand_chacha::ChaCha20Rng as RNG;
 
 // NOTE regarding line-folding and UTF-8 (RFC6532).
 //
@@ -214,7 +214,7 @@ impl FmtConfig {
 impl Default for FmtConfig {
     fn default() -> Self {
         Self {
-            seed: None, // defaults to system RNG
+            seed: None,           // defaults to system RNG
             line_limit: Some(78), // RFC recommended line limit for emails
         }
     }
@@ -222,10 +222,10 @@ impl Default for FmtConfig {
 
 impl Fmt {
     pub fn new(cfg: FmtConfig) -> Self {
-        let rand =
-            cfg.seed
-               .map(RNG::seed_from_u64)
-               .unwrap_or_else(RNG::from_os_rng);
+        let rand = cfg
+            .seed
+            .map(RNG::seed_from_u64)
+            .unwrap_or_else(RNG::from_os_rng);
         Self {
             line_limit: cfg.line_limit,
             mode: FormatterMode::Direct,
@@ -240,9 +240,10 @@ impl Formatter for Fmt {
         match self.mode {
             FormatterMode::Direct => {
                 self.mode = FormatterMode::Folding(LineFolder::new(self.line_limit))
-            },
-            FormatterMode::Folding(_) =>
+            }
+            FormatterMode::Folding(_) => {
                 panic!("Formatter::begin_line_folding: already in folding mode")
+            }
         }
     }
 
@@ -251,7 +252,7 @@ impl Formatter for Fmt {
             FormatterMode::Folding(ref mut folder) => {
                 folder.flush(&mut self.buf);
                 self.mode = FormatterMode::Direct
-            },
+            }
             FormatterMode::Direct => {
                 panic!("Formatter::end_line_folding: not in folding mode")
             }
@@ -266,10 +267,8 @@ impl Formatter for Fmt {
         let b = self.boundaries.current_boundary();
         // inline write_bytes to avoid cloning `b`
         match self.mode {
-            FormatterMode::Direct =>
-                self.buf.extend_from_slice(b),
-            FormatterMode::Folding(ref mut folder) =>
-                folder.write_bytes(b, &mut self.buf)
+            FormatterMode::Direct => self.buf.extend_from_slice(b),
+            FormatterMode::Folding(ref mut folder) => folder.write_bytes(b, &mut self.buf),
         }
     }
 
@@ -279,28 +278,22 @@ impl Formatter for Fmt {
 
     fn write_bytes(&mut self, buf: &[u8]) {
         match self.mode {
-            FormatterMode::Direct =>
-                self.buf.extend_from_slice(buf),
-            FormatterMode::Folding(ref mut folder) =>
-                folder.write_bytes(buf, &mut self.buf)
+            FormatterMode::Direct => self.buf.extend_from_slice(buf),
+            FormatterMode::Folding(ref mut folder) => folder.write_bytes(buf, &mut self.buf),
         }
     }
 
     fn write_fws_bytes(&mut self, buf: &[u8]) {
         match self.mode {
-            FormatterMode::Direct =>
-                self.buf.extend_from_slice(buf),
-            FormatterMode::Folding(ref mut folder) =>
-                folder.write_fws_bytes(buf, &mut self.buf)
+            FormatterMode::Direct => self.buf.extend_from_slice(buf),
+            FormatterMode::Folding(ref mut folder) => folder.write_fws_bytes(buf, &mut self.buf),
         }
     }
 
     fn write_crlf(&mut self) {
         match self.mode {
-            FormatterMode::Direct =>
-                self.buf.extend_from_slice(ascii::CRLF),
-            FormatterMode::Folding(ref mut folder) =>
-                folder.write_crlf(&mut self.buf)
+            FormatterMode::Direct => self.buf.extend_from_slice(ascii::CRLF),
+            FormatterMode::Folding(ref mut folder) => folder.write_crlf(&mut self.buf),
         }
     }
 
@@ -355,7 +348,7 @@ impl LineFolder {
     // XXX if flushing fails, calling it again will do nothing; data in buffers is lost.
     fn flush(&mut self, inner: &mut Vec<u8>) {
         if self.is_flushed {
-            return
+            return;
         }
         self.is_flushed = true;
         self.flush_line(inner)
@@ -374,9 +367,7 @@ impl LineFolder {
             assert!(!ascii::WS.contains(&buf[0]))
         }
 
-        if self.cur_fold.len() + buf.len() <= self.line_limit
-            || self.last_cut_candidate.is_none()
-        {
+        if self.cur_fold.len() + buf.len() <= self.line_limit || self.last_cut_candidate.is_none() {
             // write `buf`
             self.cur_fold.extend_from_slice(buf);
             if !buf.is_empty() {
@@ -393,7 +384,7 @@ impl LineFolder {
     fn write_fws_bytes(&mut self, buf: &[u8], inner: &mut Vec<u8>) {
         assert!(!self.is_flushed);
         if buf.is_empty() {
-            return
+            return;
         }
 
         // A line must never begin with whitespace.
@@ -409,9 +400,7 @@ impl LineFolder {
 
         // if we are past the line limit, we should fold if we can
         // (possibly on the character we just added)
-        if self.cur_fold.len() > self.line_limit
-            && self.last_cut_candidate.is_some()
-        {
+        if self.cur_fold.len() > self.line_limit && self.last_cut_candidate.is_some() {
             self.fold(inner)
         }
 
@@ -550,14 +539,13 @@ impl Boundaries {
         let mut v = Vec::with_capacity(BOUNDARY_LEN);
         for _ in 0..BOUNDARY_LEN {
             let n = self.rand.random_range(0..(10 + 26 + 26));
-            let byte =
-                if n < 10 {
-                    ascii::N0 + n
-                } else if n - 10 < 26 {
-                    ascii::LCA + (n - 10)
-                } else {
-                    ascii::LSA + (n - 10 - 26)
-                };
+            let byte = if n < 10 {
+                ascii::N0 + n
+            } else if n - 10 < 26 {
+                ascii::LCA + (n - 10)
+            } else {
+                ascii::LSA + (n - 10 - 26)
+            };
             v.push(byte)
         }
         v
@@ -574,7 +562,7 @@ impl Boundaries {
 /// as a Vec.
 pub fn print_to_vec_with<F>(cfg: FmtConfig, f: F) -> Vec<u8>
 where
-    F: for <'a> Fn(&'a mut Fmt)
+    F: for<'a> Fn(&'a mut Fmt),
 {
     let mut fmt = Fmt::new(cfg);
     f(&mut fmt);
@@ -599,11 +587,17 @@ pub(crate) mod tests {
 
     // in tests, fix the formatter seed and use line folding
     pub fn print_to_vec_with(f: impl Fn(&mut Fmt)) -> Vec<u8> {
-        let cfg = FmtConfig { seed: Some(0), ..FMT_DEFAULT };
+        let cfg = FmtConfig {
+            seed: Some(0),
+            ..FMT_DEFAULT
+        };
         super::print_to_vec_with(cfg, f)
     }
     pub fn print_to_vec<T: Print>(x: T) -> Vec<u8> {
-        let cfg = FmtConfig { seed: Some(0), ..FMT_DEFAULT };
+        let cfg = FmtConfig {
+            seed: Some(0),
+            ..FMT_DEFAULT
+        };
         super::print_to_vec(cfg, x)
     }
 
@@ -615,13 +609,7 @@ pub(crate) mod tests {
             f.write_fws();
             f.write_bytes(b"yyyyyyyyy");
         });
-        assert_eq!(
-            folded,
-            [
-                &[b'x'; 72][..],
-                b"\r\n yyyyyyyyy",
-            ].concat()
-        );
+        assert_eq!(folded, [&[b'x'; 72][..], b"\r\n yyyyyyyyy",].concat());
 
         let folded = print_to_vec_with(|f| {
             f.begin_line_folding();
@@ -629,13 +617,7 @@ pub(crate) mod tests {
             f.write_fws();
             f.write_bytes(b"yyyyyyyyy");
         });
-        assert_eq!(
-            folded,
-            [
-                &[b'x'; 80][..],
-                b"\r\n yyyyyyyyy",
-            ].concat()
-        );
+        assert_eq!(folded, [&[b'x'; 80][..], b"\r\n yyyyyyyyy",].concat());
 
         let folded = print_to_vec_with(|f| {
             f.begin_line_folding();
@@ -657,7 +639,8 @@ pub(crate) mod tests {
                 &[b'x'; 32][..],
                 &b"\r\n "[..],
                 &[b'y'; 9][..],
-            ].concat()
+            ]
+            .concat()
         );
 
         // we must not not fold in this case, because doing so would create a
@@ -667,12 +650,6 @@ pub(crate) mod tests {
             f.write_bytes(b"X");
             f.write_fws_bytes(&[b' '; 82]);
         });
-        assert_eq!(
-            folded,
-            [
-                &b"X"[..],
-                &[b' '; 82],
-            ].concat()
-        );
+        assert_eq!(folded, [&b"X"[..], &[b' '; 82],].concat());
     }
 }

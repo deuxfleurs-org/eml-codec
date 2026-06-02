@@ -1,7 +1,5 @@
 #[cfg(feature = "arbitrary")]
 use arbitrary::Arbitrary;
-#[cfg(feature = "tracing")]
-use tracing::warn;
 use bounded_static::{IntoBoundedStatic, ToBoundedStatic};
 use chrono::{Datelike, FixedOffset, NaiveDate, NaiveTime, Timelike};
 use nom::{
@@ -14,30 +12,21 @@ use nom::{
     IResult,
 };
 use std::fmt::{Debug, Formatter};
+#[cfg(feature = "tracing")]
+use tracing::warn;
 
 #[cfg(feature = "arbitrary")]
 use crate::fuzz_eq::FuzzEq;
-use eml_codec_derives::instrument_input;
 use crate::i18n::ContainsUtf8;
-use crate::print::{Print, Formatter as PFmt};
+use crate::print::{Formatter as PFmt, Print};
 use crate::text::whitespace::{cfws, fws};
+use eml_codec_derives::instrument_input;
 
 const MIN: i32 = 60;
 const HOUR: i32 = 60 * MIN;
 
 const MONTHS: &[&[u8]] = &[
-    b"Jan",
-    b"Feb",
-    b"Mar",
-    b"Apr",
-    b"May",
-    b"Jun",
-    b"Jul",
-    b"Aug",
-    b"Sep",
-    b"Oct",
-    b"Nov",
-    b"Dec",
+    b"Jan", b"Feb", b"Mar", b"Apr", b"May", b"Jun", b"Jul", b"Aug", b"Sep", b"Oct", b"Nov", b"Dec",
 ];
 
 // NOTE: must satisfy the following properties:
@@ -84,8 +73,9 @@ impl ToBoundedStatic for DateTime {
 impl<'a> Arbitrary<'a> for DateTime {
     fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
         let timestamp: i64 = u.arbitrary()?;
-        let d = chrono::DateTime::from_timestamp_secs(timestamp).ok_or(arbitrary::Error::IncorrectFormat)?;
-        let tz_mins = u.int_in_range(-24 * 60 + 1 ..= 24 * 60 - 1)?;
+        let d = chrono::DateTime::from_timestamp_secs(timestamp)
+            .ok_or(arbitrary::Error::IncorrectFormat)?;
+        let tz_mins = u.int_in_range(-24 * 60 + 1..=24 * 60 - 1)?;
         let tz = FixedOffset::east_opt(tz_mins * 60).unwrap();
         let d: chrono::DateTime<FixedOffset> = d.with_timezone(&tz);
         if d.year() < 1900 {
@@ -126,9 +116,7 @@ impl Print for DateTime {
         let offset_mins = offset_secs.abs().rem_euclid(HOUR).div_euclid(MIN);
         let offset_hours = offset_secs.abs().div_euclid(HOUR);
         fmt.write_bytes(sign);
-        fmt.write_bytes(
-            format!("{:02}{:02}", offset_hours, offset_mins).as_bytes()
-        );
+        fmt.write_bytes(format!("{:02}{:02}", offset_hours, offset_mins).as_bytes());
     }
 }
 
@@ -144,7 +132,7 @@ impl Print for DateTime {
 /// which appear in some real world emails.
 ///
 /// ## @FIXME - known bugs
-///  
+///
 ///   - `-0000` means NaiveDateTime, a date without a timezone
 /// while this library interprets it as +0000 aka UTC.
 ///   - Obsolete military zones should be considered as NaiveTime
@@ -155,7 +143,10 @@ pub fn date_time(input: &[u8]) -> IResult<&[u8], DateTime> {
     map_opt(
         terminated(
             tuple((
-                opt(terminated(alt((strict_day_of_week, obs_day_of_week)), tag(","))),
+                opt(terminated(
+                    alt((strict_day_of_week, obs_day_of_week)),
+                    tag(","),
+                )),
                 alt((strict_date, obs_date)),
                 alt((strict_time_of_day, obs_time_of_day)),
                 alt((strict_zone, obs_zone, no_zone_eof)),
@@ -163,8 +154,11 @@ pub fn date_time(input: &[u8]) -> IResult<&[u8], DateTime> {
             opt(cfws),
         ),
         |(_, date, time, tz)| {
-            date.and_time(time).and_local_timezone(tz).earliest().map(DateTime)
-        }
+            date.and_time(time)
+                .and_local_timezone(tz)
+                .earliest()
+                .map(DateTime)
+        },
     )(input)
 }
 
@@ -345,13 +339,14 @@ fn strict_zone(input: &[u8]) -> IResult<&[u8], FixedOffset> {
         |(_, op, dig_zone_hour, dig_zone_min)| {
             let zone_hour: i32 =
                 ((dig_zone_hour[0] - 0x30) * 10 + (dig_zone_hour[1] - 0x30)) as i32;
-            let zone_min: i32 =
-                ((dig_zone_min[0] - 0x30) * 10 + (dig_zone_min[1] - 0x30)) as i32;
+            let zone_min: i32 = ((dig_zone_min[0] - 0x30) * 10 + (dig_zone_min[1] - 0x30)) as i32;
             // consider zone_hour is to be taken modulo 24h...
             let zone_hour: i32 = zone_hour.rem_euclid(24);
             // RFC5322 mandates that zone_min is between 00 and 59; reject the
             // input if not
-            if zone_min >= 60 { return None }
+            if zone_min >= 60 {
+                return None;
+            }
             match op {
                 b"+" => FixedOffset::east_opt(zone_hour * HOUR + zone_min * MIN),
                 b"-" => FixedOffset::west_opt(zone_hour * HOUR + zone_min * MIN),
@@ -425,7 +420,7 @@ fn obs_zone(input: &[u8]) -> IResult<&[u8], FixedOffset> {
                 // Unknown timezone
                 _ => FixedOffset::west_opt(0 * HOUR),
             }
-        })
+        }),
     )(input)
 }
 
@@ -434,22 +429,26 @@ fn obs_zone(input: &[u8]) -> IResult<&[u8], FixedOffset> {
 fn no_zone_eof(input: &[u8]) -> IResult<&[u8], FixedOffset> {
     #[cfg(feature = "tracing-recover")]
     warn!("missing zone from date-time");
-    map_opt(value(FixedOffset::west_opt(0 * HOUR), pair(opt(cfws), eof)), |tz| tz)(input)
+    map_opt(
+        value(FixedOffset::west_opt(0 * HOUR), pair(opt(cfws), eof)),
+        |tz| tz,
+    )(input)
 }
-
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::TimeZone;
     use crate::print::tests::print_to_vec;
+    use chrono::TimeZone;
 
     fn date_parsed_printed(date: &[u8], printed: &[u8], parsed: DateTime) {
         assert_eq!(date_time(date).unwrap(), (&b""[..], parsed.clone()));
         let reprinted = print_to_vec(parsed);
-        assert_eq!(String::from_utf8_lossy(&reprinted), String::from_utf8_lossy(printed));
+        assert_eq!(
+            String::from_utf8_lossy(&reprinted),
+            String::from_utf8_lossy(printed)
+        );
     }
-
 
     #[test]
     fn test_date_time_rfc_strict() {
@@ -460,8 +459,8 @@ mod tests {
                 FixedOffset::west_opt(6 * HOUR)
                     .unwrap()
                     .with_ymd_and_hms(1997, 11, 21, 9, 55, 6)
-                    .unwrap()
-            )
+                    .unwrap(),
+            ),
         );
     }
 
@@ -474,7 +473,7 @@ mod tests {
                 FixedOffset::east_opt(2 * HOUR)
                     .unwrap()
                     .with_ymd_and_hms(2023, 6, 18, 15, 39, 8)
-                    .unwrap()
+                    .unwrap(),
             ),
         );
     }
@@ -482,20 +481,20 @@ mod tests {
     #[test]
     fn test_date_time_rfc_ws() {
         date_parsed_printed(
-                r#"Thu,
+            r#"Thu,
          13
            Feb
              1969
          23:32
                   -0330 (Newfoundland Time)"#
-                    .as_bytes(),
+                .as_bytes(),
             b"Thu, 13 Feb 1969 23:32:00 -0330",
             DateTime(
                 FixedOffset::west_opt(3 * HOUR + 30 * MIN)
                     .unwrap()
                     .with_ymd_and_hms(1969, 2, 13, 23, 32, 00)
-                    .unwrap()
-            )
+                    .unwrap(),
+            ),
         );
     }
 
@@ -508,8 +507,8 @@ mod tests {
                 FixedOffset::east_opt(0)
                     .unwrap()
                     .with_ymd_and_hms(1997, 11, 21, 9, 55, 6)
-                    .unwrap()
-            )
+                    .unwrap(),
+            ),
         );
     }
 
@@ -522,8 +521,8 @@ mod tests {
                 FixedOffset::east_opt(0)
                     .unwrap()
                     .with_ymd_and_hms(2003, 11, 21, 9, 55, 6)
-                    .unwrap()
-            )
+                    .unwrap(),
+            ),
         );
     }
 
@@ -536,8 +535,8 @@ mod tests {
                 FixedOffset::west_opt(6 * HOUR)
                     .unwrap()
                     .with_ymd_and_hms(1997, 11, 21, 9, 55, 6)
-                    .unwrap()
-            )
+                    .unwrap(),
+            ),
         );
     }
 
@@ -550,8 +549,8 @@ mod tests {
                 FixedOffset::east_opt(0)
                     .unwrap()
                     .with_ymd_and_hms(2023, 11, 21, 9, 55, 6)
-                    .unwrap()
-            )
+                    .unwrap(),
+            ),
         );
     }
 
@@ -606,8 +605,8 @@ mod tests {
                 FixedOffset::east_opt(0)
                     .unwrap()
                     .with_ymd_and_hms(2023, 11, 21, 7, 7, 7)
-                    .unwrap()
-            )
+                    .unwrap(),
+            ),
         );
         date_parsed_printed(
             b"21 Nov 2023 07:07:07 -0000",
@@ -616,8 +615,8 @@ mod tests {
                 FixedOffset::east_opt(0)
                     .unwrap()
                     .with_ymd_and_hms(2023, 11, 21, 7, 7, 7)
-                    .unwrap()
-            )
+                    .unwrap(),
+            ),
         );
         date_parsed_printed(
             b"21 Nov 2023 07:07:07 Z",
@@ -626,8 +625,8 @@ mod tests {
                 FixedOffset::east_opt(0)
                     .unwrap()
                     .with_ymd_and_hms(2023, 11, 21, 7, 7, 7)
-                    .unwrap()
-            )
+                    .unwrap(),
+            ),
         );
         date_parsed_printed(
             b"21 Nov 2023 07:07:07 GMT",
@@ -636,8 +635,8 @@ mod tests {
                 FixedOffset::east_opt(0)
                     .unwrap()
                     .with_ymd_and_hms(2023, 11, 21, 7, 7, 7)
-                    .unwrap()
-            )
+                    .unwrap(),
+            ),
         );
         date_parsed_printed(
             b"21 Nov 2023 07:07:07 UT",
@@ -646,8 +645,8 @@ mod tests {
                 FixedOffset::east_opt(0)
                     .unwrap()
                     .with_ymd_and_hms(2023, 11, 21, 7, 7, 7)
-                    .unwrap()
-            )
+                    .unwrap(),
+            ),
         );
         date_parsed_printed(
             b"21 Nov 2023 07:07:07 UTC",
@@ -656,8 +655,8 @@ mod tests {
                 FixedOffset::east_opt(0)
                     .unwrap()
                     .with_ymd_and_hms(2023, 11, 21, 7, 7, 7)
-                    .unwrap()
-            )
+                    .unwrap(),
+            ),
         );
     }
 
@@ -670,8 +669,8 @@ mod tests {
                 FixedOffset::west_opt(6 * HOUR)
                     .unwrap()
                     .with_ymd_and_hms(2023, 11, 21, 4, 4, 4)
-                    .unwrap()
-            )
+                    .unwrap(),
+            ),
         );
     }
 
@@ -684,8 +683,8 @@ mod tests {
                 FixedOffset::west_opt(21 * HOUR + 08 * MIN)
                     .unwrap()
                     .with_ymd_and_hms(2316, 08, 26, 9, 6, 21)
-                    .unwrap()
-            )
+                    .unwrap(),
+            ),
         );
     }
 
@@ -703,8 +702,8 @@ mod tests {
                 FixedOffset::east_opt(0)
                     .unwrap()
                     .with_ymd_and_hms(2023, 11, 21, 7, 7, 7)
-                    .unwrap()
-            )
+                    .unwrap(),
+            ),
         );
     }
 
@@ -717,8 +716,8 @@ mod tests {
                 FixedOffset::east_opt(0)
                     .unwrap()
                     .with_ymd_and_hms(1995, 11, 20, 16, 54, 06)
-                    .unwrap()
-            )
+                    .unwrap(),
+            ),
         );
     }
 }

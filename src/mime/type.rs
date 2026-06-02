@@ -1,6 +1,6 @@
 #[cfg(feature = "arbitrary")]
 use arbitrary::Arbitrary;
-use bounded_static::{ToBoundedStatic, ToStatic, IntoBoundedStatic};
+use bounded_static::{IntoBoundedStatic, ToBoundedStatic, ToStatic};
 use nom::{
     branch::alt,
     bytes::complete::tag,
@@ -14,16 +14,16 @@ use tracing::warn;
 
 #[cfg(feature = "arbitrary")]
 use crate::fuzz_eq::FuzzEq;
-#[cfg(any(feature = "tracing-recover", feature = "tracing-unsupported"))]
-use crate::utils::bytes_to_trace_string;
 use crate::i18n::ContainsUtf8;
-use crate::print::{Print, Formatter, ToStringFromPrint};
+use crate::print::{Formatter, Print, ToStringFromPrint};
 use crate::text::charset::EmailCharset;
 use crate::text::misc_token::{mime_word, MIMEWord};
-use crate::text::quoted::{QuotedString, print_quoted};
+use crate::text::quoted::{print_quoted, QuotedString};
 use crate::text::recovery::take_quoted_or_until;
 use crate::text::whitespace::cfws;
 use crate::text::words::{mime_atom, MIMEAtom};
+#[cfg(any(feature = "tracing-recover", feature = "tracing-unsupported"))]
+use crate::utils::bytes_to_trace_string;
 
 // --------- NAIVE TYPE
 #[derive(Clone, ContainsUtf8, Debug, PartialEq, ToStatic)]
@@ -48,21 +48,22 @@ pub fn naive_type(input: &[u8]) -> IResult<&[u8], NaiveType<'_>> {
     let (input, params) = parameter_list(input)?;
     Ok((input, NaiveType { main, sub, params }))
 }
-pub fn recover_broken_type<'a>(broken_name: &'a [u8], main: &'a [u8], sub: &'a[u8]) ->
-  impl FnMut(&'a [u8]) -> IResult<&'a [u8], (MIMEAtom<'a>, MIMEAtom<'a>)>
-{
+pub fn recover_broken_type<'a>(
+    broken_name: &'a [u8],
+    main: &'a [u8],
+    sub: &'a [u8],
+) -> impl FnMut(&'a [u8]) -> IResult<&'a [u8], (MIMEAtom<'a>, MIMEAtom<'a>)> {
     move |input: &[u8]| {
-        map(
-            delimited(opt(cfws), tag(broken_name), opt(cfws)),
-            |_| {
-                #[cfg(feature = "tracing-recover")]
-                warn!("use of broken content-type {}, interpreted as {}/{}",
-                      String::from_utf8_lossy(broken_name),
-                      String::from_utf8_lossy(main),
-                      String::from_utf8_lossy(sub));
-                (MIMEAtom(main.into()), MIMEAtom(sub.into()))
-            }
-        )(input)
+        map(delimited(opt(cfws), tag(broken_name), opt(cfws)), |_| {
+            #[cfg(feature = "tracing-recover")]
+            warn!(
+                "use of broken content-type {}, interpreted as {}/{}",
+                String::from_utf8_lossy(broken_name),
+                String::from_utf8_lossy(main),
+                String::from_utf8_lossy(sub)
+            );
+            (MIMEAtom(main.into()), MIMEAtom(sub.into()))
+        })(input)
     }
 }
 
@@ -124,14 +125,11 @@ pub fn parameter_list(input: &[u8]) -> IResult<&[u8], Vec<Parameter<'_>>> {
                           "unsupported segment in parameter list");
                 }
                 i
-            })
+            }),
         )(input)
     };
     let (input, params) = terminated(
-        many0(preceded(
-            pair(junk, tag(";")),
-            opt(parameter),
-        )),
+        many0(preceded(pair(junk, tag(";")), opt(parameter))),
         pair(opt(tag(";")), junk),
     )(input)?;
 
@@ -147,7 +145,7 @@ pub fn parameter(input: &[u8]) -> IResult<&[u8], Parameter<'_>> {
             warn!(input = %bytes_to_trace_string(input),
                   "non-compliant use of ':' instead of '=' in parameter");
             i
-        })
+        }),
     ));
 
     map(
@@ -162,12 +160,12 @@ pub fn parameter(input: &[u8]) -> IResult<&[u8], Parameter<'_>> {
 #[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
 pub enum AnyType<'a> {
     // Composite types
-    Multipart(Multipart<'a>),         // multipart/*
-    Message(Message<'a>),             // message/{rfc822, global}
+    Multipart(Multipart<'a>), // multipart/*
+    Message(Message<'a>),     // message/{rfc822, global}
 
     // Discrete types
-    Text(Text<'a>),                   // text/*
-    Binary(Binary<'a>),               // everything else
+    Text(Text<'a>),     // text/*
+    Binary(Binary<'a>), // everything else
 }
 
 impl<'a> AnyType<'a> {
@@ -185,15 +183,19 @@ impl<'a> From<&NaiveType<'a>> for AnyType<'a> {
     fn from(nt: &NaiveType<'a>) -> Self {
         match nt.main.0.to_ascii_lowercase().as_slice() {
             b"multipart" =>
-                 // fails if there is no boundary parameter
+            // fails if there is no boundary parameter
+            {
                 Multipart::try_from(nt)
-                .map(Self::Multipart)
-                .unwrap_or(Self::Binary(Binary::from(nt))),
+                    .map(Self::Multipart)
+                    .unwrap_or(Self::Binary(Binary::from(nt)))
+            }
             b"message" =>
-                // fails if this the subtype is not supported
+            // fails if this the subtype is not supported
+            {
                 Message::try_from(nt)
-                .map(Self::Message)
-                .unwrap_or(Self::Binary(Binary::from(nt))),
+                    .map(Self::Message)
+                    .unwrap_or(Self::Binary(Binary::from(nt)))
+            }
             b"text" => Self::Text(Text::from(nt)),
             _ => Self::Binary(Binary::from(nt)),
         }
@@ -257,7 +259,9 @@ impl<'a> Multipart<'a> {
             None =>
             // XXX in this case there is no boundary parameter returned,
             // even the final email will contain one...
+            {
                 ()
+            }
         };
         params
     }
@@ -267,10 +271,17 @@ impl<'a> Multipart<'a> {
 impl<'a> Arbitrary<'a> for Multipart<'a> {
     fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
         let other_params: Vec<Parameter> = u.arbitrary()?;
-        if other_params.iter().any(|p| p.name.0.as_ref() == b"boundary") {
-            return Err(arbitrary::Error::IncorrectFormat)
+        if other_params
+            .iter()
+            .any(|p| p.name.0.as_ref() == b"boundary")
+        {
+            return Err(arbitrary::Error::IncorrectFormat);
         }
-        Ok(Self { subtype: u.arbitrary()?, boundary: None, other_params })
+        Ok(Self {
+            subtype: u.arbitrary()?,
+            boundary: None,
+            other_params,
+        })
     }
 }
 
@@ -383,13 +394,15 @@ impl<'a> Arbitrary<'a> for MultipartSubtype {
             4 => Ok(MultipartSubtype::Report),
             5 => {
                 let a: MIMEAtom = u.arbitrary()?;
-                if matches!(a.0.to_ascii_lowercase().as_slice(),
-                            b"alternative" | b"mixed" | b"digest" | b"parallel" | b"report") {
-                    return Err(arbitrary::Error::IncorrectFormat)
+                if matches!(
+                    a.0.to_ascii_lowercase().as_slice(),
+                    b"alternative" | b"mixed" | b"digest" | b"parallel" | b"report"
+                ) {
+                    return Err(arbitrary::Error::IncorrectFormat);
                 }
                 Ok(MultipartSubtype::Unknown(a))
-            },
-            _ => unreachable!()
+            }
+            _ => unreachable!(),
         }
     }
 }
@@ -484,9 +497,7 @@ impl<'a> Text<'a> {
         let mut params = self.other_params.clone();
         params.push(Parameter {
             name: MIMEAtom(b"charset".into()),
-            value: MIMEWord::Quoted(QuotedString(vec![
-                self.charset.as_str().into()
-            ])).into_static(),
+            value: MIMEWord::Quoted(QuotedString(vec![self.charset.as_str().into()])).into_static(),
         });
         params
     }
@@ -497,9 +508,13 @@ impl<'a> Arbitrary<'a> for Text<'a> {
     fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
         let other_params: Vec<Parameter> = u.arbitrary()?;
         if other_params.iter().any(|p| p.name.0.as_ref() == b"charset") {
-            return Err(arbitrary::Error::IncorrectFormat)
+            return Err(arbitrary::Error::IncorrectFormat);
         }
-        Ok(Self { subtype: u.arbitrary()?, charset: u.arbitrary()?, other_params })
+        Ok(Self {
+            subtype: u.arbitrary()?,
+            charset: u.arbitrary()?,
+            other_params,
+        })
     }
 }
 
@@ -512,10 +527,11 @@ impl<'a> Print for Text<'a> {
         fmt.write_bytes(b"charset=");
         match &self.charset {
             EmailCharset::Unknown(s) =>
-                // print it as quoted just to be safe
-                print_quoted(fmt, s.chars()),
-            _ =>
-                fmt.write_bytes(&self.charset.as_bytes())
+            // print it as quoted just to be safe
+            {
+                print_quoted(fmt, s.chars())
+            }
+            _ => fmt.write_bytes(&self.charset.as_bytes()),
         }
         for param in &self.other_params {
             fmt.write_bytes(b";");
@@ -598,10 +614,10 @@ impl<'a> Arbitrary<'a> for TextSubtype {
             2 => {
                 let a: MIMEAtom = u.arbitrary()?;
                 if matches!(a.0.to_ascii_lowercase().as_slice(), b"plain" | b"html") {
-                    return Err(arbitrary::Error::IncorrectFormat)
+                    return Err(arbitrary::Error::IncorrectFormat);
                 }
                 Ok(TextSubtype::Unknown(a))
-            },
+            }
             _ => unreachable!(),
         }
     }
@@ -629,9 +645,11 @@ impl<'a> From<&NaiveType<'a>> for Binary<'a> {
 impl<'a> Arbitrary<'a> for Binary<'a> {
     fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
         let ctype: NaiveType = u.arbitrary()?;
-        if matches!(ctype.main.0.to_ascii_lowercase().as_slice(),
-                    b"multipart" | b"message" | b"text") {
-            return Err(arbitrary::Error::IncorrectFormat)
+        if matches!(
+            ctype.main.0.to_ascii_lowercase().as_slice(),
+            b"multipart" | b"message" | b"text"
+        ) {
+            return Err(arbitrary::Error::IncorrectFormat);
         }
         Ok(Self { ctype })
     }
@@ -640,8 +658,8 @@ impl<'a> Arbitrary<'a> for Binary<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::text::quoted::QuotedString;
     use crate::text::charset::EmailCharset;
+    use crate::text::quoted::QuotedString;
 
     #[test]
     fn test_parameter() {
@@ -784,12 +802,10 @@ mod tests {
             NaiveType {
                 main: MIMEAtom(b"abc".into()),
                 sub: MIMEAtom(b"def".into()),
-                params: vec![
-                    Parameter {
-                        name: MIMEAtom(b"charset"[..].into()),
-                        value: MIMEWord::Atom(MIMEAtom(b"us-ascii"[..].into())),
-                    }
-                ],
+                params: vec![Parameter {
+                    name: MIMEAtom(b"charset"[..].into()),
+                    value: MIMEWord::Atom(MIMEAtom(b"us-ascii"[..].into())),
+                }],
             }
         );
     }
@@ -866,12 +882,10 @@ mod tests {
             parameter_list(b"; name=threadTest.ml; charset="),
             Ok((
                 &b""[..],
-                vec![
-                    Parameter {
-                        name: MIMEAtom(b"name".into()),
-                        value: MIMEWord::Atom(MIMEAtom(b"threadTest.ml".into())),
-                    },
-                ]
+                vec![Parameter {
+                    name: MIMEAtom(b"name".into()),
+                    value: MIMEWord::Atom(MIMEAtom(b"threadTest.ml".into())),
+                },]
             ))
         );
 
@@ -899,7 +913,9 @@ mod tests {
             // continuation of the previous Content-Type header as per line
             // folding rules... This ends up being read as an extra parameter
             // "thanks" to the recovery of ':' as '='...
-            parameter_list(b"; name=\"calendar.ics\";method=REQUEST;\n Content-Transfer-Encoding: 8bit;"),
+            parameter_list(
+                b"; name=\"calendar.ics\";method=REQUEST;\n Content-Transfer-Encoding: 8bit;"
+            ),
             Ok((
                 &b""[..],
                 vec![
@@ -945,6 +961,9 @@ mod tests {
         let t: AnyType = nt.to_type();
         assert!(matches!(t, AnyType::Binary(_)));
         let printed = crate::print::tests::print_to_vec(t);
-        assert_eq!(String::from_utf8_lossy(raw), String::from_utf8_lossy(&printed))
+        assert_eq!(
+            String::from_utf8_lossy(raw),
+            String::from_utf8_lossy(&printed)
+        )
     }
 }

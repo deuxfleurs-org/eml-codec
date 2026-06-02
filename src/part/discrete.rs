@@ -4,13 +4,10 @@ use bounded_static::ToStatic;
 use std::borrow::Cow;
 use std::fmt;
 
-#[cfg(feature = "arbitrary")]
-use crate::{
-    arbitrary_utils::arbitrary_part_body,
-    fuzz_eq::FuzzEq,
-};
 use crate::mime;
 use crate::raw_input::RawInput;
+#[cfg(feature = "arbitrary")]
+use crate::{arbitrary_utils::arbitrary_part_body, fuzz_eq::FuzzEq};
 
 #[derive(Clone, PartialEq, ToStatic)]
 #[cfg_attr(feature = "arbitrary", derive(FuzzEq))]

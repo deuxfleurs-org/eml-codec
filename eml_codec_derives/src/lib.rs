@@ -1,7 +1,7 @@
 use proc_macro::TokenStream;
 use quote::quote;
 use syn::{parse_macro_input, parse_quote, Data, DeriveInput, Fields, ItemFn};
-use syn::{Attribute, Variant, punctuated::Punctuated, token::Comma, LitStr};
+use syn::{punctuated::Punctuated, token::Comma, Attribute, LitStr, Variant};
 
 // derive(ToStringFromPrint) ---------------------------------------------------
 
@@ -9,8 +9,7 @@ use syn::{Attribute, Variant, punctuated::Punctuated, token::Comma, LitStr};
 pub fn derive_to_string_from_print(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     let name = input.ident;
-    let (impl_generics, ty_generics, where_clauses) =
-        input.generics.split_for_impl();
+    let (impl_generics, ty_generics, where_clauses) = input.generics.split_for_impl();
 
     let expanded = quote! {
         impl #impl_generics ToString for #name #ty_generics #where_clauses {
@@ -35,21 +34,17 @@ pub fn derive_fuzz_eq(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
 
     let name = input.ident;
-    let generics = add_bounds(input.generics, quote!{ FuzzEq });
+    let generics = add_bounds(input.generics, quote! { FuzzEq });
 
-    let (impl_generics, ty_generics, where_clauses) =
-        generics.split_for_impl();
+    let (impl_generics, ty_generics, where_clauses) = generics.split_for_impl();
 
     let body = match input.data {
         Data::Struct(data) => derive_fuzz_eq_struct(&data.fields),
         Data::Enum(data) => derive_fuzz_eq_enum(&name, &data.variants),
         Data::Union(_) => {
-            return syn::Error::new_spanned(
-                name,
-                "FuzzEq cannot be derived for unions",
-            )
-            .to_compile_error()
-            .into();
+            return syn::Error::new_spanned(name, "FuzzEq cannot be derived for unions")
+                .to_compile_error()
+                .into();
         }
     };
 
@@ -67,7 +62,9 @@ pub fn derive_fuzz_eq(input: TokenStream) -> TokenStream {
 fn derive_fuzz_eq_struct(fields: &Fields) -> proc_macro2::TokenStream {
     match fields {
         Fields::Named(fields) => {
-            let comparisons = fields.named.iter()
+            let comparisons = fields
+                .named
+                .iter()
                 .filter(|f| !has_attr(&f.attrs, "fuzz_eq", "ignore"))
                 .map(|f| {
                     let name = &f.ident;
@@ -83,8 +80,7 @@ fn derive_fuzz_eq_struct(fields: &Fields) -> proc_macro2::TokenStream {
             }
         }
         Fields::Unnamed(fields) => {
-            let indices = (0..fields.unnamed.len())
-                .map(syn::Index::from);
+            let indices = (0..fields.unnamed.len()).map(syn::Index::from);
 
             let comparisons = indices.map(|i| {
                 quote! { self.#i.fuzz_eq(&other.#i) }
@@ -137,21 +133,26 @@ fn derive_fuzz_eq_enum(
                 }
             }
             Fields::Named(fields) => {
-                let lhs: Vec<_> = fields.named.iter()
-                    .map(|f| syn::Ident::new(
-                        &format!("a_{}", f.ident.as_ref().unwrap()),
-                        vname.span(),
-                    ))
+                let lhs: Vec<_> = fields
+                    .named
+                    .iter()
+                    .map(|f| {
+                        syn::Ident::new(&format!("a_{}", f.ident.as_ref().unwrap()), vname.span())
+                    })
                     .collect();
-                let rhs: Vec<_> = fields.named.iter()
-                    .map(|f| syn::Ident::new(
-                        &format!("b_{}", f.ident.as_ref().unwrap()),
-                        vname.span(),
-                    ))
+                let rhs: Vec<_> = fields
+                    .named
+                    .iter()
+                    .map(|f| {
+                        syn::Ident::new(&format!("b_{}", f.ident.as_ref().unwrap()), vname.span())
+                    })
                     .collect();
 
-                let names: Vec<_> =
-                    fields.named.iter().map(|f| f.ident.as_ref().unwrap()).collect();
+                let names: Vec<_> = fields
+                    .named
+                    .iter()
+                    .map(|f| f.ident.as_ref().unwrap())
+                    .collect();
 
                 let comparisons = lhs.iter().zip(rhs.iter()).map(|(a, b)| {
                     if has_attr(&variant.attrs, "fuzz_eq", "use_eq") {
@@ -188,28 +189,23 @@ pub fn derive_contains_utf8(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
 
     let name = input.ident;
-    let generics = add_bounds(input.generics, quote!{ ContainsUtf8 });
+    let generics = add_bounds(input.generics, quote! { ContainsUtf8 });
 
-    let (impl_generics, ty_generics, where_clauses) =
-        generics.split_for_impl();
+    let (impl_generics, ty_generics, where_clauses) = generics.split_for_impl();
 
-    let body =
-        if let Some(b) = has_bool_attr(&input.attrs, "contains_utf8") {
-            quote!{ #b }
-        } else {
-            match input.data {
-                Data::Struct(data) => derive_contains_utf8_struct(&data.fields),
-                Data::Enum(data) => derive_contains_utf8_enum(&name, &data.variants),
-                Data::Union(_) => {
-                    return syn::Error::new_spanned(
-                        name,
-                        "ContainsUtf8 cannot be derived for unions",
-                    )
-                        .to_compile_error()
-                        .into();
-                }
+    let body = if let Some(b) = has_bool_attr(&input.attrs, "contains_utf8") {
+        quote! { #b }
+    } else {
+        match input.data {
+            Data::Struct(data) => derive_contains_utf8_struct(&data.fields),
+            Data::Enum(data) => derive_contains_utf8_enum(&name, &data.variants),
+            Data::Union(_) => {
+                return syn::Error::new_spanned(name, "ContainsUtf8 cannot be derived for unions")
+                    .to_compile_error()
+                    .into();
             }
-        };
+        }
+    };
 
     let expanded = quote! {
         impl #impl_generics ContainsUtf8 for #name #ty_generics #where_clauses {
@@ -225,7 +221,9 @@ pub fn derive_contains_utf8(input: TokenStream) -> TokenStream {
 fn derive_contains_utf8_struct(fields: &Fields) -> proc_macro2::TokenStream {
     match fields {
         Fields::Named(fields) => {
-            let tests = fields.named.iter()
+            let tests = fields
+                .named
+                .iter()
                 .filter(|f| !has_attr(&f.attrs, "contains_utf8", "ignore"))
                 .map(|f| {
                     let name = &f.ident;
@@ -235,8 +233,7 @@ fn derive_contains_utf8_struct(fields: &Fields) -> proc_macro2::TokenStream {
             quote! { false #(|| #tests)* }
         }
         Fields::Unnamed(fields) => {
-            let indices = (0..fields.unnamed.len())
-                .map(syn::Index::from);
+            let indices = (0..fields.unnamed.len()).map(syn::Index::from);
 
             let comparisons = indices.map(|i| {
                 quote! { self.#i.contains_utf8() }
@@ -273,15 +270,19 @@ fn derive_contains_utf8_enum(
                 }
             }
             Fields::Named(fields) => {
-                let ids: Vec<_> = fields.named.iter()
-                    .map(|f| syn::Ident::new(
-                        &format!("a_{}", f.ident.as_ref().unwrap()),
-                        vname.span(),
-                    ))
+                let ids: Vec<_> = fields
+                    .named
+                    .iter()
+                    .map(|f| {
+                        syn::Ident::new(&format!("a_{}", f.ident.as_ref().unwrap()), vname.span())
+                    })
                     .collect();
 
-                let names: Vec<_> =
-                    fields.named.iter().map(|f| f.ident.as_ref().unwrap()).collect();
+                let names: Vec<_> = fields
+                    .named
+                    .iter()
+                    .map(|f| f.ident.as_ref().unwrap())
+                    .collect();
 
                 let tests = ids.iter().map(|a| quote! { #a.contains_utf8() });
 
@@ -315,7 +316,7 @@ pub fn instrument_input(attr: TokenStream, input: TokenStream) -> TokenStream {
         )]
     };
     input.attrs.push(attr);
-    TokenStream::from(quote!{ #input })
+    TokenStream::from(quote! { #input })
 }
 
 // helpers
@@ -340,7 +341,9 @@ fn add_bounds(mut generics: syn::Generics, trait_id: impl quote::ToTokens) -> sy
 fn has_attr(attrs: &Vec<Attribute>, path: &str, name: &str) -> bool {
     attrs.iter().any(|attr| {
         attr.path().is_ident(path)
-            && attr.parse_args::<syn::Ident>().map_or(false, |ident| ident == name)
+            && attr
+                .parse_args::<syn::Ident>()
+                .map_or(false, |ident| ident == name)
     })
 }
 

@@ -3,8 +3,8 @@ use arbitrary::Arbitrary;
 use bounded_static::ToStatic;
 use nom::{
     branch::alt,
-    combinator::{all_consuming, into, map, map_opt, opt},
     bytes::complete::tag,
+    combinator::{all_consuming, into, map, map_opt, opt},
     multi::{many0, many1, separated_list1},
     sequence::{delimited, pair, preceded, terminated, tuple},
     IResult,
@@ -13,20 +13,20 @@ use std::borrow::Cow;
 #[cfg(feature = "tracing")]
 use tracing::warn;
 
-#[cfg(feature = "arbitrary")]
-use crate::{
-    arbitrary_utils::{arbitrary_vec_nonempty, arbitrary_string_nonempty_where},
-    fuzz_eq::FuzzEq,
-};
-use eml_codec_derives::instrument_input;
 use crate::i18n::ContainsUtf8;
-use crate::print::{print_seq, Print, Formatter, ToStringFromPrint};
+use crate::print::{print_seq, Formatter, Print, ToStringFromPrint};
 use crate::text::ascii;
 use crate::text::misc_token::{phrase, word, Phrase, Word, WordChars};
 use crate::text::quoted::print_quoted;
 use crate::text::utf8::{is_ascii_and, is_nonascii_or, take_utf8_while1};
 use crate::text::whitespace::{cfws, fws, is_obs_no_ws_ctl};
-use crate::text::words::{dot_atom_text, atom, Atom};
+use crate::text::words::{atom, dot_atom_text, Atom};
+#[cfg(feature = "arbitrary")]
+use crate::{
+    arbitrary_utils::{arbitrary_string_nonempty_where, arbitrary_vec_nonempty},
+    fuzz_eq::FuzzEq,
+};
+use eml_codec_derives::instrument_input;
 
 #[derive(Clone, ContainsUtf8, Debug, PartialEq, ToStatic, ToStringFromPrint)]
 #[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
@@ -56,9 +56,9 @@ impl MailboxRef<'static> {
     pub fn placeholder() -> Self {
         MailboxRef {
             addrspec: AddrSpec {
-                local_part: LocalPart(vec![
-                    LocalPartToken::Word(Word::Atom(Atom("unknown".into())))
-                ]),
+                local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(Atom(
+                    "unknown".into(),
+                )))]),
                 domain: Domain::Atoms(vec![Atom("unknown".into())]),
             },
             name: None,
@@ -82,9 +82,8 @@ impl<'a> Print for MailboxRef<'a> {
                 fmt.write_bytes(b"<");
                 self.addrspec.print(fmt);
                 fmt.write_bytes(b">")
-            },
-            None =>
-                self.addrspec.print(fmt)
+            }
+            None => self.addrspec.print(fmt),
         }
     }
 }
@@ -136,10 +135,7 @@ pub(crate) fn mailbox_list_nullable(input: &[u8]) -> IResult<&[u8], Option<Mailb
     map(
         separated_list1(
             tag(","),
-            alt((
-                map(mailbox, Some),
-                map(opt(cfws), |_| None),
-            ))
+            alt((map(mailbox, Some), map(opt(cfws), |_| None))),
         ),
         |v: Vec<Option<_>>| {
             let v: Vec<_> = v.into_iter().flatten().collect();
@@ -148,7 +144,7 @@ pub(crate) fn mailbox_list_nullable(input: &[u8]) -> IResult<&[u8], Option<Mailb
             } else {
                 Some(MailboxList(v))
             }
-        }
+        },
     )(input)
 }
 
@@ -173,11 +169,7 @@ fn name_addr(input: &[u8]) -> IResult<&[u8], MailboxRef<'_>> {
 #[instrument_input("tracing")]
 pub fn angle_addr(input: &[u8]) -> IResult<&[u8], AddrSpec<'_>> {
     delimited(
-        tuple((
-            opt(cfws),
-            tag(&[ascii::LT]),
-            opt(obs_route),
-        )),
+        tuple((opt(cfws), tag(&[ascii::LT]), opt(obs_route))),
         addr_spec,
         pair(tag(&[ascii::GT]), opt(cfws)),
     )(input)
@@ -205,10 +197,12 @@ fn domain_list(input: &[u8]) -> IResult<&[u8], Vec<Option<Domain<'_>>>> {
         separated_list1(
             tag(&[ascii::COMMA]),
             alt((
-                map(preceded(pair(opt(cfws), tag(&[ascii::AT])), domain), |d| Some(d)),
+                map(preceded(pair(opt(cfws), tag(&[ascii::AT])), domain), |d| {
+                    Some(d)
+                }),
                 map(opt(cfws), |_| None),
-            ))
-        )
+            )),
+        ),
     )(input)
 }
 
@@ -229,7 +223,8 @@ pub fn addr_spec(input: &[u8]) -> IResult<&[u8], AddrSpec<'_>> {
                 |_| {
                     #[cfg(feature = "tracing-recover")]
                     warn!("addr_spec with multiple @ parts")
-                }))
+                },
+            )),
         )),
         |(local_part, _, domain, _)| AddrSpec { local_part, domain },
     )(input)
@@ -255,7 +250,10 @@ impl<'a> ContainsUtf8 for LocalPartToken<'a> {
 
 impl<'a> LocalPart<'a> {
     fn chars<'b>(&'b self) -> LocalPartChars<'a, 'b> {
-        LocalPartChars { l: &self, inner: LocalPartCharsInner::NextToken(0) }
+        LocalPartChars {
+            l: &self,
+            inner: LocalPartCharsInner::NextToken(0),
+        }
     }
 }
 #[derive(Clone)]
@@ -273,27 +271,24 @@ impl<'a, 'b> Iterator for LocalPartChars<'a, 'b> {
     fn next(&mut self) -> Option<Self::Item> {
         use LocalPartCharsInner::*;
         match &mut self.inner {
-            NextToken(idx) =>
-                match self.l.0.get(*idx) {
-                    Some(LocalPartToken::Dot) => {
-                        self.inner = NextToken(*idx + 1);
-                        Some('.')
-                    },
-                    Some(LocalPartToken::Word(w)) => {
-                        self.inner = Word(*idx, w.chars());
-                        self.next()
-                    },
-                    None =>
-                        None,
-                },
-            Word(idx, it) =>
-                match it.next() {
-                    Some(c) => Some(c),
-                    None => {
-                        self.inner = NextToken(*idx + 1);
-                        self.next()
-                    }
+            NextToken(idx) => match self.l.0.get(*idx) {
+                Some(LocalPartToken::Dot) => {
+                    self.inner = NextToken(*idx + 1);
+                    Some('.')
                 }
+                Some(LocalPartToken::Word(w)) => {
+                    self.inner = Word(*idx, w.chars());
+                    self.next()
+                }
+                None => None,
+            },
+            Word(idx, it) => match it.next() {
+                Some(c) => Some(c),
+                None => {
+                    self.inner = NextToken(*idx + 1);
+                    self.next()
+                }
+            },
         }
     }
 }
@@ -394,14 +389,12 @@ pub enum Domain<'a> {
 impl<'a> Print for Domain<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
         match self {
-            Domain::Atoms(atoms) => {
-                print_seq(fmt, &atoms, |fmt| fmt.write_bytes(b"."))
-            },
+            Domain::Atoms(atoms) => print_seq(fmt, &atoms, |fmt| fmt.write_bytes(b".")),
             Domain::Literal(parts) => {
                 fmt.write_bytes(b"[");
                 print_seq(fmt, &parts, Formatter::write_fws);
                 fmt.write_bytes(b"]")
-            },
+            }
         }
     }
 }
@@ -446,8 +439,9 @@ pub fn domain(input: &[u8]) -> IResult<&[u8], Domain<'_>> {
                     #[cfg(feature = "tracing-recover")]
                     warn!("trailing dot in domain");
                     i
-                }))),
-            Domain::Atoms
+                })),
+            ),
+            Domain::Atoms,
         ),
         domain_litteral,
     ))(input)
@@ -471,7 +465,7 @@ fn domain_litteral(input: &[u8]) -> IResult<&[u8], Domain<'_>> {
 fn inner_domain_litteral(input: &[u8]) -> IResult<&[u8], Domain<'_>> {
     map(
         terminated(many0(preceded(opt(fws), dtext)), opt(fws)),
-        Domain::Literal
+        Domain::Literal,
     )(input)
 }
 
@@ -495,8 +489,7 @@ impl<'a> Dtext<'a> {
     // sanitization was done at parsing time, resulting in an AST which is
     // always "clean" as an invariant and can be printed directly.
     fn to_strict_best_effort(&self) -> Self {
-        let mut strict_dtext: String =
-            self.0.chars().filter(|c| is_strict_dtext(*c)).collect();
+        let mut strict_dtext: String = self.0.chars().filter(|c| is_strict_dtext(*c)).collect();
         if strict_dtext.is_empty() {
             strict_dtext.push('?')
         }
@@ -536,9 +529,7 @@ fn is_dtext(c: char) -> bool {
     is_strict_dtext(c) || is_obs_dtext(c)
 }
 fn is_strict_dtext(c: char) -> bool {
-    is_nonascii_or(|c| {
-        (0x21..=0x5A).contains(&c) || (0x5E..=0x7E).contains(&c)
-    })(c)
+    is_nonascii_or(|c| (0x21..=0x5A).contains(&c) || (0x5E..=0x7E).contains(&c))(c)
 }
 fn is_obs_dtext(c: char) -> bool {
     is_ascii_and(is_obs_no_ws_ctl)(c)
@@ -564,18 +555,27 @@ mod tests {
     fn addr_roundtrip_as(addr: &[u8], parsed: AddrSpec<'_>) {
         assert_eq!(addr_spec(addr), Ok((&b""[..], parsed.clone())));
         let printed = print_to_vec(parsed);
-        assert_eq!(String::from_utf8_lossy(addr), String::from_utf8_lossy(&printed));
+        assert_eq!(
+            String::from_utf8_lossy(addr),
+            String::from_utf8_lossy(&printed)
+        );
     }
     fn addr_roundtrip(addr: &[u8]) {
         let (input, parsed) = addr_spec(addr).unwrap();
         assert!(input.is_empty());
         let printed = print_to_vec(parsed);
-        assert_eq!(String::from_utf8_lossy(addr), String::from_utf8_lossy(&printed));
+        assert_eq!(
+            String::from_utf8_lossy(addr),
+            String::from_utf8_lossy(&printed)
+        );
     }
     fn addr_parsed_printed(addr: &[u8], parsed: AddrSpec<'_>, printed: &[u8]) {
         assert_eq!(addr_spec(addr), Ok((&b""[..], parsed.clone())));
         let reprinted = print_to_vec(parsed);
-        assert_eq!(String::from_utf8_lossy(printed), String::from_utf8_lossy(&reprinted));
+        assert_eq!(
+            String::from_utf8_lossy(printed),
+            String::from_utf8_lossy(&reprinted)
+        );
     }
 
     // NOTE: like for addr-spec, this roundtrip property is not expected to hold
@@ -583,19 +583,28 @@ mod tests {
     fn mailbox_roundtrip_as(mbox: &[u8], parsed: MailboxRef<'_>) {
         assert_eq!(mailbox(mbox), Ok((&b""[..], parsed.clone())));
         let printed = print_to_vec(parsed);
-        assert_eq!(String::from_utf8_lossy(mbox), String::from_utf8_lossy(&printed));
+        assert_eq!(
+            String::from_utf8_lossy(mbox),
+            String::from_utf8_lossy(&printed)
+        );
     }
     fn mailbox_parsed_printed(mbox: &[u8], parsed: MailboxRef<'_>, printed: &[u8]) {
         assert_eq!(mailbox(mbox), Ok((&b""[..], parsed.clone())));
         let reprinted = print_to_vec(parsed);
-        assert_eq!(String::from_utf8_lossy(printed), String::from_utf8_lossy(&reprinted));
+        assert_eq!(
+            String::from_utf8_lossy(printed),
+            String::from_utf8_lossy(&reprinted)
+        );
     }
 
     fn mailbox_list_reprint(mboxlist: &[u8], printed: &[u8]) {
         let (input, parsed) = mailbox_list(mboxlist).unwrap();
         assert!(input.is_empty());
         let reprinted = print_to_vec(parsed);
-        assert_eq!(String::from_utf8_lossy(&reprinted), String::from_utf8_lossy(printed));
+        assert_eq!(
+            String::from_utf8_lossy(&reprinted),
+            String::from_utf8_lossy(printed)
+        );
     }
 
     #[test]
@@ -603,37 +612,45 @@ mod tests {
         addr_roundtrip_as(
             b"alice@example.com",
             AddrSpec {
-                local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(Atom("alice"[..].into())))]),
+                local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(Atom(
+                    "alice"[..].into(),
+                )))]),
                 domain: Domain::Atoms(vec![Atom("example"[..].into()), Atom("com"[..].into())]),
-            }
+            },
         );
 
         addr_roundtrip_as(
             b"alice@smtp.example.com",
             AddrSpec {
-                local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(Atom("alice"[..].into())))]),
+                local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(Atom(
+                    "alice"[..].into(),
+                )))]),
                 domain: Domain::Atoms(vec![
                     Atom("smtp"[..].into()),
                     Atom("example"[..].into()),
                     Atom("com"[..].into()),
                 ]),
-            }
+            },
         );
 
         addr_roundtrip_as(
             b"jsmith@[192.168.2.1]",
             AddrSpec {
-                local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(Atom("jsmith"[..].into())))]),
+                local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(Atom(
+                    "jsmith"[..].into(),
+                )))]),
                 domain: Domain::Literal(vec![Dtext("192.168.2.1".into())]),
-            }
+            },
         );
 
         addr_roundtrip_as(
             b"jsmith@[IPv6:2001:db8::1]",
             AddrSpec {
-                local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(Atom("jsmith"[..].into())))]),
+                local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(Atom(
+                    "jsmith"[..].into(),
+                )))]),
                 domain: Domain::Literal(vec![Dtext("IPv6:2001:db8::1".into())]),
-            }
+            },
         );
 
         // UTF-8
@@ -641,11 +658,8 @@ mod tests {
             "用户@例子.广告".as_bytes(),
             AddrSpec {
                 local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(Atom("用户".into())))]),
-                domain: Domain::Atoms(vec![
-                    Atom("例子".into()),
-                    Atom("广告".into()),
-                ]),
-            }
+                domain: Domain::Atoms(vec![Atom("例子".into()), Atom("广告".into())]),
+            },
         );
 
         // ASCII Edge cases
@@ -656,16 +670,16 @@ mod tests {
             r#""Abc@def"@example.com"#.as_bytes(),
             AddrSpec {
                 local_part: LocalPart(vec![LocalPartToken::Word(Word::Quoted(QuotedString(
-                    vec!["Abc@def".into()]
+                    vec!["Abc@def".into()],
                 )))]),
                 domain: Domain::Atoms(vec![Atom("example"[..].into()), Atom("com"[..].into())]),
-            }
+            },
         );
         addr_parsed_printed(
             r#""Fred\ Bloggs"@example.com"#.as_bytes(),
             AddrSpec {
                 local_part: LocalPart(vec![LocalPartToken::Word(Word::Quoted(QuotedString(
-                    vec!["Fred".into(), " ".into(), "Bloggs".into()]
+                    vec!["Fred".into(), " ".into(), "Bloggs".into()],
                 )))]),
                 domain: Domain::Atoms(vec![Atom("example"[..].into()), Atom("com"[..].into())]),
             },
@@ -675,10 +689,10 @@ mod tests {
             r#""Joe.\\Blow"@example.com"#.as_bytes(),
             AddrSpec {
                 local_part: LocalPart(vec![LocalPartToken::Word(Word::Quoted(QuotedString(
-                    vec!["Joe.".into(), "\\".into(), "Blow".into()]
+                    vec!["Joe.".into(), "\\".into(), "Blow".into()],
                 )))]),
                 domain: Domain::Atoms(vec![Atom("example"[..].into()), Atom("com"[..].into())]),
-            }
+            },
         );
 
         // edge-case: domain literal part that contains only obsolete bytes -> gets reprinted as '?'
@@ -687,11 +701,10 @@ mod tests {
         addr_parsed_printed(
             &addr,
             AddrSpec {
-                local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(Atom("foobar".into())))]),
-                domain: Domain::Literal(vec![
-                    Dtext("X"[..].into()),
-                    Dtext("\x01\x1c".into()),
-                ]),
+                local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(Atom(
+                    "foobar".into(),
+                )))]),
+                domain: Domain::Literal(vec![Dtext("X"[..].into()), Dtext("\x01\x1c".into())]),
             },
             b"foobar@[X ?]",
         );
@@ -719,14 +732,15 @@ mod tests {
         mailbox_roundtrip_as(
             r#""Joe Q. Public" <john.q.public@example.com>"#.as_bytes(),
             MailboxRef {
-                name: Some(Phrase(vec![
-                    PhraseToken::Word(Word::Quoted(QuotedString(vec![
+                name: Some(Phrase(vec![PhraseToken::Word(Word::Quoted(QuotedString(
+                    vec![
                         "Joe"[..].into(),
                         " ".into(),
                         "Q."[..].into(),
                         " ".into(),
                         "Public"[..].into(),
-                    ])))])),
+                    ],
+                )))])),
                 addrspec: AddrSpec {
                     local_part: LocalPart(vec![
                         LocalPartToken::Word(Word::Atom(Atom("john"[..].into()))),
@@ -736,22 +750,23 @@ mod tests {
                         LocalPartToken::Word(Word::Atom(Atom("public"[..].into()))),
                     ]),
                     domain: Domain::Atoms(vec![Atom("example"[..].into()), Atom("com"[..].into())]),
-                }
-            }
+                },
+            },
         );
 
         // UTF-8 with invalid bytes
         assert_eq!(
             mailbox(b"a\xD4\xC6z\xE7 <tigermeeting@mail.net>"),
-            Ok((&b""[..],
+            Ok((
+                &b""[..],
                 MailboxRef {
-                    name: Some(Phrase(vec![
-                        PhraseToken::Word(Word::Atom(Atom("a\u{FFFD}\u{FFFD}z\u{FFFD}".into()))),
-                    ])),
+                    name: Some(Phrase(vec![PhraseToken::Word(Word::Atom(Atom(
+                        "a\u{FFFD}\u{FFFD}z\u{FFFD}".into()
+                    ))),])),
                     addrspec: AddrSpec {
-                        local_part: LocalPart(vec![
-                            LocalPartToken::Word(Word::Atom(Atom("tigermeeting".into())))
-                        ]),
+                        local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(Atom(
+                            "tigermeeting".into()
+                        )))]),
                         domain: Domain::Atoms(vec![Atom("mail".into()), Atom("net".into())]),
                     },
                 }
@@ -763,13 +778,15 @@ mod tests {
             MailboxRef {
                 name: Some(Phrase(vec![
                     PhraseToken::Word(Word::Atom(Atom("Mary"[..].into()))),
-                    PhraseToken::Word(Word::Atom(Atom("Smith"[..].into())))
+                    PhraseToken::Word(Word::Atom(Atom("Smith"[..].into()))),
                 ])),
                 addrspec: AddrSpec {
-                    local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(Atom("mary"[..].into())))]),
+                    local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(Atom(
+                        "mary"[..].into(),
+                    )))]),
                     domain: Domain::Atoms(vec![Atom("x"[..].into()), Atom("test"[..].into())]),
-                }
-            }
+                },
+            },
         );
 
         mailbox_roundtrip_as(
@@ -777,21 +794,27 @@ mod tests {
             MailboxRef {
                 name: None,
                 addrspec: AddrSpec {
-                    local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(Atom("jdoe"[..].into())))]),
+                    local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(Atom(
+                        "jdoe"[..].into(),
+                    )))]),
                     domain: Domain::Atoms(vec![Atom("example"[..].into()), Atom("org"[..].into())]),
-                }
-            }
+                },
+            },
         );
 
         mailbox_roundtrip_as(
             r#"Who? <one@y.test>"#.as_bytes(),
             MailboxRef {
-                name: Some(Phrase(vec![PhraseToken::Word(Word::Atom(Atom("Who?"[..].into())))])),
+                name: Some(Phrase(vec![PhraseToken::Word(Word::Atom(Atom(
+                    "Who?"[..].into(),
+                )))])),
                 addrspec: AddrSpec {
-                    local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(Atom("one"[..].into())))]),
+                    local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(Atom(
+                        "one"[..].into(),
+                    )))]),
                     domain: Domain::Atoms(vec![Atom("y"[..].into()), Atom("test"[..].into())]),
-                }
-            }
+                },
+            },
         );
 
         mailbox_parsed_printed(
@@ -799,9 +822,11 @@ mod tests {
             MailboxRef {
                 name: None,
                 addrspec: AddrSpec {
-                    local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(Atom("boss"[..].into())))]),
+                    local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(Atom(
+                        "boss"[..].into(),
+                    )))]),
                     domain: Domain::Atoms(vec![Atom("nil"[..].into()), Atom("test"[..].into())]),
-                }
+                },
             },
             r#"boss@nil.test"#.as_bytes(),
         );
@@ -809,23 +834,24 @@ mod tests {
         mailbox_roundtrip_as(
             r#""Giant; \"Big\" Box" <sysservices@example.net>"#.as_bytes(),
             MailboxRef {
-                name: Some(Phrase(vec![
-                    PhraseToken::Word(Word::Quoted(QuotedString(vec![
+                name: Some(Phrase(vec![PhraseToken::Word(Word::Quoted(QuotedString(
+                    vec![
                         "Giant;"[..].into(),
                         " ".into(),
                         "\"".into(),
                         "Big"[..].into(),
                         "\"".into(),
                         " ".into(),
-                        "Box"[..].into()
-                    ])))])),
+                        "Box"[..].into(),
+                    ],
+                )))])),
                 addrspec: AddrSpec {
-                    local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(
-                        Atom("sysservices"[..].into())
-                    ))]),
+                    local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(Atom(
+                        "sysservices"[..].into(),
+                    )))]),
                     domain: Domain::Atoms(vec![Atom("example"[..].into()), Atom("net"[..].into())]),
-                }
-            }
+                },
+            },
         );
 
         // Tricky example illustrating a subtility of parsing encoded words.
@@ -838,9 +864,9 @@ mod tests {
             MailboxRef {
                 name: None,
                 addrspec: AddrSpec {
-                    local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(
-                        Atom("=?X?q?"[..].into())
-                    ))]),
+                    local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(Atom(
+                        "=?X?q?"[..].into(),
+                    )))]),
                     domain: Domain::Literal(vec![
                         Dtext("?="[..].into()),
                         Dtext("<?@?>"[..].into()),
@@ -867,7 +893,10 @@ mod tests {
                 &b""[..],
                 vec![
                     None,
-                    Some(Domain::Atoms(vec![Atom("33+4"[..].into()), Atom("com"[..].into())])),
+                    Some(Domain::Atoms(vec![
+                        Atom("33+4"[..].into()),
+                        Atom("com"[..].into())
+                    ])),
                     None,
                     None,
                     None,
@@ -875,8 +904,14 @@ mod tests {
                     None,
                     None,
                     None,
-                    Some(Domain::Atoms(vec![Atom("example"[..].into()), Atom("com"[..].into())])),
-                    Some(Domain::Atoms(vec![Atom("yep"[..].into()), Atom("com"[..].into())])),
+                    Some(Domain::Atoms(vec![
+                        Atom("example"[..].into()),
+                        Atom("com"[..].into())
+                    ])),
+                    Some(Domain::Atoms(vec![
+                        Atom("yep"[..].into()),
+                        Atom("com"[..].into())
+                    ])),
                     Some(Domain::Atoms(vec![Atom("a"[..].into())])),
                     Some(Domain::Atoms(vec![Atom("b"[..].into())])),
                     None,
@@ -914,7 +949,7 @@ mod tests {
                 ]),
                 domain: Domain::Atoms(vec![Atom("enron"[..].into()), Atom("com"[..].into())]),
             },
-            r#""a..howard"@enron.com"#.as_bytes()
+            r#""a..howard"@enron.com"#.as_bytes(),
         );
     }
 
@@ -971,11 +1006,14 @@ mod tests {
             MailboxRef {
                 name: None,
                 addrspec: AddrSpec {
-                    local_part: LocalPart(vec![LocalPartToken::Word(Word::Quoted(
-                        QuotedString(vec!["mark_kopinski/intl/acim/americancentury"[..].into(),])
-                    ))]),
-                    domain: Domain::Atoms(vec![Atom("americancentury"[..].into()), Atom("com"[..].into())]),
-                }
+                    local_part: LocalPart(vec![LocalPartToken::Word(Word::Quoted(QuotedString(
+                        vec!["mark_kopinski/intl/acim/americancentury"[..].into()],
+                    )))]),
+                    domain: Domain::Atoms(vec![
+                        Atom("americancentury"[..].into()),
+                        Atom("com"[..].into()),
+                    ]),
+                },
             },
             b"mark_kopinski/intl/acim/americancentury@americancentury.com",
         );
@@ -986,9 +1024,9 @@ mod tests {
         addr_parsed_printed(
             "201102080055@viruhosting.eu.".as_bytes(),
             AddrSpec {
-                local_part: LocalPart(vec![
-                    LocalPartToken::Word(Word::Atom(Atom("201102080055"[..].into()))),
-                ]),
+                local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(Atom(
+                    "201102080055"[..].into(),
+                )))]),
                 domain: Domain::Atoms(vec![Atom("viruhosting"[..].into()), Atom("eu"[..].into())]),
             },
             r#"201102080055@viruhosting.eu"#.as_bytes(),

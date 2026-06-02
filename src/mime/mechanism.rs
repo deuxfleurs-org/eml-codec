@@ -1,18 +1,11 @@
-#[cfg(feature = "arbitrary")]
-use {
-    arbitrary::Arbitrary,
-    crate::fuzz_eq::FuzzEq,
-};
-#[cfg(feature = "tracing")]
-use tracing::warn;
-#[cfg(feature = "tracing-recover")]
-use crate::utils::bytes_to_trace_string;
-use eml_codec_derives::instrument_input;
-use bounded_static::ToStatic;
 use crate::i18n::ContainsUtf8;
-use crate::print::{Print, Formatter, ToStringFromPrint};
+use crate::print::{Formatter, Print, ToStringFromPrint};
 use crate::text::whitespace::cfws;
 use crate::text::words::{mime_atom, MIMEAtom};
+#[cfg(feature = "tracing-recover")]
+use crate::utils::bytes_to_trace_string;
+use bounded_static::ToStatic;
+use eml_codec_derives::instrument_input;
 use nom::{
     branch::alt,
     bytes::complete::{tag, tag_no_case},
@@ -20,6 +13,10 @@ use nom::{
     sequence::{delimited, tuple},
     IResult,
 };
+#[cfg(feature = "tracing")]
+use tracing::warn;
+#[cfg(feature = "arbitrary")]
+use {crate::fuzz_eq::FuzzEq, arbitrary::Arbitrary};
 
 #[derive(Debug, Clone, PartialEq, Default, ToStatic, ToStringFromPrint)]
 #[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
@@ -69,8 +66,7 @@ impl<'a> Mechanism<'a> {
     pub fn to_multipart_encoding(&self) -> Mechanism<'static> {
         use bounded_static::ToBoundedStatic;
         match self {
-            Mechanism::_7Bit | Mechanism::_8Bit | Mechanism::Binary =>
-                self.to_static(),
+            Mechanism::_7Bit | Mechanism::_8Bit | Mechanism::Binary => self.to_static(),
             _ => {
                 #[cfg(feature = "tracing-recover")]
                 warn!(mechanism = ?self, "to_multipart_encoding: ignoring invalid mechanism");
@@ -91,8 +87,7 @@ impl<'a> Mechanism<'a> {
     pub fn to_message_rfc822_encoding(&self) -> Mechanism<'static> {
         use bounded_static::ToBoundedStatic;
         match self {
-            Mechanism::_7Bit | Mechanism::_8Bit | Mechanism::Binary =>
-                self.to_static(),
+            Mechanism::_7Bit | Mechanism::_8Bit | Mechanism::Binary => self.to_static(),
             _ => {
                 #[cfg(feature = "tracing-unsupported")]
                 warn!(mechanism = ?self, "to_message_encoding: ignoring invalid mechanism");
@@ -139,10 +134,7 @@ mod tests {
             Ok((&b""[..], Mechanism::_8Bit)),
         );
 
-        assert_eq!(
-            mechanism(b"8Bit;"),
-            Ok((&b""[..], Mechanism::_8Bit)),
-        );
+        assert_eq!(mechanism(b"8Bit;"), Ok((&b""[..], Mechanism::_8Bit)),);
 
         assert_eq!(
             mechanism(b"(blip) bInArY (blip blip)"),

@@ -1,11 +1,11 @@
 #[cfg(feature = "arbitrary")]
+use crate::fuzz_eq::FuzzEq;
+use crate::i18n::ContainsUtf8;
+#[cfg(feature = "arbitrary")]
 use arbitrary::Arbitrary;
 use bounded_static::{IntoBoundedStatic, ToBoundedStatic};
 use std::borrow::Cow;
 use std::fmt;
-#[cfg(feature = "arbitrary")]
-use crate::fuzz_eq::FuzzEq;
-use crate::i18n::ContainsUtf8;
 
 #[derive(Clone, PartialEq)]
 pub struct RawInput<'a>(pub Option<&'a [u8]>);
@@ -41,19 +41,18 @@ impl<'a> fmt::Debug for RawInput<'a> {
             None => fmt.debug_tuple("None").finish(),
             Some(s) => {
                 let maxlen = 100;
-                let disp: Cow<[u8]> =
-                    if s.len() <= maxlen {
-                        Cow::Borrowed(s)
-                    } else {
-                        let mut disp = vec![];
-                        disp.extend_from_slice(&s[0..maxlen / 2]);
-                        disp.extend_from_slice(b"..");
-                        disp.extend_from_slice(&s[s.len()-(maxlen / 2)..s.len()]);
-                        Cow::Owned(disp)
-                    };
+                let disp: Cow<[u8]> = if s.len() <= maxlen {
+                    Cow::Borrowed(s)
+                } else {
+                    let mut disp = vec![];
+                    disp.extend_from_slice(&s[0..maxlen / 2]);
+                    disp.extend_from_slice(b"..");
+                    disp.extend_from_slice(&s[s.len() - (maxlen / 2)..s.len()]);
+                    Cow::Owned(disp)
+                };
                 fmt.debug_tuple("Some")
-                   .field(&String::from_utf8_lossy(&disp))
-                   .finish()
+                    .field(&String::from_utf8_lossy(&disp))
+                    .finish()
             }
         }
     }
@@ -101,8 +100,7 @@ impl<'a> ContainsUtf8 for RawInput<'a> {
 impl<'a> RawInput<'a> {
     pub(crate) fn between(input: &'a [u8], prefix: &[u8], suffix: &[u8]) -> RawInput<'a> {
         use memchr::memmem;
-        let prefix_matches: Vec<_> =
-            memmem::find_iter(input, prefix).collect();
+        let prefix_matches: Vec<_> = memmem::find_iter(input, prefix).collect();
         if prefix_matches.len() != 1 {
             panic!("{} prefix matches (expected: 1)", prefix_matches.len());
         }
@@ -118,8 +116,7 @@ impl<'a> RawInput<'a> {
 
     pub(crate) fn between_excl(input: &'a [u8], before: &[u8], after: &[u8]) -> RawInput<'a> {
         use memchr::memmem;
-        let before_matches: Vec<_> =
-            memmem::find_iter(input, before).collect();
+        let before_matches: Vec<_> = memmem::find_iter(input, before).collect();
         if before_matches.len() != 1 {
             panic!("{} before matches (expected: 1)", before_matches.len());
         }

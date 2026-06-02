@@ -15,18 +15,15 @@ use std::fmt;
 #[cfg(feature = "tracing")]
 use tracing::warn;
 
-#[cfg(feature = "arbitrary")]
-use crate::{
-    arbitrary_utils::arbitrary_vec_nonempty_where,
-    fuzz_eq::FuzzEq,
-};
 use crate::i18n::ContainsUtf8;
-use crate::print::{Print, Formatter};
+use crate::print::{Formatter, Print};
 use crate::raw_input::RawInput;
 use crate::text::misc_token;
 use crate::text::whitespace::{foldable_line, obs_crlf};
 #[cfg(any(feature = "tracing-recover", feature = "tracing-unsupported"))]
 use crate::utils::bytes_to_trace_string;
+#[cfg(feature = "arbitrary")]
+use crate::{arbitrary_utils::arbitrary_vec_nonempty_where, fuzz_eq::FuzzEq};
 
 // A valid header field name.
 #[derive(PartialEq, Clone, ContainsUtf8, ToStatic)]
@@ -83,8 +80,7 @@ pub struct FieldRaw<'a> {
 }
 impl<'a> fmt::Debug for FieldRaw<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt
-            .debug_struct("header::FieldRaw")
+        fmt.debug_struct("header::FieldRaw")
             .field("name", &self.name)
             .field("body", &String::from_utf8_lossy(&self.body))
             .finish()
@@ -121,7 +117,8 @@ pub fn header_kv(input: &[u8]) -> (&[u8], Vec<FieldRaw<'_>>) {
             warn!(input = %bytes_to_trace_string(_i), "raw bytes before EOF");
             None
         }),
-    ))(input).unwrap();
+    ))(input)
+    .unwrap();
 
     fields.push(terminator);
 
@@ -133,10 +130,9 @@ pub fn header_kv(input: &[u8]) -> (&[u8], Vec<FieldRaw<'_>>) {
 
 // NOTE: field_raw only recognizes non-empty inputs.
 fn field_raw(input: &[u8]) -> IResult<&[u8], FieldRaw<'_>> {
-    map(
-        pair(field_name, foldable_line(false)),
-        |(name, body)| FieldRaw { name, body }
-    )(input)
+    map(pair(field_name, foldable_line(false)), |(name, body)| {
+        FieldRaw { name, body }
+    })(input)
 }
 
 // A best-effort version of `field_raw` that also recognizes lines that cannot
@@ -191,7 +187,11 @@ impl<'a> Unstructured<'a> {
     // TODO: don't throw away the errors
     pub fn from_raw(f: &FieldRaw<'a>) -> Option<Unstructured<'a>> {
         let (_, body) = all_consuming(misc_token::unstructured)(f.body).ok()?;
-        Some(Unstructured { name: f.name.clone(), body, raw_body: f.body.into() })
+        Some(Unstructured {
+            name: f.name.clone(),
+            body,
+            raw_body: f.body.into(),
+        })
     }
 }
 impl<'a> Print for Unstructured<'a> {
@@ -210,7 +210,11 @@ pub fn print<T: Print>(fmt: &mut impl Formatter, name: &[u8], body: T) {
     fmt.write_crlf();
 }
 
-pub fn print_unstructured<'a>(fmt: &mut impl Formatter, name: &[u8], body: &misc_token::Unstructured<'a>) {
+pub fn print_unstructured<'a>(
+    fmt: &mut impl Formatter,
+    name: &[u8],
+    body: &misc_token::Unstructured<'a>,
+) {
     fmt.write_bytes(name);
     fmt.write_bytes(b":");
     body.print(fmt);
@@ -258,12 +262,10 @@ mod tests {
 
     #[test]
     fn test_unstructured() {
-        let u = Unstructured::from_raw(
-            &FieldRaw {
-                name: FieldName(b"X-Unknown".into()),
-                body: &b" something something"[..],
-            }
-        )
+        let u = Unstructured::from_raw(&FieldRaw {
+            name: FieldName(b"X-Unknown".into()),
+            body: &b" something something"[..],
+        })
         .unwrap();
         assert_eq!(
             u,
@@ -287,8 +289,14 @@ mod tests {
         assert_eq!(
             fields,
             vec![
-                FieldRaw { name: FieldName(b"X-Foo".into()), body: b" something something" },
-                FieldRaw { name: FieldName(b"X-Bar".into()), body: b" something else" },
+                FieldRaw {
+                    name: FieldName(b"X-Foo".into()),
+                    body: b" something something"
+                },
+                FieldRaw {
+                    name: FieldName(b"X-Bar".into()),
+                    body: b" something else"
+                },
             ]
         )
     }
@@ -319,8 +327,14 @@ mod tests {
         assert_eq!(
             fields,
             vec![
-                FieldRaw { name: FieldName(b"X-Foo".into()), body: b" something something" },
-                FieldRaw { name: FieldName(b"X-Bar".into()), body: b" something else" },
+                FieldRaw {
+                    name: FieldName(b"X-Foo".into()),
+                    body: b" something something"
+                },
+                FieldRaw {
+                    name: FieldName(b"X-Bar".into()),
+                    body: b" something else"
+                },
             ]
         )
     }
@@ -331,9 +345,10 @@ mod tests {
         assert!(rest.is_empty());
         assert_eq!(
             fields,
-            vec![
-                FieldRaw { name: FieldName(b"X-Foo".into()), body: b" something something" },
-            ]
+            vec![FieldRaw {
+                name: FieldName(b"X-Foo".into()),
+                body: b" something something"
+            },]
         )
     }
 }

@@ -1,6 +1,9 @@
 pub(crate) fn set_opt<T>(o: &mut Option<T>, x: T) -> bool {
     match *o {
-        None => { *o = Some(x); true },
+        None => {
+            *o = Some(x);
+            true
+        }
         Some(_) => false,
     }
 }
@@ -21,10 +24,9 @@ pub fn bytes_to_display_string(bs: &[u8]) -> String {
     for b in bs {
         match b {
             b'\\' => s.push_str("\\\\"),
-            b if b.is_ascii_alphanumeric() ||
-                b.is_ascii_graphic() ||
-                *b == b' ' =>
-                s.push(*b as char),
+            b if b.is_ascii_alphanumeric() || b.is_ascii_graphic() || *b == b' ' => {
+                s.push(*b as char)
+            }
             b'\"' => s.push_str("\\\""),
             b'\r' => s.push_str("\\r"),
             b'\n' => s.push_str("\\n"),

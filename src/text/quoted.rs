@@ -1,7 +1,5 @@
 #[cfg(feature = "arbitrary")]
 use arbitrary::Arbitrary;
-#[cfg(feature = "arbitrary")]
-use std::ops::ControlFlow;
 use bounded_static::ToStatic;
 use nom::{
     branch::alt,
@@ -13,23 +11,22 @@ use nom::{
 };
 use std::borrow::Cow;
 use std::fmt;
+#[cfg(feature = "arbitrary")]
+use std::ops::ControlFlow;
 #[cfg(feature = "tracing")]
 use tracing::warn;
 
-#[cfg(feature = "arbitrary")]
-use crate::{
-    arbitrary_utils::arbitrary_string_where,
-    fuzz_eq::FuzzEq,
-};
-#[cfg(feature = "tracing-recover")]
-use crate::utils::bytes_to_trace_string;
-use eml_codec_derives::instrument_input;
 use crate::i18n::ContainsUtf8;
-use crate::print::{Print, Formatter, ToStringFromPrint};
+use crate::print::{Formatter, Print, ToStringFromPrint};
 use crate::text::ascii;
+use crate::text::utf8::{is_nonascii_or, take_utf8_while1};
 use crate::text::whitespace::{cfws, fws, is_obs_no_ws_ctl};
 use crate::text::words::is_vchar;
-use crate::text::utf8::{is_nonascii_or, take_utf8_while1};
+#[cfg(feature = "tracing-recover")]
+use crate::utils::bytes_to_trace_string;
+#[cfg(feature = "arbitrary")]
+use crate::{arbitrary_utils::arbitrary_string_where, fuzz_eq::FuzzEq};
+use eml_codec_derives::instrument_input;
 
 // A quoted string contains bytes that satisfy `is_vchar` or are in `ascii::WS`.
 #[derive(Clone, ContainsUtf8, PartialEq, Default, ToStatic, ToStringFromPrint)]
@@ -53,7 +50,10 @@ impl<'a> QuotedString<'a> {
     }
 
     pub fn chars<'b>(&'b self) -> QuotedStringChars<'a, 'b> {
-        QuotedStringChars { q: self, inner: QuotedStringCharsInner::NextFragment(0) }
+        QuotedStringChars {
+            q: self,
+            inner: QuotedStringCharsInner::NextFragment(0),
+        }
     }
 }
 impl<'a> Print for QuotedString<'a> {
@@ -67,9 +67,7 @@ impl<'a> Arbitrary<'a> for QuotedString<'a> {
     fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<QuotedString<'a>> {
         let mut chunks = Vec::new();
         u.arbitrary_loop(None, Some(10), |u| {
-            let bytes = arbitrary_string_where(u, |c| {
-                is_vchar(c) || ascii::WS_CHAR.contains(&c)
-            })?;
+            let bytes = arbitrary_string_where(u, |c| is_vchar(c) || ascii::WS_CHAR.contains(&c))?;
             chunks.push(Cow::Owned(bytes));
             Ok(ControlFlow::Continue(()))
         })?;
@@ -100,23 +98,20 @@ impl<'a, 'b> Iterator for QuotedStringChars<'a, 'b> {
     fn next(&mut self) -> Option<Self::Item> {
         use QuotedStringCharsInner::*;
         match &mut self.inner {
-            NextFragment(idx) =>
-                match self.q.0.get(*idx) {
-                    Some(frag) => {
-                        self.inner = FragmentChars(*idx, frag.chars());
-                        self.next()
-                    },
-                    None =>
-                        None
-                },
-            FragmentChars(idx, it) =>
-                match it.next() {
-                    Some(c) => Some(c),
-                    None => {
-                        self.inner = NextFragment(*idx + 1);
-                        self.next()
-                    }
+            NextFragment(idx) => match self.q.0.get(*idx) {
+                Some(frag) => {
+                    self.inner = FragmentChars(*idx, frag.chars());
+                    self.next()
                 }
+                None => None,
+            },
+            FragmentChars(idx, it) => match it.next() {
+                Some(c) => Some(c),
+                None => {
+                    self.inner = NextFragment(*idx + 1);
+                    self.next()
+                }
+            },
         }
     }
 }
@@ -145,16 +140,19 @@ pub fn quoted_pair(input: &[u8]) -> IResult<&[u8], Option<&str>> {
                     // know that `b` contains a single ASCII character.
                     Some(unsafe { str::from_utf8_unchecked(s) })
                 } else {
-                    if !(b == ascii::NULL || is_obs_no_ws_ctl(b)
-                         || b == ascii::LF || b == ascii::CR) {
-                            #[cfg(feature = "tracing-recover")]
-                            warn!(byte = %bytes_to_trace_string(&[b]),
+                    if !(b == ascii::NULL
+                        || is_obs_no_ws_ctl(b)
+                        || b == ascii::LF
+                        || b == ascii::CR)
+                    {
+                        #[cfg(feature = "tracing-recover")]
+                        warn!(byte = %bytes_to_trace_string(&[b]),
                                   "invalid quoted pair")
-                        }
+                    }
                     None
                 }
-            }
-        )
+            },
+        ),
     )(input)
 }
 
@@ -218,17 +216,18 @@ pub fn quoted_string_plain(input: &[u8]) -> IResult<&[u8], QuotedString<'_>> {
     let (input, _) = tag("\"")(input)?;
 
     // Rebuild string
-    let mut qstring = content
-        .into_iter()
-        .fold(QuotedString::default(), |mut acc, (maybe_wsp, c)| {
-            for wsp in maybe_wsp.into_iter().flat_map(|v| v.into_iter()) {
-                acc.push_str(wsp);
-            }
-            if let Some(c) = c {
-                acc.push(c);
-            }
-            acc
-        });
+    let mut qstring =
+        content
+            .into_iter()
+            .fold(QuotedString::default(), |mut acc, (maybe_wsp, c)| {
+                for wsp in maybe_wsp.into_iter().flat_map(|v| v.into_iter()) {
+                    acc.push_str(wsp);
+                }
+                if let Some(c) = c {
+                    acc.push(c);
+                }
+                acc
+            });
 
     for wsp in maybe_wsp.into_iter().flat_map(|v| v.into_iter()) {
         qstring.push_str(wsp);
@@ -239,7 +238,7 @@ pub fn quoted_string_plain(input: &[u8]) -> IResult<&[u8], QuotedString<'_>> {
 
 pub fn print_quoted<I>(fmt: &mut impl Formatter, data: I)
 where
-    I: IntoIterator<Item = char>
+    I: IntoIterator<Item = char>,
 {
     let mut buf = [0u8; 4];
     fmt.write_bytes(b"\"");
@@ -277,33 +276,20 @@ mod tests {
     fn test_quoted_string_parser() {
         assert_eq!(
             quoted_string(b" \"hello\\\"world\" ").unwrap().1,
-            QuotedString(vec![
-                "hello".into(),
-                "\"".into(),
-                "world".into(),
-            ])
+            QuotedString(vec!["hello".into(), "\"".into(), "world".into(),])
         );
 
         assert_eq!(
             quoted_string(b"\"hello\r\n world\""),
             Ok((
                 &b""[..],
-                QuotedString(vec![
-                    "hello".into(),
-                    " ".into(),
-                    "world".into(),
-                ])
+                QuotedString(vec!["hello".into(), " ".into(), "world".into(),])
             )),
         );
 
         assert_eq!(
             quoted_string(b"\"\t\""),
-            Ok((
-                &b""[..],
-                QuotedString(vec![
-                    "\t".into(),
-                ])
-            )),
+            Ok((&b""[..], QuotedString(vec!["\t".into(),]))),
         );
     }
 
@@ -312,11 +298,7 @@ mod tests {
         let out = print_to_vec_with(|f| {
             print_quoted(
                 f,
-                QuotedString(vec![
-                    "hello".into(),
-                    "\"".into(),
-                    " world".into(),
-                ]).chars()
+                QuotedString(vec!["hello".into(), "\"".into(), " world".into()]).chars(),
             );
         });
         assert_eq!(out, b"\"hello\\\" world\"");
@@ -325,12 +307,7 @@ mod tests {
     #[test]
     fn test_quoted_string_object() {
         assert_eq!(
-            QuotedString(vec![
-                "hello".into(),
-                " ".into(),
-                "world".into(),
-            ])
-            .to_string(),
+            QuotedString(vec!["hello".into(), " ".into(), "world".into(),]).to_string(),
             "\"hello world\"".to_string(),
         );
     }

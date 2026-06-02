@@ -1,3 +1,5 @@
+use crate::text::encoding::{encoded_word_token, Context};
+use crate::text::quoted::quoted_string_plain;
 use nom::{
     branch::alt,
     bytes::complete::{tag, take_while1},
@@ -5,60 +7,55 @@ use nom::{
     multi::many0,
     IResult,
 };
-use crate::text::quoted::quoted_string_plain;
-use crate::text::encoding::{Context, encoded_word_token};
 
 // Helper combinators that help skipping over part of the input. This is useful
 // when recovering from ill-formatted input.
 
 pub fn take_quoted_or_until<F>(pred: F) -> impl FnMut(&[u8]) -> IResult<&[u8], &[u8]>
-    where F: Fn(u8) -> bool
+where
+    F: Fn(u8) -> bool,
 {
     move |input: &[u8]| {
-        recognize(
-            many0(alt((
-                take_while1(|c| c != b'"' && !pred(c)),
-                recognize(quoted_string_plain),
-                tag("\""), // fallback if `quoted_string` failed
-            )))
-        )(input)
+        recognize(many0(alt((
+            take_while1(|c| c != b'"' && !pred(c)),
+            recognize(quoted_string_plain),
+            tag("\""), // fallback if `quoted_string` failed
+        ))))(input)
     }
 }
 
 pub fn take_quoted_or_until1<F>(pred: F) -> impl FnMut(&[u8]) -> IResult<&[u8], &[u8]>
-    where F: Fn(u8) -> bool
+where
+    F: Fn(u8) -> bool,
 {
-    move |input: &[u8]| {
-        verify(take_quoted_or_until(&pred), |i: &[u8]| !i.is_empty())(input)
-    }
+    move |input: &[u8]| verify(take_quoted_or_until(&pred), |i: &[u8]| !i.is_empty())(input)
 }
 
 pub fn take_quoted_encoded_or_until<F>(pred: F) -> impl FnMut(&[u8]) -> IResult<&[u8], &[u8]>
-    where F: Fn(u8) -> bool
+where
+    F: Fn(u8) -> bool,
 {
     move |input: &[u8]| {
-        let res =
-        recognize(
-            many0(
-                alt((
-                    take_while1(|c| c != b'"' && c != b'=' && !pred(c)),
-                    recognize(quoted_string_plain),
-                    tag("\""), // fallback if `quoted_string` failed
-                    // hardcode the context for now...
-                    recognize(encoded_word_token(Context::Phrase)),
-                    tag("="), // fallback if `encoded_word_token` failed
-                )),
-            )
-        )(input)?;
+        let res = recognize(many0(alt((
+            take_while1(|c| c != b'"' && c != b'=' && !pred(c)),
+            recognize(quoted_string_plain),
+            tag("\""), // fallback if `quoted_string` failed
+            // hardcode the context for now...
+            recognize(encoded_word_token(Context::Phrase)),
+            tag("="), // fallback if `encoded_word_token` failed
+        ))))(input)?;
         Ok(res)
     }
 }
 
 pub fn take_quoted_encoded_or_until1<F>(pred: F) -> impl FnMut(&[u8]) -> IResult<&[u8], &[u8]>
-    where F: Fn(u8) -> bool
+where
+    F: Fn(u8) -> bool,
 {
     move |input: &[u8]| {
-        verify(take_quoted_encoded_or_until(&pred), |i: &[u8]| !i.is_empty())(input)
+        verify(take_quoted_encoded_or_until(&pred), |i: &[u8]| {
+            !i.is_empty()
+        })(input)
     }
 }
 

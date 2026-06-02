@@ -1,14 +1,11 @@
-#[cfg(feature = "arbitrary")]
-use {
-    arbitrary::Arbitrary,
-    crate::fuzz_eq::FuzzEq,
-};
-#[cfg(feature = "tracing-recover")]
-use tracing::warn;
-use charset::Charset;
-use bounded_static::{IntoBoundedStatic, ToBoundedStatic};
 use crate::i18n::ContainsUtf8;
 use crate::text::words::is_vchar;
+use bounded_static::{IntoBoundedStatic, ToBoundedStatic};
+use charset::Charset;
+#[cfg(feature = "tracing-recover")]
+use tracing::warn;
+#[cfg(feature = "arbitrary")]
+use {crate::fuzz_eq::FuzzEq, arbitrary::Arbitrary};
 
 /// Email charsets are defined by IANA
 /// <https://www.iana.org/assignments/character-sets/character-sets.xhtml>
@@ -32,9 +29,12 @@ impl<T: AsRef<[u8]>> From<T> for EmailCharset {
             b"us-ascii" | b"ascii" => Self::US_ASCII,
             _ => {
                 // Filter out bytes that are not ASCII printable, in case there are some…
-                let sanitized: String = bytes.as_ref().iter().cloned().filter_map(|b| {
-                    (b.is_ascii() && is_vchar(b as char)).then_some(b as char)
-                }).collect();
+                let sanitized: String = bytes
+                    .as_ref()
+                    .iter()
+                    .cloned()
+                    .filter_map(|b| (b.is_ascii() && is_vchar(b as char)).then_some(b as char))
+                    .collect();
                 match Charset::for_label(sanitized.as_bytes()) {
                     Some(c) => Self::Charset(c),
                     None => {
@@ -77,12 +77,11 @@ impl EmailCharset {
 
     pub fn decode<'a>(&self, bytes: &'a [u8]) -> std::borrow::Cow<'a, str> {
         match self {
-            EmailCharset::US_ASCII | EmailCharset::Unknown(_) =>
-                charset::decode_ascii(bytes),
+            EmailCharset::US_ASCII | EmailCharset::Unknown(_) => charset::decode_ascii(bytes),
             EmailCharset::Charset(c) => {
                 let (s, _has_malformed) = c.decode_without_bom_handling(bytes);
                 s
-            },
+            }
         }
     }
 }
@@ -115,7 +114,7 @@ impl<'a> Arbitrary<'a> for EmailCharset {
             6 => {
                 let label: &[u8] = u.arbitrary()?;
                 Ok(EmailCharset::from(label))
-            },
+            }
             _ => unreachable!(),
         }
     }
@@ -132,30 +131,18 @@ mod tests {
     use super::*;
     #[test]
     fn test_charset() {
-        assert_eq!(
-            EmailCharset::from(&b"Us-Ascii"[..]).as_bytes(),
-            b"us-ascii",
-        );
+        assert_eq!(EmailCharset::from(&b"Us-Ascii"[..]).as_bytes(), b"us-ascii",);
 
-        assert_eq!(
-            EmailCharset::from(&b"Us-Ascii"[..]),
-            EmailCharset::US_ASCII,
-        );
+        assert_eq!(EmailCharset::from(&b"Us-Ascii"[..]), EmailCharset::US_ASCII,);
 
         assert_eq!(
             EmailCharset::from(&b"ISO-8859-1"[..]).as_bytes(),
             b"windows-1252",
         );
 
-        assert_eq!(
-            EmailCharset::from(&b"utf-8"[..]).as_bytes(),
-            b"UTF-8",
-        );
+        assert_eq!(EmailCharset::from(&b"utf-8"[..]).as_bytes(), b"UTF-8",);
 
-        assert_eq!(
-            EmailCharset::from(&b"utf8"[..]).as_bytes(),
-            b"UTF-8",
-        );
+        assert_eq!(EmailCharset::from(&b"utf8"[..]).as_bytes(), b"UTF-8",);
 
         assert_eq!(
             EmailCharset::from(&b"!*\x00\x01abc"[..]),

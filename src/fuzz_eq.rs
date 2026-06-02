@@ -6,8 +6,7 @@ pub trait FuzzEq {
 
 impl<T: FuzzEq> FuzzEq for Vec<T> {
     fn fuzz_eq(&self, other: &Self) -> bool {
-        self.len() == other.len() &&
-        self.iter().zip(other.iter()).all(|(x1, x2)| x1.fuzz_eq(x2))
+        self.len() == other.len() && self.iter().zip(other.iter()).all(|(x1, x2)| x1.fuzz_eq(x2))
     }
 }
 

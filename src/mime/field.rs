@@ -9,7 +9,7 @@ use crate::header;
 use crate::imf::identification::{msg_id, MessageID};
 use crate::mime::mechanism::{mechanism, Mechanism};
 use crate::mime::r#type::{naive_type, AnyType, NaiveType};
-use crate::print::{Print, Formatter};
+use crate::print::{Formatter, Print};
 use crate::text::misc_token::{unstructured, Unstructured};
 #[cfg(feature = "tracing-unsupported")]
 use crate::utils::bytes_to_trace_string;
@@ -45,14 +45,12 @@ impl<'a> Field<'a> {
 impl<'a> Print for Field<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
         match self {
-            Self::Type(nt) =>
-                header::print(fmt, b"Content-Type", nt),
-            Self::TransferEncoding(enc) =>
-                header::print(fmt, b"Content-Transfer-Encoding", enc),
-            Self::ID(id) =>
-                header::print(fmt, b"Content-Id", id),
-            Self::Description(desc) =>
-                header::print_unstructured(fmt, b"Content-Description", desc),
+            Self::Type(nt) => header::print(fmt, b"Content-Type", nt),
+            Self::TransferEncoding(enc) => header::print(fmt, b"Content-Transfer-Encoding", enc),
+            Self::ID(id) => header::print(fmt, b"Content-Id", id),
+            Self::Description(desc) => {
+                header::print_unstructured(fmt, b"Content-Description", desc)
+            }
         }
     }
 }
@@ -95,7 +93,7 @@ impl<'a> TryFrom<&header::FieldRaw<'a>> for NaiveField<'a> {
                 warn!(rest = %bytes_to_trace_string(_rest),
                       "leftover input after parsing");
                 Err(InvalidField::Body)
-            },
+            }
             Err(_) => Err(InvalidField::Body),
         }
     }
@@ -103,10 +101,9 @@ impl<'a> TryFrom<&header::FieldRaw<'a>> for NaiveField<'a> {
 
 pub fn is_mime_header(name: &header::FieldName) -> bool {
     match name.bytes().to_ascii_lowercase().as_slice() {
-        b"content-type" |
-        b"content-transfer-encoding" |
-        b"content-id" |
-        b"content-description" => true,
+        b"content-type" | b"content-transfer-encoding" | b"content-id" | b"content-description" => {
+            true
+        }
         _ => false,
     }
 }
