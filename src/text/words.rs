@@ -75,7 +75,7 @@ impl<'a, 'b> Iterator for MIMEAtomChars<'a, 'b> {
     type Item = char;
     fn next(&mut self) -> Option<Self::Item> {
         if self.idx < self.a.0.len() {
-            let c: u8 = self.a.0[self.idx].into();
+            let c: u8 = self.a.0[self.idx];
             self.idx += 1;
             Some(c.into())
         } else {
@@ -184,7 +184,7 @@ pub fn is_atext(c: char) -> bool {
 pub fn atom(input: &[u8]) -> IResult<&[u8], Atom<'_>> {
     map(
         delimited(opt(cfws), take_utf8_while1(is_atext), opt(cfws)),
-        |b| Atom(b.into()),
+        |b| Atom(b),
     )(input)
 }
 

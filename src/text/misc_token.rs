@@ -258,7 +258,7 @@ impl<'a> Phrase<'a> {
         for tok in &self.0 {
             match (v.last_mut(), tok) {
                 (Some(PhraseToken::Encoded(ref mut e1)), PhraseToken::Encoded(e2)) => {
-                    e1.0.extend(e2.0.clone().into_iter())
+                    e1.0.extend(e2.0.clone())
                 }
                 (_, tok) => v.push(tok.clone()),
             }
@@ -460,7 +460,7 @@ impl<'a> Unstructured<'a> {
                     s1.to_mut().push_str(s2)
                 }
                 (Some(UnstrToken::Encoded(e1)), UnstrToken::Encoded(e2)) => {
-                    e1.0.extend(e2.to_static().0.into_iter())
+                    e1.0.extend(e2.to_static().0)
                 }
                 _ => v.push(tok.to_static()),
             }

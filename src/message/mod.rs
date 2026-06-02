@@ -190,7 +190,7 @@ impl<'a> Arbitrary<'a> for Message<'a> {
         }
 
         // concatenate both sections
-        entries.extend(rest.into_iter());
+        entries.extend(rest);
 
         Ok(Message {
             imf,

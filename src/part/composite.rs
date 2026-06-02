@@ -117,9 +117,9 @@ pub fn multipart<'a>(
             // interpret mime according to context
             let mime = match m.ctype.subtype {
                 mime::r#type::MultipartSubtype::Digest => {
-                    mime.to_interpreted(mime::DefaultType::Digest).into()
+                    mime.to_interpreted(mime::DefaultType::Digest)
                 }
-                _ => mime.to_interpreted(mime::DefaultType::Generic).into(),
+                _ => mime.to_interpreted(mime::DefaultType::Generic),
             };
 
             // parse raw part for the body

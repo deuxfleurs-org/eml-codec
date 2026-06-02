@@ -452,10 +452,8 @@ fn normalize_quoted_chunks<'a>(chunks: &Vec<QuotedChunk<'a>>) -> Vec<QuotedChunk
     let mut new_chunks: Vec<QuotedChunk<'static>> = vec![];
     for chunk in chunks {
         match (new_chunks.last_mut(), chunk) {
-            (Some(QuotedChunk::Safe(b1)), QuotedChunk::Safe(b2)) => {
-                b1.to_mut().extend(b2.into_iter())
-            }
-            (Some(QuotedChunk::Encoded(v1)), QuotedChunk::Encoded(v2)) => v1.extend(v2.into_iter()),
+            (Some(QuotedChunk::Safe(b1)), QuotedChunk::Safe(b2)) => b1.to_mut().extend(&**b2),
+            (Some(QuotedChunk::Encoded(v1)), QuotedChunk::Encoded(v2)) => v1.extend(v2),
             (_, _) => new_chunks.push(chunk.to_static()),
         }
     }
