@@ -6,4 +6,18 @@ compact_arrays = true
 compact_inline_tables = false
 indent_string = "    "
 inline_table_expand = false
+
+[[rule]]
+include = ["Cargo.toml", "taplo.toml"]
+keys = [
+    "dependencies",
+    "dev-dependencies",
+    "lints.clippy",
+    "lints.rust",
+    "rule.formatting",
+    "formatting",
+]
+
+[rule.formatting]
+reorder_arrays = true
 reorder_keys = true
