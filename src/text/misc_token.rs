@@ -423,9 +423,8 @@ impl<'a> Print for Unstructured<'a> {
 
             // consecutive encoded tokens must be separated by whitespace
             if i > 0 {
-                match (&self.0[i - 1], tok) {
-                    (UnstrToken::Encoded(_), UnstrToken::Encoded(_)) => fmt.write_fws(),
-                    _ => (),
+                if let (UnstrToken::Encoded(_), UnstrToken::Encoded(_)) = (&self.0[i - 1], tok) {
+                    fmt.write_fws()
                 }
             }
 
