@@ -194,7 +194,7 @@ fn qcontent(input: &[u8]) -> IResult<&[u8], Option<Cow<'_, str>>> {
     alt((
         map(take_utf8_while1(is_strict_qtext), Some),
         map(take_while1(is_obs_qtext), |_| None),
-        map(quoted_pair, |qp| qp.map(|s| Cow::Borrowed(s))),
+        map(quoted_pair, |qp| qp.map(Cow::Borrowed)),
     ))(input)
 }
 

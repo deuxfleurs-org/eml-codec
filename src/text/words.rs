@@ -184,7 +184,7 @@ pub fn is_atext(c: char) -> bool {
 pub fn atom(input: &[u8]) -> IResult<&[u8], Atom<'_>> {
     map(
         delimited(opt(cfws), take_utf8_while1(is_atext), opt(cfws)),
-        |b| Atom(b),
+        Atom,
     )(input)
 }
 
