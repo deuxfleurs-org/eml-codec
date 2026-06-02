@@ -1,0 +1,9 @@
+include = ["Cargo.toml", "taplo.toml"]
+
+[formatting]
+array_auto_collapse = false
+compact_arrays = true
+compact_inline_tables = false
+indent_string = "    "
+inline_table_expand = false
+reorder_keys = true
