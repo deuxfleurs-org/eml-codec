@@ -75,7 +75,7 @@ pub type MessageIDList<'a> = Vec<MessageID<'a>>;
 
 impl<'a> Print for MessageIDList<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
-        print_seq(fmt, &self, Formatter::write_fws)
+        print_seq(fmt, self, Formatter::write_fws)
     }
 }
 

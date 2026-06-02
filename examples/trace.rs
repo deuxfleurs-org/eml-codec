@@ -241,7 +241,7 @@ fn main() {
                 let _span = span!(Level::TRACE, "file email", path = %path.display()).entered();
                 eprintln!("parsing email {}", path.display());
                 let mut input = Vec::new();
-                File::open(&path).unwrap().read_to_end(&mut input).unwrap();
+                File::open(path).unwrap().read_to_end(&mut input).unwrap();
                 let _eml = eml_codec::parse_message(&input);
             });
         } else {

@@ -166,7 +166,7 @@ fn part_raw<'a, 'b>(bound: &[u8]) -> impl Fn(&'a [u8]) -> (&'a [u8], &'a [u8]) +
         for i in finder.find_iter(input) {
             // a boundary can be at the beginning of the input
             if i == 0 {
-                return (&input, &[]);
+                return (input, &[]);
             }
 
             // or it can be after a newline

@@ -63,7 +63,7 @@ impl<'a> FuzzEq for MIMEAtom<'a> {
 }
 impl<'a> MIMEAtom<'a> {
     pub fn chars<'b>(&'b self) -> MIMEAtomChars<'a, 'b> {
-        MIMEAtomChars { a: &self, idx: 0 }
+        MIMEAtomChars { a: self, idx: 0 }
     }
 }
 #[derive(Clone)]
@@ -130,7 +130,7 @@ pub struct Atom<'a>(pub Cow<'a, str>);
 
 impl<'a> Print for Atom<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
-        fmt.write_bytes(&self.0.as_bytes())
+        fmt.write_bytes(self.0.as_bytes())
     }
 }
 #[cfg(feature = "arbitrary")]
@@ -195,7 +195,7 @@ pub struct DotAtom<'a>(pub Cow<'a, str>);
 
 impl<'a> Print for DotAtom<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
-        fmt.write_bytes(&self.0.as_bytes())
+        fmt.write_bytes(self.0.as_bytes())
     }
 }
 #[cfg(feature = "arbitrary")]

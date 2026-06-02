@@ -251,7 +251,7 @@ impl<'a> ContainsUtf8 for LocalPartToken<'a> {
 impl<'a> LocalPart<'a> {
     fn chars<'b>(&'b self) -> LocalPartChars<'a, 'b> {
         LocalPartChars {
-            l: &self,
+            l: self,
             inner: LocalPartCharsInner::NextToken(0),
         }
     }
@@ -389,10 +389,10 @@ pub enum Domain<'a> {
 impl<'a> Print for Domain<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
         match self {
-            Domain::Atoms(atoms) => print_seq(fmt, &atoms, |fmt| fmt.write_bytes(b".")),
+            Domain::Atoms(atoms) => print_seq(fmt, atoms, |fmt| fmt.write_bytes(b".")),
             Domain::Literal(parts) => {
                 fmt.write_bytes(b"[");
-                print_seq(fmt, &parts, Formatter::write_fws);
+                print_seq(fmt, parts, Formatter::write_fws);
                 fmt.write_bytes(b"]")
             }
         }
@@ -499,7 +499,7 @@ impl<'a> Dtext<'a> {
 
 impl<'a> Print for Dtext<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
-        fmt.write_bytes(&self.to_strict_best_effort().0.as_bytes())
+        fmt.write_bytes(self.to_strict_best_effort().0.as_bytes())
     }
 }
 #[cfg(feature = "arbitrary")]

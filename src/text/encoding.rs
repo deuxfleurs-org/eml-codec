@@ -339,7 +339,7 @@ impl<'a> fmt::Debug for QuotedChunk<'a> {
         match self {
             QuotedChunk::Safe(b) => fmt
                 .debug_tuple("QuotedChunk::Safe")
-                .field(&String::from_utf8_lossy(&b))
+                .field(&String::from_utf8_lossy(b))
                 .finish(),
             QuotedChunk::Encoded(e) => fmt.debug_tuple("QuotedChunk::Encoded").field(e).finish(),
             QuotedChunk::Space => fmt.debug_tuple("QuotedChunk::Space").finish(),
@@ -350,7 +350,7 @@ impl<'a> fmt::Debug for QuotedChunk<'a> {
 impl<'a> Print for QuotedChunk<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
         match self {
-            QuotedChunk::Safe(b) => fmt.write_bytes(&b),
+            QuotedChunk::Safe(b) => fmt.write_bytes(b),
             QuotedChunk::Encoded(e) => {
                 for c in e {
                     fmt.write_bytes(format!("={:02X}", c).as_bytes());

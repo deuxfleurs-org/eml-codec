@@ -442,7 +442,7 @@ impl<'a> Unstructured<'a> {
         for tok in &self.0 {
             match tok {
                 UnstrToken::Encoded(e) => s.push_str(&e.to_string()),
-                UnstrToken::Plain(txt, _) => s.push_str(&txt),
+                UnstrToken::Plain(txt, _) => s.push_str(txt),
             }
         }
         s
@@ -457,7 +457,7 @@ impl<'a> Unstructured<'a> {
         for tok in &self.0 {
             match (v.last_mut(), tok) {
                 (Some(UnstrToken::Plain(s1, k1)), UnstrToken::Plain(s2, k2)) if k1 == k2 => {
-                    s1.to_mut().push_str(&s2)
+                    s1.to_mut().push_str(s2)
                 }
                 (Some(UnstrToken::Encoded(e1)), UnstrToken::Encoded(e2)) => {
                     e1.0.extend(e2.to_static().0.into_iter())

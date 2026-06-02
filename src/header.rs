@@ -82,7 +82,7 @@ impl<'a> fmt::Debug for FieldRaw<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt.debug_struct("header::FieldRaw")
             .field("name", &self.name)
-            .field("body", &String::from_utf8_lossy(&self.body))
+            .field("body", &String::from_utf8_lossy(self.body))
             .finish()
     }
 }

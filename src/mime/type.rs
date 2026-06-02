@@ -531,7 +531,7 @@ impl<'a> Print for Text<'a> {
             {
                 print_quoted(fmt, s.chars())
             }
-            _ => fmt.write_bytes(&self.charset.as_bytes()),
+            _ => fmt.write_bytes(self.charset.as_bytes()),
         }
         for param in &self.other_params {
             fmt.write_bytes(b";");
