@@ -62,3 +62,7 @@ zip = "8.4.0"
 [lints.clippy]
 # The individually activated lints below come from : nursery, restriction or suspicious.
 use_self = "warn"
+
+# lints provisionally authorized
+to_string_trait_impl = "allow"
+zero_prefixed_literal = "allow"
