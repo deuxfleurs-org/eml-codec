@@ -261,7 +261,6 @@ where
             // non-displayable quoted pairs are already dropped during
             // parsing...
             // TODO: return the invalid input bytes that were skipped.
-            ()
         }
     }
     fmt.write_bytes(b"\"")

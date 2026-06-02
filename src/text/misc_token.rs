@@ -377,10 +377,8 @@ impl<'a> Print for UnstrToken<'a> {
             UnstrToken::Encoded(e) => e.print(fmt),
             UnstrToken::Plain(txt, UnstrTxtKind::Txt) => fmt.write_bytes(txt.as_bytes()),
             UnstrToken::Plain(_, UnstrTxtKind::Obs) =>
-            // skip obsolete parts
-            {
-                ()
-            }
+                // skip obsolete parts
+                {}
             UnstrToken::Plain(txt, UnstrTxtKind::Fws) => fmt.write_fws_bytes(txt.as_bytes()),
         }
     }

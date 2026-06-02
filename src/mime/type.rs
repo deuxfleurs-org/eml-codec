@@ -256,11 +256,9 @@ impl<'a> Multipart<'a> {
                 name: MIMEAtom(b"boundary".into()),
                 value: MIMEWord::Quoted(QuotedString(vec![b.into()])).into_static(),
             }),
-            None =>
-            // XXX in this case there is no boundary parameter returned,
-            // even the final email will contain one...
-            {
-                ()
+            None => {
+                // XXX in this case there is no boundary parameter returned,
+                // even the final email will contain one...
             }
         };
         params

@@ -96,7 +96,6 @@ impl<'a> FromIterator<header::FieldRaw<'a>> for NaiveEntityFields<'a> {
                 }
                 Err(mime::field::InvalidField::Name) => {
                     // not a MIME field
-                    ()
                 }
             };
 

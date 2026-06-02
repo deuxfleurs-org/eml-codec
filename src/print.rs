@@ -455,7 +455,6 @@ impl LineFolder {
                 // edge case: write `cur_fold` on the same fold
                 // as prev_fold to avoid creating a fold with only
                 // spaces.
-                ()
             } else {
                 inner.extend_from_slice(ascii::CRLF);
             }
