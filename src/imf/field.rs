@@ -244,10 +244,23 @@ impl<'a> TryFrom<&header::Unstructured<'a>> for Field<'static> {
 }
 
 pub fn is_imf_header(name: &header::FieldName) -> bool {
-    match name.bytes().to_ascii_lowercase().as_slice() {
-        b"date" | b"from" | b"sender" | b"reply-to" | b"to" | b"cc" | b"bcc" | b"message-id"
-        | b"in-reply-to" | b"references" | b"subject" | b"comments" | b"keywords"
-        | b"return-path" | b"received" | b"mime-version" => true,
-        _ => false,
-    }
+    matches!(
+        name.bytes().to_ascii_lowercase().as_slice(),
+        b"date"
+            | b"from"
+            | b"sender"
+            | b"reply-to"
+            | b"to"
+            | b"cc"
+            | b"bcc"
+            | b"message-id"
+            | b"in-reply-to"
+            | b"references"
+            | b"subject"
+            | b"comments"
+            | b"keywords"
+            | b"return-path"
+            | b"received"
+            | b"mime-version"
+    )
 }
