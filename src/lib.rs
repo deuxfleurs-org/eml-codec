@@ -91,7 +91,7 @@ pub fn print_message(msg: message::Message<'_>, seed: Option<u64>) -> Vec<u8> {
 /// # Arguments
 ///
 /// * `input` - A buffer of bytes containing either only the headers of your email or your full
-/// email (in both cases, the body will be ignored)
+///   email (in both cases, the body will be ignored)
 ///
 /// # Returns
 ///

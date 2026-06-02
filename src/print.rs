@@ -90,9 +90,9 @@ impl<T: Print> Print for &T {
 ///
 /// Data can be written to the output using the following functions:
 /// - `write_fws_bytes` and `write_fws` output white space; in "line folding" mode,
-///    it can be used for folding;
+///   it can be used for folding;
 /// - `write_bytes` outputs text; in "line folding" mode, it cannot be used
-///    for folding;
+///   for folding;
 /// - `write_crlf` outputs a line break;
 /// - `write_current_boundary` outputs the boundary at the top of the boundary stack.
 ///
