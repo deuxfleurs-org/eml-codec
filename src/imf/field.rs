@@ -220,7 +220,7 @@ impl<'a> TryFrom<&header::FieldRaw<'a>> for Field<'a> {
             b"return-path" => map_res(return_path(f.body), Field::ReturnPath),
             b"received" => map_res(unstructured(f.body), Field::Received),
             b"mime-version" => map_res(version(f.body), Field::MIMEVersion),
-            _ => return Err(InvalidField::Name),
+            _ => Err(InvalidField::Name),
         }
     }
 }
