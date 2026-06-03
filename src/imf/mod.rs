@@ -319,6 +319,12 @@ impl<'a> Imf<'a> {
     }
 }
 
+impl<'a> Default for Imf<'a> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[derive(Debug, Default, PartialEq, ToStatic)]
 pub struct PartialImf<'a> {
     date: Option<DateTime>,
