@@ -56,7 +56,7 @@ impl<'a> Arbitrary<'a> for FieldName<'a> {
 #[cfg(feature = "arbitrary")]
 impl<'a> FuzzEq for FieldName<'a> {
     fn fuzz_eq(&self, other: &Self) -> bool {
-        &self.0 == &other.0
+        self.0 == other.0
     }
 }
 
