@@ -240,7 +240,7 @@ pub struct Multipart<'a> {
     // Finally, this `boundary` is an `Option<String>` rather than a `String` to
     // account for the case where this AST node is constructed directly using
     // the library API and not from the parser. In this case there is no input
-    // boundary to use, so the field can be set to `None`. In the othe case
+    // boundary to use, so the field can be set to `None`. In the other case
     // where a `mime::type::Multipart` record is constructed by the parser, the
     // `boundary` field is guaranteed to be `Some(...)`.
     pub boundary: Option<String>,

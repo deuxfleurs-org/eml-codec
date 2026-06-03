@@ -1,6 +1,6 @@
 # eml-codec
 
-`eml-codec` is a child project of [Aerogramme](https://aerogramme.deuxfleurs.fr), a distributed and encrypted IMAP server developped by the non-profit organization [Deuxfleurs](https://deuxfleurs.fr).
+`eml-codec` is a child project of [Aerogramme](https://aerogramme.deuxfleurs.fr), a distributed and encrypted IMAP server developed by the non-profit organization [Deuxfleurs](https://deuxfleurs.fr).
 Its aim is to be a swiss army knife to handle emails, whether it is to build an IMAP/JMAP server, a mail filter (like an antispam), or a mail client.
 
 ## Example
@@ -75,7 +75,7 @@ hello??
 
 ## About the name
 
-This library does not aim at implementing a specific RFC, but to be a swiss-army knife to decode and encode ("codec") what is generaly considered an email (generally abbreviated "eml"), hence the name: **eml-codec**.
+This library does not aim at implementing a specific RFC, but to be a swiss-army knife to decode and encode ("codec") what is generally considered an email (generally abbreviated "eml"), hence the name: **eml-codec**.
 
 ## Goals
 

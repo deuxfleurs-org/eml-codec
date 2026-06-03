@@ -119,8 +119,8 @@ pub fn foldable_line(full_line: bool) -> impl Fn(&[u8]) -> IResult<&[u8], &[u8]>
 
 /// Permissive foldable white space
 ///
-/// Folding white space are used for long headers splitted on multiple lines.
-/// The obsolete syntax allowes multiple lines without content; it is implemented
+/// Folding white space are used for long headers split on multiple lines.
+/// The obsolete syntax allows multiple lines without content; it is implemented
 /// for compatibility reasons (as mandated by the spec).
 ///
 /// The parser returns the slices of whitespace characters that were parsed, without

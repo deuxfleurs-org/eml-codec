@@ -138,7 +138,7 @@ pub const TILDE: u8 = 0x7E; // ~
 pub const CRLF: &[u8] = &[CR, LF];
 // -- CRCRLF
 // Sometimes portable libraries replace transparently
-// the "\n" with "\r\n" on Windows. When developpers
+// the "\n" with "\r\n" on Windows. When developers
 // explicitly write "\r\n", the library generates "\r\r\n".
 pub const CRCRLF: &[u8] = &[CR, CR, LF];
 

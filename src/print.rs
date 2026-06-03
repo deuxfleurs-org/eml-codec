@@ -1,5 +1,5 @@
 use rand::{Rng, SeedableRng};
-// Use a cryto secure RNG which is "portable" (we want the output of our tests
+// Use a crypto secure RNG which is "portable" (we want the output of our tests
 // to be stable across platforms). Chacha20 provides such a RNG.
 use crate::text::ascii;
 pub use eml_codec_derives::ToStringFromPrint;
