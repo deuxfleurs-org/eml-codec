@@ -432,8 +432,8 @@ impl<'a> TryFrom<&NaiveType<'a>> for MessageSubtype {
     fn try_from(nt: &NaiveType<'a>) -> Result<Self, ()> {
         let sub = nt.sub.0.to_ascii_lowercase();
         match sub.as_slice() {
-            b"rfc822" => Ok(MessageSubtype::RFC822),
-            b"global" => Ok(MessageSubtype::Global),
+            b"rfc822" => Ok(Self::RFC822),
+            b"global" => Ok(Self::Global),
             _ => Err(()),
         }
     }
@@ -578,11 +578,10 @@ pub enum TextSubtype {
 }
 impl TextSubtype {
     pub fn as_bytes(&self) -> &[u8] {
-        use TextSubtype::*;
         match self {
-            Plain => b"plain",
-            Html => b"html",
-            Unknown(b) => &b.0,
+            Self::Plain => b"plain",
+            Self::Html => b"html",
+            Self::Unknown(b) => &b.0,
         }
     }
 }

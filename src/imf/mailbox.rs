@@ -269,23 +269,22 @@ enum LocalPartCharsInner<'a, 'b> {
 impl<'a, 'b> Iterator for LocalPartChars<'a, 'b> {
     type Item = char;
     fn next(&mut self) -> Option<Self::Item> {
-        use LocalPartCharsInner::*;
         match &mut self.inner {
-            NextToken(idx) => match self.l.0.get(*idx) {
+            LocalPartCharsInner::NextToken(idx) => match self.l.0.get(*idx) {
                 Some(LocalPartToken::Dot) => {
-                    self.inner = NextToken(*idx + 1);
+                    self.inner = LocalPartCharsInner::NextToken(*idx + 1);
                     Some('.')
                 }
                 Some(LocalPartToken::Word(w)) => {
-                    self.inner = Word(*idx, w.chars());
+                    self.inner = LocalPartCharsInner::Word(*idx, w.chars());
                     self.next()
                 }
                 None => None,
             },
-            Word(idx, it) => match it.next() {
+            LocalPartCharsInner::Word(idx, it) => match it.next() {
                 Some(c) => Some(c),
                 None => {
-                    self.inner = NextToken(*idx + 1);
+                    self.inner = LocalPartCharsInner::NextToken(*idx + 1);
                     self.next()
                 }
             },

@@ -31,14 +31,13 @@ pub enum Mechanism<'a> {
 }
 impl<'a> Mechanism<'a> {
     pub fn as_bytes(&self) -> &[u8] {
-        use Mechanism::*;
         match self {
-            _7Bit => b"7bit",
-            _8Bit => b"8bit",
-            Binary => b"binary",
-            QuotedPrintable => b"quoted-printable",
-            Base64 => b"base64",
-            Other(x) => &x.0,
+            Self::_7Bit => b"7bit",
+            Self::_8Bit => b"8bit",
+            Self::Binary => b"binary",
+            Self::QuotedPrintable => b"quoted-printable",
+            Self::Base64 => b"base64",
+            Self::Other(x) => &x.0,
         }
     }
 }
@@ -99,17 +98,15 @@ impl<'a> Mechanism<'a> {
 
 #[instrument_input("tracing")]
 pub fn mechanism(input: &[u8]) -> IResult<&[u8], Mechanism<'_>> {
-    use Mechanism::*;
-
     alt((
         delimited(
             opt(cfws),
             alt((
-                value(_7Bit, tag_no_case("7bit")),
-                value(_8Bit, tag_no_case("8bit")),
-                value(Binary, tag_no_case("binary")),
-                value(QuotedPrintable, tag_no_case("quoted-printable")),
-                value(Base64, tag_no_case("base64")),
+                value(Mechanism::_7Bit, tag_no_case("7bit")),
+                value(Mechanism::_8Bit, tag_no_case("8bit")),
+                value(Mechanism::Binary, tag_no_case("binary")),
+                value(Mechanism::QuotedPrintable, tag_no_case("quoted-printable")),
+                value(Mechanism::Base64, tag_no_case("base64")),
             )),
             // the ";" is not in the RFC but was found in some emails
             tuple((opt(cfws), opt(tag(";")), opt(cfws))),
@@ -117,7 +114,7 @@ pub fn mechanism(input: &[u8]) -> IResult<&[u8], Mechanism<'_>> {
         map(consumed(mime_atom), |(_i, tok)| {
             #[cfg(feature = "tracing-recover")]
             warn!(input = %bytes_to_trace_string(_i), "unknown mechanism");
-            Other(tok)
+            Mechanism::Other(tok)
         }),
     ))(input)
 }
