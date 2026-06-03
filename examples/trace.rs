@@ -20,7 +20,7 @@ use std::{
     io::Write,
     sync::Arc,
 };
-use std::{fs::File, io::Read, sync::Mutex};
+use std::{fs::File, io::Read, path::Path, sync::Mutex};
 
 // This small tool implements:
 // - a collector for the `tracing` events and spans emitted from the parser,
@@ -224,6 +224,12 @@ fn dir_entries(path: &std::path::Path, v: &mut Vec<std::path::PathBuf>) -> std::
     Ok(())
 }
 
+fn extension_is(path: &str, ext: &str) -> bool {
+    Path::new(path)
+        .extension()
+        .is_some_and(|path_ext| path_ext.eq_ignore_ascii_case(ext))
+}
+
 fn main() {
     #[cfg(feature = "tracing")]
     let (layer, _guard) = PruningLayer::new(None);
@@ -235,7 +241,7 @@ fn main() {
             std::fs::metadata(&path).unwrap_or_else(|err| panic!("error reading {}\n{err}", path));
         if attr.is_dir() {
             let mut entries = Vec::new();
-            dir_entries(&std::path::PathBuf::from(path.clone()), &mut entries)
+            dir_entries(Path::new(&path), &mut entries)
                 .unwrap_or_else(|err| panic!("failed listing files in {}.\n{err}", path));
             entries.par_iter().for_each(|path| {
                 #[cfg(feature = "tracing")]
@@ -245,7 +251,7 @@ fn main() {
                 File::open(path).unwrap().read_to_end(&mut input).unwrap();
                 let _eml = eml_codec::parse_message(&input);
             });
-        } else if path.ends_with(".mbox") {
+        } else if extension_is(&path, "mbox") {
             #[cfg(feature = "tracing")]
             let _span = span!(Level::TRACE, "mailbox", %path).entered();
             eprintln!("parsing mailbox: {}", path);
@@ -263,7 +269,7 @@ fn main() {
                     eprintln!("parsing mbox email {}", idx);
                     let _eml = eml_codec::parse_message(raw_email);
                 })
-        } else if path.ends_with(".zip") {
+        } else if extension_is(&path, "zip") {
             #[cfg(feature = "tracing")]
             let _span = span!(Level::TRACE, "zip", %path).entered();
             eprintln!("parsing zip file: {}", path);
@@ -285,7 +291,7 @@ fn main() {
                     span!(Level::TRACE, "zip email", %path, fpath = %_fpath.unwrap()).entered();
                 let _eml = eml_codec::parse_message(&input);
             })
-        } else if path.ends_with(".tar") {
+        } else if extension_is(&path, "tar") {
             #[cfg(feature = "tracing")]
             let _span = span!(Level::TRACE, "tar", %path).entered();
             eprintln!("parsing tar file: {}", path);
