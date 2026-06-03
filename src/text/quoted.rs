@@ -96,19 +96,18 @@ enum QuotedStringCharsInner<'a> {
 impl<'a, 'b> Iterator for QuotedStringChars<'a, 'b> {
     type Item = char;
     fn next(&mut self) -> Option<Self::Item> {
-        use QuotedStringCharsInner::*;
         match &mut self.inner {
-            NextFragment(idx) => match self.q.0.get(*idx) {
+            QuotedStringCharsInner::NextFragment(idx) => match self.q.0.get(*idx) {
                 Some(frag) => {
-                    self.inner = FragmentChars(*idx, frag.chars());
+                    self.inner = QuotedStringCharsInner::FragmentChars(*idx, frag.chars());
                     self.next()
                 }
                 None => None,
             },
-            FragmentChars(idx, it) => match it.next() {
+            QuotedStringCharsInner::FragmentChars(idx, it) => match it.next() {
                 Some(c) => Some(c),
                 None => {
-                    self.inner = NextFragment(*idx + 1);
+                    self.inner = QuotedStringCharsInner::NextFragment(*idx + 1);
                     self.next()
                 }
             },

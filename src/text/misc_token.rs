@@ -488,12 +488,11 @@ impl<'a> Arbitrary<'a> for Unstructured<'a> {
             Wsp,
             Txt,
         }
-        use Kind::*;
         fn k(tok: &UnstrToken<'_>) -> Kind {
             match tok {
-                UnstrToken::Encoded(_) => Encoded,
-                UnstrToken::Plain(_, UnstrTxtKind::Fws) => Wsp,
-                UnstrToken::Plain(_, _) => Txt,
+                UnstrToken::Encoded(_) => Kind::Encoded,
+                UnstrToken::Plain(_, UnstrTxtKind::Fws) => Kind::Wsp,
+                UnstrToken::Plain(_, _) => Kind::Txt,
             }
         }
 
@@ -504,15 +503,15 @@ impl<'a> Arbitrary<'a> for Unstructured<'a> {
             let tok: UnstrToken = u.arbitrary()?;
             match (&before_last, &last, k(&tok)) {
                 // invariant: no whitespace between encoded tokens
-                (Some(Encoded), Some(Wsp), Encoded) |
+                (Some(Kind::Encoded), Some(Kind::Wsp), Kind::Encoded) |
                 // invariant: encoded and text must be separated by whitespace
-                (_, Some(Encoded), Txt) | (_, Some(Txt), Encoded) => {
+                (_, Some(Kind::Encoded), Kind::Txt) | (_, Some(Kind::Txt), Kind::Encoded) => {
                     return Err(arbitrary::Error::IncorrectFormat)
                 },
 
                 // consecutive Txt or Wsp nodes should be treated as one when
                 // tracking "the" previous token kind
-                (_, Some(Wsp), Wsp) | (_, Some(Txt), Txt) =>
+                (_, Some(Kind::Wsp), Kind::Wsp) | (_, Some(Kind::Txt), Kind::Txt) =>
                     (),
                 (_, _, ktok) => {
                     before_last = last;
