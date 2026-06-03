@@ -23,9 +23,6 @@ use std::borrow::Cow;
 #[cfg(feature = "tracing-recover")]
 use tracing::warn;
 
-/// Whitespace (space, new line, tab) content and
-/// delimited content (eg. comment, line, sections, etc.)
-
 /// Obsolete/Compatible CRLF
 ///
 /// Theoretically, all lines must end with \r\n
