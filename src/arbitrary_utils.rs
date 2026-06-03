@@ -85,7 +85,7 @@ pub fn arbitrary_whitespace_nonempty(u: &mut Unstructured) -> Result<String> {
     Ok(s)
 }
 
-pub fn arbitrary_shuffle<T>(u: &mut Unstructured, v: &mut Vec<T>) -> Result<()> {
+pub fn arbitrary_shuffle<T>(u: &mut Unstructured, v: &mut [T]) -> Result<()> {
     let mut to_permute = &mut v[..];
     while to_permute.len() > 1 {
         let idx = u.choose_index(to_permute.len())?;
