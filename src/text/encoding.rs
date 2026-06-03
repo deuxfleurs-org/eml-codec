@@ -403,13 +403,12 @@ fn encoded_space(input: &[u8]) -> IResult<&[u8], QuotedChunk<'_>> {
 }
 
 fn hex_octet(input: &[u8]) -> IResult<&[u8], u8> {
-    use nom::error::*;
-
     let (rest, hbytes) = preceded(tag("="), take(2usize))(input)?;
 
     let hstr = String::from_utf8_lossy(hbytes);
-    let parsed = u8::from_str_radix(hstr.as_ref(), 16)
-        .map_err(|_| nom::Err::Error(Error::new(input, ErrorKind::Verify)))?;
+    let parsed = u8::from_str_radix(hstr.as_ref(), 16).map_err(|_| {
+        nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::Verify))
+    })?;
 
     Ok((rest, parsed))
 }
