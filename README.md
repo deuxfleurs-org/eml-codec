@@ -174,7 +174,7 @@ IANA
 
 ## State of the art / alternatives
 
-The following review is not an objective, neutral, impartial review. Instead, it's a temptative 
+The following review is not an objective, neutral, impartial review. Instead, it's a attempt 
 to explain why I wrote this library. If you find something outdated or objectively wrong, feel free to open a PR or an issue to fix it.
 In no case, I think `eml-codec` is superior, it's just another approach to the problem, and I see it as another stone to the edifice.
 
