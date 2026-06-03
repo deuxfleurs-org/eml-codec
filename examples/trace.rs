@@ -231,11 +231,12 @@ fn main() {
     tracing_subscriber::registry().with(layer).init();
 
     for path in std::env::args().skip(1) {
-        let attr = std::fs::metadata(&path).expect(&format!("error reading {}", path));
+        let attr =
+            std::fs::metadata(&path).unwrap_or_else(|err| panic!("error reading {}\n{err}", path));
         if attr.is_dir() {
             let mut entries = Vec::new();
             dir_entries(&std::path::PathBuf::from(path.clone()), &mut entries)
-                .expect(&format!("failed listing files in {}", path));
+                .unwrap_or_else(|err| panic!("failed listing files in {}.\n{err}", path));
             entries.par_iter().for_each(|path| {
                 #[cfg(feature = "tracing")]
                 let _span = span!(Level::TRACE, "file email", path = %path.display()).entered();
