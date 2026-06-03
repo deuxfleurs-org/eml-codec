@@ -245,71 +245,69 @@ fn main() {
                 File::open(path).unwrap().read_to_end(&mut input).unwrap();
                 let _eml = eml_codec::parse_message(&input);
             });
-        } else {
-            if path.ends_with(".mbox") {
-                #[cfg(feature = "tracing")]
-                let _span = span!(Level::TRACE, "mailbox", %path).entered();
-                eprintln!("parsing mailbox: {}", path);
-                let mut input = Vec::new();
-                File::open(&path).unwrap().read_to_end(&mut input).unwrap();
-                let raw_emails = parse_mbox(&input);
-                eprintln!("{} emails found", raw_emails.len());
+        } else if path.ends_with(".mbox") {
+            #[cfg(feature = "tracing")]
+            let _span = span!(Level::TRACE, "mailbox", %path).entered();
+            eprintln!("parsing mailbox: {}", path);
+            let mut input = Vec::new();
+            File::open(&path).unwrap().read_to_end(&mut input).unwrap();
+            let raw_emails = parse_mbox(&input);
+            eprintln!("{} emails found", raw_emails.len());
 
-                raw_emails
-                    .par_iter()
-                    .enumerate()
-                    .for_each(|(idx, raw_email)| {
-                        #[cfg(feature = "tracing")]
-                        let _span = span!(Level::TRACE, "mailbox email", %path, idx).entered();
-                        eprintln!("parsing mbox email {}", idx);
-                        let _eml = eml_codec::parse_message(raw_email);
-                    })
-            } else if path.ends_with(".zip") {
-                #[cfg(feature = "tracing")]
-                let _span = span!(Level::TRACE, "zip", %path).entered();
-                eprintln!("parsing zip file: {}", path);
-                let archive = zip::ZipArchive::new(File::open(&path).unwrap()).unwrap();
-                let nb_items = archive.len();
-                let archive_lck = Mutex::new(archive);
-                (0..nb_items).into_par_iter().for_each(|i| {
-                    let mut input = Vec::new();
-                    let mut _fpath = None;
-                    {
-                        let mut archive = archive_lck.lock().unwrap();
-                        let mut file = archive.by_index(i).unwrap();
-                        eprintln!("parsing email {}", file.name());
-                        _fpath = Some(file.name().to_string());
-                        file.read_to_end(&mut input).unwrap();
-                    }
+            raw_emails
+                .par_iter()
+                .enumerate()
+                .for_each(|(idx, raw_email)| {
                     #[cfg(feature = "tracing")]
-                    let _span =
-                        span!(Level::TRACE, "zip email", %path, fpath = %_fpath.unwrap()).entered();
-                    let _eml = eml_codec::parse_message(&input);
+                    let _span = span!(Level::TRACE, "mailbox email", %path, idx).entered();
+                    eprintln!("parsing mbox email {}", idx);
+                    let _eml = eml_codec::parse_message(raw_email);
                 })
-            } else if path.ends_with(".tar") {
-                #[cfg(feature = "tracing")]
-                let _span = span!(Level::TRACE, "tar", %path).entered();
-                eprintln!("parsing tar file: {}", path);
-                let mut archive = tar::Archive::new(File::open(&path).unwrap());
-                for ent in archive.entries_with_seek().unwrap() {
-                    let mut input = Vec::new();
-                    let mut ent = ent.unwrap();
-                    let fpath = ent.path().unwrap().into_owned();
-                    let _ = ent.read_to_end(&mut input).unwrap();
-                    eprintln!("parsing email {}", fpath.display());
-                    #[cfg(feature = "tracing")]
-                    let _span =
-                        span!(Level::TRACE, "tar email", %path, fpath = %fpath.display()).entered();
-                    let _eml = eml_codec::parse_message(&input);
-                }
-            } else {
-                #[cfg(feature = "tracing")]
-                let _span = span!(Level::TRACE, "eml", %path).entered();
-                eprintln!("parsing single email: {}", path);
+        } else if path.ends_with(".zip") {
+            #[cfg(feature = "tracing")]
+            let _span = span!(Level::TRACE, "zip", %path).entered();
+            eprintln!("parsing zip file: {}", path);
+            let archive = zip::ZipArchive::new(File::open(&path).unwrap()).unwrap();
+            let nb_items = archive.len();
+            let archive_lck = Mutex::new(archive);
+            (0..nb_items).into_par_iter().for_each(|i| {
                 let mut input = Vec::new();
-                File::open(&path).unwrap().read_to_end(&mut input).unwrap();
+                let mut _fpath = None;
+                {
+                    let mut archive = archive_lck.lock().unwrap();
+                    let mut file = archive.by_index(i).unwrap();
+                    eprintln!("parsing email {}", file.name());
+                    _fpath = Some(file.name().to_string());
+                    file.read_to_end(&mut input).unwrap();
+                }
+                #[cfg(feature = "tracing")]
+                let _span =
+                    span!(Level::TRACE, "zip email", %path, fpath = %_fpath.unwrap()).entered();
+                let _eml = eml_codec::parse_message(&input);
+            })
+        } else if path.ends_with(".tar") {
+            #[cfg(feature = "tracing")]
+            let _span = span!(Level::TRACE, "tar", %path).entered();
+            eprintln!("parsing tar file: {}", path);
+            let mut archive = tar::Archive::new(File::open(&path).unwrap());
+            for ent in archive.entries_with_seek().unwrap() {
+                let mut input = Vec::new();
+                let mut ent = ent.unwrap();
+                let fpath = ent.path().unwrap().into_owned();
+                let _ = ent.read_to_end(&mut input).unwrap();
+                eprintln!("parsing email {}", fpath.display());
+                #[cfg(feature = "tracing")]
+                let _span =
+                    span!(Level::TRACE, "tar email", %path, fpath = %fpath.display()).entered();
                 let _eml = eml_codec::parse_message(&input);
             }
+        } else {
+            #[cfg(feature = "tracing")]
+            let _span = span!(Level::TRACE, "eml", %path).entered();
+            eprintln!("parsing single email: {}", path);
+            let mut input = Vec::new();
+            File::open(&path).unwrap().read_to_end(&mut input).unwrap();
+            let _eml = eml_codec::parse_message(&input);
         }
     }
 }
