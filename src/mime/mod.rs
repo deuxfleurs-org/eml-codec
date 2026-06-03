@@ -255,6 +255,7 @@ pub enum DefaultType {
     Digest,
 }
 
+#[expect(clippy::wrong_self_convention)]
 impl DefaultType {
     fn to_type(self) -> AnyType<'static> {
         match self {
