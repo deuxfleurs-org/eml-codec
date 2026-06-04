@@ -36,6 +36,9 @@ jobs:
       - name: "Cargo test"
         if: $${{ always() }}
         run: cargo test --all-targets --all-features --locked
+      - name: "unused dependencies"
+        if: $${{ always() }}
+        uses: https://github.com/bnjbvr/cargo-machete@main
 
   toml_checks:
     name: Toml files checks
