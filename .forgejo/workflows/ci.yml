@@ -21,8 +21,21 @@ jobs:
           toolchain: stable
           components: clippy, rustfmt
       - uses: actions/checkout@v6
+      - uses: https://github.com/Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true # useful for don't rebuild dependencies on fix after failure
       - name: "Cargo formatting"
+        if: $${{ always() }}
         run: cargo fmt --all -- --check
+      - name: "Cargo clippy"
+        if: $${{ always() }}
+        run: cargo clippy --profile=test --all-targets --all-features --locked
+      - name: "Cargo doc"
+        if: $${{ always() }}
+        run: cargo doc --locked --all-features --no-deps
+      - name: "Cargo test"
+        if: $${{ always() }}
+        run: cargo test --all-targets --all-features --locked
 
   toml_checks:
     name: Toml files checks
