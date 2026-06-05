@@ -16,7 +16,7 @@ fn main() {
             )
         }
         _ => (),
-    };
+    }
 
     let bytes = eml_codec::print_message(eml, None);
     print!("{}", String::from_utf8_lossy(&bytes));

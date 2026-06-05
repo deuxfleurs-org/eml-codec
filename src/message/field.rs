@@ -113,7 +113,7 @@ impl<'a> FromIterator<header::FieldRaw<'a>> for NaiveMessageFields<'a> {
                 Err(mime::field::InvalidField::Name) => {
                     // not a MIME field
                 }
-            };
+            }
 
             match imf::field::Field::try_from(&f) {
                 Ok(imff) => {

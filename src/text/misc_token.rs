@@ -603,7 +603,7 @@ impl<'a> Arbitrary<'a> for Unstructured<'a> {
                     before_last = last;
                     last = Some(ktok);
                 }
-            };
+            }
             v.push(tok)
         }
         Ok(Unstructured(v))

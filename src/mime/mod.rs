@@ -57,7 +57,7 @@ impl<'a> Arbitrary<'a> for MIME<'a, r#type::Multipart<'a>> {
         match mime.fields.transfer_encoding {
             Mechanism::_7Bit | Mechanism::_8Bit | Mechanism::Binary => (),
             _ => return Err(arbitrary::Error::IncorrectFormat),
-        };
+        }
         Ok(mime)
     }
 }
@@ -72,7 +72,7 @@ impl<'a> Arbitrary<'a> for MIME<'a, r#type::Message<'a>> {
         match mime.fields.transfer_encoding {
             Mechanism::_7Bit | Mechanism::_8Bit | Mechanism::Binary => (),
             _ => return Err(arbitrary::Error::IncorrectFormat),
-        };
+        }
         Ok(mime)
     }
 }

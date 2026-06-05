@@ -304,7 +304,7 @@ impl<'a> QuotedWord<'a> {
                     let d = self.enc.decode(v.as_slice());
                     acc.push_str(d.as_ref());
                 }
-            };
+            }
             acc
         })
     }

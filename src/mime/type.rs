@@ -260,7 +260,7 @@ impl<'a> Multipart<'a> {
                 // XXX in this case there is no boundary parameter returned,
                 // even the final email will contain one...
             }
-        };
+        }
         params
     }
 }

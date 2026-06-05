@@ -97,7 +97,7 @@ impl<'a> FromIterator<header::FieldRaw<'a>> for NaiveEntityFields<'a> {
                 Err(mime::field::InvalidField::Name) => {
                     // not a MIME field
                 }
-            };
+            }
 
             if let Some(u) = header::Unstructured::from_raw(&f) {
                 e.entries.push(EntityEntry::Unstructured(u));
