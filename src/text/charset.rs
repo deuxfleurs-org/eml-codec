@@ -40,7 +40,7 @@ impl<T: AsRef<[u8]>> From<T> for EmailCharset {
                     None => {
                         #[cfg(feature = "tracing-recover")]
                         warn!(value = sanitized, "unknown charset");
-                        EmailCharset::Unknown(sanitized)
+                        Self::Unknown(sanitized)
                     }
                 }
             }
@@ -57,17 +57,17 @@ impl ToString for EmailCharset {
 impl EmailCharset {
     pub fn as_bytes(&self) -> &[u8] {
         match self {
-            EmailCharset::US_ASCII => b"us-ascii",
-            EmailCharset::Charset(c) => c.name().as_bytes(),
-            EmailCharset::Unknown(s) => s.as_bytes(),
+            Self::US_ASCII => b"us-ascii",
+            Self::Charset(c) => c.name().as_bytes(),
+            Self::Unknown(s) => s.as_bytes(),
         }
     }
 
     pub fn as_str(&self) -> &str {
         match self {
-            EmailCharset::US_ASCII => "us-ascii",
-            EmailCharset::Charset(c) => c.name(),
-            EmailCharset::Unknown(s) => s.as_str(),
+            Self::US_ASCII => "us-ascii",
+            Self::Charset(c) => c.name(),
+            Self::Unknown(s) => s.as_str(),
         }
     }
 
@@ -77,8 +77,8 @@ impl EmailCharset {
 
     pub fn decode<'a>(&self, bytes: &'a [u8]) -> std::borrow::Cow<'a, str> {
         match self {
-            EmailCharset::US_ASCII | EmailCharset::Unknown(_) => charset::decode_ascii(bytes),
-            EmailCharset::Charset(c) => {
+            Self::US_ASCII | Self::Unknown(_) => charset::decode_ascii(bytes),
+            Self::Charset(c) => {
                 let (s, _has_malformed) = c.decode_without_bom_handling(bytes);
                 s
             }
@@ -105,15 +105,15 @@ impl<'a> Arbitrary<'a> for EmailCharset {
     fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
         // preselect some charsets to help the fuzzer
         match u.int_in_range(0..=6)? {
-            0 => Ok(EmailCharset::US_ASCII),
-            1 => Ok(EmailCharset::utf8()),
-            2 => Ok(EmailCharset::from(b"KOI-8R")),
-            3 => Ok(EmailCharset::from(b"iso-8859-1")),
-            4 => Ok(EmailCharset::from(b"iso-8859-15")),
-            5 => Ok(EmailCharset::from(b"GBK")),
+            0 => Ok(Self::US_ASCII),
+            1 => Ok(Self::utf8()),
+            2 => Ok(Self::from(b"KOI-8R")),
+            3 => Ok(Self::from(b"iso-8859-1")),
+            4 => Ok(Self::from(b"iso-8859-15")),
+            5 => Ok(Self::from(b"GBK")),
             6 => {
                 let label: &[u8] = u.arbitrary()?;
-                Ok(EmailCharset::from(label))
+                Ok(Self::from(label))
             }
             _ => unreachable!(),
         }

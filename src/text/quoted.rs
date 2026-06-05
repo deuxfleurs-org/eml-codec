@@ -64,7 +64,7 @@ impl<'a> Print for QuotedString<'a> {
 
 #[cfg(feature = "arbitrary")]
 impl<'a> Arbitrary<'a> for QuotedString<'a> {
-    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<QuotedString<'a>> {
+    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
         let mut chunks = Vec::new();
         u.arbitrary_loop(None, Some(10), |u| {
             let bytes = arbitrary_string_where(u, |c| is_vchar(c) || ascii::WS_CHAR.contains(&c))?;

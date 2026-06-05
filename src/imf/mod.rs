@@ -138,8 +138,8 @@ pub enum TraceField<'a> {
 }
 
 impl<'a> Imf<'a> {
-    pub fn new() -> Imf<'a> {
-        Imf {
+    pub fn new() -> Self {
+        Self {
             date: DateTimeOpt::InvalidMissing,
             from: From::InvalidMissingFrom { sender: None },
             reply_to: vec![],

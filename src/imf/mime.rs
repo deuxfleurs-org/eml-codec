@@ -25,8 +25,8 @@ pub struct Version {
 }
 
 impl Default for Version {
-    fn default() -> Version {
-        Version { major: 1, minor: 0 }
+    fn default() -> Self {
+        Self { major: 1, minor: 0 }
     }
 }
 #[cfg(feature = "arbitrary")]

@@ -79,9 +79,9 @@ impl<'a> Arbitrary<'a> for DateTime {
         let tz = FixedOffset::east_opt(tz_mins * 60).unwrap();
         let d: chrono::DateTime<FixedOffset> = d.with_timezone(&tz);
         if d.year() < 1900 {
-            Ok(DateTime(chrono::DateTime::UNIX_EPOCH.into()))
+            Ok(Self(chrono::DateTime::UNIX_EPOCH.into()))
         } else {
-            Ok(DateTime(d))
+            Ok(Self(d))
         }
     }
 }

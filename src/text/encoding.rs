@@ -274,7 +274,7 @@ impl<'a> Print for Base64Word<'a> {
 
 #[cfg(feature = "arbitrary")]
 impl<'a> Arbitrary<'a> for Base64Word<'a> {
-    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Base64Word<'a>> {
+    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
         let enc: EmailCharset = u.arbitrary()?;
         let content = arbitrary_vec_where(u, |c| is_bchar(*c))?;
         Ok(Base64Word {
@@ -322,7 +322,7 @@ impl<'a> Print for QuotedWord<'a> {
 
 #[cfg(feature = "arbitrary")]
 impl<'a> FuzzEq for QuotedWord<'a> {
-    fn fuzz_eq(&self, other: &QuotedWord<'a>) -> bool {
+    fn fuzz_eq(&self, other: &Self) -> bool {
         self.enc.fuzz_eq(&other.enc)
             && normalize_quoted_chunks(&self.chunks) == normalize_quoted_chunks(&other.chunks)
     }
@@ -363,7 +363,7 @@ impl<'a> Print for QuotedChunk<'a> {
 
 #[cfg(feature = "arbitrary")]
 impl<'a> Arbitrary<'a> for QuotedChunk<'a> {
-    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<QuotedChunk<'a>> {
+    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
         match u.int_in_range(0..=2)? {
             0 => {
                 let v = arbitrary_vec_where(u, |c| is_safe_char2(*c))?;

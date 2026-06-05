@@ -48,7 +48,7 @@ impl<'a> Print for FieldName<'a> {
 }
 #[cfg(feature = "arbitrary")]
 impl<'a> Arbitrary<'a> for FieldName<'a> {
-    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<FieldName<'a>> {
+    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
         let bytes: Vec<u8> = arbitrary_vec_nonempty_where(u, |c| is_ftext(*c), b'X')?;
         Ok(FieldName(Cow::Owned(bytes)))
     }
@@ -185,7 +185,7 @@ pub struct Unstructured<'a> {
 
 impl<'a> Unstructured<'a> {
     // TODO: don't throw away the errors
-    pub fn from_raw(f: &FieldRaw<'a>) -> Option<Unstructured<'a>> {
+    pub fn from_raw(f: &FieldRaw<'a>) -> Option<Self> {
         let (_, body) = all_consuming(misc_token::unstructured)(f.body).ok()?;
         Some(Unstructured {
             name: f.name.clone(),

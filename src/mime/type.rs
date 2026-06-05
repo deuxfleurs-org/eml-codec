@@ -385,11 +385,11 @@ impl<'a> From<&NaiveType<'a>> for MultipartSubtype {
 impl<'a> Arbitrary<'a> for MultipartSubtype {
     fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
         match u.int_in_range(0..=5)? {
-            0 => Ok(MultipartSubtype::Alternative),
-            1 => Ok(MultipartSubtype::Mixed),
-            2 => Ok(MultipartSubtype::Digest),
-            3 => Ok(MultipartSubtype::Parallel),
-            4 => Ok(MultipartSubtype::Report),
+            0 => Ok(Self::Alternative),
+            1 => Ok(Self::Mixed),
+            2 => Ok(Self::Digest),
+            3 => Ok(Self::Parallel),
+            4 => Ok(Self::Report),
             5 => {
                 let a: MIMEAtom = u.arbitrary()?;
                 if matches!(
@@ -398,7 +398,7 @@ impl<'a> Arbitrary<'a> for MultipartSubtype {
                 ) {
                     return Err(arbitrary::Error::IncorrectFormat);
                 }
-                Ok(MultipartSubtype::Unknown(a))
+                Ok(Self::Unknown(a))
             }
             _ => unreachable!(),
         }
@@ -443,8 +443,8 @@ impl<'a> TryFrom<&NaiveType<'a>> for MessageSubtype {
 impl<'a> Arbitrary<'a> for MessageSubtype {
     fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
         match u.int_in_range(0..=1)? {
-            0 => Ok(MessageSubtype::RFC822),
-            1 => Ok(MessageSubtype::Global),
+            0 => Ok(Self::RFC822),
+            1 => Ok(Self::Global),
             _ => unreachable!(),
         }
     }
@@ -606,14 +606,14 @@ impl<'a> From<&NaiveType<'a>> for TextSubtype {
 impl<'a> Arbitrary<'a> for TextSubtype {
     fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
         match u.int_in_range(0..=2)? {
-            0 => Ok(TextSubtype::Plain),
-            1 => Ok(TextSubtype::Html),
+            0 => Ok(Self::Plain),
+            1 => Ok(Self::Html),
             2 => {
                 let a: MIMEAtom = u.arbitrary()?;
                 if matches!(a.0.to_ascii_lowercase().as_slice(), b"plain" | b"html") {
                     return Err(arbitrary::Error::IncorrectFormat);
                 }
-                Ok(TextSubtype::Unknown(a))
+                Ok(Self::Unknown(a))
             }
             _ => unreachable!(),
         }

@@ -98,7 +98,7 @@ impl<'a> ContainsUtf8 for RawInput<'a> {
 
 #[cfg(test)]
 impl<'a> RawInput<'a> {
-    pub(crate) fn between(input: &'a [u8], prefix: &[u8], suffix: &[u8]) -> RawInput<'a> {
+    pub(crate) fn between(input: &'a [u8], prefix: &[u8], suffix: &[u8]) -> Self {
         use memchr::memmem;
         let prefix_matches: Vec<_> = memmem::find_iter(input, prefix).collect();
         if prefix_matches.len() != 1 {
@@ -114,7 +114,7 @@ impl<'a> RawInput<'a> {
         RawInput(Some(&input[prefix_pos..suffix_pos + suffix.len()]))
     }
 
-    pub(crate) fn between_excl(input: &'a [u8], before: &[u8], after: &[u8]) -> RawInput<'a> {
+    pub(crate) fn between_excl(input: &'a [u8], before: &[u8], after: &[u8]) -> Self {
         use memchr::memmem;
         let before_matches: Vec<_> = memmem::find_iter(input, before).collect();
         if before_matches.len() != 1 {

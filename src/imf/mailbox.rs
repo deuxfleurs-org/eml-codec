@@ -503,7 +503,7 @@ impl<'a> Print for Dtext<'a> {
 }
 #[cfg(feature = "arbitrary")]
 impl<'a> Arbitrary<'a> for Dtext<'a> {
-    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Dtext<'a>> {
+    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
         let s: String = arbitrary_string_nonempty_where(u, is_dtext, 'X')?;
         Ok(Dtext(Cow::Owned(s)))
     }

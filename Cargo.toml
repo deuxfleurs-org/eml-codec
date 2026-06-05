@@ -58,3 +58,7 @@ tar = "0.4.45"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 walkdir = "2"
 zip = "8.4.0"
+
+[lints.clippy]
+# The individually activated lints below come from : nursery, restriction or suspicious.
+use_self = "warn"

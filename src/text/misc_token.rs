@@ -194,7 +194,7 @@ impl<'a> Print for PhraseToken<'a> {
 }
 #[cfg(feature = "arbitrary")]
 impl<'a> Arbitrary<'a> for PhraseToken<'a> {
-    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<PhraseToken<'a>> {
+    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
         if u.arbitrary()? {
             let w: Word<'_> = u.arbitrary()?;
             // As a coarse-grained measure, reject any atom that contains '=?'
@@ -385,7 +385,7 @@ impl<'a> Print for UnstrToken<'a> {
 }
 #[cfg(feature = "arbitrary")]
 impl<'a> Arbitrary<'a> for UnstrToken<'a> {
-    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<UnstrToken<'a>> {
+    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
         // XXX we do not generate `Obs` tokens because those are dropped at printing time.
         // this is somewhat of a hack.
         match u.int_in_range(0..=2)? {
@@ -482,7 +482,7 @@ impl<'a> FuzzEq for Unstructured<'a> {
 
 #[cfg(feature = "arbitrary")]
 impl<'a> Arbitrary<'a> for Unstructured<'a> {
-    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Unstructured<'a>> {
+    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
         enum Kind {
             Encoded,
             Wsp,

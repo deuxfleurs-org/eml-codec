@@ -50,7 +50,7 @@ impl<'a> Print for MIMEAtom<'a> {
 }
 #[cfg(feature = "arbitrary")]
 impl<'a, 'b> Arbitrary<'a> for MIMEAtom<'b> {
-    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<MIMEAtom<'b>> {
+    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
         let bytes = arbitrary_vec_nonempty_where(u, |c| is_mime_atom_text(*c), b'X')?;
         Ok(MIMEAtom(Cow::Owned(bytes)))
     }
@@ -135,7 +135,7 @@ impl<'a> Print for Atom<'a> {
 }
 #[cfg(feature = "arbitrary")]
 impl<'a> Arbitrary<'a> for Atom<'a> {
-    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Atom<'a>> {
+    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
         let bytes = arbitrary_string_nonempty_where(u, is_atext, 'X')?;
         Ok(Atom(Cow::Owned(bytes)))
     }
@@ -200,7 +200,7 @@ impl<'a> Print for DotAtom<'a> {
 }
 #[cfg(feature = "arbitrary")]
 impl<'a> Arbitrary<'a> for DotAtom<'a> {
-    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<DotAtom<'a>> {
+    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
         let mut s = arbitrary_string_nonempty_where(u, is_atext, 'X')?;
         for _ in 0..u.int_in_range(0..=3)? {
             s.push('.');

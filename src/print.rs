@@ -202,12 +202,12 @@ pub const FMT_DEFAULT: FmtConfig = FmtConfig {
 pub const FMT_NOFOLD: FmtConfig = FMT_DEFAULT.with_line_limit(None);
 
 impl FmtConfig {
-    pub const fn with_seed(self, seed: Option<u64>) -> FmtConfig {
-        FmtConfig { seed, ..self }
+    pub const fn with_seed(self, seed: Option<u64>) -> Self {
+        Self { seed, ..self }
     }
 
-    pub const fn with_line_limit(self, line_limit: Option<usize>) -> FmtConfig {
-        FmtConfig { line_limit, ..self }
+    pub const fn with_line_limit(self, line_limit: Option<usize>) -> Self {
+        Self { line_limit, ..self }
     }
 }
 
@@ -333,7 +333,7 @@ struct LineFolder {
 impl LineFolder {
     /// The line limit must not include the final CRLF and must not be zero.
     /// For emails, this means line_limit=78.
-    fn new(line_limit: Option<usize>) -> LineFolder {
+    fn new(line_limit: Option<usize>) -> Self {
         Self {
             line_limit: LineLimit::from(line_limit),
             prev_fold: None,
@@ -494,10 +494,10 @@ impl std::cmp::PartialOrd<LineLimit> for usize {
 }
 
 impl From<Option<usize>> for LineLimit {
-    fn from(o: Option<usize>) -> LineLimit {
+    fn from(o: Option<usize>) -> Self {
         match o {
-            None => LineLimit::NoLimit,
-            Some(n) => LineLimit::Limit(n),
+            None => Self::NoLimit,
+            Some(n) => Self::Limit(n),
         }
     }
 }
