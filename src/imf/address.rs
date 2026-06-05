@@ -33,7 +33,7 @@ impl<'a> Print for GroupRef<'a> {
         if let Some(mboxs) = &self.participants {
             mboxs.print(fmt);
         }
-        fmt.write_bytes(b";")
+        fmt.write_bytes(b";");
     }
 }
 
@@ -68,8 +68,8 @@ impl<'a> Print for AddressList<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
         print_seq(fmt, self, |fmt| {
             fmt.write_bytes(b",");
-            fmt.write_fws()
-        })
+            fmt.write_fws();
+        });
     }
 }
 
@@ -230,7 +230,7 @@ mod tests {
         address_list_reprinted(
             br#"  ,,A Group:Ed Jones <c@a.test>,,,,joe@where.test,John <jdoe@one.test>;, Mary Smith <mary@x.test>,,"#,
             br#"A Group:Ed Jones <c@a.test>, joe@where.test, John <jdoe@one.test>;, Mary Smith <mary@x.test>"#,
-        )
+        );
     }
 
     use crate::text::encoding::{EncodedWord, EncodedWordToken, QuotedChunk, QuotedWord};
@@ -338,6 +338,6 @@ mod tests {
                 name: Phrase(vec![PhraseToken::Word(Word::Atom(Atom("group".into())))]),
                 participants: None,
             })],
-        )
+        );
     }
 }

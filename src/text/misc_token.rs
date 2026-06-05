@@ -68,8 +68,8 @@ impl<'a> Print for PhraseList<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
         print_seq(fmt, &self.0, |fmt| {
             fmt.write_bytes(b",");
-            fmt.write_fws()
-        })
+            fmt.write_fws();
+        });
     }
 }
 
@@ -266,7 +266,7 @@ pub struct Phrase<'a>(pub Vec<PhraseToken<'a>>);
 
 impl<'a> Print for Phrase<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
-        print_seq(fmt, &self.0, Formatter::write_fws)
+        print_seq(fmt, &self.0, Formatter::write_fws);
     }
 }
 
@@ -344,7 +344,7 @@ impl<'a> Phrase<'a> {
         for tok in &self.0 {
             match (v.last_mut(), tok) {
                 (Some(PhraseToken::Encoded(ref mut e1)), PhraseToken::Encoded(e2)) => {
-                    e1.0.extend(e2.0.clone())
+                    e1.0.extend(e2.0.clone());
                 }
                 (_, tok) => v.push(tok.clone()),
             }
@@ -510,11 +510,11 @@ impl<'a> Print for Unstructured<'a> {
             // consecutive encoded tokens must be separated by whitespace
             if i > 0 {
                 if let (UnstrToken::Encoded(_), UnstrToken::Encoded(_)) = (&self.0[i - 1], tok) {
-                    fmt.write_fws()
+                    fmt.write_fws();
                 }
             }
 
-            tok.print(fmt)
+            tok.print(fmt);
         }
     }
 }
@@ -540,10 +540,10 @@ impl<'a> Unstructured<'a> {
         for tok in &self.0 {
             match (v.last_mut(), tok) {
                 (Some(UnstrToken::Plain(s1, k1)), UnstrToken::Plain(s2, k2)) if k1 == k2 => {
-                    s1.to_mut().push_str(s2)
+                    s1.to_mut().push_str(s2);
                 }
                 (Some(UnstrToken::Encoded(e1)), UnstrToken::Encoded(e2)) => {
-                    e1.0.extend(e2.to_static().0)
+                    e1.0.extend(e2.to_static().0);
                 }
                 _ => v.push(tok.to_static()),
             }
@@ -604,7 +604,7 @@ impl<'a> Arbitrary<'a> for Unstructured<'a> {
                     last = Some(ktok);
                 }
             }
-            v.push(tok)
+            v.push(tok);
         }
         Ok(Unstructured(v))
     }
@@ -666,7 +666,7 @@ mod tests {
     fn test_phrase_from() {
         let check = |words: &[&str]| {
             let p = Phrase::from(words);
-            assert_eq!(words.join(" "), p.data().join(" "))
+            assert_eq!(words.join(" "), p.data().join(" "));
         };
 
         check(&["abc", "d ef", "éé", "à"]);

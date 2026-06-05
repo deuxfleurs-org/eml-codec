@@ -45,7 +45,7 @@ impl<'a> fmt::Debug for MIMEAtom<'a> {
 }
 impl<'a> Print for MIMEAtom<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
-        fmt.write_bytes(&self.0)
+        fmt.write_bytes(&self.0);
     }
 }
 #[cfg(feature = "arbitrary")]
@@ -130,7 +130,7 @@ pub struct Atom<'a>(pub Cow<'a, str>);
 
 impl<'a> Print for Atom<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
-        fmt.write_bytes(self.0.as_bytes())
+        fmt.write_bytes(self.0.as_bytes());
     }
 }
 impl<'a> TryFrom<&'a str> for Atom<'a> {
@@ -205,7 +205,7 @@ pub struct DotAtom<'a>(pub Cow<'a, str>);
 
 impl<'a> Print for DotAtom<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
-        fmt.write_bytes(self.0.as_bytes())
+        fmt.write_bytes(self.0.as_bytes());
     }
 }
 #[cfg(feature = "arbitrary")]

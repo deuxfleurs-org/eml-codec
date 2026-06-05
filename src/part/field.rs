@@ -80,7 +80,7 @@ impl<'a> FromIterator<header::FieldRaw<'a>> for NaiveEntityFields<'a> {
                         e.entries.push(EntityEntry::MIME {
                             e: entry,
                             raw_body: f.body.into(),
-                        })
+                        });
                     } else {
                         // otherwise drop the field
                         #[cfg(feature = "tracing-recover")]

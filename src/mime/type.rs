@@ -93,7 +93,7 @@ impl<'a> Print for Parameter<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
         self.name.print(fmt);
         fmt.write_bytes(b"=");
-        self.value.print(fmt)
+        self.value.print(fmt);
     }
 }
 
@@ -320,10 +320,10 @@ impl<'a> TryFrom<&NaiveType<'a>> for Multipart<'a> {
                 } else {
                     // drop any redundant "boundary" parameter that is not the first
                     #[cfg(feature = "tracing-unsupported")]
-                    warn!(boundary = s, "dropping redundant boundary parameter")
+                    warn!(boundary = s, "dropping redundant boundary parameter");
                 }
             } else {
-                other_params.push(param.clone())
+                other_params.push(param.clone());
             }
         }
         match boundary {
@@ -363,7 +363,7 @@ impl MultipartSubtype {
 }
 impl Print for MultipartSubtype {
     fn print(&self, fmt: &mut impl Formatter) {
-        fmt.write_bytes(self.as_bytes())
+        fmt.write_bytes(self.as_bytes());
     }
 }
 
@@ -422,7 +422,7 @@ impl MessageSubtype {
 }
 impl Print for MessageSubtype {
     fn print(&self, fmt: &mut impl Formatter) {
-        fmt.write_bytes(self.as_bytes())
+        fmt.write_bytes(self.as_bytes());
     }
 }
 
@@ -527,7 +527,7 @@ impl<'a> Print for Text<'a> {
             EmailCharset::Unknown(s) =>
             // print it as quoted just to be safe
             {
-                print_quoted(fmt, s.chars())
+                print_quoted(fmt, s.chars());
             }
             _ => fmt.write_bytes(self.charset.as_bytes()),
         }
@@ -555,7 +555,7 @@ impl<'a> From<&NaiveType<'a>> for Text<'a> {
                     warn!(param = value, "dropping redundant charset parameter");
                 }
             } else {
-                other_params.push(param.clone())
+                other_params.push(param.clone());
             }
         }
 
@@ -587,7 +587,7 @@ impl TextSubtype {
 }
 impl Print for TextSubtype {
     fn print(&self, fmt: &mut impl Formatter) {
-        fmt.write_bytes(self.as_bytes())
+        fmt.write_bytes(self.as_bytes());
     }
 }
 
@@ -629,7 +629,7 @@ pub struct Binary<'a> {
 
 impl<'a> Print for Binary<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
-        self.ctype.print(fmt)
+        self.ctype.print(fmt);
     }
 }
 impl<'a> From<&NaiveType<'a>> for Binary<'a> {
@@ -961,6 +961,6 @@ mod tests {
         assert_eq!(
             String::from_utf8_lossy(raw),
             String::from_utf8_lossy(&printed)
-        )
+        );
     }
 }

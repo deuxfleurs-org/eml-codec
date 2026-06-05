@@ -43,7 +43,7 @@ impl<'a> fmt::Debug for FieldName<'a> {
 }
 impl<'a> Print for FieldName<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
-        fmt.write_bytes(&self.0)
+        fmt.write_bytes(&self.0);
     }
 }
 #[cfg(feature = "arbitrary")]
@@ -196,7 +196,7 @@ impl<'a> Unstructured<'a> {
 }
 impl<'a> Print for Unstructured<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
-        print_unstructured(fmt, &self.name.0, &self.body)
+        print_unstructured(fmt, &self.name.0, &self.body);
     }
 }
 
@@ -279,7 +279,7 @@ mod tests {
                 ]),
                 raw_body: b" something something".into(),
             }
-        )
+        );
     }
 
     #[test]
@@ -298,7 +298,7 @@ mod tests {
                     body: b" something else"
                 },
             ]
-        )
+        );
     }
 
     #[test]
@@ -336,7 +336,7 @@ mod tests {
                     body: b" something else"
                 },
             ]
-        )
+        );
     }
 
     #[test]
@@ -349,6 +349,6 @@ mod tests {
                 name: FieldName(b"X-Foo".into()),
                 body: b" something something"
             },]
-        )
+        );
     }
 }

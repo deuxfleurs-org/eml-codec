@@ -13,7 +13,7 @@ fn main() {
             eprintln!(
                 "--- message structure ---\n{:#?}\n--- message structure end ---",
                 eml
-            )
+            );
         }
         _ => (),
     }

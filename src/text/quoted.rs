@@ -42,11 +42,11 @@ impl<'a> fmt::Debug for QuotedString<'a> {
 
 impl<'a> QuotedString<'a> {
     pub fn push_str(&mut self, e: &'a str) {
-        self.0.push(Cow::Borrowed(e))
+        self.0.push(Cow::Borrowed(e));
     }
 
     pub fn push(&mut self, e: Cow<'a, str>) {
-        self.0.push(e)
+        self.0.push(e);
     }
 
     pub fn chars<'b>(&'b self) -> QuotedStringChars<'a, 'b> {
@@ -58,7 +58,7 @@ impl<'a> QuotedString<'a> {
 }
 impl<'a> Print for QuotedString<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
-        print_quoted(fmt, self.chars())
+        print_quoted(fmt, self.chars());
     }
 }
 impl<'a> TryFrom<&'a str> for QuotedString<'a> {
@@ -156,7 +156,7 @@ pub fn quoted_pair(input: &[u8]) -> IResult<&[u8], Option<&str>> {
                     {
                         #[cfg(feature = "tracing-recover")]
                         warn!(byte = %bytes_to_trace_string(&[b]),
-                                  "invalid quoted pair")
+                                  "invalid quoted pair");
                     }
                     None
                 }
@@ -272,7 +272,7 @@ where
             // TODO: return the invalid input bytes that were skipped.
         }
     }
-    fmt.write_bytes(b"\"")
+    fmt.write_bytes(b"\"");
 }
 
 #[cfg(test)]

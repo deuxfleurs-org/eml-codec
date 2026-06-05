@@ -154,7 +154,7 @@ fn fold_marker(input: &[u8]) -> IResult<&[u8], Vec<&str>> {
 
     let mut res = vec![];
     if !wsp0.is_empty() {
-        res.push(wsp0)
+        res.push(wsp0);
     }
     res.push(wsp);
     Ok((input, res))
@@ -233,7 +233,7 @@ pub fn comment_body(input: &[u8]) -> IResult<&[u8], ()> {
             nesting += 1;
         }
 
-        cursor = input
+        cursor = input;
     }
 }
 

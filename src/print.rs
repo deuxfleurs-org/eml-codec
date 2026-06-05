@@ -44,7 +44,7 @@ where
 
 impl<T: Print> Print for &T {
     fn print(&self, fmt: &mut impl Formatter) {
-        (*self).print(fmt)
+        (*self).print(fmt);
     }
 }
 
@@ -161,7 +161,7 @@ pub trait Formatter {
 
     /// Write a single folding white space character.
     fn write_fws(&mut self) {
-        self.write_fws_bytes(b" ")
+        self.write_fws_bytes(b" ");
     }
 
     /// Consumes the `Formatter` and returns the data that was printed to it.
@@ -239,7 +239,7 @@ impl Formatter for Fmt {
     fn begin_line_folding(&mut self) {
         match self.mode {
             FormatterMode::Direct => {
-                self.mode = FormatterMode::Folding(LineFolder::new(self.line_limit))
+                self.mode = FormatterMode::Folding(LineFolder::new(self.line_limit));
             }
             FormatterMode::Folding(_) => {
                 panic!("Formatter::begin_line_folding: already in folding mode")
@@ -251,7 +251,7 @@ impl Formatter for Fmt {
         match self.mode {
             FormatterMode::Folding(ref mut folder) => {
                 folder.flush(&mut self.buf);
-                self.mode = FormatterMode::Direct
+                self.mode = FormatterMode::Direct;
             }
             FormatterMode::Direct => {
                 panic!("Formatter::end_line_folding: not in folding mode")
@@ -260,7 +260,7 @@ impl Formatter for Fmt {
     }
 
     fn push_new_boundary(&mut self) {
-        self.boundaries.push_new_boundary()
+        self.boundaries.push_new_boundary();
     }
 
     fn write_current_boundary(&mut self) {
@@ -273,7 +273,7 @@ impl Formatter for Fmt {
     }
 
     fn pop_boundary(&mut self) {
-        self.boundaries.pop_boundary()
+        self.boundaries.pop_boundary();
     }
 
     fn write_bytes(&mut self, buf: &[u8]) {
@@ -300,7 +300,7 @@ impl Formatter for Fmt {
     fn flush(mut self) -> Vec<u8> {
         self.boundaries.assert_empty();
         if let FormatterMode::Folding(mut folder) = self.mode {
-            folder.flush(&mut self.buf)
+            folder.flush(&mut self.buf);
         }
         self.buf
     }
@@ -351,7 +351,7 @@ impl LineFolder {
             return;
         }
         self.is_flushed = true;
-        self.flush_line(inner)
+        self.flush_line(inner);
     }
 
     // NOTE: `buf` must not contain line breaks (CRLF).
@@ -364,7 +364,7 @@ impl LineFolder {
         // (otherwise it would be indistinguishable from FWS)
         if self.cur_fold.is_empty() && !buf.is_empty() {
             // XXX turn this into a debug_assert?
-            assert!(!ascii::WS.contains(&buf[0]))
+            assert!(!ascii::WS.contains(&buf[0]));
         }
 
         if self.cur_fold.len() + buf.len() <= self.line_limit || self.last_cut_candidate.is_none() {
@@ -377,7 +377,7 @@ impl LineFolder {
             // fold at `last_cut_candidate`
             self.fold(inner);
             // recursive call to actually handle `buf`
-            self.write_bytes(buf, inner)
+            self.write_bytes(buf, inner);
         }
     }
 
@@ -401,18 +401,18 @@ impl LineFolder {
         // if we are past the line limit, we should fold if we can
         // (possibly on the character we just added)
         if self.cur_fold.len() > self.line_limit && self.last_cut_candidate.is_some() {
-            self.fold(inner)
+            self.fold(inner);
         }
 
         // recursive call to handle the rest of the buffer
-        self.write_fws_bytes(&buf[1..], inner)
+        self.write_fws_bytes(&buf[1..], inner);
     }
 
     fn write_crlf(&mut self, inner: &mut Vec<u8>) {
         assert!(!self.is_flushed);
         // flush the buffers for the current line
         self.flush_line(inner);
-        inner.extend_from_slice(ascii::CRLF)
+        inner.extend_from_slice(ascii::CRLF);
     }
 
     // internal helpers
@@ -444,7 +444,7 @@ impl LineFolder {
         // - otherwise, `cur_fold` is of size > 1, and contains
         // non-FWS characters since `cut_pos` is the *last*
         // cut candidate
-        self.cur_fold_is_only_fws = self.cur_fold.len() == 1
+        self.cur_fold_is_only_fws = self.cur_fold.len() == 1;
     }
 
     // terminate the current line, writing its data
@@ -464,7 +464,7 @@ impl LineFolder {
         self.prev_fold = None;
         self.cur_fold.clear();
         self.cur_fold_is_only_fws = true;
-        self.last_cut_candidate = None
+        self.last_cut_candidate = None;
     }
 }
 
@@ -545,7 +545,7 @@ impl Boundaries {
             } else {
                 ascii::LSA + (n - 10 - 26)
             };
-            v.push(byte)
+            v.push(byte);
         }
         v
     }
@@ -576,7 +576,7 @@ pub fn print_to_vec<T: Print>(cfg: FmtConfig, x: T) -> Vec<u8> {
 // Cow<'a, [u8]> is our base bytes type
 impl<'a> Print for std::borrow::Cow<'a, [u8]> {
     fn print(&self, fmt: &mut impl Formatter) {
-        fmt.write_bytes(self)
+        fmt.write_bytes(self);
     }
 }
 

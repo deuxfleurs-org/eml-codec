@@ -49,7 +49,7 @@ impl<'a> Print for Field<'a> {
             Self::TransferEncoding(enc) => header::print(fmt, b"Content-Transfer-Encoding", enc),
             Self::ID(id) => header::print(fmt, b"Content-Id", id),
             Self::Description(desc) => {
-                header::print_unstructured(fmt, b"Content-Description", desc)
+                header::print_unstructured(fmt, b"Content-Description", desc);
             }
         }
     }

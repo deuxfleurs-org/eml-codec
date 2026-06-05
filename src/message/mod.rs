@@ -141,7 +141,7 @@ impl<'a> Arbitrary<'a> for Message<'a> {
                 } = ent
                 {
                     *e = imf::field::Entry::Trace(id);
-                    id += 1
+                    id += 1;
                 }
             }
         }
@@ -177,14 +177,14 @@ impl<'a> Arbitrary<'a> for Message<'a> {
                 } = ent
                 {
                     *e = imf::field::Entry::Comments(comments_id);
-                    comments_id += 1
+                    comments_id += 1;
                 } else if let MessageEntry::Imf {
                     e: e @ imf::field::Entry::Keywords(_),
                     ..
                 } = ent
                 {
                     *e = imf::field::Entry::Keywords(keywords_id);
-                    keywords_id += 1
+                    keywords_id += 1;
                 }
             }
         }
@@ -254,7 +254,7 @@ mod tests {
         assert_eq!(
             String::from_utf8_lossy(&printed),
             String::from_utf8_lossy(txt)
-        )
+        );
     }
 
     fn test_message_parse_print<'a>(txt: &[u8], parsed: Message<'a>, printed: &[u8]) {
@@ -263,7 +263,7 @@ mod tests {
         assert_eq!(
             String::from_utf8_lossy(&reprinted),
             String::from_utf8_lossy(printed)
-        )
+        );
     }
 
     fn test_message_reprint(txt: &[u8], printed: &[u8]) {
@@ -272,7 +272,7 @@ mod tests {
         assert_eq!(
             String::from_utf8_lossy(&reprinted),
             String::from_utf8_lossy(printed)
-        )
+        );
     }
 
     #[test]

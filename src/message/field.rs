@@ -96,11 +96,11 @@ impl<'a> FromIterator<header::FieldRaw<'a>> for NaiveMessageFields<'a> {
                         entries.push(MessageEntry::MIME {
                             e: entry,
                             raw_body: f.body.into(),
-                        })
+                        });
                     } else {
                         // otherwise drop the field
                         #[cfg(feature = "tracing-recover")]
-                        warn!(field = ?f, "dropping conflicting MIME field")
+                        warn!(field = ?f, "dropping conflicting MIME field");
                     }
                     continue;
                 }
@@ -156,7 +156,7 @@ impl<'a> FromIterator<header::FieldRaw<'a>> for NaiveMessageFields<'a> {
             } else {
                 // otherwise drop the field
                 #[cfg(feature = "tracing-unsupported")]
-                warn!(field = ?f, "dropping field that cannot be parsed as unstructured")
+                warn!(field = ?f, "dropping field that cannot be parsed as unstructured");
             }
         }
 

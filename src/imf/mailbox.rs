@@ -38,7 +38,7 @@ impl<'a> Print for AddrSpec<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
         self.local_part.print(fmt);
         fmt.write_bytes(b"@");
-        self.domain.print(fmt)
+        self.domain.print(fmt);
     }
 }
 
@@ -81,7 +81,7 @@ impl<'a> Print for MailboxRef<'a> {
                 fmt.write_fws();
                 fmt.write_bytes(b"<");
                 self.addrspec.print(fmt);
-                fmt.write_bytes(b">")
+                fmt.write_bytes(b">");
             }
             None => self.addrspec.print(fmt),
         }
@@ -97,8 +97,8 @@ impl<'a> Print for MailboxList<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
         print_seq(fmt, &self.0, |fmt| {
             fmt.write_bytes(b",");
-            fmt.write_fws()
-        })
+            fmt.write_fws();
+        });
     }
 }
 #[cfg(feature = "arbitrary")]
@@ -222,7 +222,7 @@ pub fn addr_spec(input: &[u8]) -> IResult<&[u8], AddrSpec<'_>> {
                 many1(pair(tag(&[ascii::AT]), domain)), // for compatibility reasons with ENRON
                 |_| {
                     #[cfg(feature = "tracing-recover")]
-                    warn!("addr_spec with multiple @ parts")
+                    warn!("addr_spec with multiple @ parts");
                 },
             )),
         )),
@@ -319,9 +319,9 @@ impl<'a> Print for LocalPart<'a> {
         // If `as_str` is a dot-atom we print it as-is, otherwise
         // we quote it. This ensures that our output is compliant with RFC5322.
         if all_consuming(dot_atom_text)(as_str.as_bytes()).is_ok() {
-            fmt.write_bytes(as_str.as_bytes())
+            fmt.write_bytes(as_str.as_bytes());
         } else {
-            print_quoted(fmt, self.chars())
+            print_quoted(fmt, self.chars());
         }
     }
 }
@@ -392,7 +392,7 @@ impl<'a> Print for Domain<'a> {
             Domain::Literal(parts) => {
                 fmt.write_bytes(b"[");
                 print_seq(fmt, parts, Formatter::write_fws);
-                fmt.write_bytes(b"]")
+                fmt.write_bytes(b"]");
             }
         }
     }
@@ -490,7 +490,7 @@ impl<'a> Dtext<'a> {
     fn to_strict_best_effort(&self) -> Self {
         let mut strict_dtext: String = self.0.chars().filter(|c| is_strict_dtext(*c)).collect();
         if strict_dtext.is_empty() {
-            strict_dtext.push('?')
+            strict_dtext.push('?');
         }
         Dtext(strict_dtext.into())
     }
@@ -498,7 +498,7 @@ impl<'a> Dtext<'a> {
 
 impl<'a> Print for Dtext<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
-        fmt.write_bytes(self.to_strict_best_effort().0.as_bytes())
+        fmt.write_bytes(self.to_strict_best_effort().0.as_bytes());
     }
 }
 #[cfg(feature = "arbitrary")]
@@ -723,7 +723,7 @@ mod tests {
                 domain: Domain::Atoms(vec![Atom("gmail"[..].into()), Atom("com"[..].into())]),
             },
             b"\"foo..bar\"@gmail.com",
-        )
+        );
     }
 
     #[test]
@@ -1056,6 +1056,6 @@ mod tests {
     #[test]
     fn test_dtext_strictify() {
         let s: &str = &Dtext("\x03".into()).to_strict_best_effort().0;
-        assert_eq!(s, "?")
+        assert_eq!(s, "?");
     }
 }

@@ -224,7 +224,7 @@ pub fn part_body<'a>(m: AnyMIME<'a>) -> impl FnOnce(&'a [u8]) -> MimeBody<'a> {
                 #[cfg(feature = "tracing-unsupported")]
                 if !_rest.is_empty() {
                     warn!(rest = %bytes_to_trace_string(_rest),
-                          "leftover input after multipart parsing")
+                          "leftover input after multipart parsing");
                 }
                 part.into()
             }

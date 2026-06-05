@@ -221,7 +221,7 @@ impl<'a> Arbitrary<'a> for Message<'a> {
         if matches!(mime.ctype.subtype, mime::r#type::MessageSubtype::RFC822)
             && child.contains_utf8_headers()
         {
-            mime.ctype.subtype = mime::r#type::MessageSubtype::Global
+            mime.ctype.subtype = mime::r#type::MessageSubtype::Global;
         }
         Ok(Message {
             mime,

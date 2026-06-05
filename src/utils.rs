@@ -25,7 +25,7 @@ pub fn bytes_to_display_string(bs: &[u8]) -> String {
         match b {
             b'\\' => s.push_str("\\\\"),
             b if b.is_ascii_alphanumeric() || b.is_ascii_graphic() || *b == b' ' => {
-                s.push(*b as char)
+                s.push(*b as char);
             }
             b'\"' => s.push_str("\\\""),
             b'\r' => s.push_str("\\r"),

@@ -143,7 +143,7 @@ where
             e_spans.push(LogSpan {
                 span: span.name.clone(),
                 meta: span.fields.clone().into_iter().collect(),
-            })
+            });
         }
         serde_json::to_writer(
             &mut *file,
@@ -268,7 +268,7 @@ fn main() {
                     let _span = span!(Level::TRACE, "mailbox email", %path, idx).entered();
                     eprintln!("parsing mbox email {}", idx);
                     let _eml = eml_codec::parse_message(raw_email);
-                })
+                });
         } else if extension_is(&path, "zip") {
             #[cfg(feature = "tracing")]
             let _span = span!(Level::TRACE, "zip", %path).entered();
@@ -290,7 +290,7 @@ fn main() {
                 let _span =
                     span!(Level::TRACE, "zip email", %path, fpath = %_fpath.unwrap()).entered();
                 let _eml = eml_codec::parse_message(&input);
-            })
+            });
         } else if extension_is(&path, "tar") {
             #[cfg(feature = "tracing")]
             let _span = span!(Level::TRACE, "tar", %path).entered();

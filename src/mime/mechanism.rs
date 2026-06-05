@@ -44,7 +44,7 @@ impl<'a> Mechanism<'a> {
 
 impl<'a> Print for Mechanism<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
-        fmt.write_bytes(self.as_bytes())
+        fmt.write_bytes(self.as_bytes());
     }
 }
 impl<'a> ContainsUtf8 for Mechanism<'a> {

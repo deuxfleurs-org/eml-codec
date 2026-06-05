@@ -169,7 +169,7 @@ impl<'a> EncodedWord<'a> {
             if c.is_ascii() && is_qchar_safe_strict(c as u8) {
                 if let Some(QuotedChunk::Safe(s)) = cur_chunks.last_mut() {
                     let s = s.to_mut();
-                    s.push(c as u8)
+                    s.push(c as u8);
                 } else {
                     cur_chunks.push(QuotedChunk::Safe(vec![c as u8].into()));
                 }
@@ -182,9 +182,9 @@ impl<'a> EncodedWord<'a> {
                 c.encode_utf8(&mut char_bytes);
                 let c_bytes = &char_bytes[0..c.len_utf8()];
                 if let Some(QuotedChunk::Encoded(e)) = cur_chunks.last_mut() {
-                    e.extend_from_slice(c_bytes)
+                    e.extend_from_slice(c_bytes);
                 } else {
-                    cur_chunks.push(QuotedChunk::Encoded(c_bytes.to_vec()))
+                    cur_chunks.push(QuotedChunk::Encoded(c_bytes.to_vec()));
                 }
                 // each encoded byte uses three characters (=XX)
                 cur_word_len += 3 * c.len_utf8();
@@ -201,7 +201,7 @@ impl<'a> EncodedWord<'a> {
 }
 impl<'a> Print for EncodedWord<'a> {
     fn print(&self, fmt: &mut impl Formatter) {
-        print_seq(fmt, &self.0, Formatter::write_fws)
+        print_seq(fmt, &self.0, Formatter::write_fws);
     }
 }
 
