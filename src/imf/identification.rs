@@ -184,7 +184,7 @@ pub fn nullable_msg_list(input: &[u8]) -> IResult<&[u8], MessageIDList<'_>> {
             },
         ),
         // compliant CFWS in between msg-ids
-        map(cfws, |_| None),
+        map(cfws, |()| None),
         // recovery: recognize junk in between msg-ids, skipping to the next <
         map(take_quoted_encoded_or_until1(|c| c == b'<'), |_i| {
             #[cfg(feature = "tracing-recover")]
