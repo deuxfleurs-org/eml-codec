@@ -159,7 +159,7 @@ impl<'a> FuzzEq for Atom<'a> {
 
 /// Atom allowed characters
 ///
-/// authorized: !#$%&'*+-/=?^_`{|}~
+/// authorized: !#$%&'*+-/=?^_\`{|}~
 ///
 /// following RFC6532, atext also allows non-ascii UTF8 characters
 pub fn is_atext(c: char) -> bool {
