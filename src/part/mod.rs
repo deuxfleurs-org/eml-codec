@@ -7,7 +7,7 @@ pub mod discrete;
 /// Representation of all headers in a MIME entity
 pub mod field;
 
-use crate::mime::{AnyMIME, MIME};
+use crate::mime::{r#type, AnyMIME, CommonMIME, MIME};
 use crate::part::{
     composite::{message, multipart, Message, Multipart},
     discrete::{Binary, Text},
@@ -75,8 +75,8 @@ impl Default for AnyPart<'static> {
             entries: vec![],
             mime_body: MimeBody::Txt(discrete::Text {
                 mime: MIME {
-                    ctype: Default::default(),
-                    fields: Default::default(),
+                    ctype: r#type::Text::default(),
+                    fields: CommonMIME::default(),
                 },
                 body: b"".into(),
                 raw_body: RawInput(Some(b"")),

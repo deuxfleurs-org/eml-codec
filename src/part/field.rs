@@ -72,7 +72,7 @@ impl<'a> FromIterator<header::FieldRaw<'a>> for NaiveEntityFields<'a> {
         tracing::instrument(name = "EntityFields::from_iter", skip(it))
     )]
     fn from_iter<I: IntoIterator<Item = header::FieldRaw<'a>>>(it: I) -> Self {
-        let mut e: NaiveEntityFields<'a> = Default::default();
+        let mut e: NaiveEntityFields<'a> = NaiveEntityFields::default();
         for f in it {
             match mime::field::NaiveField::try_from(&f) {
                 Ok(mimef) => {

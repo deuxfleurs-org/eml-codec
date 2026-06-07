@@ -18,7 +18,7 @@ use crate::i18n::ContainsUtf8;
 use crate::imf::identification::MessageID;
 use crate::mime::field::NaiveField;
 use crate::mime::mechanism::Mechanism;
-use crate::mime::r#type::{AnyType, MessageSubtype, NaiveType};
+use crate::mime::r#type::{AnyType, Message, MessageSubtype, NaiveType, Text};
 use crate::text::misc_token::Unstructured;
 use crate::utils::set_opt;
 
@@ -259,8 +259,8 @@ pub enum DefaultType {
 impl DefaultType {
     fn to_type(self) -> AnyType<'static> {
         match self {
-            Self::Generic => AnyType::Text(Default::default()),
-            Self::Digest => AnyType::Message(Default::default()),
+            Self::Generic => AnyType::Text(Text::default()),
+            Self::Digest => AnyType::Message(Message::default()),
         }
     }
 }
