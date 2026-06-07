@@ -38,7 +38,7 @@ pub fn bytes_to_display_string(bs: &[u8]) -> String {
     s
 }
 
-#[allow(dead_code)]
+#[cfg(any(feature = "tracing-recover", feature = "tracing-unsupported"))]
 pub fn bytes_to_trace_string(bs: &[u8]) -> String {
     let mut s = String::new();
     for b in bs {
