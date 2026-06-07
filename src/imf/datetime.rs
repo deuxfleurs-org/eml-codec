@@ -337,11 +337,10 @@ fn strict_zone(input: &[u8]) -> IResult<&[u8], FixedOffset> {
             take_while_m_n(2, 2, |c| (0x30..=0x39).contains(&c)),
         )),
         |(_, op, dig_zone_hour, dig_zone_min)| {
-            let zone_hour: i32 =
-                ((dig_zone_hour[0] - 0x30) * 10 + (dig_zone_hour[1] - 0x30)) as i32;
-            let zone_min: i32 = ((dig_zone_min[0] - 0x30) * 10 + (dig_zone_min[1] - 0x30)) as i32;
+            let zone_hour = i32::from((dig_zone_hour[0] - 0x30) * 10 + (dig_zone_hour[1] - 0x30));
+            let zone_min = i32::from((dig_zone_min[0] - 0x30) * 10 + (dig_zone_min[1] - 0x30));
             // consider zone_hour is to be taken modulo 24h...
-            let zone_hour: i32 = zone_hour.rem_euclid(24);
+            let zone_hour = zone_hour.rem_euclid(24);
             // RFC5322 mandates that zone_min is between 00 and 59; reject the
             // input if not
             if zone_min >= 60 {
