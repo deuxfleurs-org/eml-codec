@@ -101,15 +101,19 @@ impl<'a> RawInput<'a> {
     pub(crate) fn between(input: &'a [u8], prefix: &[u8], suffix: &[u8]) -> Self {
         use memchr::memmem;
         let prefix_matches: Vec<_> = memmem::find_iter(input, prefix).collect();
-        if prefix_matches.len() != 1 {
-            panic!("{} prefix matches (expected: 1)", prefix_matches.len());
-        }
+        assert!(
+            prefix_matches.len() == 1,
+            "{} prefix matches (expected: 1)",
+            prefix_matches.len()
+        );
         let prefix_pos = prefix_matches[0];
         let suffix_matches: Vec<_> =
             memmem::find_iter(&input[prefix_pos + prefix.len()..], suffix).collect();
-        if suffix_matches.len() != 1 {
-            panic!("{} suffix matches (expected: 1)", suffix_matches.len());
-        }
+        assert!(
+            suffix_matches.len() == 1,
+            "{} suffix matches (expected: 1)",
+            suffix_matches.len()
+        );
         let suffix_pos = suffix_matches[0] + prefix_pos + prefix.len();
         RawInput(Some(&input[prefix_pos..suffix_pos + suffix.len()]))
     }
@@ -117,15 +121,19 @@ impl<'a> RawInput<'a> {
     pub(crate) fn between_excl(input: &'a [u8], before: &[u8], after: &[u8]) -> Self {
         use memchr::memmem;
         let before_matches: Vec<_> = memmem::find_iter(input, before).collect();
-        if before_matches.len() != 1 {
-            panic!("{} before matches (expected: 1)", before_matches.len());
-        }
+        assert!(
+            before_matches.len() == 1,
+            "{} before matches (expected: 1)",
+            before_matches.len()
+        );
         let before_pos = before_matches[0];
         let after_matches: Vec<_> =
             memmem::find_iter(&input[before_pos + before.len()..], after).collect();
-        if after_matches.len() != 1 {
-            panic!("{} after matches (expected: 1)", after_matches.len());
-        }
+        assert!(
+            after_matches.len() == 1,
+            "{} after matches (expected: 1)",
+            after_matches.len()
+        );
         let after_pos = after_matches[0] + before_pos + before.len();
         RawInput(Some(&input[before_pos + before.len()..after_pos]))
     }
