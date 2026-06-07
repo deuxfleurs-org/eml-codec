@@ -134,7 +134,7 @@ impl<'a> Arbitrary<'a> for Message<'a> {
         // Renumber Trace entries so that their index is in order.
         {
             let mut id = 0;
-            for ent in entries.iter_mut() {
+            for ent in &mut entries {
                 if let MessageEntry::Imf {
                     e: e @ imf::field::Entry::Trace(_),
                     ..
@@ -170,7 +170,7 @@ impl<'a> Arbitrary<'a> for Message<'a> {
         {
             let mut comments_id = 0;
             let mut keywords_id = 0;
-            for ent in rest.iter_mut() {
+            for ent in &mut rest {
                 if let MessageEntry::Imf {
                     e: e @ imf::field::Entry::Comments(_),
                     ..

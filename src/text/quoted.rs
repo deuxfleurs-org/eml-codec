@@ -251,7 +251,7 @@ where
 {
     let mut buf = [0u8; 4];
     fmt.write_bytes(b"\"");
-    for c in data.into_iter() {
+    for c in data {
         let b = c.encode_utf8(&mut buf).as_bytes();
         if is_strict_qtext(c) {
             fmt.write_bytes(b);

@@ -360,7 +360,7 @@ pub fn local_part(input: &[u8]) -> IResult<&[u8], LocalPart<'_>> {
     let mut v: Vec<LocalPartToken> = vec![];
     v.extend(prefix);
     v.push(w);
-    for (dots, w) in ws.into_iter() {
+    for (dots, w) in ws {
         if dots.len() > 1 {
             #[cfg(feature = "tracing-recover")]
             warn!("best-effort local part (consecutive dots)");
