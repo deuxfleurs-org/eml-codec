@@ -258,7 +258,7 @@ impl<'a> Base64Word<'a> {
         general_purpose::STANDARD_NO_PAD
             .decode(&self.content)
             .map(|d| self.enc.decode(d.as_slice()).to_string())
-            .unwrap_or("".into())
+            .unwrap_or_default()
     }
 }
 
