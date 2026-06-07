@@ -157,7 +157,7 @@ pub(crate) fn mailbox_list_nullable(input: &[u8]) -> IResult<&[u8], Option<Mailb
 fn name_addr(input: &[u8]) -> IResult<&[u8], MailboxRef<'_>> {
     let (input, name) = opt(phrase)(input)?;
     let (input, addrspec) = angle_addr(input)?;
-    Ok((input, MailboxRef { name, addrspec }))
+    Ok((input, MailboxRef { addrspec, name }))
 }
 
 /// Enclosed addr-spec with < and >
