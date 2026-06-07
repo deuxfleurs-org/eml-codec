@@ -146,7 +146,7 @@ fn is_invalid_msgid_text(c: char) -> bool {
     is_nonascii_or(|c| c.is_ascii_graphic() && c != b'<' && c != b'>' && c != b'"')(c)
 }
 
-/// A *very* lenient parser for lists of msg_id as used by In-Reply-To and References
+/// A *very* lenient parser for lists of `msg_id` as used by In-Reply-To and References
 ///
 /// The RFC definition is:
 /// ```abnf

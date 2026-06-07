@@ -206,7 +206,7 @@ fn domain_list(input: &[u8]) -> IResult<&[u8], Vec<Option<Domain<'_>>>> {
     )(input)
 }
 
-/// AddrSpec
+/// `AddrSpec`
 ///
 /// ```abnf
 ///    addr-spec       =   local-part "@" domain
@@ -410,7 +410,7 @@ impl<'a> Arbitrary<'a> for Domain<'a> {
 
 /// Domain
 ///
-/// Rewritten so that domain is a superset of RFC-strict domain and obs_domain.
+/// Rewritten so that domain is a superset of RFC-strict domain and `obs_domain`.
 ///
 /// We also allow a final dot, which is not part of the RFC but occurs in
 /// old emails.

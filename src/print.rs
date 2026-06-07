@@ -332,7 +332,7 @@ struct LineFolder {
 
 impl LineFolder {
     /// The line limit must not include the final CRLF and must not be zero.
-    /// For emails, this means line_limit=78.
+    /// For emails, this means `line_limit=78`.
     fn new(line_limit: Option<usize>) -> Self {
         Self {
             line_limit: LineLimit::from(line_limit),

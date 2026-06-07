@@ -133,9 +133,9 @@ impl Print for DateTime {
 ///
 /// ## @FIXME - known bugs
 ///
-///   - `-0000` means NaiveDateTime, a date without a timezone
+///   - `-0000` means `NaiveDateTime`, a date without a timezone
 /// while this library interprets it as +0000 aka UTC.
-///   - Obsolete military zones should be considered as NaiveTime
+///   - Obsolete military zones should be considered as `NaiveTime`
 /// due to an error in RFC0822 but are interpreted as their respective
 /// timezone according to the RFC5322 definition
 #[instrument_input("tracing")]

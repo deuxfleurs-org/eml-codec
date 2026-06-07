@@ -31,7 +31,7 @@ use tracing::warn;
 /// \r or \n is allowed nowhere else, so we also add this support.
 /// XXX this comment is incorrect: \r and \n are allowed in
 /// obs-unstruct (obsolete unstructured fields).
-/// This means that using obs_crlf instead of CRLF (as done currently)
+/// This means that using `obs_crlf` instead of CRLF (as done currently)
 /// may parse unstructured inputs in a way that contradicts the spec.
 pub fn obs_crlf(input: &[u8]) -> IResult<&[u8], &str> {
     map(
@@ -177,10 +177,10 @@ fn fold_marker(input: &[u8]) -> IResult<&[u8], Vec<&str>> {
 ///   CFWS            =   (1*([FWS] comment) [FWS]) / FWS
 /// ```
 ///
-/// Note: a naive implementation of the grammar above using the alt()
+/// Note: a naive implementation of the grammar above using the `alt()`
 /// combinator can lead to exponential backtracking on some inputs
 /// (e.g. "((((((((").
-/// Exponential backtracking can be tackled using the cut() combinator,
+/// Exponential backtracking can be tackled using the `cut()` combinator,
 /// however any recursive definition can still run into stack overflow
 /// errors on deeply nested inputs.
 ///

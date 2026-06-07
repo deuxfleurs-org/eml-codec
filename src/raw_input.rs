@@ -69,7 +69,7 @@ impl<'a> Arbitrary<'a> for RawInput<'a> {
 impl<'a> FuzzEq for RawInput<'a> {
     /// `RawInput` data is always informational and never part of the proper
     /// "canonical" AST data. We thus ignore its content when comparing it with
-    /// fuzz_eq.
+    /// `fuzz_eq`.
     fn fuzz_eq(&self, _other: &Self) -> bool {
         true
     }

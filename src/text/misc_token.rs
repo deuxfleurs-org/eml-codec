@@ -204,7 +204,7 @@ impl<'a> Print for PhraseToken<'a> {
     }
 }
 impl<'a> PhraseToken<'a> {
-    /// Returns the text string represented by this PhraseToken
+    /// Returns the text string represented by this `PhraseToken`
     pub fn data(&self) -> String {
         match self {
             Self::Word(w) => w.chars().collect(),
@@ -619,14 +619,14 @@ impl<'a> Arbitrary<'a> for Unstructured<'a> {
 /// ```
 /// + RFC 2047 (MIME pt3) encoded words
 ///
-/// However, in our relaxed parsing of line endings in whitespace::obs_crlf,
+/// However, in our relaxed parsing of line endings in `whitespace::obs_crlf`,
 /// bare CR or LF are treated as line endings and thus cannot also be part of
 /// the obs-unstruct syntax.
 ///
 /// We thus choose to parse obs-unstruct minus the bare CR and LF, which
 /// corresponds to (also adding RFC2047 encoded words):
 ///
-/// our-obs-unstruct    =   *(encoded-words / obs_utext / FWS)
+/// our-obs-unstruct    =   *(encoded-words / `obs_utext` / FWS)
 ///
 /// This does not match the RFC but seems to better match real-world practices.
 #[instrument_input("tracing")]
