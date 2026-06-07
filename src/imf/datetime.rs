@@ -562,12 +562,13 @@ mod tests {
             .iter()
             .enumerate()
             .for_each(|(i, x)| {
+                let idx = i32::try_from(i).expect("index of iterator must be storable in an i32");
                 assert_eq!(
                     date_time(format!("1 Jan 22 08:00:00 {}", x).as_bytes()),
                     Ok((
                         &b""[..],
                         DateTime(
-                            FixedOffset::east_opt((i as i32 + 1) * HOUR)
+                            FixedOffset::east_opt((idx + 1) * HOUR)
                                 .unwrap()
                                 .with_ymd_and_hms(2022, 01, 01, 8, 0, 0)
                                 .unwrap()
@@ -583,12 +584,13 @@ mod tests {
             .iter()
             .enumerate()
             .for_each(|(i, x)| {
+                let idx = i32::try_from(i).expect("index of iterator must be storable in an i32");
                 assert_eq!(
                     date_time(format!("1 Jan 22 08:00:00 {}", x).as_bytes()),
                     Ok((
                         &b""[..],
                         DateTime(
-                            FixedOffset::west_opt((i as i32 + 1) * HOUR)
+                            FixedOffset::west_opt((idx + 1) * HOUR)
                                 .unwrap()
                                 .with_ymd_and_hms(2022, 01, 01, 8, 0, 0)
                                 .unwrap()
