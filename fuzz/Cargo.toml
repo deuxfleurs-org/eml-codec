@@ -8,8 +8,8 @@ edition = "2021"
 cargo-fuzz = true
 
 [dependencies]
-libfuzzer-sys = { version = "0.4", features = ["arbitrary-derive"] }
 eml-codec = { path = "..", features = ["arbitrary"] }
+libfuzzer-sys = { version = "0.4", features = ["arbitrary-derive"] }
 pretty_assertions = "1.4.1"
 
 [[bin]]
