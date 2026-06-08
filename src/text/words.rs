@@ -99,7 +99,7 @@ pub fn is_mime_atom_text(c: u8) -> bool {
         || c == ascii::PLUS
         || c == ascii::MINUS
         || c == ascii::PERIOD
-        || c == ascii::CARRET
+        || c == ascii::CARET
         || c == ascii::UNDERSCORE
         || c == ascii::GRAVE
         || c == ascii::LEFT_CURLY
@@ -167,7 +167,7 @@ pub fn is_atext(c: char) -> bool {
             || c == ascii::SLASH
             || c == ascii::EQ
             || c == ascii::QUESTION
-            || c == ascii::CARRET
+            || c == ascii::CARET
             || c == ascii::UNDERSCORE
             || c == ascii::GRAVE
             || c == ascii::LEFT_CURLY

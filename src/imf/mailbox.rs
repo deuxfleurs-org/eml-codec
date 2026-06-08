@@ -443,26 +443,26 @@ pub fn domain(input: &[u8]) -> IResult<&[u8], Domain<'_>> {
             ),
             Domain::Atoms,
         ),
-        domain_litteral,
+        domain_literal,
     ))(input)
 }
 
-/// Domain litteral
+/// Domain literal
 ///
 /// ```abnf
 ///    domain-literal  =   [CFWS] "[" *([FWS] dtext) [FWS] "]" [CFWS]
 /// ```
 #[instrument_input("tracing")]
-fn domain_litteral(input: &[u8]) -> IResult<&[u8], Domain<'_>> {
+fn domain_literal(input: &[u8]) -> IResult<&[u8], Domain<'_>> {
     delimited(
         pair(opt(cfws), tag(&[ascii::LEFT_BRACKET])),
-        inner_domain_litteral,
+        inner_domain_literal,
         pair(tag(&[ascii::RIGHT_BRACKET]), opt(cfws)),
     )(input)
 }
 
 #[instrument_input("tracing")]
-fn inner_domain_litteral(input: &[u8]) -> IResult<&[u8], Domain<'_>> {
+fn inner_domain_literal(input: &[u8]) -> IResult<&[u8], Domain<'_>> {
     map(
         terminated(many0(preceded(opt(fws), dtext)), opt(fws)),
         Domain::Literal,

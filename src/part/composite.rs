@@ -201,7 +201,7 @@ pub struct Message<'a> {
     // message as a toplevel message. However, it is not clear whether there
     // actually exist embedded messages that are not actually toplevel messages.
     //
-    // Additionally, IMAP requires that we are able to construct an IMF enveloppe
+    // Additionally, IMAP requires that we are able to construct an IMF envelope
     // for an embedded message, and our AST for messages is able to handle missing
     // fields that wouldn't be strictly compliant.
     //

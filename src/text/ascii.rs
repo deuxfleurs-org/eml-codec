@@ -99,7 +99,7 @@ pub const LCZ: u8 = 0x5A; // Z
 pub const LEFT_BRACKET: u8 = 0x5B; // [
 pub const BACKSLASH: u8 = 0x5C; // \
 pub const RIGHT_BRACKET: u8 = 0x5D; // ]
-pub const CARRET: u8 = 0x5E; // ^
+pub const CARET: u8 = 0x5E; // ^
 pub const UNDERSCORE: u8 = 0x5F; // _
 pub const GRAVE: u8 = 0x60; // `
 pub const LSA: u8 = 0x61; // a
@@ -138,7 +138,7 @@ pub const TILDE: u8 = 0x7E; // ~
 pub const CRLF: &[u8] = &[CR, LF];
 // -- CRCRLF
 // Sometimes portable libraries replace transparently
-// the "\n" with "\r\n" on Windows. When developpers
+// the "\n" with "\r\n" on Windows. When developers
 // explicitly write "\r\n", the library generates "\r\r\n".
 pub const CRCRLF: &[u8] = &[CR, CR, LF];
 
