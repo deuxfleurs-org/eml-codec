@@ -1,5 +1,5 @@
 use crate::text::ascii;
-use crate::text::encoding::{Context, encoded_word_plain};
+use crate::text::encoding::{encoded_word_plain, Context};
 use crate::text::quoted::quoted_pair;
 use crate::text::utf8::{is_nonascii_or, space0_str, space1_str, take_utf8_while1};
 // NOTE: the spans emitted from this file are only enabled with
@@ -9,7 +9,7 @@ use crate::text::utf8::{is_nonascii_or, space0_str, space1_str, take_utf8_while1
 // non-"tracing-recover" events. So it is both correct and faster to only emit
 // these spans when they are used, i.e. with "tracing-recover".
 #[cfg(feature = "tracing-recover")]
-use tracing::warn;
+use crate::utils::bytes_to_trace_string;
 use eml_codec_derives::instrument_input;
 use nom::{
     branch::alt,
@@ -17,12 +17,11 @@ use nom::{
     combinator::{map, opt, recognize},
     multi::many1,
     sequence::{pair, tuple},
-    IResult,
-    Parser,
+    IResult, Parser,
 };
 use std::borrow::Cow;
 #[cfg(feature = "tracing-recover")]
-use crate::utils::bytes_to_trace_string;
+use tracing::warn;
 
 /// Whitespace (space, new line, tab) content and
 /// delimited content (eg. comment, line, sections, etc.)
@@ -42,22 +41,18 @@ pub fn obs_crlf(input: &[u8]) -> IResult<&[u8], &str> {
         alt((
             tag(ascii::CRLF),
             map(
-                alt((
-                    tag(&[ascii::LF]),
-                    tag(ascii::CRCRLF),
-                    tag(&[ascii::CR]),
-                )),
+                alt((tag(&[ascii::LF]), tag(ascii::CRCRLF), tag(&[ascii::CR]))),
                 |input: &[u8]| {
                     #[cfg(feature = "tracing-recover")]
                     warn!(input = %unsafe { str::from_utf8_unchecked(input) },
                           "best-effort line ending");
                     input
-                }
-            )
+                },
+            ),
         )),
         |b: &[u8]|
         // SAFETY: CR and LF are ASCII characters
-        unsafe { str::from_utf8_unchecked(b) }
+        unsafe { str::from_utf8_unchecked(b) },
     )(input)
 }
 
@@ -75,27 +70,27 @@ pub fn foldable_line(full_line: bool) -> impl Fn(&[u8]) -> IResult<&[u8], &[u8]>
         let mut it = memchr2_iter(b'\r', b'\n', input);
         while let Some(i) = it.next() {
             if i == 0 && full_line {
-                break // reject input
+                break; // reject input
             }
 
-            match (input[i], input.get(i+1), input.get(i+2)) {
+            match (input[i], input.get(i + 1), input.get(i + 2)) {
                 (b'\r', Some(b'\n'), Some(b' ' | b'\t')) => {
                     let _ = it.next();
                     continue;
-                },
-                (b'\r', Some(b'\n'), _) => {
-                    return Ok((&input[i+2..], &input[0..i]))
-                },
+                }
+                (b'\r', Some(b'\n'), _) => return Ok((&input[i + 2..], &input[0..i])),
                 (_b /* \r | \n */, Some(b' ' | b'\t'), _) => {
                     #[cfg(feature = "tracing-recover")]
                     warn!(input = %bytes_to_trace_string(&[_b]), "foldable: best-effort line ending");
                     continue;
-                },
-                _ =>
-                    return Ok((&input[i+1..], &input[0..i])),
+                }
+                _ => return Ok((&input[i + 1..], &input[0..i])),
             }
         }
-        Err(nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::Fail)))
+        Err(nom::Err::Error(nom::error::Error::new(
+            input,
+            nom::error::ErrorKind::Fail,
+        )))
     }
 }
 
@@ -170,7 +165,7 @@ fn fold_marker(input: &[u8]) -> IResult<&[u8], Vec<&str>> {
 
 /// Folding White Space with Comment
 ///
-/// Note: we drop the comments for now...  
+/// Note: we drop the comments for now...
 ///
 /// ```abnf
 ///   ctext           =   %d33-39 /          ; Printable US-ASCII
@@ -195,8 +190,8 @@ fn fold_marker(input: &[u8]) -> IResult<&[u8], Vec<&str>> {
 /// This is why we resort to the the low-level iterative implementation
 /// of `comment` and `comment_body` below.
 #[instrument_input("tracing-recover")]
- pub fn cfws(input: &[u8]) -> IResult<&[u8], ()> {
-     alt((comments, fws.map(|_| ())))(input)
+pub fn cfws(input: &[u8]) -> IResult<&[u8], ()> {
+    alt((comments, fws.map(|_| ())))(input)
 }
 
 #[instrument_input("tracing-recover")]
@@ -221,7 +216,7 @@ pub fn comment_body(input: &[u8]) -> IResult<&[u8], ()> {
         if let Ok((input, _)) = pair(opt(fws), tag(")"))(cursor) {
             nesting -= 1;
             if nesting == 0 {
-                return Ok((input, ()))
+                return Ok((input, ()));
             }
             cursor = input;
             continue;
@@ -233,7 +228,8 @@ pub fn comment_body(input: &[u8]) -> IResult<&[u8], ()> {
                 recognize(quoted_pair),
                 recognize(encoded_word_plain(Context::Comment)),
                 recognize(ctext),
-            )).map(|_| false)
+            ))
+            .map(|_| false),
         ))(input)?;
 
         if enter_subcomment {
@@ -246,7 +242,7 @@ pub fn comment_body(input: &[u8]) -> IResult<&[u8], ()> {
 
 #[instrument_input("tracing-recover")]
 pub fn ctext(input: &[u8]) -> IResult<&[u8], Cow<'_, str>> {
-     take_utf8_while1(is_ctext)(input)
+    take_utf8_while1(is_ctext)(input)
 }
 
 /// RFC6532: ctext includes non-ascii UTF-8
@@ -299,9 +295,15 @@ mod tests {
     #[test]
     fn test_fws() {
         assert_eq!(fws(b"\r\n world"), Ok((&b"world"[..], vec![&" "[..]])));
-        assert_eq!(fws(b" \r\n \r\n world"), Ok((&b"world"[..], vec![&" "[..], &" "[..], &" "[..]])));
+        assert_eq!(
+            fws(b" \r\n \r\n world"),
+            Ok((&b"world"[..], vec![&" "[..], &" "[..], &" "[..]]))
+        );
         assert_eq!(fws(b" world"), Ok((&b"world"[..], vec![&" "[..]])));
-        assert_eq!(fws(b" \t  \r\n  world"), Ok((&b"world"[..], vec![&" \t  "[..], &"  "[..]])));
+        assert_eq!(
+            fws(b" \t  \r\n  world"),
+            Ok((&b"world"[..], vec![&" \t  "[..], &"  "[..]]))
+        );
         assert!(fws(b"\r\nFrom: test").is_err());
     }
 
@@ -309,10 +311,7 @@ mod tests {
     fn test_cfws() {
         assert_eq!(
             cfws(b"(A nice \\) chap) <pete(his account)@silly.test(his host)>"),
-            Ok((
-                &b"<pete(his account)@silly.test(his host)>"[..],
-                ()
-            ))
+            Ok((&b"<pete(his account)@silly.test(his host)>"[..], ()))
         );
         assert_eq!(
             cfws(b"(Chris's host.)public.example>,"),
@@ -334,10 +333,7 @@ mod tests {
 
     #[test]
     fn test_cfws_encoded_word() {
-        assert_eq!(
-            cfws(b"(=?US-ASCII?Q?Keith_Moore?=)"),
-            Ok((&b""[..], ())),
-        );
+        assert_eq!(cfws(b"(=?US-ASCII?Q?Keith_Moore?=)"), Ok((&b""[..], ())),);
     }
 
     #[test]
@@ -362,14 +358,8 @@ mod tests {
         );
 
         // empty line
-        assert_eq!(
-            foldable_line(false)(b"\r\n"),
-            Ok((&b""[..], &b""[..])),
-        );
-        assert_eq!(
-            foldable_line(false)(b"\n"),
-            Ok((&b""[..], &b""[..])),
-        );
+        assert_eq!(foldable_line(false)(b"\r\n"), Ok((&b""[..], &b""[..])),);
+        assert_eq!(foldable_line(false)(b"\n"), Ok((&b""[..], &b""[..])),);
         assert!(foldable_line(true)(b"\r\n").is_err());
         assert!(foldable_line(true)(b"\n").is_err());
     }

@@ -1,14 +1,13 @@
+#[cfg(feature = "tracing-recover")]
+use crate::utils::bytes_to_trace_string;
 use nom::{
     character::complete::{space0, space1},
     error::{Error, ErrorKind},
-    Err,
-    IResult
+    Err, IResult,
 };
-#[cfg(feature = "tracing-recover")]
-use tracing::warn;
 use std::borrow::Cow;
 #[cfg(feature = "tracing-recover")]
-use crate::utils::bytes_to_trace_string;
+use tracing::warn;
 
 /// Parses the input as a sequence of UTF-8 characters that satisfy the
 /// predicate `cond`. If invalid UTF-8 is encountered, it is replaced by
@@ -18,7 +17,8 @@ use crate::utils::bytes_to_trace_string;
 /// string gets allocated because of the need to insert replacement characters.
 /// This is similar to how [`String::from_utf8_lossy`] works.
 pub fn take_utf8_while1<F>(cond: F) -> impl Fn(&[u8]) -> IResult<&[u8], Cow<'_, str>>
-    where F: Fn(char) -> bool
+where
+    F: Fn(char) -> bool,
 {
     move |i: &[u8]| {
         let mut it = utf8_iter::ErrorReportingUtf8Chars::new(i);
@@ -29,11 +29,11 @@ pub fn take_utf8_while1<F>(cond: F) -> impl Fn(&[u8]) -> IResult<&[u8], Cow<'_, 
             match it.next() {
                 Some(Ok(c)) if cond(c) => {
                     rest = it.as_slice();
-                },
+                }
                 Some(Err(_)) => {
                     // encountered invalid UTF-8
-                    break
-                },
+                    break;
+                }
                 _ => {
                     // end of input or cond() returned false; stop reading.
                     //
@@ -52,12 +52,12 @@ pub fn take_utf8_while1<F>(cond: F) -> impl Fn(&[u8]) -> IResult<&[u8], Cow<'_, 
                         // iterator and break out of the loop as soon as it
                         // encounters bytes that are not valid UTF-8.)
                         let sub = unsafe { str::from_utf8_unchecked(&i[0..end]) };
-                        return Ok((rest, Cow::Borrowed(sub)))
+                        return Ok((rest, Cow::Borrowed(sub)));
                     } else {
                         return Err(Err::Error(Error {
                             input: i,
                             code: ErrorKind::TakeWhile1,
-                        }))
+                        }));
                     }
                 }
             }
@@ -81,7 +81,7 @@ pub fn take_utf8_while1<F>(cond: F) -> impl Fn(&[u8]) -> IResult<&[u8], Cow<'_, 
             match it.next() {
                 Some(Ok(c)) if cond(c) => {
                     rest = it.as_slice();
-                },
+                }
                 res => {
                     // invalid utf8, end of input, or cond() returned false
 
@@ -98,22 +98,26 @@ pub fn take_utf8_while1<F>(cond: F) -> impl Fn(&[u8]) -> IResult<&[u8], Cow<'_, 
                         rest = it.as_slice();
                     } else {
                         // otherwise, stop reading
-                        break
+                        break;
                     }
-                },
+                }
             }
         }
 
         if !s.is_empty() {
             Ok((rest, Cow::Owned(s)))
         } else {
-            Err(Err::Error(Error { input: i, code: ErrorKind::TakeWhile1 }))
+            Err(Err::Error(Error {
+                input: i,
+                code: ErrorKind::TakeWhile1,
+            }))
         }
     }
 }
 
 pub fn is_nonascii_or<F>(cond: F) -> impl Fn(char) -> bool
-    where F: Fn(u8) -> bool
+where
+    F: Fn(u8) -> bool,
 {
     move |c: char| {
         if c.is_ascii() {
@@ -126,7 +130,8 @@ pub fn is_nonascii_or<F>(cond: F) -> impl Fn(char) -> bool
 }
 
 pub fn is_ascii_and<F>(cond: F) -> impl Fn(char) -> bool
-    where F: Fn(u8) -> bool
+where
+    F: Fn(u8) -> bool,
 {
     move |c: char| {
         if c.is_ascii() {

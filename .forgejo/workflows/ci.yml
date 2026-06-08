@@ -1,0 +1,25 @@
+name: Continuous integration
+
+on:
+  push:
+    branches-ignore:
+      - "wip*"
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: "-D warnings"
+  RUSTDOCFLAGS: "-D warnings"
+
+jobs:
+  rust_check:
+    name: Rust code checks
+    runs-on: rust-latest
+    steps:
+      - uses: https://github.com/dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          components: clippy, rustfmt
+      - uses: actions/checkout@v6
+      - name: "Cargo formatting"
+        run: cargo fmt --all -- --check

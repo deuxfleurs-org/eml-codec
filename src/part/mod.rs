@@ -7,28 +7,27 @@ pub mod discrete;
 /// Representation of all headers in a MIME entity
 pub mod field;
 
-#[cfg(feature = "arbitrary")]
-use arbitrary::Arbitrary;
-#[cfg(feature = "tracing-unsupported")]
-use tracing::warn;
-use bounded_static::ToStatic;
-use std::borrow::Cow;
-#[cfg(feature = "arbitrary")]
-use crate::{
-    header,
-    arbitrary_utils::{arbitrary_shuffle, arbitrary_vec_where},
-    fuzz_eq::FuzzEq,
-    mime,
-};
-#[cfg(feature = "tracing-unsupported")]
-use crate::utils::bytes_to_trace_string;
 use crate::mime::{AnyMIME, MIME};
 use crate::part::{
     composite::{message, multipart, Message, Multipart},
     discrete::{Binary, Text},
 };
-use crate::print::{print_seq, Print, Formatter};
+use crate::print::{print_seq, Formatter, Print};
 use crate::raw_input::RawInput;
+#[cfg(feature = "tracing-unsupported")]
+use crate::utils::bytes_to_trace_string;
+#[cfg(feature = "arbitrary")]
+use crate::{
+    arbitrary_utils::{arbitrary_shuffle, arbitrary_vec_where},
+    fuzz_eq::FuzzEq,
+    header, mime,
+};
+#[cfg(feature = "arbitrary")]
+use arbitrary::Arbitrary;
+use bounded_static::ToStatic;
+use std::borrow::Cow;
+#[cfg(feature = "tracing-unsupported")]
+use tracing::warn;
 
 #[derive(Clone, Debug, PartialEq, ToStatic)]
 #[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
@@ -61,9 +60,8 @@ impl<'a> AnyPart<'a> {
                         f: mime.get_field(*e).unwrap(),
                         raw_body: raw_body.clone(),
                     }
-                },
-                field::EntityEntry::Unstructured(u) =>
-                    field::EntityField::Unstructured(u.clone()),
+                }
+                field::EntityEntry::Unstructured(u) => field::EntityField::Unstructured(u.clone()),
             };
             v.push(field);
         }
@@ -93,15 +91,19 @@ impl Default for AnyPart<'static> {
 impl<'a> Arbitrary<'a> for AnyPart<'a> {
     fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
         let mime_body: MimeBody = u.arbitrary()?;
-        let mut entries: Vec<field::EntityEntry> =
-            mime_body.mime()
-                     .field_entries()
-                     .into_iter()
-                     .map(|e| field::EntityEntry::MIME { e, raw_body: RawInput::none() })
-                     .collect();
-        let unstr: Vec<header::Unstructured> = arbitrary_vec_where(u, |f: &header::Unstructured| {
-            !mime::field::is_mime_header(&f.name)
-        })?;
+        let mut entries: Vec<field::EntityEntry> = mime_body
+            .mime()
+            .field_entries()
+            .into_iter()
+            .map(|e| field::EntityEntry::MIME {
+                e,
+                raw_body: RawInput::none(),
+            })
+            .collect();
+        let unstr: Vec<header::Unstructured> =
+            arbitrary_vec_where(u, |f: &header::Unstructured| {
+                !mime::field::is_mime_header(&f.name)
+            })?;
         entries.extend(unstr.into_iter().map(field::EntityEntry::Unstructured));
         arbitrary_shuffle(u, &mut entries)?;
         Ok(AnyPart {
@@ -178,16 +180,10 @@ impl<'a> MimeBody<'a> {
                 fmt.write_bytes(b"--");
                 fmt.write_crlf();
                 fmt.pop_boundary();
-            },
-            MimeBody::Msg(message) => {
-                message.child.print(fmt)
-            },
-            MimeBody::Txt(text) => {
-                fmt.write_bytes(&text.body)
-            },
-            MimeBody::Bin(binary) => {
-                fmt.write_bytes(&binary.body)
-            },
+            }
+            MimeBody::Msg(message) => message.child.print(fmt),
+            MimeBody::Txt(text) => fmt.write_bytes(&text.body),
+            MimeBody::Bin(binary) => fmt.write_bytes(&binary.body),
         }
     }
 }
@@ -231,9 +227,8 @@ pub fn part_body<'a>(m: AnyMIME<'a>) -> impl FnOnce(&'a [u8]) -> MimeBody<'a> {
                           "leftover input after multipart parsing")
                 }
                 part.into()
-            },
-            AnyMIME::Msg(a) =>
-                message(a)(input).into(),
+            }
+            AnyMIME::Msg(a) => message(a)(input).into(),
             AnyMIME::Txt(a) => MimeBody::Txt(Text {
                 mime: a,
                 body: Cow::Borrowed(input),

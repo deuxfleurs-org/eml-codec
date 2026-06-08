@@ -2,8 +2,8 @@
 use arbitrary::Arbitrary;
 use bounded_static::ToStatic;
 use nom::{
-    character::complete::digit1,
     bytes::complete::tag,
+    character::complete::digit1,
     combinator::{map, opt},
     sequence::tuple,
     IResult,
@@ -11,10 +11,10 @@ use nom::{
 
 #[cfg(feature = "arbitrary")]
 use crate::fuzz_eq::FuzzEq;
-use eml_codec_derives::instrument_input;
 use crate::i18n::ContainsUtf8;
-use crate::print::{Print, Formatter, ToStringFromPrint};
+use crate::print::{Formatter, Print, ToStringFromPrint};
 use crate::text::whitespace::cfws;
+use eml_codec_derives::instrument_input;
 
 #[derive(Clone, ContainsUtf8, Debug, PartialEq, ToStatic, ToStringFromPrint)]
 #[cfg_attr(feature = "arbitrary", derive(Arbitrary))]

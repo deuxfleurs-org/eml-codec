@@ -6,7 +6,7 @@ use tracing::warn;
 use crate::fuzz_eq::FuzzEq;
 use crate::header;
 use crate::mime;
-use crate::print::{Print, Formatter};
+use crate::print::{Formatter, Print};
 use crate::raw_input::RawInput;
 
 /// Header field of a generic MIME entity (a MIME entity that is not a toplevel
@@ -14,7 +14,10 @@ use crate::raw_input::RawInput;
 #[derive(Clone, Debug, PartialEq, ToStatic)]
 #[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
 pub enum EntityField<'a> {
-    MIME { f: mime::field::Field<'a>, raw_body: RawInput<'a> },
+    MIME {
+        f: mime::field::Field<'a>,
+        raw_body: RawInput<'a>,
+    },
     Unstructured(header::Unstructured<'a>),
 }
 
@@ -47,7 +50,10 @@ impl<'a> Print for EntityField<'a> {
 #[derive(Clone, Debug, PartialEq, ToStatic)]
 #[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
 pub enum EntityEntry<'a> {
-    MIME { e: mime::field::Entry, raw_body: RawInput<'a> },
+    MIME {
+        e: mime::field::Entry,
+        raw_body: RawInput<'a>,
+    },
     Unstructured(header::Unstructured<'a>),
 }
 
@@ -71,20 +77,23 @@ impl<'a> FromIterator<header::FieldRaw<'a>> for NaiveEntityFields<'a> {
             match mime::field::NaiveField::try_from(&f) {
                 Ok(mimef) => {
                     if let Some(entry) = e.mime.add_field(mimef) {
-                        e.entries.push(EntityEntry::MIME { e: entry, raw_body: f.body.into() })
+                        e.entries.push(EntityEntry::MIME {
+                            e: entry,
+                            raw_body: f.body.into(),
+                        })
                     } else {
                         // otherwise drop the field
                         #[cfg(feature = "tracing-recover")]
                         warn!(field = ?f, "dropping conflicting MIME field");
                     }
                     continue;
-                },
+                }
                 Err(mime::field::InvalidField::Body) => {
                     // this is a MIME field but its body is invalid; drop it.
                     #[cfg(feature = "tracing-unsupported")]
                     warn!(field = ?f, "dropping MIME field with an invalid body");
                     continue;
-                },
+                }
                 Err(mime::field::InvalidField::Name) => {
                     // not a MIME field
                     ()

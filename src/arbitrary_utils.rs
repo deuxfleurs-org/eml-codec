@@ -1,10 +1,10 @@
-use arbitrary::{Arbitrary, Unstructured, Result};
 use crate::text::ascii;
+use arbitrary::{Arbitrary, Result, Unstructured};
 
 pub fn arbitrary_vec_where<'a, F, T>(u: &mut Unstructured<'a>, pred: F) -> Result<Vec<T>>
 where
     F: for<'b> Fn(&'b T) -> bool,
-    T: Arbitrary<'a>
+    T: Arbitrary<'a>,
 {
     let len = u.arbitrary_len::<T>()?;
     let mut v = Vec::with_capacity(len);
@@ -13,16 +13,20 @@ where
         if pred(&x) {
             v.push(x)
         } else {
-            return Err(arbitrary::Error::IncorrectFormat)
+            return Err(arbitrary::Error::IncorrectFormat);
         }
     }
     Ok(v)
 }
 
-pub fn arbitrary_vec_nonempty_where<'a, F, T>(u: &mut Unstructured<'a>, pred: F, default: T) -> Result<Vec<T>>
+pub fn arbitrary_vec_nonempty_where<'a, F, T>(
+    u: &mut Unstructured<'a>,
+    pred: F,
+    default: T,
+) -> Result<Vec<T>>
 where
     F: for<'b> Fn(&'b T) -> bool,
-    T: Arbitrary<'a>
+    T: Arbitrary<'a>,
 {
     let mut v = arbitrary_vec_where(u, pred)?;
     if v.is_empty() {
@@ -33,7 +37,7 @@ where
 
 pub fn arbitrary_vec_nonempty<'a, T>(u: &mut Unstructured<'a>) -> Result<Vec<T>>
 where
-    T: Arbitrary<'a>
+    T: Arbitrary<'a>,
 {
     let (mut v, last): (Vec<T>, T) = u.arbitrary()?;
     v.push(last);
@@ -51,13 +55,17 @@ where
         if pred(c) {
             s.push(c)
         } else {
-            return Err(arbitrary::Error::IncorrectFormat)
+            return Err(arbitrary::Error::IncorrectFormat);
         }
     }
     Ok(s)
 }
 
-pub fn arbitrary_string_nonempty_where<'a, F>(u: &mut Unstructured<'a>, pred: F, default: char) -> Result<String>
+pub fn arbitrary_string_nonempty_where<'a, F>(
+    u: &mut Unstructured<'a>,
+    pred: F,
+    default: char,
+) -> Result<String>
 where
     F: Fn(char) -> bool,
 {

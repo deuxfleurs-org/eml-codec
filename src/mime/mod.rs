@@ -18,7 +18,7 @@ use crate::i18n::ContainsUtf8;
 use crate::imf::identification::MessageID;
 use crate::mime::field::NaiveField;
 use crate::mime::mechanism::Mechanism;
-use crate::mime::r#type::{AnyType, NaiveType, MessageSubtype};
+use crate::mime::r#type::{AnyType, MessageSubtype, NaiveType};
 use crate::text::misc_token::Unstructured;
 use crate::utils::set_opt;
 
@@ -32,9 +32,9 @@ pub struct CommonMIME<'a> {
 
 impl<'a> ContainsUtf8 for CommonMIME<'a> {
     fn contains_utf8(&self) -> bool {
-        self.transfer_encoding.contains_utf8() ||
-        self.id.contains_utf8() ||
-        self.description.contains_utf8()
+        self.transfer_encoding.contains_utf8()
+            || self.id.contains_utf8()
+            || self.description.contains_utf8()
     }
 }
 
@@ -126,14 +126,16 @@ impl<'a> AnyMIME<'a> {
 
     pub fn get_field(&self, f: field::Entry) -> Option<field::Field<'a>> {
         match f {
-            field::Entry::Type =>
-                Some(field::Field::Type(self.ctype())),
-            field::Entry::TransferEncoding =>
-                Some(field::Field::TransferEncoding(self.common().transfer_encoding.clone())),
-            field::Entry::ID =>
-                self.common().id.clone().map(field::Field::ID),
-            field::Entry::Description =>
-                self.common().description.clone().map(field::Field::Description),
+            field::Entry::Type => Some(field::Field::Type(self.ctype())),
+            field::Entry::TransferEncoding => Some(field::Field::TransferEncoding(
+                self.common().transfer_encoding.clone(),
+            )),
+            field::Entry::ID => self.common().id.clone().map(field::Field::ID),
+            field::Entry::Description => self
+                .common()
+                .description
+                .clone()
+                .map(field::Field::Description),
         }
     }
 
@@ -200,14 +202,16 @@ pub struct NaiveMIME<'a> {
 impl<'a> NaiveMIME<'a> {
     pub fn add_field(&mut self, f: NaiveField<'a>) -> Option<field::Entry> {
         match f {
-            NaiveField::Type(ctype) =>
-                set_opt(&mut self.ctype, ctype).then_some(field::Entry::Type),
-            NaiveField::TransferEncoding(enc) =>
-                set_opt(&mut self.transfer_encoding, enc).then_some(field::Entry::TransferEncoding),
-            NaiveField::ID(id) =>
-                set_opt(&mut self.id, id).then_some(field::Entry::ID),
-            NaiveField::Description(desc) =>
-                set_opt(&mut self.description, desc).then_some(field::Entry::Description),
+            NaiveField::Type(ctype) => {
+                set_opt(&mut self.ctype, ctype).then_some(field::Entry::Type)
+            }
+            NaiveField::TransferEncoding(enc) => {
+                set_opt(&mut self.transfer_encoding, enc).then_some(field::Entry::TransferEncoding)
+            }
+            NaiveField::ID(id) => set_opt(&mut self.id, id).then_some(field::Entry::ID),
+            NaiveField::Description(desc) => {
+                set_opt(&mut self.description, desc).then_some(field::Entry::Description)
+            }
         }
     }
 
@@ -217,8 +221,7 @@ impl<'a> NaiveMIME<'a> {
             .as_ref()
             .map(NaiveType::to_type)
             .unwrap_or(default_type.to_type());
-        let transfer_encoding = self.transfer_encoding
-            .unwrap_or_default();
+        let transfer_encoding = self.transfer_encoding.unwrap_or_default();
         let mut fields = CommonMIME {
             transfer_encoding,
             id: self.id,
@@ -229,15 +232,16 @@ impl<'a> NaiveMIME<'a> {
                 // Ensure we are using an encoding allowed for multipart
                 fields.transfer_encoding = fields.transfer_encoding.to_multipart_encoding();
                 AnyMIME::Mult(MIME { ctype, fields })
-            },
+            }
             AnyType::Message(ctype) => {
                 // Ensure we are using an encoding allowed for message/rfc822
                 if let MessageSubtype::RFC822 = ctype.subtype {
-                    fields.transfer_encoding = fields.transfer_encoding.to_message_rfc822_encoding();
+                    fields.transfer_encoding =
+                        fields.transfer_encoding.to_message_rfc822_encoding();
                 }
                 // TODO: enforce corresponding restrictions for other message subtypes?
                 AnyMIME::Msg(MIME { ctype, fields })
-            },
+            }
             AnyType::Text(ctype) => AnyMIME::Txt(MIME { ctype, fields }),
             AnyType::Binary(ctype) => AnyMIME::Bin(MIME { ctype, fields }),
         }

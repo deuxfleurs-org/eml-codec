@@ -4,8 +4,6 @@ use tracing::warn;
 
 #[cfg(feature = "arbitrary")]
 use crate::fuzz_eq::FuzzEq;
-#[cfg(feature = "tracing-unsupported")]
-use crate::utils::bytes_to_trace_string;
 use crate::header;
 use crate::imf::address::{nullable_address_list, AddressList};
 use crate::imf::datetime::{date_time, DateTime};
@@ -13,8 +11,10 @@ use crate::imf::identification::{msg_id, nullable_msg_list, MessageID, MessageID
 use crate::imf::mailbox::{mailbox, mailbox_list, MailboxList, MailboxRef};
 use crate::imf::mime::{version, Version};
 use crate::imf::trace::{return_path, ReturnPath};
-use crate::print::{Print, Formatter};
+use crate::print::{Formatter, Print};
 use crate::text::misc_token::{phrase_list, unstructured, PhraseList, Unstructured};
+#[cfg(feature = "tracing-unsupported")]
+use crate::utils::bytes_to_trace_string;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, ToStatic)]
 #[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
@@ -140,7 +140,8 @@ impl<'a> TryFrom<&header::FieldRaw<'a>> for Field<'a> {
     )]
     fn try_from(f: &header::FieldRaw<'a>) -> Result<Self, Self::Error> {
         fn bind_res<T, U, F>(res: nom::IResult<&[u8], T>, f: F) -> Result<U, InvalidField>
-        where F: Fn(T) -> Result<U, InvalidField>
+        where
+            F: Fn(T) -> Result<U, InvalidField>,
         {
             match res {
                 Ok((b"", content)) => f(content),
@@ -150,12 +151,13 @@ impl<'a> TryFrom<&header::FieldRaw<'a>> for Field<'a> {
                     warn!(rest = %bytes_to_trace_string(_rest),
                           "leftover input after parsing");
                     Err(InvalidField::Body)
-                },
-                Err(_) => Err(InvalidField::Body)
+                }
+                Err(_) => Err(InvalidField::Body),
             }
         }
         fn map_res<T, U, F>(res: nom::IResult<&[u8], T>, f: F) -> Result<U, InvalidField>
-        where F: Fn(T) -> U
+        where
+            F: Fn(T) -> U,
         {
             bind_res(res, |x| Ok(f(x)))
         }
@@ -233,29 +235,19 @@ impl<'a> TryFrom<&header::Unstructured<'a>> for Field<'static> {
             Some(s) => s.into(),
             None => u.body.to_string_keep_obs().into_bytes().into(),
         };
-        let hdr = header::FieldRaw { name: u.name.clone(), body: &bytes_body };
+        let hdr = header::FieldRaw {
+            name: u.name.clone(),
+            body: &bytes_body,
+        };
         Field::try_from(&hdr).map(IntoBoundedStatic::into_static)
     }
 }
 
 pub fn is_imf_header(name: &header::FieldName) -> bool {
     match name.bytes().to_ascii_lowercase().as_slice() {
-        b"date" |
-        b"from" |
-        b"sender" |
-        b"reply-to" |
-        b"to" |
-        b"cc" |
-        b"bcc" |
-        b"message-id" |
-        b"in-reply-to" |
-        b"references" |
-        b"subject" |
-        b"comments" |
-        b"keywords" |
-        b"return-path" |
-        b"received" |
-        b"mime-version" => true,
+        b"date" | b"from" | b"sender" | b"reply-to" | b"to" | b"cc" | b"bcc" | b"message-id"
+        | b"in-reply-to" | b"references" | b"subject" | b"comments" | b"keywords"
+        | b"return-path" | b"received" | b"mime-version" => true,
         _ => false,
     }
 }

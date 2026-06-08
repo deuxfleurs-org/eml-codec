@@ -2,10 +2,10 @@ use rayon::prelude::*;
 
 #[cfg(feature = "tracing")]
 use tracing::{
-    Event, Id, Level, Subscriber,
+    field::{Field, Visit},
     span,
     span::{Attributes, Record},
-    field::{Field, Visit},
+    Event, Id, Level, Subscriber,
 };
 #[cfg(feature = "tracing")]
 use tracing_subscriber::{
@@ -16,15 +16,11 @@ use tracing_subscriber::{
 
 #[cfg(feature = "tracing")]
 use std::{
-    collections::{HashSet, HashMap},
+    collections::{HashMap, HashSet},
     io::Write,
     sync::Arc,
 };
-use std::{
-    fs::File,
-    io::Read,
-    sync::Mutex,
-};
+use std::{fs::File, io::Read, sync::Mutex};
 
 // This small tool implements:
 // - a collector for the `tracing` events and spans emitted from the parser,
@@ -103,10 +99,13 @@ where
         let mut visitor = FieldVisitor::default();
         attrs.record(&mut visitor);
         let mut spans = self.spans.lock().unwrap();
-        spans.insert(id.clone(), SpanData {
-            name: attrs.metadata().name().to_string(),
-            fields: visitor.fields,
-        });
+        spans.insert(
+            id.clone(),
+            SpanData {
+                name: attrs.metadata().name().to_string(),
+                fields: visitor.fields,
+            },
+        );
     }
 
     fn on_record(&self, id: &Id, values: &Record<'_>, _ctx: Context<'_, S>) {
@@ -146,11 +145,15 @@ where
                 meta: span.fields.clone().into_iter().collect(),
             })
         }
-        serde_json::to_writer(&mut *file, &LogEvent {
-            trace: e_spans,
-            event: event.metadata().name().to_string(),
-            meta: visitor.fields.into_iter().collect(),
-        }).unwrap();
+        serde_json::to_writer(
+            &mut *file,
+            &LogEvent {
+                trace: e_spans,
+                event: event.metadata().name().to_string(),
+                meta: visitor.fields.into_iter().collect(),
+            },
+        )
+        .unwrap();
         file.write_all(b"\n").unwrap();
     }
 
@@ -174,7 +177,6 @@ struct LogEvent {
     meta: HashMap<&'static str, String>,
     trace: Vec<LogSpan>,
 }
-
 
 #[derive(serde::Serialize)]
 #[cfg(feature = "tracing")]
@@ -226,9 +228,7 @@ fn main() {
     #[cfg(feature = "tracing")]
     let (layer, _guard) = PruningLayer::new(None);
     #[cfg(feature = "tracing")]
-    tracing_subscriber::registry()
-        .with(layer)
-        .init();
+    tracing_subscriber::registry().with(layer).init();
 
     for path in std::env::args().skip(1) {
         let attr = std::fs::metadata(&path).expect(&format!("error reading {}", path));
@@ -254,12 +254,15 @@ fn main() {
                 let raw_emails = parse_mbox(&input);
                 eprintln!("{} emails found", raw_emails.len());
 
-                raw_emails.par_iter().enumerate().for_each(|(idx, raw_email)| {
-                    #[cfg(feature = "tracing")]
-                    let _span = span!(Level::TRACE, "mailbox email", %path, idx).entered();
-                    eprintln!("parsing mbox email {}", idx);
-                    let _eml = eml_codec::parse_message(raw_email);
-                })
+                raw_emails
+                    .par_iter()
+                    .enumerate()
+                    .for_each(|(idx, raw_email)| {
+                        #[cfg(feature = "tracing")]
+                        let _span = span!(Level::TRACE, "mailbox email", %path, idx).entered();
+                        eprintln!("parsing mbox email {}", idx);
+                        let _eml = eml_codec::parse_message(raw_email);
+                    })
             } else if path.ends_with(".zip") {
                 #[cfg(feature = "tracing")]
                 let _span = span!(Level::TRACE, "zip", %path).entered();
@@ -278,7 +281,8 @@ fn main() {
                         file.read_to_end(&mut input).unwrap();
                     }
                     #[cfg(feature = "tracing")]
-                    let _span = span!(Level::TRACE, "zip email", %path, fpath = %_fpath.unwrap()).entered();
+                    let _span =
+                        span!(Level::TRACE, "zip email", %path, fpath = %_fpath.unwrap()).entered();
                     let _eml = eml_codec::parse_message(&input);
                 })
             } else if path.ends_with(".tar") {
@@ -293,7 +297,8 @@ fn main() {
                     let _ = ent.read_to_end(&mut input).unwrap();
                     eprintln!("parsing email {}", fpath.display());
                     #[cfg(feature = "tracing")]
-                    let _span = span!(Level::TRACE, "tar email", %path, fpath = %fpath.display()).entered();
+                    let _span =
+                        span!(Level::TRACE, "tar email", %path, fpath = %fpath.display()).entered();
                     let _eml = eml_codec::parse_message(&input);
                 }
             } else {

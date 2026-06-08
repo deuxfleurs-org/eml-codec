@@ -12,13 +12,13 @@ use nom::{
 
 #[cfg(feature = "arbitrary")]
 use crate::fuzz_eq::FuzzEq;
-use eml_codec_derives::instrument_input;
 use crate::i18n::ContainsUtf8;
-use crate::imf::mailbox::{mailbox, mailbox_list_nullable, MailboxRef, MailboxList};
-use crate::print::{print_seq, Print, Formatter};
+use crate::imf::mailbox::{mailbox, mailbox_list_nullable, MailboxList, MailboxRef};
+use crate::print::{print_seq, Formatter, Print};
 use crate::text::misc_token::{phrase, Phrase};
 use crate::text::whitespace::cfws;
 use crate::utils::vec_filter_none_nonempty;
+use eml_codec_derives::instrument_input;
 
 #[derive(Clone, ContainsUtf8, Debug, PartialEq, ToStatic)]
 #[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
@@ -127,12 +127,9 @@ pub fn address_list(input: &[u8]) -> IResult<&[u8], Vec<AddressRef<'_>>> {
     map_opt(
         separated_list1(
             tag(","),
-            alt((
-                map(address, Some),
-                map(opt(cfws), |_| None),
-            ))
+            alt((map(address, Some), map(opt(cfws), |_| None))),
         ),
-        vec_filter_none_nonempty
+        vec_filter_none_nonempty,
     )(input)
 }
 
@@ -149,23 +146,29 @@ pub fn nullable_address_list(input: &[u8]) -> IResult<&[u8], Vec<AddressRef<'_>>
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::text::charset::EmailCharset;
     use crate::imf::mailbox::{AddrSpec, Domain, LocalPart, LocalPartToken};
     use crate::print::tests::print_to_vec;
+    use crate::text::charset::EmailCharset;
     use crate::text::misc_token::{Phrase, PhraseToken, Word};
     use crate::text::words::Atom;
 
     fn address_list_parsed_printed(addrlist: &[u8], printed: &[u8], parsed: AddressList<'_>) {
         assert_eq!(address_list(addrlist).unwrap(), (&b""[..], parsed.clone()));
         let reprinted = print_to_vec(parsed);
-        assert_eq!(String::from_utf8_lossy(&reprinted), String::from_utf8_lossy(printed));
+        assert_eq!(
+            String::from_utf8_lossy(&reprinted),
+            String::from_utf8_lossy(printed)
+        );
     }
 
     fn address_list_reprinted(addrlist: &[u8], printed: &[u8]) {
         let (input, parsed) = address_list(addrlist).unwrap();
         assert!(input.is_empty());
         let reprinted = print_to_vec(parsed);
-        assert_eq!(String::from_utf8_lossy(&reprinted), String::from_utf8_lossy(printed));
+        assert_eq!(
+            String::from_utf8_lossy(&reprinted),
+            String::from_utf8_lossy(printed)
+        );
     }
 
     #[test]

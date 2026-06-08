@@ -3,29 +3,26 @@ use arbitrary::Arbitrary;
 use bounded_static::ToStatic;
 use std::borrow::Cow;
 use std::fmt;
-#[cfg(feature = "tracing")]
-use tracing::{Level, span};
 #[cfg(feature = "tracing-recover")]
 use tracing::warn;
+#[cfg(feature = "tracing")]
+use tracing::{span, Level};
 
-#[cfg(feature = "arbitrary")]
-use crate::{
-    arbitrary_utils::arbitrary_vec_nonempty,
-    fuzz_eq::FuzzEq
-};
 use crate::header;
 use crate::message;
 use crate::mime;
-use crate::part::{self, AnyPart, field::NaiveEntityFields};
+use crate::part::{self, field::NaiveEntityFields, AnyPart};
 use crate::raw_input::RawInput;
 use crate::text::boundary::{boundary, Delimiter};
+#[cfg(feature = "arbitrary")]
+use crate::{arbitrary_utils::arbitrary_vec_nonempty, fuzz_eq::FuzzEq};
 
 //--- Multipart
 #[derive(Clone, PartialEq, ToStatic)]
 #[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
 pub struct Multipart<'a> {
     pub mime: mime::MIME<'a, mime::r#type::Multipart<'a>>,
-    // Invariant: `children` is non-empty 
+    // Invariant: `children` is non-empty
     pub children: Vec<AnyPart<'a>>,
     #[cfg_attr(feature = "arbitrary", fuzz_eq(ignore))]
     pub preamble: Cow<'a, [u8]>,
@@ -95,7 +92,7 @@ pub fn multipart<'a>(
                             epilogue: [][..].into(),
                             raw_body: raw_body.into(),
                         },
-                    )
+                    );
                 }
                 Ok((inp, Delimiter::Last)) => {
                     break (
@@ -119,10 +116,10 @@ pub fn multipart<'a>(
 
             // interpret mime according to context
             let mime = match m.ctype.subtype {
-                mime::r#type::MultipartSubtype::Digest =>
-                    mime.to_interpreted(mime::DefaultType::Digest).into(),
-                _ =>
-                    mime.to_interpreted(mime::DefaultType::Generic).into(),
+                mime::r#type::MultipartSubtype::Digest => {
+                    mime.to_interpreted(mime::DefaultType::Digest).into()
+                }
+                _ => mime.to_interpreted(mime::DefaultType::Generic).into(),
             };
 
             // parse raw part for the body
@@ -169,14 +166,17 @@ fn part_raw<'a, 'b>(bound: &[u8]) -> impl Fn(&'a [u8]) -> (&'a [u8], &'a [u8]) +
         for i in finder.find_iter(input) {
             // a boundary can be at the beginning of the input
             if i == 0 {
-                return (&input, &[])
+                return (&input, &[]);
             }
 
             // or it can be after a newline
             if i.checked_sub(1).is_some_and(|j| input[j] == b'\n') {
                 // best-effort: recognize both \n and \r\n before the boundary
-                let i = i.checked_sub(2).filter(|j| input[*j] == b'\r').unwrap_or(i-1);
-                return (&input[i..], &input[0..i])
+                let i = i
+                    .checked_sub(2)
+                    .filter(|j| input[*j] == b'\r')
+                    .unwrap_or(i - 1);
+                return (&input[i..], &input[0..i]);
             }
         }
         // no matching boundary found; return the entire input
@@ -218,12 +218,16 @@ impl<'a> Arbitrary<'a> for Message<'a> {
         let child: Box<message::Message<'a>> = u.arbitrary()?;
         // TODO: clarify whether we should take the body into account as well, and
         // not just the headers (for later when we start interpreting bodies?)
-        if matches!(mime.ctype.subtype, mime::r#type::MessageSubtype::RFC822) &&
-            child.contains_utf8_headers()
+        if matches!(mime.ctype.subtype, mime::r#type::MessageSubtype::RFC822)
+            && child.contains_utf8_headers()
         {
             mime.ctype.subtype = mime::r#type::MessageSubtype::Global
         }
-        Ok(Message { mime, child, raw_body: RawInput::none() })
+        Ok(Message {
+            mime,
+            child,
+            raw_body: RawInput::none(),
+        })
     }
 }
 
@@ -242,8 +246,8 @@ pub fn message<'a>(
         let mut msg_mime = m.clone();
         // If the headers contain non-ascii UTF8 and if this is a
         // message/RFC822, promote the message outer MIME to message/global
-        if msg.contains_utf8_headers() &&
-            matches!(msg_mime.ctype.subtype, mime::r#type::MessageSubtype::RFC822)
+        if msg.contains_utf8_headers()
+            && matches!(msg_mime.ctype.subtype, mime::r#type::MessageSubtype::RFC822)
         {
             msg_mime.ctype.subtype = mime::r#type::MessageSubtype::Global;
         }
@@ -261,8 +265,8 @@ mod tests {
     use super::*;
     use crate::mime::field::Entry;
     use crate::part::discrete::Text;
-    use crate::part::{AnyPart, MimeBody};
     use crate::part::field::EntityEntry;
+    use crate::part::{AnyPart, MimeBody};
     use crate::text::charset::EmailCharset;
     use pretty_assertions::assert_eq;
 
@@ -418,66 +422,78 @@ This is implicitly typed plain US-ASCII text.
 
         assert_eq!(
             multipart(base_mime.clone())(input),
-            (&b""[..],
-             Multipart {
-                 mime: base_mime,
-                 preamble: b"".into(),
-                 epilogue: b"".into(),
-                 children: vec![
-                     AnyPart {
-                         entries: vec![
-                             EntityEntry::MIME {
-                                 e: Entry::Type,
-                                 raw_body: b" multipart/mixed; boundary=\"inner boundary\"".into(),
-                             },
-                         ],
-                         mime_body: MimeBody::Mult(Multipart {
-                             mime: mime::MIME {
-                                 ctype: mime::r#type::Multipart {
-                                     subtype: mime::r#type::MultipartSubtype::Mixed,
-                                     boundary: Some("inner boundary".to_string()),
-                                     other_params: vec![],
-                                 },
-                                 fields: mime::CommonMIME::default(),
-                             },
-                             preamble: b"".into(),
-                             epilogue: b"".into(),
-                             children: vec![
-                                 AnyPart {
-                                     entries: vec![],
-                                     mime_body: MimeBody::Txt(Text {
-                                         mime: mime::MIME {
-                                             ctype: mime::r#type::Text::default(),
-                                             fields: mime::CommonMIME::default(),
-                                         },
-                                         body: b"This is the inner part; it misses its terminator".into(),
-                                         raw_body: RawInput::between(input, b"This is the inner", b"terminator"),
-                                     }),
-                                     raw: RawInput::between(input, b"\nThis is the inner", b"terminator"),
-                                     raw_headers: b"\n".into(),
-                                 },
-                             ],
-                             raw_body: RawInput::between(input, b"--inner boundary\n\nThis is the inner", b"terminator"),
-                         }),
-                         raw: RawInput::between(input, b"Content-Type", b"terminator"),
-                         raw_headers: b"Content-Type: multipart/mixed; boundary=\"inner boundary\"\n\n".into(),
-                     },
-                     AnyPart {
-                         entries: vec![],
-                         mime_body: MimeBody::Txt(Text {
-                             mime: mime::MIME {
-                                 ctype: mime::r#type::Text::default(),
-                                 fields: mime::CommonMIME::default(),
-                             },
-                             body: b"This is implicitly typed plain US-ASCII text.".into(),
-                             raw_body: b"This is implicitly typed plain US-ASCII text.".into(),
-                         }),
-                         raw: b"\nThis is implicitly typed plain US-ASCII text.".into(),
-                         raw_headers: b"\n".into(),
-                     },
-                 ],
-                 raw_body: input.into(),
-             },
+            (
+                &b""[..],
+                Multipart {
+                    mime: base_mime,
+                    preamble: b"".into(),
+                    epilogue: b"".into(),
+                    children: vec![
+                        AnyPart {
+                            entries: vec![EntityEntry::MIME {
+                                e: Entry::Type,
+                                raw_body: b" multipart/mixed; boundary=\"inner boundary\"".into(),
+                            },],
+                            mime_body: MimeBody::Mult(Multipart {
+                                mime: mime::MIME {
+                                    ctype: mime::r#type::Multipart {
+                                        subtype: mime::r#type::MultipartSubtype::Mixed,
+                                        boundary: Some("inner boundary".to_string()),
+                                        other_params: vec![],
+                                    },
+                                    fields: mime::CommonMIME::default(),
+                                },
+                                preamble: b"".into(),
+                                epilogue: b"".into(),
+                                children: vec![AnyPart {
+                                    entries: vec![],
+                                    mime_body: MimeBody::Txt(Text {
+                                        mime: mime::MIME {
+                                            ctype: mime::r#type::Text::default(),
+                                            fields: mime::CommonMIME::default(),
+                                        },
+                                        body: b"This is the inner part; it misses its terminator"
+                                            .into(),
+                                        raw_body: RawInput::between(
+                                            input,
+                                            b"This is the inner",
+                                            b"terminator"
+                                        ),
+                                    }),
+                                    raw: RawInput::between(
+                                        input,
+                                        b"\nThis is the inner",
+                                        b"terminator"
+                                    ),
+                                    raw_headers: b"\n".into(),
+                                },],
+                                raw_body: RawInput::between(
+                                    input,
+                                    b"--inner boundary\n\nThis is the inner",
+                                    b"terminator"
+                                ),
+                            }),
+                            raw: RawInput::between(input, b"Content-Type", b"terminator"),
+                            raw_headers:
+                                b"Content-Type: multipart/mixed; boundary=\"inner boundary\"\n\n"
+                                    .into(),
+                        },
+                        AnyPart {
+                            entries: vec![],
+                            mime_body: MimeBody::Txt(Text {
+                                mime: mime::MIME {
+                                    ctype: mime::r#type::Text::default(),
+                                    fields: mime::CommonMIME::default(),
+                                },
+                                body: b"This is implicitly typed plain US-ASCII text.".into(),
+                                raw_body: b"This is implicitly typed plain US-ASCII text.".into(),
+                            }),
+                            raw: b"\nThis is implicitly typed plain US-ASCII text.".into(),
+                            raw_headers: b"\n".into(),
+                        },
+                    ],
+                    raw_body: input.into(),
+                },
             )
         );
     }
@@ -507,28 +523,27 @@ leftovers";
 
         assert_eq!(
             multipart(base_mime.clone())(input),
-            (&b"\n--boundary+++out of cheese\n\nleftovers"[..],
-             Multipart {
-                 mime: base_mime,
-                 preamble: b"".into(),
-                 epilogue: b"".into(),
-                 children: vec![
-                     AnyPart {
-                         entries: vec![],
-                         mime_body: MimeBody::Txt(Text {
-                             mime: mime::MIME {
-                                 ctype: mime::r#type::Text::default(),
-                                 fields: mime::CommonMIME::default(),
-                             },
-                             body: b"Part text".into(),
-                             raw_body: b"Part text".into(),
-                         }),
-                         raw: b"\nPart text".into(),
-                         raw_headers: b"\n".into(),
-                     },
-                 ],
-                 raw_body: b"\n--boundary\n\nPart text".into(),
-             },
+            (
+                &b"\n--boundary+++out of cheese\n\nleftovers"[..],
+                Multipart {
+                    mime: base_mime,
+                    preamble: b"".into(),
+                    epilogue: b"".into(),
+                    children: vec![AnyPart {
+                        entries: vec![],
+                        mime_body: MimeBody::Txt(Text {
+                            mime: mime::MIME {
+                                ctype: mime::r#type::Text::default(),
+                                fields: mime::CommonMIME::default(),
+                            },
+                            body: b"Part text".into(),
+                            raw_body: b"Part text".into(),
+                        }),
+                        raw: b"\nPart text".into(),
+                        raw_headers: b"\n".into(),
+                    },],
+                    raw_body: b"\n--boundary\n\nPart text".into(),
+                },
             )
         );
     }
@@ -552,28 +567,27 @@ leftovers";
 
         assert_eq!(
             multipart(base_mime.clone())(input),
-            (&b""[..],
-             Multipart {
-                 mime: base_mime,
-                 preamble: b"".into(),
-                 epilogue: b"".into(),
-                 children: vec![
-                     AnyPart {
-                         entries: vec![],
-                         mime_body: MimeBody::Txt(Text {
-                             mime: mime::MIME {
-                                 ctype: mime::r#type::Text::default(),
-                                 fields: mime::CommonMIME::default(),
-                             },
-                             body: b"\r".into(),
-                             raw_body: b"\r".into(),
-                         }),
-                         raw: b"\n\r".into(),
-                         raw_headers: b"\n".into(),
-                     },
-                 ],
-                 raw_body: input.into(),
-             },
+            (
+                &b""[..],
+                Multipart {
+                    mime: base_mime,
+                    preamble: b"".into(),
+                    epilogue: b"".into(),
+                    children: vec![AnyPart {
+                        entries: vec![],
+                        mime_body: MimeBody::Txt(Text {
+                            mime: mime::MIME {
+                                ctype: mime::r#type::Text::default(),
+                                fields: mime::CommonMIME::default(),
+                            },
+                            body: b"\r".into(),
+                            raw_body: b"\r".into(),
+                        }),
+                        raw: b"\n\r".into(),
+                        raw_headers: b"\n".into(),
+                    },],
+                    raw_body: input.into(),
+                },
             )
         );
     }
@@ -593,14 +607,15 @@ leftovers";
 
         assert_eq!(
             multipart(base_mime.clone())(input),
-            (&b""[..],
-             Multipart {
-                 mime: base_mime,
-                 preamble: b"".into(),
-                 epilogue: b"".into(),
-                 children: vec![AnyPart::default()],
-                 raw_body: input.into(),
-             },
+            (
+                &b""[..],
+                Multipart {
+                    mime: base_mime,
+                    preamble: b"".into(),
+                    epilogue: b"".into(),
+                    children: vec![AnyPart::default()],
+                    raw_body: input.into(),
+                },
             )
         );
     }

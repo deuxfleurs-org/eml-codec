@@ -1,7 +1,5 @@
 #[cfg(feature = "arbitrary")]
 use arbitrary::Arbitrary;
-#[cfg(feature = "tracing")]
-use tracing::warn;
 use bounded_static::ToStatic;
 use nom::{
     branch::alt,
@@ -10,16 +8,18 @@ use nom::{
     sequence::tuple,
     IResult,
 };
+#[cfg(feature = "tracing")]
+use tracing::warn;
 
 #[cfg(feature = "arbitrary")]
 use crate::fuzz_eq::FuzzEq;
+use crate::i18n::ContainsUtf8;
+use crate::imf::mailbox;
+use crate::print::{Formatter, Print, ToStringFromPrint};
+use crate::text::{ascii, whitespace};
 #[cfg(feature = "tracing-recover")]
 use crate::utils::bytes_to_trace_string;
 use eml_codec_derives::instrument_input;
-use crate::i18n::ContainsUtf8;
-use crate::imf::mailbox;
-use crate::print::{Print, Formatter, ToStringFromPrint};
-use crate::text::{ascii, whitespace};
 
 #[derive(Clone, ContainsUtf8, Debug, PartialEq, ToStatic, ToStringFromPrint)]
 #[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
@@ -32,7 +32,7 @@ impl<'a> Print for ReturnPath<'a> {
                 fmt.write_bytes(b"<");
                 a.print(fmt);
                 fmt.write_bytes(b">");
-            },
+            }
             None => fmt.write_bytes(b"<>"),
         }
     }
@@ -54,7 +54,7 @@ pub fn return_path(input: &[u8]) -> IResult<&[u8], ReturnPath<'_>> {
             warn!(input = %bytes_to_trace_string(_i), "mailbox in return-path");
             ReturnPath(Some(m.addrspec))
         }),
-        empty_path
+        empty_path,
     ))(input)
 }
 
@@ -74,8 +74,8 @@ fn empty_path(input: &[u8]) -> IResult<&[u8], ReturnPath<'_>> {
 mod tests {
     use super::*;
     use crate::imf::mailbox::*;
-    use crate::text::words::Atom;
     use crate::text::misc_token::Word;
+    use crate::text::words::Atom;
 
     #[test]
     fn test_return_path() {
@@ -84,9 +84,9 @@ mod tests {
             Ok((
                 &b""[..],
                 ReturnPath(Some(AddrSpec {
-                    local_part: LocalPart(vec![
-                        LocalPartToken::Word(Word::Atom(Atom("foo"[..].into())))
-                    ]),
+                    local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(Atom(
+                        "foo"[..].into()
+                    )))]),
                     domain: Domain::Atoms(vec![Atom("example"[..].into()), Atom("com"[..].into())]),
                 }))
             ))
@@ -100,9 +100,9 @@ mod tests {
             Ok((
                 &b""[..],
                 ReturnPath(Some(AddrSpec {
-                    local_part: LocalPart(vec![
-                        LocalPartToken::Word(Word::Atom(Atom("foo"[..].into())))
-                    ]),
+                    local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(Atom(
+                        "foo"[..].into()
+                    )))]),
                     domain: Domain::Atoms(vec![Atom("example"[..].into()), Atom("com"[..].into())]),
                 }))
             ))
@@ -116,9 +116,9 @@ mod tests {
             Ok((
                 &b""[..],
                 ReturnPath(Some(AddrSpec {
-                    local_part: LocalPart(vec![
-                        LocalPartToken::Word(Word::Atom(Atom("foo"[..].into())))
-                    ]),
+                    local_part: LocalPart(vec![LocalPartToken::Word(Word::Atom(Atom(
+                        "foo"[..].into()
+                    )))]),
                     domain: Domain::Atoms(vec![Atom("example"[..].into()), Atom("com"[..].into())]),
                 }))
             ))

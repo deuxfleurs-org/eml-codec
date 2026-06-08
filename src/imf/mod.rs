@@ -17,9 +17,9 @@ use crate::fuzz_eq::FuzzEq;
 use crate::i18n::ContainsUtf8;
 use crate::imf::address::AddressRef;
 use crate::imf::datetime::DateTime;
-use crate::imf::field::{Field, Entry};
+use crate::imf::field::{Entry, Field};
 use crate::imf::identification::MessageID;
-use crate::imf::mailbox::{MailboxRef, MailboxList};
+use crate::imf::mailbox::{MailboxList, MailboxRef};
 use crate::imf::mime::Version;
 use crate::imf::trace::ReturnPath;
 use crate::text::misc_token::{PhraseList, Unstructured};
@@ -99,11 +99,10 @@ pub enum From<'a> {
 impl<'a> Arbitrary<'a> for From<'a> {
     fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
         match u.int_in_range(0..=3)? {
-            0 =>
-                Ok(From::Single {
-                    from: u.arbitrary()?,
-                    sender: u.arbitrary()?,
-                }),
+            0 => Ok(From::Single {
+                from: u.arbitrary()?,
+                sender: u.arbitrary()?,
+            }),
             1 => {
                 let mut from: MailboxList = u.arbitrary()?;
                 from.0.push(u.arbitrary()?);
@@ -111,18 +110,16 @@ impl<'a> Arbitrary<'a> for From<'a> {
                     from,
                     sender: u.arbitrary()?,
                 })
-            },
-            2 =>
-                Ok(From::InvalidMissingFrom {
-                    sender: u.arbitrary()?,
-                }),
+            }
+            2 => Ok(From::InvalidMissingFrom {
+                sender: u.arbitrary()?,
+            }),
             3 => {
                 let mut from: MailboxList = u.arbitrary()?;
                 from.0.push(u.arbitrary()?);
                 Ok(From::InvalidMissingSender { from })
-            },
-            _ =>
-                unreachable!()
+            }
+            _ => unreachable!(),
         }
     }
 }
@@ -162,7 +159,10 @@ impl<'a> Imf<'a> {
 
     pub fn from_or_sender(&self) -> Option<&MailboxRef<'a>> {
         match &self.from {
-            From::Single { from: _, sender: Some(sender) } => Some(sender),
+            From::Single {
+                from: _,
+                sender: Some(sender),
+            } => Some(sender),
             From::Single { from, sender: None } => Some(from),
             From::Multiple { from: _, sender } => Some(sender),
             From::InvalidMissingFrom { sender } => sender.as_ref(),
@@ -190,62 +190,57 @@ impl<'a> Imf<'a> {
 
     pub fn get_field(&self, f: field::Entry) -> Option<field::Field<'a>> {
         match f {
-            field::Entry::Date =>
-                match &self.date {
-                    DateTimeOpt::Some(d) => Some(field::Field::Date(d.clone())),
-                    DateTimeOpt::InvalidMissing => None,
-                },
+            field::Entry::Date => match &self.date {
+                DateTimeOpt::Some(d) => Some(field::Field::Date(d.clone())),
+                DateTimeOpt::InvalidMissing => None,
+            },
             field::Entry::From => self.from().map(field::Field::From),
             field::Entry::Sender => self.sender().map(field::Field::Sender),
-            field::Entry::ReplyTo =>
+            field::Entry::ReplyTo => {
                 if !self.reply_to.is_empty() {
                     Some(field::Field::ReplyTo(self.reply_to.clone()))
                 } else {
                     None
-                },
-            field::Entry::To =>
+                }
+            }
+            field::Entry::To => {
                 if !self.to.is_empty() {
                     Some(field::Field::To(self.to.clone()))
                 } else {
                     None
-                },
-            field::Entry::Cc =>
+                }
+            }
+            field::Entry::Cc => {
                 if !self.cc.is_empty() {
                     Some(field::Field::Cc(self.cc.clone()))
                 } else {
                     None
-                },
-            field::Entry::Bcc =>
-                self.bcc.clone().map(field::Field::Bcc),
-            field::Entry::MessageID =>
-                self.msg_id.clone().map(field::Field::MessageID),
-            field::Entry::InReplyTo =>
+                }
+            }
+            field::Entry::Bcc => self.bcc.clone().map(field::Field::Bcc),
+            field::Entry::MessageID => self.msg_id.clone().map(field::Field::MessageID),
+            field::Entry::InReplyTo => {
                 if !self.in_reply_to.is_empty() {
                     Some(field::Field::InReplyTo(self.in_reply_to.clone()))
                 } else {
                     None
-                },
-            field::Entry::References =>
+                }
+            }
+            field::Entry::References => {
                 if !self.references.is_empty() {
                     Some(field::Field::References(self.references.clone()))
                 } else {
                     None
-                },
-            field::Entry::Subject =>
-                self.subject.clone().map(field::Field::Subject),
-            field::Entry::Comments(i) =>
-                Some(field::Field::Comments(self.comments[i].clone())),
-            field::Entry::Keywords(i) =>
-                Some(field::Field::Keywords(self.keywords[i].clone())),
-            field::Entry::MIMEVersion =>
-                self.mime_version.clone().map(field::Field::MIMEVersion),
-            field::Entry::Trace(i) =>
-                match &self.trace[i] {
-                    TraceField::Received(r) =>
-                        Some(field::Field::Received(r.clone())),
-                    TraceField::ReturnPath(p) =>
-                        Some(field::Field::ReturnPath(p.clone())),
                 }
+            }
+            field::Entry::Subject => self.subject.clone().map(field::Field::Subject),
+            field::Entry::Comments(i) => Some(field::Field::Comments(self.comments[i].clone())),
+            field::Entry::Keywords(i) => Some(field::Field::Keywords(self.keywords[i].clone())),
+            field::Entry::MIMEVersion => self.mime_version.clone().map(field::Field::MIMEVersion),
+            field::Entry::Trace(i) => match &self.trace[i] {
+                TraceField::Received(r) => Some(field::Field::Received(r.clone())),
+                TraceField::ReturnPath(p) => Some(field::Field::ReturnPath(p.clone())),
+            },
         }
     }
 
@@ -271,16 +266,16 @@ impl<'a> Imf<'a> {
                 if sender.is_some() {
                     fs.insert(field::Entry::Sender);
                 }
-            },
+            }
             From::Multiple { from: _, sender: _ } => {
                 fs.insert(field::Entry::From);
                 fs.insert(field::Entry::Sender);
-            },
+            }
             From::InvalidMissingFrom { sender } => {
                 if sender.is_some() {
                     fs.insert(field::Entry::Sender);
                 }
-            },
+            }
             From::InvalidMissingSender { from: _ } => {
                 fs.insert(field::Entry::From);
             }
@@ -358,13 +353,12 @@ impl<'a> PartialImf<'a> {
     pub fn add_field(&mut self, f: Field<'a>) -> Result<Entry, AddFieldErr> {
         match &f {
             // trace fields
-            Field::ReturnPath(_) |
-            Field::Received(_) => {
+            Field::ReturnPath(_) | Field::Received(_) => {
                 if self.trace_complete {
                     // drop trace fields that come after other IMF fields
-                    return Err(AddFieldErr::Conflict)
+                    return Err(AddFieldErr::Conflict);
                 }
-            },
+            }
             // non-trace fields
             _ => {
                 // register the trace section to be complete as soon as
@@ -373,50 +367,42 @@ impl<'a> PartialImf<'a> {
             }
         }
         match f {
-            Field::Date(date) =>
-                set_if_new(&mut self.date, date, Entry::Date),
-            Field::From(from) =>
-                set_if_new(&mut self.from, from, Entry::From),
-            Field::Sender(sender) =>
-                set_if_new(&mut self.sender, sender, Entry::Sender),
-            Field::ReplyTo(reply_to) =>
-                set_if_new(&mut self.reply_to, reply_to, Entry::ReplyTo),
-            Field::To(to) =>
-                set_or_extend(&mut self.to, to, Entry::To),
-            Field::Cc(cc) =>
-                set_or_extend(&mut self.cc, cc, Entry::Cc),
-            Field::Bcc(bcc) =>
-                set_or_extend(&mut self.bcc, bcc, Entry::Bcc),
-            Field::MessageID(id) =>
-                set_if_new(&mut self.msg_id, id, Entry::MessageID),
-            Field::InReplyTo(in_reply_to) =>
-                set_if_new(&mut self.in_reply_to, in_reply_to, Entry::InReplyTo),
-            Field::References(refs) =>
-                set_if_new(&mut self.references, refs, Entry::References),
-            Field::Subject(subject) =>
-                set_if_new(&mut self.subject, subject, Entry::Subject),
+            Field::Date(date) => set_if_new(&mut self.date, date, Entry::Date),
+            Field::From(from) => set_if_new(&mut self.from, from, Entry::From),
+            Field::Sender(sender) => set_if_new(&mut self.sender, sender, Entry::Sender),
+            Field::ReplyTo(reply_to) => set_if_new(&mut self.reply_to, reply_to, Entry::ReplyTo),
+            Field::To(to) => set_or_extend(&mut self.to, to, Entry::To),
+            Field::Cc(cc) => set_or_extend(&mut self.cc, cc, Entry::Cc),
+            Field::Bcc(bcc) => set_or_extend(&mut self.bcc, bcc, Entry::Bcc),
+            Field::MessageID(id) => set_if_new(&mut self.msg_id, id, Entry::MessageID),
+            Field::InReplyTo(in_reply_to) => {
+                set_if_new(&mut self.in_reply_to, in_reply_to, Entry::InReplyTo)
+            }
+            Field::References(refs) => set_if_new(&mut self.references, refs, Entry::References),
+            Field::Subject(subject) => set_if_new(&mut self.subject, subject, Entry::Subject),
             Field::Comments(comments) => {
                 let idx = self.comments.len();
                 self.comments.push(comments);
                 Ok(Entry::Comments(idx))
-            },
+            }
             Field::Keywords(kwds) => {
                 let idx = self.keywords.len();
                 self.keywords.push(kwds);
                 Ok(Entry::Keywords(idx))
-            },
+            }
             Field::Received(received) => {
                 let idx = self.trace.len();
                 self.trace.push(TraceField::Received(received));
                 Ok(Entry::Trace(idx))
-            },
+            }
             Field::ReturnPath(path) => {
                 let idx = self.trace.len();
                 self.trace.push(TraceField::ReturnPath(path));
                 Ok(Entry::Trace(idx))
-            },
-            Field::MIMEVersion(version) =>
-                set_if_new(&mut self.mime_version, version, Entry::MIMEVersion),
+            }
+            Field::MIMEVersion(version) => {
+                set_if_new(&mut self.mime_version, version, Entry::MIMEVersion)
+            }
         }
     }
 
@@ -426,18 +412,13 @@ impl<'a> PartialImf<'a> {
             None => DateTimeOpt::InvalidMissing,
         };
         let from = match (self.from, self.sender) {
-            (None, sender) =>
-                From::InvalidMissingFrom { sender },
-            (Some(mut l), sender) if l.0.len() == 1 => {
-                From::Single {
-                    from: l.0.pop().unwrap(),
-                    sender,
-                }
+            (None, sender) => From::InvalidMissingFrom { sender },
+            (Some(mut l), sender) if l.0.len() == 1 => From::Single {
+                from: l.0.pop().unwrap(),
+                sender,
             },
-            (Some(l), Some(sender)) =>
-                From::Multiple { from: l, sender },
-            (Some(l), None) =>
-                From::InvalidMissingSender { from: l },
+            (Some(l), Some(sender)) => From::Multiple { from: l, sender },
+            (Some(l), None) => From::InvalidMissingSender { from: l },
         };
 
         Imf {
@@ -461,14 +442,23 @@ impl<'a> PartialImf<'a> {
 
 fn set_if_new<T: PartialEq, U>(o: &mut Option<T>, x: T, y: U) -> Result<U, AddFieldErr> {
     match *o {
-        None => { *o = Some(x); Ok(y) },
+        None => {
+            *o = Some(x);
+            Ok(y)
+        }
         Some(_) => Err(AddFieldErr::Conflict),
     }
 }
 
 fn set_or_extend<T, U>(o: &mut Option<Vec<T>>, x: Vec<T>, y: U) -> Result<U, AddFieldErr> {
     match o {
-        None => { *o = Some(x); Ok(y) },
-        Some(v) => { v.extend(x); Err(AddFieldErr::NoEntry) },
+        None => {
+            *o = Some(x);
+            Ok(y)
+        }
+        Some(v) => {
+            v.extend(x);
+            Err(AddFieldErr::NoEntry)
+        }
     }
 }
