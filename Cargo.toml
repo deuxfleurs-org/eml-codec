@@ -46,7 +46,7 @@ path = "examples/trace.rs"
 arbitrary = { version = "1.4.2", optional = true, default-features = false, features = [
     "derive",
 ] }
-base64 = "0.21"
+base64 = "0.22"
 bounded-static = { version = "0.8.0", features = ["derive"] }
 charset = "0.1.5"
 chrono = "0.4"
