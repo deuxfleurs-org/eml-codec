@@ -1,3 +1,5 @@
+use std::fmt::Write;
+
 pub(crate) fn set_opt<T>(o: &mut Option<T>, x: T) -> bool {
     match *o {
         None => {
@@ -31,7 +33,9 @@ pub fn bytes_to_display_string(bs: &[u8]) -> String {
             b'\r' => s.push_str("\\r"),
             b'\n' => s.push_str("\\n"),
             b'\t' => s.push_str("\\t"),
-            _ => s.push_str(&format!("\\{}", b)),
+            _ => {
+                let _ = write!(s, "\\{}", b); // Write in a string should never failed
+            }
         }
     }
     s.push('"');
@@ -45,7 +49,9 @@ pub fn bytes_to_trace_string(bs: &[u8]) -> String {
         match b {
             b'\\' => s.push_str("\\\\"),
             b if b.is_ascii() => s.push(*b as char),
-            _ => s.push_str(&format!("\\{}", b)),
+            _ => {
+                let _ = write!(s, "\\{}", b); // Write in a string should never failed
+            }
         }
     }
     s
