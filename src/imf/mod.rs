@@ -319,7 +319,7 @@ impl<'a> Imf<'a> {
     }
 }
 
-impl<'a> Default for Imf<'a> {
+impl Default for Imf<'_> {
     fn default() -> Self {
         Self::new()
     }

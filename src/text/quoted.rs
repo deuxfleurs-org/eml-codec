@@ -32,7 +32,7 @@ use eml_codec_derives::instrument_input;
 #[derive(Clone, ContainsUtf8, PartialEq, Default, ToStatic, ToStringFromPrint)]
 pub struct QuotedString<'a>(pub Vec<Cow<'a, str>>);
 
-impl<'a> fmt::Debug for QuotedString<'a> {
+impl fmt::Debug for QuotedString<'_> {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt.debug_tuple("QuotedString")
             .field(&self.0.iter().collect::<Vec<_>>())
@@ -56,7 +56,7 @@ impl<'a> QuotedString<'a> {
         }
     }
 }
-impl<'a> Print for QuotedString<'a> {
+impl Print for QuotedString<'_> {
     fn print(&self, fmt: &mut impl Formatter) {
         print_quoted(fmt, self.chars());
     }
@@ -86,7 +86,7 @@ impl<'a> Arbitrary<'a> for QuotedString<'a> {
 }
 
 #[cfg(feature = "arbitrary")]
-impl<'a> FuzzEq for QuotedString<'a> {
+impl FuzzEq for QuotedString<'_> {
     fn fuzz_eq(&self, other: &Self) -> bool {
         self.chars().collect::<String>() == other.chars().collect::<String>()
     }
@@ -103,7 +103,7 @@ enum QuotedStringCharsInner<'a> {
     FragmentChars(usize, std::str::Chars<'a>),
 }
 
-impl<'a, 'b> Iterator for QuotedStringChars<'a, 'b> {
+impl Iterator for QuotedStringChars<'_, '_> {
     type Item = char;
     fn next(&mut self) -> Option<Self::Item> {
         match &mut self.inner {

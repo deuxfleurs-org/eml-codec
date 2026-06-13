@@ -70,7 +70,7 @@ pub fn recover_broken_type<'a>(
 // XXX we allow printing content types without further validation;
 // this is not strictly allowed by the spec, which only allows
 // x-token or ietf-token on top of the RFC defined content types.
-impl<'a> Print for NaiveType<'a> {
+impl Print for NaiveType<'_> {
     fn print(&self, fmt: &mut impl Formatter) {
         self.main.print(fmt);
         fmt.write_bytes(b"/");
@@ -89,7 +89,7 @@ pub struct Parameter<'a> {
     pub name: MIMEAtom<'a>,
     pub value: MIMEWord<'a>,
 }
-impl<'a> Print for Parameter<'a> {
+impl Print for Parameter<'_> {
     fn print(&self, fmt: &mut impl Formatter) {
         self.name.print(fmt);
         fmt.write_bytes(b"=");
@@ -202,7 +202,7 @@ impl<'a> From<&NaiveType<'a>> for AnyType<'a> {
     }
 }
 
-impl<'a> Print for AnyType<'a> {
+impl Print for AnyType<'_> {
     fn print(&self, fmt: &mut impl Formatter) {
         match self {
             AnyType::Multipart(mp) => mp.print(fmt),
@@ -283,7 +283,7 @@ impl<'a> Arbitrary<'a> for Multipart<'a> {
     }
 }
 
-impl<'a> Print for Multipart<'a> {
+impl Print for Multipart<'_> {
     fn print(&self, fmt: &mut impl Formatter) {
         fmt.push_new_boundary();
         fmt.write_bytes(b"multipart/");
@@ -457,7 +457,7 @@ pub struct Message<'a> {
     pub params: Vec<Parameter<'a>>,
 }
 
-impl<'a> Print for Message<'a> {
+impl Print for Message<'_> {
     fn print(&self, fmt: &mut impl Formatter) {
         fmt.write_bytes(b"message/");
         self.subtype.print(fmt);
@@ -516,7 +516,7 @@ impl<'a> Arbitrary<'a> for Text<'a> {
     }
 }
 
-impl<'a> Print for Text<'a> {
+impl Print for Text<'_> {
     fn print(&self, fmt: &mut impl Formatter) {
         fmt.write_bytes(b"text/");
         self.subtype.print(fmt);
@@ -627,7 +627,7 @@ pub struct Binary<'a> {
     pub ctype: NaiveType<'a>,
 }
 
-impl<'a> Print for Binary<'a> {
+impl Print for Binary<'_> {
     fn print(&self, fmt: &mut impl Formatter) {
         self.ctype.print(fmt);
     }

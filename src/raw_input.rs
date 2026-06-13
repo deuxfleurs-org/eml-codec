@@ -35,7 +35,7 @@ impl<'a, const N: usize> From<&'a [u8; N]> for RawInput<'a> {
     }
 }
 
-impl<'a> fmt::Debug for RawInput<'a> {
+impl fmt::Debug for RawInput<'_> {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.0 {
             None => fmt.debug_tuple("None").finish(),
@@ -66,7 +66,7 @@ impl<'a> Arbitrary<'a> for RawInput<'a> {
 }
 
 #[cfg(feature = "arbitrary")]
-impl<'a> FuzzEq for RawInput<'a> {
+impl FuzzEq for RawInput<'_> {
     /// `RawInput` data is always informational and never part of the proper
     /// "canonical" AST data. We thus ignore its content when comparing it with
     /// `fuzz_eq`.
@@ -76,13 +76,13 @@ impl<'a> FuzzEq for RawInput<'a> {
 }
 
 // Moving to an owned version discards the reference to the input.
-impl<'a> IntoBoundedStatic for RawInput<'a> {
+impl IntoBoundedStatic for RawInput<'_> {
     type Static = RawInput<'static>;
     fn into_static(self) -> Self::Static {
         RawInput(None)
     }
 }
-impl<'a> ToBoundedStatic for RawInput<'a> {
+impl ToBoundedStatic for RawInput<'_> {
     type Static = RawInput<'static>;
     fn to_static(&self) -> Self::Static {
         RawInput(None)
@@ -90,7 +90,7 @@ impl<'a> ToBoundedStatic for RawInput<'a> {
 }
 
 // Ignore RawInput values wrt ContainsUtf8
-impl<'a> ContainsUtf8 for RawInput<'a> {
+impl ContainsUtf8 for RawInput<'_> {
     fn contains_utf8(&self) -> bool {
         false
     }

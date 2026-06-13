@@ -45,7 +45,7 @@ impl<'a> MessageField<'a> {
     }
 }
 
-impl<'a> Print for MessageField<'a> {
+impl Print for MessageField<'_> {
     fn print(&self, fmt: &mut impl Formatter) {
         match self {
             MessageField::MIME { f, .. } => f.print(fmt),

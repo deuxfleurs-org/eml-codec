@@ -30,7 +30,7 @@ pub struct Multipart<'a> {
     pub epilogue: Cow<'a, [u8]>,
     pub raw_body: RawInput<'a>,
 }
-impl<'a> fmt::Debug for Multipart<'a> {
+impl fmt::Debug for Multipart<'_> {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt.debug_struct("part::Multipart")
             .field("mime", &self.mime)

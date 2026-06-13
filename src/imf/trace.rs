@@ -25,7 +25,7 @@ use eml_codec_derives::instrument_input;
 #[cfg_attr(feature = "arbitrary", derive(Arbitrary, FuzzEq))]
 pub struct ReturnPath<'a>(pub Option<mailbox::AddrSpec<'a>>);
 
-impl<'a> Print for ReturnPath<'a> {
+impl Print for ReturnPath<'_> {
     fn print(&self, fmt: &mut impl Formatter) {
         match &self.0 {
             Some(a) => {

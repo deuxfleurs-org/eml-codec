@@ -574,7 +574,7 @@ pub fn print_to_vec<T: Print>(cfg: FmtConfig, x: T) -> Vec<u8> {
 }
 
 // Cow<'a, [u8]> is our base bytes type
-impl<'a> Print for std::borrow::Cow<'a, [u8]> {
+impl Print for std::borrow::Cow<'_, [u8]> {
     fn print(&self, fmt: &mut impl Formatter) {
         fmt.write_bytes(self);
     }

@@ -36,27 +36,27 @@ pub fn is_vchar(c: char) -> bool {
 #[contains_utf8(false)]
 pub struct MIMEAtom<'a>(pub Cow<'a, [u8]>);
 
-impl<'a> fmt::Debug for MIMEAtom<'a> {
+impl fmt::Debug for MIMEAtom<'_> {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt.debug_tuple("MIMEAtom")
             .field(&String::from_utf8_lossy(&self.0))
             .finish()
     }
 }
-impl<'a> Print for MIMEAtom<'a> {
+impl Print for MIMEAtom<'_> {
     fn print(&self, fmt: &mut impl Formatter) {
         fmt.write_bytes(&self.0);
     }
 }
 #[cfg(feature = "arbitrary")]
-impl<'a, 'b> Arbitrary<'a> for MIMEAtom<'b> {
+impl<'a> Arbitrary<'a> for MIMEAtom<'_> {
     fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
         let bytes = arbitrary_vec_nonempty_where(u, |c| is_mime_atom_text(*c), b'X')?;
         Ok(MIMEAtom(Cow::Owned(bytes)))
     }
 }
 #[cfg(feature = "arbitrary")]
-impl<'a> FuzzEq for MIMEAtom<'a> {
+impl FuzzEq for MIMEAtom<'_> {
     fn fuzz_eq(&self, other: &Self) -> bool {
         self == other
     }
@@ -71,7 +71,7 @@ pub struct MIMEAtomChars<'a, 'b> {
     a: &'b MIMEAtom<'a>,
     idx: usize,
 }
-impl<'a, 'b> Iterator for MIMEAtomChars<'a, 'b> {
+impl Iterator for MIMEAtomChars<'_, '_> {
     type Item = char;
     fn next(&mut self) -> Option<Self::Item> {
         if self.idx < self.a.0.len() {
@@ -128,7 +128,7 @@ pub fn mime_atom_plain(input: &[u8]) -> IResult<&[u8], MIMEAtom<'_>> {
 #[derive(Clone, ContainsUtf8, Debug, PartialEq, ToStatic, ToStringFromPrint)]
 pub struct Atom<'a>(pub Cow<'a, str>);
 
-impl<'a> Print for Atom<'a> {
+impl Print for Atom<'_> {
     fn print(&self, fmt: &mut impl Formatter) {
         fmt.write_bytes(self.0.as_bytes());
     }
@@ -151,7 +151,7 @@ impl<'a> Arbitrary<'a> for Atom<'a> {
     }
 }
 #[cfg(feature = "arbitrary")]
-impl<'a> FuzzEq for Atom<'a> {
+impl FuzzEq for Atom<'_> {
     fn fuzz_eq(&self, other: &Self) -> bool {
         self == other
     }
@@ -203,7 +203,7 @@ pub fn atom(input: &[u8]) -> IResult<&[u8], Atom<'_>> {
 #[derive(Clone, ContainsUtf8, Debug, PartialEq, ToStatic, ToStringFromPrint)]
 pub struct DotAtom<'a>(pub Cow<'a, str>);
 
-impl<'a> Print for DotAtom<'a> {
+impl Print for DotAtom<'_> {
     fn print(&self, fmt: &mut impl Formatter) {
         fmt.write_bytes(self.0.as_bytes());
     }
@@ -220,7 +220,7 @@ impl<'a> Arbitrary<'a> for DotAtom<'a> {
     }
 }
 #[cfg(feature = "arbitrary")]
-impl<'a> FuzzEq for DotAtom<'a> {
+impl FuzzEq for DotAtom<'_> {
     fn fuzz_eq(&self, other: &Self) -> bool {
         self == other
     }

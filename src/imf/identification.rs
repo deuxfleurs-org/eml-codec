@@ -39,7 +39,7 @@ pub enum MessageID<'a> {
     #[cfg_attr(feature = "arbitrary", fuzz_eq(use_eq))]
     Invalid(Cow<'a, str>),
 }
-impl<'a> Print for MessageID<'a> {
+impl Print for MessageID<'_> {
     fn print(&self, fmt: &mut impl Formatter) {
         fmt.write_bytes(b"<");
         match &self {
@@ -73,7 +73,7 @@ impl<'a> Arbitrary<'a> for MessageID<'a> {
 // Must be non-empty
 pub type MessageIDList<'a> = Vec<MessageID<'a>>;
 
-impl<'a> Print for MessageIDList<'a> {
+impl Print for MessageIDList<'_> {
     fn print(&self, fmt: &mut impl Formatter) {
         print_seq(fmt, self, Formatter::write_fws);
     }

@@ -198,7 +198,7 @@ impl<'a> From<Message<'a>> for MimeBody<'a> {
     }
 }
 
-impl<'a> Print for AnyPart<'a> {
+impl Print for AnyPart<'_> {
     fn print(&self, fmt: &mut impl Formatter) {
         fmt.begin_line_folding();
         print_seq(fmt, &self.field_list(), |_| ());

@@ -34,7 +34,7 @@ pub struct AddrSpec<'a> {
     pub local_part: LocalPart<'a>,
     pub domain: Domain<'a>,
 }
-impl<'a> Print for AddrSpec<'a> {
+impl Print for AddrSpec<'_> {
     fn print(&self, fmt: &mut impl Formatter) {
         self.local_part.print(fmt);
         fmt.write_bytes(b"@");
@@ -73,7 +73,7 @@ impl<'a> From<AddrSpec<'a>> for MailboxRef<'a> {
         }
     }
 }
-impl<'a> Print for MailboxRef<'a> {
+impl Print for MailboxRef<'_> {
     fn print(&self, fmt: &mut impl Formatter) {
         match &self.name {
             Some(name) => {
@@ -93,7 +93,7 @@ impl<'a> Print for MailboxRef<'a> {
 #[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
 pub struct MailboxList<'a>(pub Vec<MailboxRef<'a>>);
 
-impl<'a> Print for MailboxList<'a> {
+impl Print for MailboxList<'_> {
     fn print(&self, fmt: &mut impl Formatter) {
         print_seq(fmt, &self.0, |fmt| {
             fmt.write_bytes(b",");
@@ -239,7 +239,7 @@ pub enum LocalPartToken<'a> {
     Dot,
     Word(Word<'a>),
 }
-impl<'a> ContainsUtf8 for LocalPartToken<'a> {
+impl ContainsUtf8 for LocalPartToken<'_> {
     fn contains_utf8(&self) -> bool {
         match self {
             Self::Dot => false,
@@ -266,7 +266,7 @@ enum LocalPartCharsInner<'a, 'b> {
     NextToken(usize),
     Word(usize, WordChars<'a, 'b>),
 }
-impl<'a, 'b> Iterator for LocalPartChars<'a, 'b> {
+impl Iterator for LocalPartChars<'_, '_> {
     type Item = char;
     fn next(&mut self) -> Option<Self::Item> {
         match &mut self.inner {
@@ -299,13 +299,13 @@ impl<'a> Arbitrary<'a> for LocalPart<'a> {
     }
 }
 #[cfg(feature = "arbitrary")]
-impl<'a> FuzzEq for LocalPart<'a> {
+impl FuzzEq for LocalPart<'_> {
     fn fuzz_eq(&self, other: &Self) -> bool {
         self.chars().collect::<String>() == other.chars().collect::<String>()
     }
 }
 
-impl<'a> Print for LocalPart<'a> {
+impl Print for LocalPart<'_> {
     // Assumption: `self.bytes()` only contains ASCII bytes.
     fn print(&self, fmt: &mut impl Formatter) {
         // Parsing of local parts is more lenient than printing (both wrt
@@ -385,7 +385,7 @@ pub enum Domain<'a> {
     Literal(Vec<Dtext<'a>>),
 }
 
-impl<'a> Print for Domain<'a> {
+impl Print for Domain<'_> {
     fn print(&self, fmt: &mut impl Formatter) {
         match self {
             Domain::Atoms(atoms) => print_seq(fmt, atoms, |fmt| fmt.write_bytes(b".")),
@@ -472,7 +472,7 @@ fn inner_domain_literal(input: &[u8]) -> IResult<&[u8], Domain<'_>> {
 #[derive(Clone, ContainsUtf8, Debug, PartialEq, ToStatic, ToStringFromPrint)]
 pub struct Dtext<'a>(Cow<'a, str>);
 
-impl<'a> Dtext<'a> {
+impl Dtext<'_> {
     // Best-effort conversion of any `Dtext` contents into chars that all
     // satisfy `is_strict_dtext`.
     //
@@ -496,7 +496,7 @@ impl<'a> Dtext<'a> {
     }
 }
 
-impl<'a> Print for Dtext<'a> {
+impl Print for Dtext<'_> {
     fn print(&self, fmt: &mut impl Formatter) {
         fmt.write_bytes(self.to_strict_best_effort().0.as_bytes());
     }
@@ -509,7 +509,7 @@ impl<'a> Arbitrary<'a> for Dtext<'a> {
     }
 }
 #[cfg(feature = "arbitrary")]
-impl<'a> FuzzEq for Dtext<'a> {
+impl FuzzEq for Dtext<'_> {
     fn fuzz_eq(&self, other: &Self) -> bool {
         self.to_strict_best_effort() == other.to_strict_best_effort()
     }
@@ -536,7 +536,7 @@ fn is_obs_dtext(c: char) -> bool {
 }
 
 #[instrument_input("tracing")]
-pub fn dtext<'a>(input: &'a [u8]) -> IResult<&'a [u8], Dtext<'a>> {
+pub fn dtext(input: &[u8]) -> IResult<&[u8], Dtext<'_>> {
     map(take_utf8_while1(is_dtext), Dtext)(input)
 }
 

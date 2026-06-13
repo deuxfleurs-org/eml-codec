@@ -74,7 +74,7 @@ pub enum Field<'a> {
     MIMEVersion(Version),
 }
 
-impl<'a> Field<'a> {
+impl Field<'_> {
     pub fn raw_name(&self) -> header::FieldName<'static> {
         match self {
             Self::Date(_) => header::FieldName(b"Date".into()),
@@ -96,7 +96,7 @@ impl<'a> Field<'a> {
         }
     }
 }
-impl<'a> Print for Field<'a> {
+impl Print for Field<'_> {
     fn print(&self, fmt: &mut impl Formatter) {
         match self {
             Self::Date(d) => header::print(fmt, b"Date", d),

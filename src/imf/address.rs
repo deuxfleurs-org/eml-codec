@@ -26,7 +26,7 @@ pub struct GroupRef<'a> {
     pub name: Phrase<'a>,
     pub participants: Option<MailboxList<'a>>,
 }
-impl<'a> Print for GroupRef<'a> {
+impl Print for GroupRef<'_> {
     fn print(&self, fmt: &mut impl Formatter) {
         self.name.print(fmt);
         fmt.write_bytes(b":");
@@ -53,7 +53,7 @@ impl<'a> From<GroupRef<'a>> for AddressRef<'a> {
         AddressRef::Many(grp)
     }
 }
-impl<'a> Print for AddressRef<'a> {
+impl Print for AddressRef<'_> {
     fn print(&self, fmt: &mut impl Formatter) {
         match self {
             AddressRef::Single(mbox) => mbox.print(fmt),
@@ -64,7 +64,7 @@ impl<'a> Print for AddressRef<'a> {
 
 pub type AddressList<'a> = Vec<AddressRef<'a>>;
 
-impl<'a> Print for AddressList<'a> {
+impl Print for AddressList<'_> {
     fn print(&self, fmt: &mut impl Formatter) {
         print_seq(fmt, self, |fmt| {
             fmt.write_bytes(b",");

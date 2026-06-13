@@ -77,7 +77,7 @@ impl<'a> Message<'a> {
     }
 }
 
-impl<'a> Print for Message<'a> {
+impl Print for Message<'_> {
     fn print(&self, fmt: &mut impl Formatter) {
         fmt.begin_line_folding();
         print_seq(fmt, &self.field_list(), |_| ());
@@ -203,7 +203,7 @@ impl<'a> Arbitrary<'a> for Message<'a> {
 }
 
 /// Parse a toplevel message.
-pub fn message<'a>(input: &'a [u8]) -> Message<'a> {
+pub fn message(input: &[u8]) -> Message<'_> {
     // parse headers
     let (input_body, headers) = header::header_kv(input);
     let fields: NaiveMessageFields = headers.into_iter().collect();
@@ -219,7 +219,7 @@ pub fn message<'a>(input: &'a [u8]) -> Message<'a> {
     }
 }
 
-pub fn imf<'a>(input: &'a [u8]) -> (&'a [u8], imf::Imf<'a>) {
+pub fn imf(input: &[u8]) -> (&[u8], imf::Imf<'_>) {
     // parse headers
     let (input_body, headers) = header::header_kv(input);
     let fields: NaiveMessageFields = headers.into_iter().collect();
@@ -248,7 +248,7 @@ mod tests {
     use chrono::{FixedOffset, TimeZone};
     use pretty_assertions::assert_eq;
 
-    fn test_message_roundtrip<'a>(txt: &[u8], parsed: Message<'a>) {
+    fn test_message_roundtrip(txt: &[u8], parsed: Message<'_>) {
         assert_eq!(message(txt), parsed.clone());
         let printed = print_to_vec(parsed);
         assert_eq!(
@@ -257,7 +257,7 @@ mod tests {
         );
     }
 
-    fn test_message_parse_print<'a>(txt: &[u8], parsed: Message<'a>, printed: &[u8]) {
+    fn test_message_parse_print(txt: &[u8], parsed: Message<'_>, printed: &[u8]) {
         assert_eq!(message(txt), parsed.clone());
         let reprinted = print_to_vec(parsed);
         assert_eq!(

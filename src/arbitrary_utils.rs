@@ -44,7 +44,7 @@ where
     Ok(v)
 }
 
-pub fn arbitrary_string_where<'a, F>(u: &mut Unstructured<'a>, pred: F) -> Result<String>
+pub fn arbitrary_string_where<F>(u: &mut Unstructured<'_>, pred: F) -> Result<String>
 where
     F: Fn(char) -> bool,
 {
@@ -61,8 +61,8 @@ where
     Ok(s)
 }
 
-pub fn arbitrary_string_nonempty_where<'a, F>(
-    u: &mut Unstructured<'a>,
+pub fn arbitrary_string_nonempty_where<F>(
+    u: &mut Unstructured<'_>,
     pred: F,
     default: char,
 ) -> Result<String>

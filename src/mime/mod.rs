@@ -30,7 +30,7 @@ pub struct CommonMIME<'a> {
     pub description: Option<Unstructured<'a>>,
 }
 
-impl<'a> ContainsUtf8 for CommonMIME<'a> {
+impl ContainsUtf8 for CommonMIME<'_> {
     fn contains_utf8(&self) -> bool {
         self.transfer_encoding.contains_utf8()
             || self.id.contains_utf8()
@@ -156,7 +156,7 @@ impl<'a> AnyMIME<'a> {
         fs
     }
 }
-impl<'a> ContainsUtf8 for AnyMIME<'a> {
+impl ContainsUtf8 for AnyMIME<'_> {
     fn contains_utf8(&self) -> bool {
         match self {
             Self::Mult(v) => v.contains_utf8(),

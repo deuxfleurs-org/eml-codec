@@ -34,14 +34,14 @@ impl<'a> FieldName<'a> {
         &self.0
     }
 }
-impl<'a> fmt::Debug for FieldName<'a> {
+impl fmt::Debug for FieldName<'_> {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt.debug_tuple("FieldName")
             .field(&String::from_utf8_lossy(&self.0))
             .finish()
     }
 }
-impl<'a> Print for FieldName<'a> {
+impl Print for FieldName<'_> {
     fn print(&self, fmt: &mut impl Formatter) {
         fmt.write_bytes(&self.0);
     }
@@ -54,7 +54,7 @@ impl<'a> Arbitrary<'a> for FieldName<'a> {
     }
 }
 #[cfg(feature = "arbitrary")]
-impl<'a> FuzzEq for FieldName<'a> {
+impl FuzzEq for FieldName<'_> {
     fn fuzz_eq(&self, other: &Self) -> bool {
         self.0 == other.0
     }
@@ -78,7 +78,7 @@ pub struct FieldRaw<'a> {
     pub name: FieldName<'a>,
     pub body: &'a [u8],
 }
-impl<'a> fmt::Debug for FieldRaw<'a> {
+impl fmt::Debug for FieldRaw<'_> {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt.debug_struct("header::FieldRaw")
             .field("name", &self.name)
@@ -86,7 +86,7 @@ impl<'a> fmt::Debug for FieldRaw<'a> {
             .finish()
     }
 }
-impl<'a> ContainsUtf8 for FieldRaw<'a> {
+impl ContainsUtf8 for FieldRaw<'_> {
     fn contains_utf8(&self) -> bool {
         self.body.iter().any(|c| !c.is_ascii())
     }
@@ -194,7 +194,7 @@ impl<'a> Unstructured<'a> {
         })
     }
 }
-impl<'a> Print for Unstructured<'a> {
+impl Print for Unstructured<'_> {
     fn print(&self, fmt: &mut impl Formatter) {
         print_unstructured(fmt, &self.name.0, &self.body);
     }
@@ -210,10 +210,10 @@ pub fn print<T: Print>(fmt: &mut impl Formatter, name: &[u8], body: T) {
     fmt.write_crlf();
 }
 
-pub fn print_unstructured<'a>(
+pub fn print_unstructured(
     fmt: &mut impl Formatter,
     name: &[u8],
-    body: &misc_token::Unstructured<'a>,
+    body: &misc_token::Unstructured<'_>,
 ) {
     fmt.write_bytes(name);
     fmt.write_bytes(b":");

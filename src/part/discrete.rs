@@ -18,7 +18,7 @@ pub struct Text<'a> {
     pub raw_body: RawInput<'a>,
 }
 
-impl<'a> fmt::Debug for Text<'a> {
+impl fmt::Debug for Text<'_> {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt.debug_struct("part::Text")
             .field("mime", &self.mime)
@@ -48,7 +48,7 @@ pub struct Binary<'a> {
     pub raw_body: RawInput<'a>,
 }
 
-impl<'a> fmt::Debug for Binary<'a> {
+impl fmt::Debug for Binary<'_> {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt.debug_struct("part::Binary")
             .field("mime", &self.mime)

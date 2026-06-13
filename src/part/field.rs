@@ -37,7 +37,7 @@ impl<'a> EntityField<'a> {
     }
 }
 
-impl<'a> Print for EntityField<'a> {
+impl Print for EntityField<'_> {
     fn print(&self, fmt: &mut impl Formatter) {
         match self {
             EntityField::MIME { f, .. } => f.print(fmt),
