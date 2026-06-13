@@ -57,7 +57,7 @@ impl<'a> Arbitrary<'a> for Multipart<'a> {
 // REQUIRES: `m.ctype.boundary` is `Some(_)`. This is guaranteed by
 // the parser for `mime::MIME<_, Multipart>`.
 pub fn multipart<'a>(
-    m: mime::MIME<'a, mime::r#type::Multipart<'a>>,
+    m: &mime::MIME<'a, mime::r#type::Multipart<'a>>,
 ) -> impl Fn(&'a [u8]) -> (&'a [u8], Multipart<'a>) {
     let m = m.clone();
 
@@ -350,7 +350,7 @@ This is the epilogue. It is also to be ignored.
 ";
 
         assert_eq!(
-            multipart(base_mime.clone())(input),
+            multipart(&base_mime)(input),
             (&b""[..],
              Multipart {
                  mime: base_mime,
@@ -421,7 +421,7 @@ This is implicitly typed plain US-ASCII text.
 --outer boundary--";
 
         assert_eq!(
-            multipart(base_mime.clone())(input),
+            multipart(&base_mime)(input),
             (
                 &b""[..],
                 Multipart {
@@ -522,7 +522,7 @@ Part text
 leftovers";
 
         assert_eq!(
-            multipart(base_mime.clone())(input),
+            multipart(&base_mime)(input),
             (
                 &b"\n--boundary+++out of cheese\n\nleftovers"[..],
                 Multipart {
@@ -566,7 +566,7 @@ leftovers";
 ";
 
         assert_eq!(
-            multipart(base_mime.clone())(input),
+            multipart(&base_mime)(input),
             (
                 &b""[..],
                 Multipart {
@@ -606,7 +606,7 @@ leftovers";
         let input = b"--boundary--";
 
         assert_eq!(
-            multipart(base_mime.clone())(input),
+            multipart(&base_mime)(input),
             (
                 &b""[..],
                 Multipart {

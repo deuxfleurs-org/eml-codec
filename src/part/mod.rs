@@ -220,7 +220,7 @@ pub fn part_body<'a>(m: AnyMIME<'a>) -> impl FnOnce(&'a [u8]) -> MimeBody<'a> {
     move |input| {
         let part = match m {
             AnyMIME::Mult(a) => {
-                let (_rest, part) = multipart(a)(input);
+                let (_rest, part) = multipart(&a)(input);
                 #[cfg(feature = "tracing-unsupported")]
                 if !_rest.is_empty() {
                     warn!(rest = %bytes_to_trace_string(_rest),
