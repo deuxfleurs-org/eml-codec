@@ -16,7 +16,7 @@ pub fn derive_to_string_from_print(input: TokenStream) -> TokenStream {
             fn to_string(&self) -> String {
                 String::from_utf8_lossy(
                     &crate::print::print_to_vec(
-                        crate::print::FMT_NOFOLD,
+                        &crate::print::FMT_NOFOLD,
                         self,
                     )
                 ).to_string()

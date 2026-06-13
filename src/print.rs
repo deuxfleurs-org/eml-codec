@@ -221,7 +221,7 @@ impl Default for FmtConfig {
 }
 
 impl Fmt {
-    pub fn new(cfg: FmtConfig) -> Self {
+    pub fn new(cfg: &FmtConfig) -> Self {
         let rand = cfg
             .seed
             .map(RNG::seed_from_u64)
@@ -559,7 +559,7 @@ impl Boundaries {
 
 /// Creates a formatter, passes it to `f`, and returns the corresponding output
 /// as a Vec.
-pub fn print_to_vec_with<F>(cfg: FmtConfig, f: F) -> Vec<u8>
+pub fn print_to_vec_with<F>(cfg: &FmtConfig, f: F) -> Vec<u8>
 where
     F: for<'a> Fn(&'a mut Fmt),
 {
@@ -569,7 +569,7 @@ where
 }
 
 /// Prints a printable value as a Vec.
-pub fn print_to_vec<T: Print>(cfg: FmtConfig, x: T) -> Vec<u8> {
+pub fn print_to_vec<T: Print>(cfg: &FmtConfig, x: T) -> Vec<u8> {
     print_to_vec_with(cfg, |fmt| x.print(fmt))
 }
 
@@ -590,14 +590,14 @@ pub(crate) mod tests {
             seed: Some(0),
             ..FMT_DEFAULT
         };
-        super::print_to_vec_with(cfg, f)
+        super::print_to_vec_with(&cfg, f)
     }
     pub fn print_to_vec<T: Print>(x: T) -> Vec<u8> {
         let cfg = FmtConfig {
             seed: Some(0),
             ..FMT_DEFAULT
         };
-        super::print_to_vec(cfg, x)
+        super::print_to_vec(&cfg, x)
     }
 
     #[test]
