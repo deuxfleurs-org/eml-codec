@@ -24,7 +24,7 @@ impl<T: ContainsUtf8> ContainsUtf8 for Box<T> {
 }
 impl<T: ContainsUtf8> ContainsUtf8 for Vec<T> {
     fn contains_utf8(&self) -> bool {
-        self.iter().any(|x| x.contains_utf8())
+        self.iter().any(ContainsUtf8::contains_utf8)
     }
 }
 impl<'a> ContainsUtf8 for std::borrow::Cow<'a, str> {

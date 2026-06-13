@@ -229,7 +229,7 @@ pub fn quoted_string_plain(input: &[u8]) -> IResult<&[u8], QuotedString<'_>> {
         content
             .into_iter()
             .fold(QuotedString::default(), |mut acc, (maybe_wsp, c)| {
-                for wsp in maybe_wsp.into_iter().flat_map(|v| v.into_iter()) {
+                for wsp in maybe_wsp.into_iter().flat_map(IntoIterator::into_iter) {
                     acc.push_str(wsp);
                 }
                 if let Some(c) = c {
@@ -238,7 +238,7 @@ pub fn quoted_string_plain(input: &[u8]) -> IResult<&[u8], QuotedString<'_>> {
                 acc
             });
 
-    for wsp in maybe_wsp.into_iter().flat_map(|v| v.into_iter()) {
+    for wsp in maybe_wsp.into_iter().flat_map(IntoIterator::into_iter) {
         qstring.push_str(wsp);
     }
 

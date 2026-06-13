@@ -315,7 +315,7 @@ impl<'a, 'b> From<&'b [&'a str]> for Phrase<'a> {
 impl From<&[String]> for Phrase<'static> {
     fn from(words: &[String]) -> Self {
         use bounded_static::ToBoundedStatic;
-        let words: Vec<&str> = words.as_ref().iter().map(|s| s.as_str()).collect();
+        let words: Vec<&str> = words.as_ref().iter().map(String::as_str).collect();
         Phrase::from(words.as_slice()).to_static()
     }
 }
@@ -334,7 +334,7 @@ impl From<String> for Phrase<'static> {
 impl<'a> Phrase<'a> {
     /// Return a list of the space-separated "words" this phrase represents.
     pub fn data(&self) -> Vec<String> {
-        self.0.iter().map(|tok| tok.data()).collect()
+        self.0.iter().map(PhraseToken::data).collect()
     }
 
     // Merges consecutive Encoded tokens

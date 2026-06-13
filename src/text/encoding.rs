@@ -130,7 +130,10 @@ pub struct EncodedWord<'a>(pub Vec<EncodedWordToken<'a>>); // must be non-empty
 impl<'a> EncodedWord<'a> {
     /// Returns the data represented by this `EncodedWord`, encoded into UTF8
     pub fn data(&self) -> String {
-        self.0.iter().map(|tok| tok.data()).collect::<String>()
+        self.0
+            .iter()
+            .map(EncodedWordToken::data)
+            .collect::<String>()
     }
 
     /// Build an encoded word from UTF-8 chars. Uses the UTF-8 charset and
