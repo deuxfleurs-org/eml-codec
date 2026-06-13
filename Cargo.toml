@@ -70,6 +70,7 @@ walkdir = "2"
 zip = { version = "8.6", default-features = false }
 
 [lints.clippy]
+cargo = { level = "warn", priority = -1 }
 pedantic = { level = "warn", priority = -1 }
 # The individually activated lints below come from : nursery, restriction or suspicious.
 use_self = "warn"
