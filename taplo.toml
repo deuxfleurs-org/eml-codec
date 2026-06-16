@@ -1,4 +1,4 @@
-include = ["Cargo.toml", "taplo.toml"]
+include = ["**/Cargo.toml", "taplo.toml"]
 
 [formatting]
 array_auto_collapse = false
@@ -8,7 +8,7 @@ indent_string = "    "
 inline_table_expand = false
 
 [[rule]]
-include = ["Cargo.toml", "taplo.toml"]
+include = ["**/Cargo.toml", "taplo.toml"]
 keys = [
     "dependencies",
     "dev-dependencies",
