@@ -1,6 +1,6 @@
 [package]
 name = "eml-codec"
-version = "0.3.1"
+version = "0.4.0"
 edition = "2021"
 license = "GPL-3.0-or-later"
 repository = "https://git.deuxfleurs.fr/Deuxfleurs/eml-codec"
@@ -40,7 +40,7 @@ base64 = "0.21"
 bounded-static = { version = "0.8.0", features = ["derive"] }
 charset = "0.1.5"
 chrono = "0.4"
-eml_codec_derives = { path = "eml_codec_derives" }
+eml_codec_derives = { version = "0.4.0", path = "eml_codec_derives" }
 encoding_rs = "0.8"
 memchr = "2.8"
 nom = "7"

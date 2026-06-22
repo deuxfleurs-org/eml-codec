@@ -145,7 +145,7 @@ checksum = "56254986775e3233ffa9c4d7d3faaf6d36a2c09d30b20687e9f88bc8bafc16c8"
 
 [[package]]
 name = "eml-codec"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "arbitrary",
  "base64 0.21.7",
@@ -167,13 +167,12 @@ version = "0.0.0"
 dependencies = [
  "eml-codec",
  "libfuzzer-sys",
- "nom",
  "pretty_assertions",
 ]
 
 [[package]]
 name = "eml_codec_derives"
-version = "0.1.0"
+version = "0.4.0"
 dependencies = [
  "proc-macro2",
  "quote",

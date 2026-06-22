@@ -6,3 +6,4 @@ fuzz/corpus
 archive
 *.json
 *.json.gz
+eml_codec_derives/target
