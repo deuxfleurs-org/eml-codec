@@ -25,3 +25,10 @@ path = "fuzz_targets/message_parse.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "misc_properties"
+path = "fuzz_targets/misc_properties.rs"
+test = false
+doc = false
+bench = false

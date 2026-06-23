@@ -61,6 +61,16 @@ impl<'a> Print for QuotedString<'a> {
         print_quoted(fmt, self.chars())
     }
 }
+impl<'a> TryFrom<&'a str> for QuotedString<'a> {
+    type Error = (); // TODO
+    fn try_from(s: &'a str) -> Result<Self, Self::Error> {
+        if s.chars().all(is_strict_quoted_pair) {
+            Ok(Self(vec![s.into()]))
+        } else {
+            Err(())
+        }
+    }
+}
 
 #[cfg(feature = "arbitrary")]
 impl<'a> Arbitrary<'a> for QuotedString<'a> {

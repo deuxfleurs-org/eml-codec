@@ -133,6 +133,16 @@ impl<'a> Print for Atom<'a> {
         fmt.write_bytes(self.0.as_bytes())
     }
 }
+impl<'a> TryFrom<&'a str> for Atom<'a> {
+    type Error = (); // TODO
+    fn try_from(s: &'a str) -> Result<Self, Self::Error> {
+        if s.chars().all(is_atext) && !s.is_empty() {
+            Ok(Atom(s.into()))
+        } else {
+            Err(())
+        }
+    }
+}
 #[cfg(feature = "arbitrary")]
 impl<'a> Arbitrary<'a> for Atom<'a> {
     fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {

@@ -150,6 +150,17 @@ impl<'a> Word<'a> {
     }
 }
 
+impl<'a> TryFrom<&'a str> for Word<'a> {
+    type Error = (); // TODO
+    fn try_from(s: &'a str) -> Result<Self, Self::Error> {
+        if let Ok(a) = Atom::try_from(s) {
+            return Ok(Word::Atom(a));
+        }
+        let qs = QuotedString::try_from(s)?;
+        Ok(Word::Quoted(qs))
+    }
+}
+
 #[derive(Clone)]
 pub enum WordChars<'a, 'b> {
     Quoted(QuotedStringChars<'a, 'b>),
@@ -189,6 +200,15 @@ impl<'a> Print for PhraseToken<'a> {
         match self {
             PhraseToken::Word(w) => w.print(fmt),
             PhraseToken::Encoded(e) => e.print(fmt),
+        }
+    }
+}
+impl<'a> PhraseToken<'a> {
+    /// Returns the text string represented by this PhraseToken
+    pub fn data(&self) -> String {
+        match self {
+            Self::Word(w) => w.chars().collect(),
+            Self::Encoded(e) => e.data(),
         }
     }
 }
@@ -250,7 +270,55 @@ impl<'a> Print for Phrase<'a> {
     }
 }
 
+impl<'a, 'b> From<&'b [&'a str]> for Phrase<'a> {
+    /// A phrase represents a sequence of space-separated words. This builds a
+    /// phrase from a list of such words.
+    ///
+    /// Note: due to constraints of the phrase syntax, consecutive non-ascii
+    /// words passed to `from` are joined together (separated with a space) into
+    /// a single "phrase word".
+    ///
+    /// Guarantee: `Phrase::from(words).data().join(" ") == words.join(" ")`
+    fn from(mut words: &'b [&'a str]) -> Self {
+        let mut toks = vec![];
+        let mut to_encode: Vec<&str> = vec![];
+
+        let push_encoded = |to_encode: &mut Vec<&str>, toks: &mut Vec<_>| {
+            if !to_encode.is_empty() {
+                toks.push(PhraseToken::Encoded(encoding::EncodedWord::from_chars(
+                    to_encode.join(" ").chars(),
+                )));
+                to_encode.truncate(0);
+            }
+        };
+
+        while let [w, ws @ ..] = words {
+            // A `Word` can contain UTF8 text thanks to RFC6532, but we avoid
+            // relying on this RFC if we can as it does not seems to be well
+            // supported everywhere. Here we use an encoded word instead to
+            // represent non-ascii text.
+            if w.is_ascii() {
+                if let Ok(w) = Word::try_from(*w) {
+                    push_encoded(&mut to_encode, &mut toks);
+                    toks.push(PhraseToken::Word(w));
+                    words = ws;
+                    continue;
+                }
+            }
+            to_encode.push(w);
+            words = ws;
+        }
+        push_encoded(&mut to_encode, &mut toks);
+        Self(toks)
+    }
+}
+
 impl<'a> Phrase<'a> {
+    /// Return a list of the space-separated "words" this phrase represents.
+    pub fn data(&self) -> Vec<String> {
+        self.0.iter().map(|tok| tok.data()).collect()
+    }
+
     // Merges consecutive Encoded tokens
     #[cfg(feature = "arbitrary")]
     fn normalize(&self) -> Self {
@@ -566,6 +634,32 @@ mod tests {
     use crate::print::tests::print_to_vec;
     use crate::text::charset::EmailCharset;
     use crate::text::encoding::{EncodedWord, EncodedWordToken, QuotedChunk, QuotedWord};
+
+    #[test]
+    fn test_word_from() {
+        assert_eq!(Word::try_from("abc"), Ok(Word::Atom(Atom("abc".into()))),);
+
+        assert_eq!(Word::try_from("").unwrap().to_string(), "\"\"",);
+
+        assert_eq!(Word::try_from("a b").unwrap().to_string(), "\"a b\"",);
+    }
+
+    #[test]
+    fn test_phrase_from() {
+        let check = |words: &[&str]| {
+            let p = Phrase::from(words);
+            assert_eq!(words.join(" "), p.data().join(" "))
+        };
+
+        check(&["abc", "d ef", "éé", "à"]);
+        check(&["abc", "", "", "à"]);
+        check(&["éè", "a", "ö", "  ï", "w"]);
+
+        assert_eq!(
+            Phrase::from(&["a", "", "b c", "é", "ï"][..]).to_string(),
+            "a \"\" \"b c\" =?UTF-8?Q?=C3=A9_=C3=AF?=",
+        );
+    }
 
     #[test]
     fn test_phrase() {
