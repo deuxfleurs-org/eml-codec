@@ -270,10 +270,7 @@ impl<'a> Print for Phrase<'a> {
     }
 }
 
-impl<'a, S> From<S> for Phrase<'a>
-where
-    S: AsRef<[&'a str]>,
-{
+impl<'a, 'b> From<&'b [&'a str]> for Phrase<'a> {
     /// A phrase represents a sequence of space-separated words. This builds a
     /// phrase from a list of such words.
     ///
@@ -282,8 +279,7 @@ where
     /// a single "phrase word".
     ///
     /// Guarantee: `Phrase::from(words).data().join(" ") == words.join(" ")`
-    fn from(words: S) -> Self {
-        let mut words = words.as_ref();
+    fn from(mut words: &'b [&'a str]) -> Self {
         let mut toks = vec![];
         let mut to_encode: Vec<&str> = vec![];
 
@@ -314,6 +310,24 @@ where
         }
         push_encoded(&mut to_encode, &mut toks);
         Self(toks)
+    }
+}
+impl From<&[String]> for Phrase<'static> {
+    fn from(words: &[String]) -> Self {
+        use bounded_static::ToBoundedStatic;
+        let words: Vec<&str> = words.as_ref().iter().map(|s| s.as_str()).collect();
+        Phrase::from(words.as_slice()).to_static()
+    }
+}
+impl<'a> From<&'a str> for Phrase<'a> {
+    fn from(word: &'a str) -> Self {
+        Phrase::from(&[word][..])
+    }
+}
+impl From<String> for Phrase<'static> {
+    fn from(word: String) -> Self {
+        use bounded_static::ToBoundedStatic;
+        Phrase::from(&[word][..]).to_static()
     }
 }
 
@@ -660,7 +674,7 @@ mod tests {
         check(&["éè", "a", "ö", "  ï", "w"]);
 
         assert_eq!(
-            Phrase::from(&["a", "", "b c", "é", "ï"]).to_string(),
+            Phrase::from(&["a", "", "b c", "é", "ï"][..]).to_string(),
             "a \"\" \"b c\" =?UTF-8?Q?=C3=A9_=C3=AF?=",
         );
     }
