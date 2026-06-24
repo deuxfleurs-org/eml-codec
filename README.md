@@ -21,7 +21,7 @@ let email = eml_codec::parse_message(input);
 println!(
     "{} just sent you an email with subject \"{}\"",
     email.imf.from_or_sender().unwrap().to_string(),
-    email.imf.subject.unwrap().to_string(),
+    email.imf.subject.as_ref().unwrap().to_string(),
 );
 
 let bytes = eml_codec::print_message(email, None);

@@ -115,7 +115,7 @@ pub fn print_message(msg: message::Message<'_>, seed: Option<u64>) -> Vec<u8> {
 /// println!(
 ///     "{} just sent you an email with subject \"{}\"",
 ///     imf.from_or_sender().unwrap().to_string(),
-///     imf.subject.unwrap().to_string(),
+///     imf.subject.as_ref().unwrap().to_string(),
 /// );
 /// ```
 pub fn parse_imf(input: &[u8]) -> (&[u8], imf::Imf<'_>) {
