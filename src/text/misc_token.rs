@@ -270,7 +270,10 @@ impl<'a> Print for Phrase<'a> {
     }
 }
 
-impl<'a, 'b> From<&'b [&'a str]> for Phrase<'a> {
+impl<'a, S> From<S> for Phrase<'a>
+where
+    S: AsRef<[&'a str]>,
+{
     /// A phrase represents a sequence of space-separated words. This builds a
     /// phrase from a list of such words.
     ///
@@ -279,7 +282,8 @@ impl<'a, 'b> From<&'b [&'a str]> for Phrase<'a> {
     /// a single "phrase word".
     ///
     /// Guarantee: `Phrase::from(words).data().join(" ") == words.join(" ")`
-    fn from(mut words: &'b [&'a str]) -> Self {
+    fn from(words: S) -> Self {
+        let mut words = words.as_ref();
         let mut toks = vec![];
         let mut to_encode: Vec<&str> = vec![];
 
@@ -656,7 +660,7 @@ mod tests {
         check(&["éè", "a", "ö", "  ï", "w"]);
 
         assert_eq!(
-            Phrase::from(&["a", "", "b c", "é", "ï"][..]).to_string(),
+            Phrase::from(&["a", "", "b c", "é", "ï"]).to_string(),
             "a \"\" \"b c\" =?UTF-8?Q?=C3=A9_=C3=AF?=",
         );
     }
