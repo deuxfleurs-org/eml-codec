@@ -11,6 +11,7 @@ env:
 jobs:
   fuzz_check:
     runs-on: rust-latest
+    if: github.repository_owner == 'Deuxfleurs'
     steps:
       - uses: https://github.com/dtolnay/rust-toolchain@stable
         with:
