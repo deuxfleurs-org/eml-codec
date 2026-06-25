@@ -1,0 +1,43 @@
+name: Weekly fuzz
+
+on:
+  schedule:
+    - cron: "0 3 * * 1" # once a week the monday at 3
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  fuzz_check:
+    runs-on: rust-latest
+    steps:
+      - uses: https://github.com/dtolnay/rust-toolchain@stable
+        with:
+          toolchain: nightly
+          components: clippy, rustfmt
+      - uses: actions/checkout@v6
+      - uses: https://github.com/Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true # useful for don't rebuild dependencies on fix after failure
+      - name: cargo-fuzz install
+        run: cargo install cargo-fuzz
+      - name: run fuzz
+        run: |
+          set -eu
+          cd fuzz
+          timeout 3600 ./fuzz.sh message_print_parse
+          EXIT_CODE=$?
+          case $EXIT_CODE in
+            0)
+              echo "fuzz run end without error ?"
+              exit 1
+              ;;
+            124)
+              echo "fuzz run 60 minutes without error"
+              ;;
+            *)
+              echo "An error happen during fuzz: $EXIT_CODE"
+              exit 1
+              ;;
+          esac
