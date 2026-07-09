@@ -462,7 +462,7 @@ impl LineFolder {
         inner.extend_from_slice(&self.cur_fold);
         // reset fold state
         self.prev_fold = None;
-        self.cur_fold.truncate(0);
+        self.cur_fold.clear();
         self.cur_fold_is_only_fws = true;
         self.last_cut_candidate = None
     }

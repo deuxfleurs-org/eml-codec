@@ -288,7 +288,7 @@ impl<'a, 'b> From<&'b [&'a str]> for Phrase<'a> {
                 toks.push(PhraseToken::Encoded(encoding::EncodedWord::from_chars(
                     to_encode.join(" ").chars(),
                 )));
-                to_encode.truncate(0);
+                to_encode.clear();
             }
         };
 
