@@ -34,7 +34,7 @@ pub fn bytes_to_display_string(bs: &[u8]) -> String {
             b'\n' => s.push_str("\\n"),
             b'\t' => s.push_str("\\t"),
             _ => {
-                let _ = write!(s, "\\{}", b); // Write in a string should never failed
+                let _ = write!(s, "\\{b}"); // Write in a string should never failed
             }
         }
     }
@@ -50,7 +50,7 @@ pub fn bytes_to_trace_string(bs: &[u8]) -> String {
             b'\\' => s.push_str("\\\\"),
             b if b.is_ascii() => s.push(*b as char),
             _ => {
-                let _ = write!(s, "\\{}", b); // Write in a string should never failed
+                let _ = write!(s, "\\{b}"); // Write in a string should never failed
             }
         }
     }

@@ -116,7 +116,7 @@ impl Print for DateTime {
         let offset_mins = offset_secs.abs().rem_euclid(HOUR).div_euclid(MIN);
         let offset_hours = offset_secs.abs().div_euclid(HOUR);
         fmt.write_bytes(sign);
-        fmt.write_bytes(format!("{:02}{:02}", offset_hours, offset_mins).as_bytes());
+        fmt.write_bytes(format!("{offset_hours:02}{offset_mins:02}").as_bytes());
     }
 }
 
@@ -564,7 +564,7 @@ mod tests {
             .for_each(|(i, x)| {
                 let idx = i32::try_from(i).expect("index of iterator must be storable in an i32");
                 assert_eq!(
-                    date_time(format!("1 Jan 22 08:00:00 {}", x).as_bytes()),
+                    date_time(format!("1 Jan 22 08:00:00 {x}").as_bytes()),
                     Ok((
                         &b""[..],
                         DateTime(
@@ -586,7 +586,7 @@ mod tests {
             .for_each(|(i, x)| {
                 let idx = i32::try_from(i).expect("index of iterator must be storable in an i32");
                 assert_eq!(
-                    date_time(format!("1 Jan 22 08:00:00 {}", x).as_bytes()),
+                    date_time(format!("1 Jan 22 08:00:00 {x}").as_bytes()),
                     Ok((
                         &b""[..],
                         DateTime(

@@ -352,7 +352,7 @@ impl Print for QuotedChunk<'_> {
             QuotedChunk::Safe(b) => fmt.write_bytes(b),
             QuotedChunk::Encoded(e) => {
                 for c in e {
-                    fmt.write_bytes(format!("={:02X}", c).as_bytes());
+                    fmt.write_bytes(format!("={c:02X}").as_bytes());
                 }
             }
             QuotedChunk::Space => fmt.write_bytes(b"_"),
