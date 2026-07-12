@@ -97,6 +97,14 @@ impl Print for Message<'_> {
 #[cfg(feature = "arbitrary")]
 impl<'a> Arbitrary<'a> for Message<'a> {
     fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
+        fn arbitrary_unstructured<'a>(
+            u: &mut arbitrary::Unstructured<'a>,
+        ) -> arbitrary::Result<Vec<header::Unstructured<'a>>> {
+            arbitrary_vec_where(u, |f: &header::Unstructured| {
+                !imf::field::is_imf_header(&f.name) && !mime::field::is_mime_header(&f.name)
+            })
+        }
+
         let mut imf: Imf = u.arbitrary()?;
         // hack: because the printer (see above) prints a MIME-Version header if
         // it is missing, if we start with an AST without such a header, print
@@ -108,14 +116,6 @@ impl<'a> Arbitrary<'a> for Message<'a> {
         }
         let (trace_entries, imf_entries) = imf.field_entries();
         let mime_body: MimeBody = u.arbitrary()?;
-
-        fn arbitrary_unstructured<'a>(
-            u: &mut arbitrary::Unstructured<'a>,
-        ) -> arbitrary::Result<Vec<header::Unstructured<'a>>> {
-            arbitrary_vec_where(u, |f: &header::Unstructured| {
-                !imf::field::is_imf_header(&f.name) && !mime::field::is_mime_header(&f.name)
-            })
-        }
 
         // compute the trace section (which includes unstructured headers)
         let mut entries: Vec<_> = trace_entries
