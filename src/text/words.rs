@@ -27,7 +27,12 @@ use {arbitrary::Arbitrary, eyre::eyre};
 ///
 /// following RFC6532, this includes non-ascii UTF8 text
 pub fn is_vchar(c: char) -> bool {
-    is_nonascii_or(|c| (ascii::EXCLAMATION..=ascii::TILDE).contains(&c))(c)
+    is_nonascii_or(is_vchar_ascii)(c)
+}
+
+/// Printable ASCII characters
+pub fn is_vchar_ascii(c: u8) -> bool {
+    (ascii::EXCLAMATION..=ascii::TILDE).contains(&c)
 }
 
 /// A MIME atom.

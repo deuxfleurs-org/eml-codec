@@ -241,7 +241,7 @@ mod tests {
     use crate::print::tests::print_to_vec;
     use crate::text::charset::EmailCharset;
     use crate::text::encoding::{
-        Base64Word, EncodedWord, EncodedWordToken, QuotedChunk, QuotedWord,
+        Base64Word, Context, EncodedWord, EncodedWordToken, QuotedChunk, QuotedWord,
     };
     use crate::text::misc_token::*;
     use crate::text::words::Atom;
@@ -472,7 +472,7 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                                     EncodedWordToken::Quoted(QuotedWord {
                                         enc: EmailCharset::from(b"iso-8859-1"),
                                         chunks: vec![
-                                            QuotedChunk::Safe(b"Andr"[..].into()),
+                                            QuotedChunk::Safe(Context::Phrase, b"Andr"[..].into()),
                                             QuotedChunk::Encoded(vec![0xE9]),
                                         ],
                                     })

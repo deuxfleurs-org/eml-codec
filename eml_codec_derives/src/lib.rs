@@ -9,17 +9,17 @@ use syn::{punctuated::Punctuated, token::Comma, Attribute, LitStr, Variant};
 pub fn derive_to_string_from_print(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     let name = input.ident;
-    let (impl_generics, ty_generics, where_clauses) = input.generics.split_for_impl();
+    let generics = add_bounds(input.generics, quote! { Print });
+
+    let (impl_generics, ty_generics, where_clauses) = generics.split_for_impl();
 
     let expanded = quote! {
         impl #impl_generics ToString for #name #ty_generics #where_clauses {
             fn to_string(&self) -> String {
-                String::from_utf8_lossy(
-                    &crate::print::print_to_vec(
-                        &crate::print::FMT_NOFOLD,
-                        self,
-                    )
-                ).to_string()
+                crate::print::print_to_string(
+                    &crate::print::FMT_NOFOLD,
+                    self
+                )
             }
         }
     };

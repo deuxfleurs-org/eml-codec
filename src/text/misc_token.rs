@@ -11,13 +11,13 @@ use std::borrow::Cow;
 #[cfg(feature = "tracing")]
 use tracing::warn;
 #[cfg(feature = "arbitrary")]
-use {arbitrary::Arbitrary, eyre::Context};
+use {arbitrary::Arbitrary, eyre::Context as _};
 
 use crate::i18n::ContainsUtf8;
 use crate::print::{print_seq, Formatter, Print, ToStringFromPrint};
 use crate::text::{
     ascii,
-    encoding::{self, encoded_word, encoded_word_plain},
+    encoding::{self, encoded_word, encoded_word_plain, Context},
     quoted::{quoted_string, QuotedString, QuotedStringChars},
     utf8::take_utf8_while1,
     whitespace::{cfws, fws, is_obs_no_ws_ctl},
@@ -199,7 +199,7 @@ impl Print for PhraseToken<'_> {
     fn print(&self, fmt: &mut impl Formatter) {
         match self {
             PhraseToken::Word(w) => w.print(fmt),
-            PhraseToken::Encoded(e) => e.print(fmt),
+            PhraseToken::Encoded(e) => e.in_context(Context::Phrase).print(fmt),
         }
     }
 }
@@ -464,7 +464,7 @@ impl ContainsUtf8 for UnstrToken<'_> {
 impl Print for UnstrToken<'_> {
     fn print(&self, fmt: &mut impl Formatter) {
         match self {
-            UnstrToken::Encoded(e) => e.print(fmt),
+            UnstrToken::Encoded(e) => e.in_context(Context::Unstructured).print(fmt),
             UnstrToken::Plain(txt, UnstrTxtKind::Txt) => fmt.write_bytes(txt.as_bytes()),
             UnstrToken::Plain(_, UnstrTxtKind::Obs) =>
                 // skip obsolete parts
@@ -754,7 +754,7 @@ mod tests {
                 UnstrToken::Plain(" "[..].into(), UnstrTxtKind::Fws),
                 UnstrToken::Encoded(EncodedWord(vec![EncodedWordToken::Quoted(QuotedWord {
                     enc: EmailCharset::utf8(),
-                    chunks: vec![QuotedChunk::Safe(b"foo"[..].into())],
+                    chunks: vec![QuotedChunk::Safe(Context::Phrase, b"foo"[..].into())],
                 })]))
             ])
         );

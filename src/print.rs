@@ -28,18 +28,28 @@ pub trait Print {
     fn print(&self, fmt: &mut impl Formatter);
 }
 
+pub fn print_iter<I, T, Fmt>(fmt: &mut Fmt, it: I, sep: impl Fn(&mut Fmt))
+where
+    I: Iterator<Item = T>,
+    T: Print,
+    Fmt: Formatter,
+{
+    let mut first = true;
+    for x in it {
+        if !first {
+            sep(fmt);
+        }
+        x.print(fmt);
+        first = false;
+    }
+}
+
 pub fn print_seq<T, Fmt>(fmt: &mut Fmt, s: &[T], sep: impl Fn(&mut Fmt))
 where
     T: Print,
     Fmt: Formatter,
 {
-    if !s.is_empty() {
-        s[0].print(fmt);
-        for x in &s[1..] {
-            sep(fmt);
-            x.print(fmt);
-        }
-    }
+    print_iter(fmt, s.iter(), sep);
 }
 
 impl<T: Print> Print for &T {
@@ -573,6 +583,12 @@ where
 /// Prints a printable value as a Vec.
 pub fn print_to_vec<T: Print>(cfg: &FmtConfig, x: T) -> Vec<u8> {
     print_to_vec_with(cfg, |fmt| x.print(fmt))
+}
+
+/// Prints a printable value as a String.
+/// WARN: lossy if the printed value includes non-utf8 text.
+pub fn print_to_string<T: Print>(cfg: &FmtConfig, x: T) -> String {
+    String::from_utf8_lossy(print_to_vec(cfg, x).as_ref()).to_string()
 }
 
 // Cow<'a, [u8]> is our base bytes type
