@@ -1,6 +1,7 @@
 use nom::{
     branch::alt,
     bytes::complete::tag,
+    character::complete::space0,
     combinator::{eof, opt, recognize},
     sequence::tuple,
     IResult,
@@ -16,10 +17,11 @@ pub enum Delimiter {
 
 pub fn boundary<'a>(boundary: &[u8]) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], Delimiter> + '_ {
     move |input: &[u8]| {
-        let (rest, (_, _, _, last, _)) = tuple((
+        let (rest, (_, _, _, _, last, _)) = tuple((
             opt(recognize(obs_crlf)), // XXX is this opt spec compliant??
             tag(b"--"),
             tag(boundary),
+            space0, // transport-padding
             opt(tag(b"--")),
             alt((recognize(obs_crlf), eof)), // XXX obs_crlf is not exactly spec compliant
         ))(input)?;
@@ -47,6 +49,14 @@ mod tests {
         assert_eq!(
             boundary(b"hello")(b"\r\n--hello--\r\n"),
             Ok((&b""[..], Delimiter::Last))
+        );
+    }
+
+    #[test]
+    fn test_boundary_transport_padding() {
+        assert_eq!(
+            boundary(b"hello")(b"\n--hello  \t \n"),
+            Ok((&b""[..], Delimiter::Next))
         );
     }
 }
