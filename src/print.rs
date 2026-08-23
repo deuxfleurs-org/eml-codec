@@ -202,10 +202,12 @@ pub const FMT_DEFAULT: FmtConfig = FmtConfig {
 pub const FMT_NOFOLD: FmtConfig = FMT_DEFAULT.with_line_limit(None);
 
 impl FmtConfig {
+    #[must_use]
     pub const fn with_seed(self, seed: Option<u64>) -> Self {
         Self { seed, ..self }
     }
 
+    #[must_use]
     pub const fn with_line_limit(self, line_limit: Option<usize>) -> Self {
         Self { line_limit, ..self }
     }
