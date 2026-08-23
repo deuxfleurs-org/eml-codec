@@ -64,12 +64,12 @@ pub fn phrase_list(input: &[u8]) -> IResult<&[u8], Option<PhraseList<'_>>> {
         Ok((input, Some(PhraseList(phrases))))
     }
 }
-impl<'a> Print for PhraseList<'a> {
+impl Print for PhraseList<'_> {
     fn print(&self, fmt: &mut impl Formatter) {
         print_seq(fmt, &self.0, |fmt| {
             fmt.write_bytes(b",");
-            fmt.write_fws()
-        })
+            fmt.write_fws();
+        });
     }
 }
 
@@ -100,7 +100,7 @@ impl<'a> MIMEWord<'a> {
         }
     }
 }
-impl<'a> Print for MIMEWord<'a> {
+impl Print for MIMEWord<'_> {
     fn print(&self, fmt: &mut impl Formatter) {
         match self {
             MIMEWord::Quoted(q) => q.print(fmt),
@@ -115,7 +115,7 @@ pub enum MIMEWordChars<'a, 'b> {
     Atom(MIMEAtomChars<'a, 'b>),
 }
 
-impl<'a, 'b> Iterator for MIMEWordChars<'a, 'b> {
+impl Iterator for MIMEWordChars<'_, '_> {
     type Item = char;
     fn next(&mut self) -> Option<Self::Item> {
         match self {
@@ -132,7 +132,7 @@ pub enum Word<'a> {
     Atom(Atom<'a>),
 }
 
-impl<'a> Print for Word<'a> {
+impl Print for Word<'_> {
     fn print(&self, fmt: &mut impl Formatter) {
         match self {
             Word::Quoted(q) => q.print(fmt),
@@ -167,7 +167,7 @@ pub enum WordChars<'a, 'b> {
     Atom(std::str::Chars<'b>),
 }
 
-impl<'a, 'b> Iterator for WordChars<'a, 'b> {
+impl Iterator for WordChars<'_, '_> {
     type Item = char;
     fn next(&mut self) -> Option<Self::Item> {
         match self {
@@ -195,7 +195,7 @@ pub enum PhraseToken<'a> {
     Word(Word<'a>),
     Encoded(encoding::EncodedWord<'a>),
 }
-impl<'a> Print for PhraseToken<'a> {
+impl Print for PhraseToken<'_> {
     fn print(&self, fmt: &mut impl Formatter) {
         match self {
             PhraseToken::Word(w) => w.print(fmt),
@@ -203,8 +203,8 @@ impl<'a> Print for PhraseToken<'a> {
         }
     }
 }
-impl<'a> PhraseToken<'a> {
-    /// Returns the text string represented by this PhraseToken
+impl PhraseToken<'_> {
+    /// Returns the text string represented by this `PhraseToken`
     pub fn data(&self) -> String {
         match self {
             Self::Word(w) => w.chars().collect(),
@@ -264,9 +264,9 @@ pub fn phrase_token(input: &[u8]) -> IResult<&[u8], PhraseToken<'_>> {
 #[derive(Clone, ContainsUtf8, Debug, PartialEq, ToStatic, ToStringFromPrint)]
 pub struct Phrase<'a>(pub Vec<PhraseToken<'a>>);
 
-impl<'a> Print for Phrase<'a> {
+impl Print for Phrase<'_> {
     fn print(&self, fmt: &mut impl Formatter) {
-        print_seq(fmt, &self.0, Formatter::write_fws)
+        print_seq(fmt, &self.0, Formatter::write_fws);
     }
 }
 
@@ -315,7 +315,7 @@ impl<'a, 'b> From<&'b [&'a str]> for Phrase<'a> {
 impl From<&[String]> for Phrase<'static> {
     fn from(words: &[String]) -> Self {
         use bounded_static::ToBoundedStatic;
-        let words: Vec<&str> = words.as_ref().iter().map(|s| s.as_str()).collect();
+        let words: Vec<&str> = words.as_ref().iter().map(String::as_str).collect();
         Phrase::from(words.as_slice()).to_static()
     }
 }
@@ -331,10 +331,10 @@ impl From<String> for Phrase<'static> {
     }
 }
 
-impl<'a> Phrase<'a> {
+impl Phrase<'_> {
     /// Return a list of the space-separated "words" this phrase represents.
     pub fn data(&self) -> Vec<String> {
-        self.0.iter().map(|tok| tok.data()).collect()
+        self.0.iter().map(PhraseToken::data).collect()
     }
 
     // Merges consecutive Encoded tokens
@@ -344,7 +344,7 @@ impl<'a> Phrase<'a> {
         for tok in &self.0 {
             match (v.last_mut(), tok) {
                 (Some(PhraseToken::Encoded(ref mut e1)), PhraseToken::Encoded(e2)) => {
-                    e1.0.extend(e2.0.clone())
+                    e1.0.extend(e2.0.clone());
                 }
                 (_, tok) => v.push(tok.clone()),
             }
@@ -359,7 +359,7 @@ impl<'a> Arbitrary<'a> for Phrase<'a> {
     }
 }
 #[cfg(feature = "arbitrary")]
-impl<'a> FuzzEq for Phrase<'a> {
+impl FuzzEq for Phrase<'_> {
     fn fuzz_eq(&self, other: &Self) -> bool {
         self.normalize().0.fuzz_eq(&other.normalize().0)
     }
@@ -405,7 +405,7 @@ pub struct UtextToken<'a> {
 ///
 /// Parses a single run of either obsolete or non-obsolete
 /// characters.
-fn obs_utext_token<'a>(input: &'a [u8]) -> IResult<&'a [u8], UtextToken<'a>> {
+fn obs_utext_token(input: &[u8]) -> IResult<&[u8], UtextToken<'_>> {
     alt((
         take_utf8_while1(is_vchar).map(|s| UtextToken { txt: s, obs: false }),
         take_while1(|c| is_obs_no_ws_ctl(c) || c == ascii::NULL)
@@ -449,7 +449,7 @@ impl<'a> UnstrToken<'a> {
         }
     }
 }
-impl<'a> ContainsUtf8 for UnstrToken<'a> {
+impl ContainsUtf8 for UnstrToken<'_> {
     fn contains_utf8(&self) -> bool {
         match self {
             UnstrToken::Encoded(_) => false,
@@ -457,7 +457,7 @@ impl<'a> ContainsUtf8 for UnstrToken<'a> {
         }
     }
 }
-impl<'a> Print for UnstrToken<'a> {
+impl Print for UnstrToken<'_> {
     fn print(&self, fmt: &mut impl Formatter) {
         match self {
             UnstrToken::Encoded(e) => e.print(fmt),
@@ -502,7 +502,7 @@ impl<'a> Arbitrary<'a> for UnstrToken<'a> {
 #[derive(Debug, PartialEq, Clone, ToStatic, ToStringFromPrint)]
 pub struct Unstructured<'a>(pub Vec<UnstrToken<'a>>);
 
-impl<'a> Print for Unstructured<'a> {
+impl Print for Unstructured<'_> {
     fn print(&self, fmt: &mut impl Formatter) {
         for i in 0..self.0.len() {
             let tok = &self.0[i];
@@ -510,16 +510,16 @@ impl<'a> Print for Unstructured<'a> {
             // consecutive encoded tokens must be separated by whitespace
             if i > 0 {
                 if let (UnstrToken::Encoded(_), UnstrToken::Encoded(_)) = (&self.0[i - 1], tok) {
-                    fmt.write_fws()
+                    fmt.write_fws();
                 }
             }
 
-            tok.print(fmt)
+            tok.print(fmt);
         }
     }
 }
 
-impl<'a> Unstructured<'a> {
+impl Unstructured<'_> {
     pub fn to_string_keep_obs(&self) -> String {
         let mut s = String::new();
         for tok in &self.0 {
@@ -540,10 +540,10 @@ impl<'a> Unstructured<'a> {
         for tok in &self.0 {
             match (v.last_mut(), tok) {
                 (Some(UnstrToken::Plain(s1, k1)), UnstrToken::Plain(s2, k2)) if k1 == k2 => {
-                    s1.to_mut().push_str(s2)
+                    s1.to_mut().push_str(s2);
                 }
                 (Some(UnstrToken::Encoded(e1)), UnstrToken::Encoded(e2)) => {
-                    e1.0.extend(e2.to_static().0)
+                    e1.0.extend(e2.to_static().0);
                 }
                 _ => v.push(tok.to_static()),
             }
@@ -551,14 +551,14 @@ impl<'a> Unstructured<'a> {
         Unstructured(v)
     }
 }
-impl<'a> ContainsUtf8 for Unstructured<'a> {
+impl ContainsUtf8 for Unstructured<'_> {
     fn contains_utf8(&self) -> bool {
         self.0.contains_utf8()
     }
 }
 
 #[cfg(feature = "arbitrary")]
-impl<'a> FuzzEq for Unstructured<'a> {
+impl FuzzEq for Unstructured<'_> {
     fn fuzz_eq(&self, other: &Self) -> bool {
         self.fuzz_eq_normalize()
             .0
@@ -603,8 +603,8 @@ impl<'a> Arbitrary<'a> for Unstructured<'a> {
                     before_last = last;
                     last = Some(ktok);
                 }
-            };
-            v.push(tok)
+            }
+            v.push(tok);
         }
         Ok(Unstructured(v))
     }
@@ -619,14 +619,14 @@ impl<'a> Arbitrary<'a> for Unstructured<'a> {
 /// ```
 /// + RFC 2047 (MIME pt3) encoded words
 ///
-/// However, in our relaxed parsing of line endings in whitespace::obs_crlf,
+/// However, in our relaxed parsing of line endings in `whitespace::obs_crlf`,
 /// bare CR or LF are treated as line endings and thus cannot also be part of
 /// the obs-unstruct syntax.
 ///
 /// We thus choose to parse obs-unstruct minus the bare CR and LF, which
 /// corresponds to (also adding RFC2047 encoded words):
 ///
-/// our-obs-unstruct    =   *(encoded-words / obs_utext / FWS)
+/// our-obs-unstruct    =   *(encoded-words / `obs_utext` / FWS)
 ///
 /// This does not match the RFC but seems to better match real-world practices.
 #[instrument_input("tracing")]
@@ -666,7 +666,7 @@ mod tests {
     fn test_phrase_from() {
         let check = |words: &[&str]| {
             let p = Phrase::from(words);
-            assert_eq!(words.join(" "), p.data().join(" "))
+            assert_eq!(words.join(" "), p.data().join(" "));
         };
 
         check(&["abc", "d ef", "éé", "à"]);

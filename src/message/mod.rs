@@ -77,7 +77,7 @@ impl<'a> Message<'a> {
     }
 }
 
-impl<'a> Print for Message<'a> {
+impl Print for Message<'_> {
     fn print(&self, fmt: &mut impl Formatter) {
         fmt.begin_line_folding();
         print_seq(fmt, &self.field_list(), |_| ());
@@ -97,6 +97,14 @@ impl<'a> Print for Message<'a> {
 #[cfg(feature = "arbitrary")]
 impl<'a> Arbitrary<'a> for Message<'a> {
     fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
+        fn arbitrary_unstructured<'a>(
+            u: &mut arbitrary::Unstructured<'a>,
+        ) -> arbitrary::Result<Vec<header::Unstructured<'a>>> {
+            arbitrary_vec_where(u, |f: &header::Unstructured| {
+                !imf::field::is_imf_header(&f.name) && !mime::field::is_mime_header(&f.name)
+            })
+        }
+
         let mut imf: Imf = u.arbitrary()?;
         // hack: because the printer (see above) prints a MIME-Version header if
         // it is missing, if we start with an AST without such a header, print
@@ -108,14 +116,6 @@ impl<'a> Arbitrary<'a> for Message<'a> {
         }
         let (trace_entries, imf_entries) = imf.field_entries();
         let mime_body: MimeBody = u.arbitrary()?;
-
-        fn arbitrary_unstructured<'a>(
-            u: &mut arbitrary::Unstructured<'a>,
-        ) -> arbitrary::Result<Vec<header::Unstructured<'a>>> {
-            arbitrary_vec_where(u, |f: &header::Unstructured| {
-                !imf::field::is_imf_header(&f.name) && !mime::field::is_mime_header(&f.name)
-            })
-        }
 
         // compute the trace section (which includes unstructured headers)
         let mut entries: Vec<_> = trace_entries
@@ -134,14 +134,14 @@ impl<'a> Arbitrary<'a> for Message<'a> {
         // Renumber Trace entries so that their index is in order.
         {
             let mut id = 0;
-            for ent in entries.iter_mut() {
+            for ent in &mut entries {
                 if let MessageEntry::Imf {
                     e: e @ imf::field::Entry::Trace(_),
                     ..
                 } = ent
                 {
                     *e = imf::field::Entry::Trace(id);
-                    id += 1
+                    id += 1;
                 }
             }
         }
@@ -170,21 +170,21 @@ impl<'a> Arbitrary<'a> for Message<'a> {
         {
             let mut comments_id = 0;
             let mut keywords_id = 0;
-            for ent in rest.iter_mut() {
+            for ent in &mut rest {
                 if let MessageEntry::Imf {
                     e: e @ imf::field::Entry::Comments(_),
                     ..
                 } = ent
                 {
                     *e = imf::field::Entry::Comments(comments_id);
-                    comments_id += 1
+                    comments_id += 1;
                 } else if let MessageEntry::Imf {
                     e: e @ imf::field::Entry::Keywords(_),
                     ..
                 } = ent
                 {
                     *e = imf::field::Entry::Keywords(keywords_id);
-                    keywords_id += 1
+                    keywords_id += 1;
                 }
             }
         }
@@ -203,7 +203,7 @@ impl<'a> Arbitrary<'a> for Message<'a> {
 }
 
 /// Parse a toplevel message.
-pub fn message<'a>(input: &'a [u8]) -> Message<'a> {
+pub fn message(input: &[u8]) -> Message<'_> {
     // parse headers
     let (input_body, headers) = header::header_kv(input);
     let fields: NaiveMessageFields = headers.into_iter().collect();
@@ -219,7 +219,7 @@ pub fn message<'a>(input: &'a [u8]) -> Message<'a> {
     }
 }
 
-pub fn imf<'a>(input: &'a [u8]) -> (&'a [u8], imf::Imf<'a>) {
+pub fn imf(input: &[u8]) -> (&[u8], imf::Imf<'_>) {
     // parse headers
     let (input_body, headers) = header::header_kv(input);
     let fields: NaiveMessageFields = headers.into_iter().collect();
@@ -248,22 +248,22 @@ mod tests {
     use chrono::{FixedOffset, TimeZone};
     use pretty_assertions::assert_eq;
 
-    fn test_message_roundtrip<'a>(txt: &[u8], parsed: Message<'a>) {
+    fn test_message_roundtrip(txt: &[u8], parsed: Message<'_>) {
         assert_eq!(message(txt), parsed.clone());
         let printed = print_to_vec(parsed);
         assert_eq!(
             String::from_utf8_lossy(&printed),
             String::from_utf8_lossy(txt)
-        )
+        );
     }
 
-    fn test_message_parse_print<'a>(txt: &[u8], parsed: Message<'a>, printed: &[u8]) {
+    fn test_message_parse_print(txt: &[u8], parsed: Message<'_>, printed: &[u8]) {
         assert_eq!(message(txt), parsed.clone());
         let reprinted = print_to_vec(parsed);
         assert_eq!(
             String::from_utf8_lossy(&reprinted),
             String::from_utf8_lossy(printed)
-        )
+        );
     }
 
     fn test_message_reprint(txt: &[u8], printed: &[u8]) {
@@ -272,7 +272,7 @@ mod tests {
         assert_eq!(
             String::from_utf8_lossy(&reprinted),
             String::from_utf8_lossy(printed)
-        )
+        );
     }
 
     #[test]

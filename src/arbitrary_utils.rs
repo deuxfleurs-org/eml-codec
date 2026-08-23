@@ -11,7 +11,7 @@ where
     for _ in 0..len {
         let x: T = u.arbitrary()?;
         if pred(&x) {
-            v.push(x)
+            v.push(x);
         } else {
             return Err(arbitrary::Error::IncorrectFormat);
         }
@@ -30,7 +30,7 @@ where
 {
     let mut v = arbitrary_vec_where(u, pred)?;
     if v.is_empty() {
-        v.push(default)
+        v.push(default);
     }
     Ok(v)
 }
@@ -44,7 +44,7 @@ where
     Ok(v)
 }
 
-pub fn arbitrary_string_where<'a, F>(u: &mut Unstructured<'a>, pred: F) -> Result<String>
+pub fn arbitrary_string_where<F>(u: &mut Unstructured<'_>, pred: F) -> Result<String>
 where
     F: Fn(char) -> bool,
 {
@@ -53,7 +53,7 @@ where
     for _ in 0..len {
         let c: char = u.arbitrary()?;
         if pred(c) {
-            s.push(c)
+            s.push(c);
         } else {
             return Err(arbitrary::Error::IncorrectFormat);
         }
@@ -61,8 +61,8 @@ where
     Ok(s)
 }
 
-pub fn arbitrary_string_nonempty_where<'a, F>(
-    u: &mut Unstructured<'a>,
+pub fn arbitrary_string_nonempty_where<F>(
+    u: &mut Unstructured<'_>,
     pred: F,
     default: char,
 ) -> Result<String>
@@ -71,7 +71,7 @@ where
 {
     let mut v = arbitrary_string_where(u, pred)?;
     if v.is_empty() {
-        v.push(default)
+        v.push(default);
     }
     Ok(v)
 }
@@ -101,7 +101,7 @@ pub fn arbitrary_part_body(u: &mut Unstructured) -> Result<Vec<u8>> {
     // as a workaround, avoid this case for now...
     let mut body: Vec<_> = u.arbitrary()?;
     if let Some(b'\r') = body.last() {
-        body.push(b'X')
+        body.push(b'X');
     }
     Ok(body)
 }

@@ -10,13 +10,10 @@ fn main() {
 
     match &std::env::args().collect::<Vec<_>>().as_slice() {
         &[_, arg, ..] if arg == "--show-ast" => {
-            eprintln!(
-                "--- message structure ---\n{:#?}\n--- message structure end ---",
-                eml
-            )
+            eprintln!("--- message structure ---\n{eml:#?}\n--- message structure end ---");
         }
         _ => (),
-    };
+    }
 
     let bytes = eml_codec::print_message(eml, None);
     print!("{}", String::from_utf8_lossy(&bytes));

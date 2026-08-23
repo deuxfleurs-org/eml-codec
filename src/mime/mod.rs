@@ -18,7 +18,7 @@ use crate::i18n::ContainsUtf8;
 use crate::imf::identification::MessageID;
 use crate::mime::field::NaiveField;
 use crate::mime::mechanism::Mechanism;
-use crate::mime::r#type::{AnyType, MessageSubtype, NaiveType};
+use crate::mime::r#type::{AnyType, Message, MessageSubtype, NaiveType, Text};
 use crate::text::misc_token::Unstructured;
 use crate::utils::set_opt;
 
@@ -30,7 +30,7 @@ pub struct CommonMIME<'a> {
     pub description: Option<Unstructured<'a>>,
 }
 
-impl<'a> ContainsUtf8 for CommonMIME<'a> {
+impl ContainsUtf8 for CommonMIME<'_> {
     fn contains_utf8(&self) -> bool {
         self.transfer_encoding.contains_utf8()
             || self.id.contains_utf8()
@@ -57,7 +57,7 @@ impl<'a> Arbitrary<'a> for MIME<'a, r#type::Multipart<'a>> {
         match mime.fields.transfer_encoding {
             Mechanism::_7Bit | Mechanism::_8Bit | Mechanism::Binary => (),
             _ => return Err(arbitrary::Error::IncorrectFormat),
-        };
+        }
         Ok(mime)
     }
 }
@@ -72,7 +72,7 @@ impl<'a> Arbitrary<'a> for MIME<'a, r#type::Message<'a>> {
         match mime.fields.transfer_encoding {
             Mechanism::_7Bit | Mechanism::_8Bit | Mechanism::Binary => (),
             _ => return Err(arbitrary::Error::IncorrectFormat),
-        };
+        }
         Ok(mime)
     }
 }
@@ -156,7 +156,7 @@ impl<'a> AnyMIME<'a> {
         fs
     }
 }
-impl<'a> ContainsUtf8 for AnyMIME<'a> {
+impl ContainsUtf8 for AnyMIME<'_> {
     fn contains_utf8(&self) -> bool {
         match self {
             Self::Mult(v) => v.contains_utf8(),
@@ -259,8 +259,8 @@ pub enum DefaultType {
 impl DefaultType {
     fn to_type(self) -> AnyType<'static> {
         match self {
-            Self::Generic => AnyType::Text(Default::default()),
-            Self::Digest => AnyType::Message(Default::default()),
+            Self::Generic => AnyType::Text(Text::default()),
+            Self::Digest => AnyType::Message(Message::default()),
         }
     }
 }

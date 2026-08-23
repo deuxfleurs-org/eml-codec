@@ -116,7 +116,7 @@ impl Print for DateTime {
         let offset_mins = offset_secs.abs().rem_euclid(HOUR).div_euclid(MIN);
         let offset_hours = offset_secs.abs().div_euclid(HOUR);
         fmt.write_bytes(sign);
-        fmt.write_bytes(format!("{:02}{:02}", offset_hours, offset_mins).as_bytes());
+        fmt.write_bytes(format!("{offset_hours:02}{offset_mins:02}").as_bytes());
     }
 }
 
@@ -133,9 +133,9 @@ impl Print for DateTime {
 ///
 /// ## @FIXME - known bugs
 ///
-///   - `-0000` means NaiveDateTime, a date without a timezone
+///   - `-0000` means `NaiveDateTime`, a date without a timezone
 /// while this library interprets it as +0000 aka UTC.
-///   - Obsolete military zones should be considered as NaiveTime
+///   - Obsolete military zones should be considered as `NaiveTime`
 /// due to an error in RFC0822 but are interpreted as their respective
 /// timezone according to the RFC5322 definition
 #[instrument_input("tracing")]
@@ -337,11 +337,10 @@ fn strict_zone(input: &[u8]) -> IResult<&[u8], FixedOffset> {
             take_while_m_n(2, 2, |c| (0x30..=0x39).contains(&c)),
         )),
         |(_, op, dig_zone_hour, dig_zone_min)| {
-            let zone_hour: i32 =
-                ((dig_zone_hour[0] - 0x30) * 10 + (dig_zone_hour[1] - 0x30)) as i32;
-            let zone_min: i32 = ((dig_zone_min[0] - 0x30) * 10 + (dig_zone_min[1] - 0x30)) as i32;
+            let zone_hour = i32::from((dig_zone_hour[0] - 0x30) * 10 + (dig_zone_hour[1] - 0x30));
+            let zone_min = i32::from((dig_zone_min[0] - 0x30) * 10 + (dig_zone_min[1] - 0x30));
             // consider zone_hour is to be taken modulo 24h...
-            let zone_hour: i32 = zone_hour.rem_euclid(24);
+            let zone_hour = zone_hour.rem_euclid(24);
             // RFC5322 mandates that zone_min is between 00 and 59; reject the
             // input if not
             if zone_min >= 60 {
@@ -563,12 +562,13 @@ mod tests {
             .iter()
             .enumerate()
             .for_each(|(i, x)| {
+                let idx = i32::try_from(i).expect("index of iterator must be storable in an i32");
                 assert_eq!(
-                    date_time(format!("1 Jan 22 08:00:00 {}", x).as_bytes()),
+                    date_time(format!("1 Jan 22 08:00:00 {x}").as_bytes()),
                     Ok((
                         &b""[..],
                         DateTime(
-                            FixedOffset::east_opt((i as i32 + 1) * HOUR)
+                            FixedOffset::east_opt((idx + 1) * HOUR)
                                 .unwrap()
                                 .with_ymd_and_hms(2022, 01, 01, 8, 0, 0)
                                 .unwrap()
@@ -584,12 +584,13 @@ mod tests {
             .iter()
             .enumerate()
             .for_each(|(i, x)| {
+                let idx = i32::try_from(i).expect("index of iterator must be storable in an i32");
                 assert_eq!(
-                    date_time(format!("1 Jan 22 08:00:00 {}", x).as_bytes()),
+                    date_time(format!("1 Jan 22 08:00:00 {x}").as_bytes()),
                     Ok((
                         &b""[..],
                         DateTime(
-                            FixedOffset::west_opt((i as i32 + 1) * HOUR)
+                            FixedOffset::west_opt((idx + 1) * HOUR)
                                 .unwrap()
                                 .with_ymd_and_hms(2022, 01, 01, 8, 0, 0)
                                 .unwrap()

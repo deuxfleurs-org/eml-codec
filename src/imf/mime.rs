@@ -58,7 +58,7 @@ impl Print for Version {
     fn print(&self, fmt: &mut impl Formatter) {
         fmt.write_bytes(self.major.to_string().as_bytes());
         fmt.write_bytes(b".");
-        fmt.write_bytes(self.minor.to_string().as_bytes())
+        fmt.write_bytes(self.minor.to_string().as_bytes());
     }
 }
 

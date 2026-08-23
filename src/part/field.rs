@@ -37,7 +37,7 @@ impl<'a> EntityField<'a> {
     }
 }
 
-impl<'a> Print for EntityField<'a> {
+impl Print for EntityField<'_> {
     fn print(&self, fmt: &mut impl Formatter) {
         match self {
             EntityField::MIME { f, .. } => f.print(fmt),
@@ -72,7 +72,7 @@ impl<'a> FromIterator<header::FieldRaw<'a>> for NaiveEntityFields<'a> {
         tracing::instrument(name = "EntityFields::from_iter", skip(it))
     )]
     fn from_iter<I: IntoIterator<Item = header::FieldRaw<'a>>>(it: I) -> Self {
-        let mut e: NaiveEntityFields<'a> = Default::default();
+        let mut e: NaiveEntityFields<'a> = NaiveEntityFields::default();
         for f in it {
             match mime::field::NaiveField::try_from(&f) {
                 Ok(mimef) => {
@@ -80,7 +80,7 @@ impl<'a> FromIterator<header::FieldRaw<'a>> for NaiveEntityFields<'a> {
                         e.entries.push(EntityEntry::MIME {
                             e: entry,
                             raw_body: f.body.into(),
-                        })
+                        });
                     } else {
                         // otherwise drop the field
                         #[cfg(feature = "tracing-recover")]
@@ -97,7 +97,7 @@ impl<'a> FromIterator<header::FieldRaw<'a>> for NaiveEntityFields<'a> {
                 Err(mime::field::InvalidField::Name) => {
                     // not a MIME field
                 }
-            };
+            }
 
             if let Some(u) = header::Unstructured::from_raw(&f) {
                 e.entries.push(EntityEntry::Unstructured(u));

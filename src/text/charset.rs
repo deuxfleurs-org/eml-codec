@@ -32,7 +32,7 @@ impl<T: AsRef<[u8]>> From<T> for EmailCharset {
                 let sanitized: String = bytes
                     .as_ref()
                     .iter()
-                    .cloned()
+                    .copied()
                     .filter_map(|b| (b.is_ascii() && is_vchar(b as char)).then_some(b as char))
                     .collect();
                 match Charset::for_label(sanitized.as_bytes()) {

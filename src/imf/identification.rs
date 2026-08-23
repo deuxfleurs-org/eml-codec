@@ -39,7 +39,7 @@ pub enum MessageID<'a> {
     #[cfg_attr(feature = "arbitrary", fuzz_eq(use_eq))]
     Invalid(Cow<'a, str>),
 }
-impl<'a> Print for MessageID<'a> {
+impl Print for MessageID<'_> {
     fn print(&self, fmt: &mut impl Formatter) {
         fmt.write_bytes(b"<");
         match &self {
@@ -73,9 +73,9 @@ impl<'a> Arbitrary<'a> for MessageID<'a> {
 // Must be non-empty
 pub type MessageIDList<'a> = Vec<MessageID<'a>>;
 
-impl<'a> Print for MessageIDList<'a> {
+impl Print for MessageIDList<'_> {
     fn print(&self, fmt: &mut impl Formatter) {
-        print_seq(fmt, self, Formatter::write_fws)
+        print_seq(fmt, self, Formatter::write_fws);
     }
 }
 
@@ -146,7 +146,7 @@ fn is_invalid_msgid_text(c: char) -> bool {
     is_nonascii_or(|c| c.is_ascii_graphic() && c != b'<' && c != b'>' && c != b'"')(c)
 }
 
-/// A *very* lenient parser for lists of msg_id as used by In-Reply-To and References
+/// A *very* lenient parser for lists of `msg_id` as used by In-Reply-To and References
 ///
 /// The RFC definition is:
 /// ```abnf
@@ -184,7 +184,7 @@ pub fn nullable_msg_list(input: &[u8]) -> IResult<&[u8], MessageIDList<'_>> {
             },
         ),
         // compliant CFWS in between msg-ids
-        map(cfws, |_| None),
+        map(cfws, |()| None),
         // recovery: recognize junk in between msg-ids, skipping to the next <
         map(take_quoted_encoded_or_until1(|c| c == b'<'), |_i| {
             #[cfg(feature = "tracing-recover")]

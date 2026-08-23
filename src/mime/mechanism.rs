@@ -29,7 +29,7 @@ pub enum Mechanism<'a> {
     Base64,
     Other(MIMEAtom<'a>),
 }
-impl<'a> Mechanism<'a> {
+impl Mechanism<'_> {
     pub fn as_bytes(&self) -> &[u8] {
         match self {
             Self::_7Bit => b"7bit",
@@ -42,17 +42,17 @@ impl<'a> Mechanism<'a> {
     }
 }
 
-impl<'a> Print for Mechanism<'a> {
+impl Print for Mechanism<'_> {
     fn print(&self, fmt: &mut impl Formatter) {
-        fmt.write_bytes(self.as_bytes())
+        fmt.write_bytes(self.as_bytes());
     }
 }
-impl<'a> ContainsUtf8 for Mechanism<'a> {
+impl ContainsUtf8 for Mechanism<'_> {
     fn contains_utf8(&self) -> bool {
         false
     }
 }
-impl<'a> Mechanism<'a> {
+impl Mechanism<'_> {
     // RFC2046: for entities of type "multipart", no encoding other than 7bit,
     // 8bit and binary is permitted.
     //

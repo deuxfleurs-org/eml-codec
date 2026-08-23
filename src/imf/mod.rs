@@ -253,7 +253,7 @@ impl<'a> Imf<'a> {
     pub fn field_entries(&self) -> (Vec<field::Entry>, HashSet<field::Entry>) {
         let mut trace = vec![];
         for i in 0..self.trace.len() {
-            trace.push(field::Entry::Trace(i))
+            trace.push(field::Entry::Trace(i));
         }
 
         let mut fs = HashSet::default();
@@ -319,7 +319,7 @@ impl<'a> Imf<'a> {
     }
 }
 
-impl<'a> Default for Imf<'a> {
+impl Default for Imf<'_> {
     fn default() -> Self {
         Self::new()
     }

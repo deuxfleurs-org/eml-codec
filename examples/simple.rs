@@ -19,7 +19,7 @@ between the header information and the body of the message."#;
 
     // if you like to also parse the body/content
     let email = eml_codec::parse_message(input);
-    println!("message structure:\n{:#?}", email);
+    println!("message structure:\n{email:#?}");
 
     // to re-print the whole message.
     let bytes = eml_codec::print_message(email, None);

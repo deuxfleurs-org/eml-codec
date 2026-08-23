@@ -32,7 +32,7 @@ use eml_codec_derives::instrument_input;
 #[derive(Clone, ContainsUtf8, PartialEq, Default, ToStatic, ToStringFromPrint)]
 pub struct QuotedString<'a>(pub Vec<Cow<'a, str>>);
 
-impl<'a> fmt::Debug for QuotedString<'a> {
+impl fmt::Debug for QuotedString<'_> {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt.debug_tuple("QuotedString")
             .field(&self.0.iter().collect::<Vec<_>>())
@@ -42,11 +42,11 @@ impl<'a> fmt::Debug for QuotedString<'a> {
 
 impl<'a> QuotedString<'a> {
     pub fn push_str(&mut self, e: &'a str) {
-        self.0.push(Cow::Borrowed(e))
+        self.0.push(Cow::Borrowed(e));
     }
 
     pub fn push(&mut self, e: Cow<'a, str>) {
-        self.0.push(e)
+        self.0.push(e);
     }
 
     pub fn chars<'b>(&'b self) -> QuotedStringChars<'a, 'b> {
@@ -56,9 +56,9 @@ impl<'a> QuotedString<'a> {
         }
     }
 }
-impl<'a> Print for QuotedString<'a> {
+impl Print for QuotedString<'_> {
     fn print(&self, fmt: &mut impl Formatter) {
-        print_quoted(fmt, self.chars())
+        print_quoted(fmt, self.chars());
     }
 }
 impl<'a> TryFrom<&'a str> for QuotedString<'a> {
@@ -86,7 +86,7 @@ impl<'a> Arbitrary<'a> for QuotedString<'a> {
 }
 
 #[cfg(feature = "arbitrary")]
-impl<'a> FuzzEq for QuotedString<'a> {
+impl FuzzEq for QuotedString<'_> {
     fn fuzz_eq(&self, other: &Self) -> bool {
         self.chars().collect::<String>() == other.chars().collect::<String>()
     }
@@ -103,7 +103,7 @@ enum QuotedStringCharsInner<'a> {
     FragmentChars(usize, std::str::Chars<'a>),
 }
 
-impl<'a, 'b> Iterator for QuotedStringChars<'a, 'b> {
+impl Iterator for QuotedStringChars<'_, '_> {
     type Item = char;
     fn next(&mut self) -> Option<Self::Item> {
         match &mut self.inner {
@@ -156,7 +156,7 @@ pub fn quoted_pair(input: &[u8]) -> IResult<&[u8], Option<&str>> {
                     {
                         #[cfg(feature = "tracing-recover")]
                         warn!(byte = %bytes_to_trace_string(&[b]),
-                                  "invalid quoted pair")
+                                  "invalid quoted pair");
                     }
                     None
                 }
@@ -229,7 +229,7 @@ pub fn quoted_string_plain(input: &[u8]) -> IResult<&[u8], QuotedString<'_>> {
         content
             .into_iter()
             .fold(QuotedString::default(), |mut acc, (maybe_wsp, c)| {
-                for wsp in maybe_wsp.into_iter().flat_map(|v| v.into_iter()) {
+                for wsp in maybe_wsp.into_iter().flat_map(IntoIterator::into_iter) {
                     acc.push_str(wsp);
                 }
                 if let Some(c) = c {
@@ -238,7 +238,7 @@ pub fn quoted_string_plain(input: &[u8]) -> IResult<&[u8], QuotedString<'_>> {
                 acc
             });
 
-    for wsp in maybe_wsp.into_iter().flat_map(|v| v.into_iter()) {
+    for wsp in maybe_wsp.into_iter().flat_map(IntoIterator::into_iter) {
         qstring.push_str(wsp);
     }
 
@@ -251,7 +251,7 @@ where
 {
     let mut buf = [0u8; 4];
     fmt.write_bytes(b"\"");
-    for c in data.into_iter() {
+    for c in data {
         let b = c.encode_utf8(&mut buf).as_bytes();
         if is_strict_qtext(c) {
             fmt.write_bytes(b);
@@ -272,7 +272,7 @@ where
             // TODO: return the invalid input bytes that were skipped.
         }
     }
-    fmt.write_bytes(b"\"")
+    fmt.write_bytes(b"\"");
 }
 
 #[cfg(test)]

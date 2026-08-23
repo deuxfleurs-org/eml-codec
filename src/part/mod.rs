@@ -7,7 +7,7 @@ pub mod discrete;
 /// Representation of all headers in a MIME entity
 pub mod field;
 
-use crate::mime::{AnyMIME, MIME};
+use crate::mime::{r#type, AnyMIME, CommonMIME, MIME};
 use crate::part::{
     composite::{message, multipart, Message, Multipart},
     discrete::{Binary, Text},
@@ -75,8 +75,8 @@ impl Default for AnyPart<'static> {
             entries: vec![],
             mime_body: MimeBody::Txt(discrete::Text {
                 mime: MIME {
-                    ctype: Default::default(),
-                    fields: Default::default(),
+                    ctype: r#type::Text::default(),
+                    fields: CommonMIME::default(),
                 },
                 body: b"".into(),
                 raw_body: RawInput(Some(b"")),
@@ -198,7 +198,7 @@ impl<'a> From<Message<'a>> for MimeBody<'a> {
     }
 }
 
-impl<'a> Print for AnyPart<'a> {
+impl Print for AnyPart<'_> {
     fn print(&self, fmt: &mut impl Formatter) {
         fmt.begin_line_folding();
         print_seq(fmt, &self.field_list(), |_| ());
@@ -220,11 +220,11 @@ pub fn part_body<'a>(m: AnyMIME<'a>) -> impl FnOnce(&'a [u8]) -> MimeBody<'a> {
     move |input| {
         let part = match m {
             AnyMIME::Mult(a) => {
-                let (_rest, part) = multipart(a)(input);
+                let (_rest, part) = multipart(&a)(input);
                 #[cfg(feature = "tracing-unsupported")]
                 if !_rest.is_empty() {
                     warn!(rest = %bytes_to_trace_string(_rest),
-                          "leftover input after multipart parsing")
+                          "leftover input after multipart parsing");
                 }
                 part.into()
             }

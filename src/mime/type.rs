@@ -70,7 +70,7 @@ pub fn recover_broken_type<'a>(
 // XXX we allow printing content types without further validation;
 // this is not strictly allowed by the spec, which only allows
 // x-token or ietf-token on top of the RFC defined content types.
-impl<'a> Print for NaiveType<'a> {
+impl Print for NaiveType<'_> {
     fn print(&self, fmt: &mut impl Formatter) {
         self.main.print(fmt);
         fmt.write_bytes(b"/");
@@ -89,11 +89,11 @@ pub struct Parameter<'a> {
     pub name: MIMEAtom<'a>,
     pub value: MIMEWord<'a>,
 }
-impl<'a> Print for Parameter<'a> {
+impl Print for Parameter<'_> {
     fn print(&self, fmt: &mut impl Formatter) {
         self.name.print(fmt);
         fmt.write_bytes(b"=");
-        self.value.print(fmt)
+        self.value.print(fmt);
     }
 }
 
@@ -202,7 +202,7 @@ impl<'a> From<&NaiveType<'a>> for AnyType<'a> {
     }
 }
 
-impl<'a> Print for AnyType<'a> {
+impl Print for AnyType<'_> {
     fn print(&self, fmt: &mut impl Formatter) {
         match self {
             AnyType::Multipart(mp) => mp.print(fmt),
@@ -260,7 +260,7 @@ impl<'a> Multipart<'a> {
                 // XXX in this case there is no boundary parameter returned,
                 // even the final email will contain one...
             }
-        };
+        }
         params
     }
 }
@@ -283,7 +283,7 @@ impl<'a> Arbitrary<'a> for Multipart<'a> {
     }
 }
 
-impl<'a> Print for Multipart<'a> {
+impl Print for Multipart<'_> {
     fn print(&self, fmt: &mut impl Formatter) {
         fmt.push_new_boundary();
         fmt.write_bytes(b"multipart/");
@@ -320,10 +320,10 @@ impl<'a> TryFrom<&NaiveType<'a>> for Multipart<'a> {
                 } else {
                     // drop any redundant "boundary" parameter that is not the first
                     #[cfg(feature = "tracing-unsupported")]
-                    warn!(boundary = s, "dropping redundant boundary parameter")
+                    warn!(boundary = s, "dropping redundant boundary parameter");
                 }
             } else {
-                other_params.push(param.clone())
+                other_params.push(param.clone());
             }
         }
         match boundary {
@@ -363,7 +363,7 @@ impl MultipartSubtype {
 }
 impl Print for MultipartSubtype {
     fn print(&self, fmt: &mut impl Formatter) {
-        fmt.write_bytes(self.as_bytes())
+        fmt.write_bytes(self.as_bytes());
     }
 }
 
@@ -422,7 +422,7 @@ impl MessageSubtype {
 }
 impl Print for MessageSubtype {
     fn print(&self, fmt: &mut impl Formatter) {
-        fmt.write_bytes(self.as_bytes())
+        fmt.write_bytes(self.as_bytes());
     }
 }
 
@@ -457,7 +457,7 @@ pub struct Message<'a> {
     pub params: Vec<Parameter<'a>>,
 }
 
-impl<'a> Print for Message<'a> {
+impl Print for Message<'_> {
     fn print(&self, fmt: &mut impl Formatter) {
         fmt.write_bytes(b"message/");
         self.subtype.print(fmt);
@@ -516,7 +516,7 @@ impl<'a> Arbitrary<'a> for Text<'a> {
     }
 }
 
-impl<'a> Print for Text<'a> {
+impl Print for Text<'_> {
     fn print(&self, fmt: &mut impl Formatter) {
         fmt.write_bytes(b"text/");
         self.subtype.print(fmt);
@@ -527,7 +527,7 @@ impl<'a> Print for Text<'a> {
             EmailCharset::Unknown(s) =>
             // print it as quoted just to be safe
             {
-                print_quoted(fmt, s.chars())
+                print_quoted(fmt, s.chars());
             }
             _ => fmt.write_bytes(self.charset.as_bytes()),
         }
@@ -555,7 +555,7 @@ impl<'a> From<&NaiveType<'a>> for Text<'a> {
                     warn!(param = value, "dropping redundant charset parameter");
                 }
             } else {
-                other_params.push(param.clone())
+                other_params.push(param.clone());
             }
         }
 
@@ -587,7 +587,7 @@ impl TextSubtype {
 }
 impl Print for TextSubtype {
     fn print(&self, fmt: &mut impl Formatter) {
-        fmt.write_bytes(self.as_bytes())
+        fmt.write_bytes(self.as_bytes());
     }
 }
 
@@ -627,9 +627,9 @@ pub struct Binary<'a> {
     pub ctype: NaiveType<'a>,
 }
 
-impl<'a> Print for Binary<'a> {
+impl Print for Binary<'_> {
     fn print(&self, fmt: &mut impl Formatter) {
-        self.ctype.print(fmt)
+        self.ctype.print(fmt);
     }
 }
 impl<'a> From<&NaiveType<'a>> for Binary<'a> {
@@ -961,6 +961,6 @@ mod tests {
         assert_eq!(
             String::from_utf8_lossy(raw),
             String::from_utf8_lossy(&printed)
-        )
+        );
     }
 }

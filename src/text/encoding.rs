@@ -127,14 +127,13 @@ pub fn encoded_word_token_base64(input: &[u8]) -> IResult<&[u8], EncodedWordToke
 #[contains_utf8(false)]
 pub struct EncodedWord<'a>(pub Vec<EncodedWordToken<'a>>); // must be non-empty
 
-impl<'a> EncodedWord<'a> {
+impl EncodedWord<'_> {
     /// Returns the data represented by this `EncodedWord`, encoded into UTF8
     pub fn data(&self) -> String {
         self.0
             .iter()
-            .map(|tok| tok.data())
-            .collect::<Vec<_>>()
-            .join("")
+            .map(EncodedWordToken::data)
+            .collect::<String>()
     }
 
     /// Build an encoded word from UTF-8 chars. Uses the UTF-8 charset and
@@ -169,7 +168,7 @@ impl<'a> EncodedWord<'a> {
             if c.is_ascii() && is_qchar_safe_strict(c as u8) {
                 if let Some(QuotedChunk::Safe(s)) = cur_chunks.last_mut() {
                     let s = s.to_mut();
-                    s.push(c as u8)
+                    s.push(c as u8);
                 } else {
                     cur_chunks.push(QuotedChunk::Safe(vec![c as u8].into()));
                 }
@@ -182,9 +181,9 @@ impl<'a> EncodedWord<'a> {
                 c.encode_utf8(&mut char_bytes);
                 let c_bytes = &char_bytes[0..c.len_utf8()];
                 if let Some(QuotedChunk::Encoded(e)) = cur_chunks.last_mut() {
-                    e.extend_from_slice(c_bytes)
+                    e.extend_from_slice(c_bytes);
                 } else {
-                    cur_chunks.push(QuotedChunk::Encoded(c_bytes.to_vec()))
+                    cur_chunks.push(QuotedChunk::Encoded(c_bytes.to_vec()));
                 }
                 // each encoded byte uses three characters (=XX)
                 cur_word_len += 3 * c.len_utf8();
@@ -199,9 +198,9 @@ impl<'a> EncodedWord<'a> {
         EncodedWord(tokens)
     }
 }
-impl<'a> Print for EncodedWord<'a> {
+impl Print for EncodedWord<'_> {
     fn print(&self, fmt: &mut impl Formatter) {
-        print_seq(fmt, &self.0, Formatter::write_fws)
+        print_seq(fmt, &self.0, Formatter::write_fws);
     }
 }
 
@@ -218,7 +217,7 @@ pub enum EncodedWordToken<'a> {
     Quoted(QuotedWord<'a>),
     Base64(Base64Word<'a>),
 }
-impl<'a> EncodedWordToken<'a> {
+impl EncodedWordToken<'_> {
     pub fn data(&self) -> String {
         match self {
             EncodedWordToken::Quoted(v) => v.data(),
@@ -226,7 +225,7 @@ impl<'a> EncodedWordToken<'a> {
         }
     }
 }
-impl<'a> Print for EncodedWordToken<'a> {
+impl Print for EncodedWordToken<'_> {
     fn print(&self, fmt: &mut impl Formatter) {
         match self {
             EncodedWordToken::Quoted(q) => q.print(fmt),
@@ -244,7 +243,7 @@ pub struct Base64Word<'a> {
     #[cfg_attr(feature = "arbitrary", fuzz_eq(use_eq))]
     pub content: Cow<'a, [u8]>,
 }
-impl<'a> fmt::Debug for Base64Word<'a> {
+impl fmt::Debug for Base64Word<'_> {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt.debug_struct("Base64Word")
             .field("enc", &self.enc)
@@ -253,16 +252,16 @@ impl<'a> fmt::Debug for Base64Word<'a> {
     }
 }
 
-impl<'a> Base64Word<'a> {
+impl Base64Word<'_> {
     pub fn data(&self) -> String {
         general_purpose::STANDARD_NO_PAD
             .decode(&self.content)
             .map(|d| self.enc.decode(d.as_slice()).to_string())
-            .unwrap_or("".into())
+            .unwrap_or_default()
     }
 }
 
-impl<'a> Print for Base64Word<'a> {
+impl Print for Base64Word<'_> {
     fn print(&self, fmt: &mut impl Formatter) {
         fmt.write_bytes(b"=?");
         fmt.write_bytes(self.enc.as_bytes());
@@ -291,7 +290,7 @@ pub struct QuotedWord<'a> {
     pub chunks: Vec<QuotedChunk<'a>>,
 }
 
-impl<'a> QuotedWord<'a> {
+impl QuotedWord<'_> {
     pub fn data(&self) -> String {
         self.chunks.iter().fold(String::new(), |mut acc, c| {
             match c {
@@ -304,13 +303,13 @@ impl<'a> QuotedWord<'a> {
                     let d = self.enc.decode(v.as_slice());
                     acc.push_str(d.as_ref());
                 }
-            };
+            }
             acc
         })
     }
 }
 
-impl<'a> Print for QuotedWord<'a> {
+impl Print for QuotedWord<'_> {
     fn print(&self, fmt: &mut impl Formatter) {
         fmt.write_bytes(b"=?");
         fmt.write_bytes(self.enc.as_bytes());
@@ -321,7 +320,7 @@ impl<'a> Print for QuotedWord<'a> {
 }
 
 #[cfg(feature = "arbitrary")]
-impl<'a> FuzzEq for QuotedWord<'a> {
+impl FuzzEq for QuotedWord<'_> {
     fn fuzz_eq(&self, other: &Self) -> bool {
         self.enc.fuzz_eq(&other.enc)
             && normalize_quoted_chunks(&self.chunks) == normalize_quoted_chunks(&other.chunks)
@@ -334,7 +333,7 @@ pub enum QuotedChunk<'a> {
     Encoded(Vec<u8>),
     Space,
 }
-impl<'a> fmt::Debug for QuotedChunk<'a> {
+impl fmt::Debug for QuotedChunk<'_> {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             QuotedChunk::Safe(b) => fmt
@@ -347,13 +346,13 @@ impl<'a> fmt::Debug for QuotedChunk<'a> {
     }
 }
 
-impl<'a> Print for QuotedChunk<'a> {
+impl Print for QuotedChunk<'_> {
     fn print(&self, fmt: &mut impl Formatter) {
         match self {
             QuotedChunk::Safe(b) => fmt.write_bytes(b),
             QuotedChunk::Encoded(e) => {
                 for c in e {
-                    fmt.write_bytes(format!("={:02X}", c).as_bytes());
+                    fmt.write_bytes(format!("={c:02X}").as_bytes());
                 }
             }
             QuotedChunk::Space => fmt.write_bytes(b"_"),
@@ -446,7 +445,7 @@ fn is_qchar_safe_strict(b: u8) -> bool {
 }
 
 #[cfg(feature = "arbitrary")]
-fn normalize_quoted_chunks<'a>(chunks: &Vec<QuotedChunk<'a>>) -> Vec<QuotedChunk<'static>> {
+fn normalize_quoted_chunks(chunks: &Vec<QuotedChunk<'_>>) -> Vec<QuotedChunk<'static>> {
     use bounded_static::ToBoundedStatic;
     let mut new_chunks: Vec<QuotedChunk<'static>> = vec![];
     for chunk in chunks {

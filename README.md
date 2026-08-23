@@ -118,9 +118,9 @@ and then the allocation/processing is made lazily, on demand, when the correspon
  
 ## Support
 
-`eml-codec`, as part of the [Aerogramme project](https://nlnet.nl/project/Aerogramme/), was funded through the NGI Assure Fund, a fund established by NLnet with financial support from the European Commission's Next Generation Internet programme, under the aegis of DG Communications Networks, Content and Technology under grant agreement No 957073.
+`eml-codec`, as part of the [Aerogramme project](https://nlnet.nl/project/Aerogramme/), was funded through the NGI Assure Fund, a fund established by `NLnet` with financial support from the European Commission's Next Generation Internet programme, under the aegis of DG Communications Networks, Content and Technology under grant agreement No 957073.
 
-![NLnet logo](https://aerogramme.deuxfleurs.fr/images/nlnet.svg)
+![`NLnet` logo](https://aerogramme.deuxfleurs.fr/images/nlnet.svg)
 
 ## License
 
