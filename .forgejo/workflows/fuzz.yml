@@ -2,7 +2,7 @@ name: Weekly fuzz
 
 on:
   schedule:
-    - cron: "0 3 * * *" # once a week the monday at 3
+    - cron: "0 3 * * 1" # once a week the monday at 3
   workflow_dispatch:
 
 env:
@@ -11,7 +11,7 @@ env:
 jobs:
   fuzz_check:
     runs-on: rust-latest
-    if: github.repository_owner == 'gwenlg'
+    if: github.repository_owner == 'Deuxfleurs'
     steps:
       - uses: https://github.com/dtolnay/rust-toolchain@stable
         with:
