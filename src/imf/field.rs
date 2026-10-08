@@ -233,7 +233,7 @@ impl<'a> TryFrom<&header::Unstructured<'a>> for Field<'static> {
         use std::borrow::Cow;
         let bytes_body: Cow<[u8]> = match u.raw_body.0 {
             Some(s) => s.into(),
-            None => u.body.to_string_keep_obs().into_bytes().into(),
+            None => u.body.data_keep_obs().into_bytes().into(),
         };
         let hdr = header::FieldRaw {
             name: u.name.clone(),

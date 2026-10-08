@@ -520,11 +520,29 @@ impl Print for Unstructured<'_> {
 }
 
 impl Unstructured<'_> {
-    pub fn to_string_keep_obs(&self) -> String {
+    /// Returns the data represented by this `Unstructured`, encoded into UTF8.
+    /// Drop bytes that belong to the obsolete syntax.
+    pub fn data(&self) -> String {
         let mut s = String::new();
         for tok in &self.0 {
             match tok {
-                UnstrToken::Encoded(e) => s.push_str(&e.to_string()),
+                UnstrToken::Encoded(e) => s.push_str(&e.data()),
+                UnstrToken::Plain(_, UnstrTxtKind::Obs) =>
+                    // Skip Obs parts to match .to_string()
+                    {}
+                UnstrToken::Plain(txt, _) => s.push_str(txt),
+            }
+        }
+        s
+    }
+
+    /// Returns the data represented by this `Unstructured`, encoded into UTF8.
+    /// Preserve bytes that belong to the obsolete syntax.
+    pub fn data_keep_obs(&self) -> String {
+        let mut s = String::new();
+        for tok in &self.0 {
+            match tok {
+                UnstrToken::Encoded(e) => s.push_str(&e.data()),
                 UnstrToken::Plain(txt, _) => s.push_str(txt),
             }
         }
