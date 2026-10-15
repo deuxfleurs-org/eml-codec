@@ -1,5 +1,3 @@
-#[cfg(feature = "arbitrary")]
-use arbitrary::Arbitrary;
 use bounded_static::ToStatic;
 use nom::{
     branch::alt,
@@ -14,6 +12,8 @@ use std::borrow::Cow;
 use std::fmt;
 #[cfg(feature = "tracing")]
 use tracing::warn;
+#[cfg(feature = "arbitrary")]
+use {arbitrary::Arbitrary, eyre::eyre};
 
 use crate::i18n::ContainsUtf8;
 use crate::print::{Formatter, Print};
@@ -55,8 +55,12 @@ impl<'a> Arbitrary<'a> for FieldName<'a> {
 }
 #[cfg(feature = "arbitrary")]
 impl FuzzEq for FieldName<'_> {
-    fn fuzz_eq(&self, other: &Self) -> bool {
-        self.0 == other.0
+    fn fuzz_eq(&self, other: &Self) -> eyre::Result<()> {
+        if self.0 != other.0 {
+            Err(eyre!("FieldName mismatch"))
+        } else {
+            Ok(())
+        }
     }
 }
 

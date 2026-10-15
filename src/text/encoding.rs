@@ -1,6 +1,9 @@
-#[cfg(feature = "arbitrary")]
-use arbitrary::Arbitrary;
 use bounded_static::ToStatic;
+#[cfg(feature = "arbitrary")]
+use {
+    arbitrary::Arbitrary,
+    eyre::{eyre, Context as EyreContext},
+};
 
 use base64::{engine::general_purpose, Engine as _};
 use nom::{
@@ -321,9 +324,17 @@ impl Print for QuotedWord<'_> {
 
 #[cfg(feature = "arbitrary")]
 impl FuzzEq for QuotedWord<'_> {
-    fn fuzz_eq(&self, other: &Self) -> bool {
-        self.enc.fuzz_eq(&other.enc)
-            && normalize_quoted_chunks(&self.chunks) == normalize_quoted_chunks(&other.chunks)
+    fn fuzz_eq(&self, other: &Self) -> eyre::Result<()> {
+        self.enc.fuzz_eq(&other.enc).context("QuotedWord.enc")?;
+
+        let lhs = normalize_quoted_chunks(&self.chunks);
+        let rhs = normalize_quoted_chunks(&other.chunks);
+        if lhs != rhs {
+            Err(eyre!("QuotedWord chunks mismatch"))
+        } else {
+            Ok(())
+        }
+        .with_context(|| format!("QuotedWord normalize lhs: {lhs:?}, rhs: {rhs:?}"))
     }
 }
 

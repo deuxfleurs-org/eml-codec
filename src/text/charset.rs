@@ -5,7 +5,7 @@ use charset::Charset;
 #[cfg(feature = "tracing-recover")]
 use tracing::warn;
 #[cfg(feature = "arbitrary")]
-use {crate::fuzz_eq::FuzzEq, arbitrary::Arbitrary};
+use {crate::fuzz_eq::FuzzEq, arbitrary::Arbitrary, eyre::eyre};
 
 /// Email charsets are defined by IANA
 /// <https://www.iana.org/assignments/character-sets/character-sets.xhtml>
@@ -121,8 +121,12 @@ impl<'a> Arbitrary<'a> for EmailCharset {
 }
 #[cfg(feature = "arbitrary")]
 impl FuzzEq for EmailCharset {
-    fn fuzz_eq(&self, other: &Self) -> bool {
-        self == other
+    fn fuzz_eq(&self, other: &Self) -> eyre::Result<()> {
+        if self != other {
+            Err(eyre!("EmailCharset mismatch"))
+        } else {
+            Ok(())
+        }
     }
 }
 

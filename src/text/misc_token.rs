@@ -1,5 +1,3 @@
-#[cfg(feature = "arbitrary")]
-use arbitrary::Arbitrary;
 use bounded_static::ToStatic;
 use nom::{
     branch::alt,
@@ -12,6 +10,8 @@ use nom::{
 use std::borrow::Cow;
 #[cfg(feature = "tracing")]
 use tracing::warn;
+#[cfg(feature = "arbitrary")]
+use {arbitrary::Arbitrary, eyre::Context};
 
 use crate::i18n::ContainsUtf8;
 use crate::print::{print_seq, Formatter, Print, ToStringFromPrint};
@@ -360,8 +360,12 @@ impl<'a> Arbitrary<'a> for Phrase<'a> {
 }
 #[cfg(feature = "arbitrary")]
 impl FuzzEq for Phrase<'_> {
-    fn fuzz_eq(&self, other: &Self) -> bool {
-        self.normalize().0.fuzz_eq(&other.normalize().0)
+    fn fuzz_eq(&self, other: &Self) -> eyre::Result<()> {
+        let lhs = self.normalize();
+        let rhs = other.normalize();
+        lhs.0
+            .fuzz_eq(&rhs.0)
+            .with_context(|| format!("Phrase normalize\nlhs: {lhs:?}\nrhs: {rhs:?}"))
     }
 }
 
@@ -577,10 +581,12 @@ impl ContainsUtf8 for Unstructured<'_> {
 
 #[cfg(feature = "arbitrary")]
 impl FuzzEq for Unstructured<'_> {
-    fn fuzz_eq(&self, other: &Self) -> bool {
-        self.fuzz_eq_normalize()
-            .0
-            .fuzz_eq(&other.fuzz_eq_normalize().0)
+    fn fuzz_eq(&self, other: &Self) -> eyre::Result<()> {
+        let lhs = self.fuzz_eq_normalize();
+        let rhs = other.fuzz_eq_normalize();
+        lhs.0
+            .fuzz_eq(&rhs.0)
+            .with_context(|| format!("Unstructured normalize\nlhs: {lhs:?}\nrhs: {rhs:?}"))
     }
 }
 

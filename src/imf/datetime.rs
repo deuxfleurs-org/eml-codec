@@ -1,5 +1,3 @@
-#[cfg(feature = "arbitrary")]
-use arbitrary::Arbitrary;
 use bounded_static::{IntoBoundedStatic, ToBoundedStatic};
 use chrono::{Datelike, FixedOffset, NaiveDate, NaiveTime, Timelike};
 use nom::{
@@ -14,6 +12,8 @@ use nom::{
 use std::fmt::{Debug, Formatter};
 #[cfg(feature = "tracing")]
 use tracing::warn;
+#[cfg(feature = "arbitrary")]
+use {arbitrary::Arbitrary, eyre::eyre};
 
 #[cfg(feature = "arbitrary")]
 use crate::fuzz_eq::FuzzEq;
@@ -87,8 +87,12 @@ impl<'a> Arbitrary<'a> for DateTime {
 }
 #[cfg(feature = "arbitrary")]
 impl FuzzEq for DateTime {
-    fn fuzz_eq(&self, other: &Self) -> bool {
-        self.0 == other.0
+    fn fuzz_eq(&self, other: &Self) -> eyre::Result<()> {
+        if self.0 != other.0 {
+            Err(eyre!("DateTime mismatch"))
+        } else {
+            Ok(())
+        }
     }
 }
 
