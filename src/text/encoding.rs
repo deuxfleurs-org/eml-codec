@@ -22,7 +22,7 @@ use std::fmt;
 use crate::i18n::ContainsUtf8;
 use crate::print::{self, print_iter, Formatter, Print};
 use crate::text::ascii;
-use crate::text::charset::EmailCharset;
+use crate::text::charset::{charset, EmailCharset};
 use crate::text::utf8::take_utf8_while1;
 use crate::text::whitespace::{self, cfws, fws};
 use crate::text::words;
@@ -107,9 +107,9 @@ fn encoded_word_token_atom(ctx: Context) -> impl FnMut(&[u8]) -> IResult<&[u8], 
 }
 
 pub fn encoded_word_token_quoted(input: &[u8]) -> IResult<&[u8], EncodedWordToken<'_>> {
-    let (rest, (_, charset, _, _, _, txt, _)) = tuple((
+    let (rest, (_, enc, _, _, _, chunks, _)) = tuple((
         tag("=?"),
-        words::mime_atom_plain,
+        charset,
         tag("?"),
         one_of("Qq"),
         tag("?"),
@@ -117,17 +117,14 @@ pub fn encoded_word_token_quoted(input: &[u8]) -> IResult<&[u8], EncodedWordToke
         tag("?="),
     ))(input)?;
 
-    let parsed = EncodedWordToken::Quoted(QuotedWord {
-        enc: charset.0.into(),
-        chunks: txt,
-    });
+    let parsed = EncodedWordToken::Quoted(QuotedWord { enc, chunks });
     Ok((rest, parsed))
 }
 
 pub fn encoded_word_token_base64(input: &[u8]) -> IResult<&[u8], EncodedWordToken<'_>> {
-    let (rest, (_, charset, _, _, _, txt, _)) = tuple((
+    let (rest, (_, enc, _, _, _, txt, _)) = tuple((
         tag("=?"),
-        words::mime_atom_plain,
+        charset,
         tag("?"),
         one_of("Bb"),
         tag("?"),
@@ -136,7 +133,7 @@ pub fn encoded_word_token_base64(input: &[u8]) -> IResult<&[u8], EncodedWordToke
     ))(input)?;
 
     let parsed = EncodedWordToken::Base64(Base64Word {
-        enc: charset.0.into(),
+        enc,
         content: Cow::Borrowed(txt),
     });
     Ok((rest, parsed))
@@ -627,7 +624,7 @@ mod tests {
                 .unwrap()
                 .1,
             EncodedWord(vec![EncodedWordToken::Base64(Base64Word {
-                enc: EmailCharset::from(b"iso-8859-1"),
+                enc: EmailCharset::try_from(&b"iso-8859-1"[..]).unwrap(),
                 content: b"SWYgeW91IGNhbiByZWFkIHRoaXMgeW8"[..].into(),
             })])
         );

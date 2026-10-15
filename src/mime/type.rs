@@ -495,7 +495,7 @@ impl<'a> Text<'a> {
         let mut params = self.other_params.clone();
         params.push(Parameter {
             name: MIMEAtom(b"charset".into()),
-            value: MIMEWord::Quoted(QuotedString(vec![self.charset.as_str().into()])).into_static(),
+            value: MIMEWord::Atom(self.charset.to_mime_atom()),
         });
         params
     }
@@ -548,7 +548,12 @@ impl<'a> From<&NaiveType<'a>> for Text<'a> {
             if param.name.0.to_ascii_lowercase().as_slice() == b"charset" {
                 let value: String = param.value.chars().collect();
                 if charset.is_none() {
-                    charset = Some(EmailCharset::from(&value));
+                    if let Ok(c) = EmailCharset::try_from(value.as_bytes()) {
+                        charset = Some(c);
+                    } else {
+                        #[cfg(feature = "tracing-unsupported")]
+                        warn!(param = value, "invalid charset");
+                    }
                 } else {
                     // drop any "charset" parameter that is not the first
                     #[cfg(feature = "tracing-unsupported")]
@@ -783,7 +788,7 @@ mod tests {
             nt.to_type(),
             AnyType::Text(Text {
                 subtype: TextSubtype::Plain,
-                charset: EmailCharset::from(b"us-ascii"),
+                charset: EmailCharset::US_ASCII,
                 other_params: vec![],
             })
         );
