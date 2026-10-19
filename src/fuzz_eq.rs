@@ -1,5 +1,6 @@
 pub use eml_codec_derives::FuzzEq;
 use eyre::{bail, Context};
+use std::fmt::Debug;
 
 pub trait FuzzEq {
     fn fuzz_eq(&self, other: &Self) -> eyre::Result<()>;
@@ -29,12 +30,12 @@ impl<T: FuzzEq> FuzzEq for Vec<T> {
     }
 }
 
-impl<T: FuzzEq> FuzzEq for Option<T> {
+impl<T: FuzzEq + Debug> FuzzEq for Option<T> {
     fn fuzz_eq(&self, other: &Self) -> eyre::Result<()> {
         match (self, other) {
             (None, None) => Ok(()),
             (Some(x), Some(y)) => x.fuzz_eq(y),
-            (_, _) => bail!("Option case mismatch"),
+            (_, _) => bail!("Option case mismatch: {:?} vs {:?}", self, other),
         }
     }
 }

@@ -131,7 +131,7 @@ impl Print for MessageIDList<'_> {
 ///    our-msg-id-angle  = "<" our-msg-id-bare ">"
 ///    our-msg-id-bare   = id-left "@" id-right / 1*(not <>")
 /// ```
-/// The grammar above is ambiguous since "id-left @ id-right" and "1*(not <>")"
+/// The grammar above is ambiguous since "id-left @ id-right" and "1*(not <>"\(\))"
 /// intersect. To work around this problem, our parsers for our-msg-id and
 /// our-msg-id-bare assume that they consume all of their input. If this is not
 /// the case, our-msg-id-angle should be used instead (as it is properly
@@ -180,9 +180,20 @@ where
     }
 }
 
+// An ad-hoc list of message-id characters allowed in the best-effort "invalid"
+// syntax that we parse.
+//
 // This is VERY lenient
 fn is_invalid_msgid_text(c: char) -> bool {
-    is_nonascii_or(|c| c.is_ascii_graphic() && c != b'<' && c != b'>' && c != b'"')(c)
+    is_nonascii_or(|c| {
+        c.is_ascii_graphic()
+            // Exclude msg-id separators
+            && c != b'<' && c != b'>'
+            // Exclude quotes
+            && c != b'"'
+            // Exclude comments
+            && c != b'(' && c != b')'
+    })(c)
 }
 
 /// A *very* lenient parser for lists of `msg_id` as used by In-Reply-To and References
