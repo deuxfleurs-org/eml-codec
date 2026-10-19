@@ -1,5 +1,3 @@
-#[cfg(feature = "arbitrary")]
-use arbitrary::Arbitrary;
 use bounded_static::ToStatic;
 use nom::{
     branch::alt,
@@ -12,6 +10,11 @@ use nom::{
 use std::borrow::Cow;
 #[cfg(any(feature = "tracing-recover", feature = "tracing-unsupported"))]
 use tracing::warn;
+#[cfg(feature = "arbitrary")]
+use {
+    arbitrary::Arbitrary,
+    eyre::{eyre, Context as _},
+};
 
 use crate::i18n::ContainsUtf8;
 use crate::imf::mailbox::{domain, dtext, local_part, Domain, Dtext, LocalPart};
@@ -28,7 +31,6 @@ use eml_codec_derives::instrument_input;
 // NOTE: MessageID is not strictly RFC-compliant, printing it may use obsolete
 // or non-compliant syntax.
 #[derive(Clone, ContainsUtf8, Debug, PartialEq, ToStatic, ToStringFromPrint)]
-#[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
 pub enum MessageID<'a> {
     // The compliant (but possibly obsolete) syntax
     ObsLeftRight {
@@ -36,7 +38,6 @@ pub enum MessageID<'a> {
         right: Domain<'a>,
     },
     // Non-compliant char sequence (must be non-empty and satisfy is_invalid_msgid_text)
-    #[cfg_attr(feature = "arbitrary", fuzz_eq(use_eq))]
     Invalid(Cow<'a, str>),
 }
 impl Print for MessageID<'_> {
@@ -67,6 +68,44 @@ impl<'a> Arbitrary<'a> for MessageID<'a> {
             }
             _ => unreachable!(),
         }
+    }
+}
+#[cfg(feature = "arbitrary")]
+impl FuzzEq for MessageID<'_> {
+    fn fuzz_eq(&self, other: &Self) -> eyre::Result<()> {
+        match (self, other) {
+            (
+                MessageID::ObsLeftRight {
+                    left: left1,
+                    right: right1,
+                },
+                MessageID::ObsLeftRight {
+                    left: left2,
+                    right: right2,
+                },
+            ) => {
+                left1.fuzz_eq(left2)?;
+                right1.fuzz_eq(right2)
+            }
+            (MessageID::Invalid(s1), MessageID::Invalid(s2)) => {
+                if s1 != s2 {
+                    Err(eyre!("MessageID::Invalid; lhs: {s1}, rhs: {s2}"))
+                } else {
+                    Ok(())
+                }
+            }
+            (id1 @ MessageID::ObsLeftRight { .. }, MessageID::Invalid(s))
+            | (MessageID::Invalid(s), id1 @ MessageID::ObsLeftRight { .. }) => {
+                // hack: we may have actually valid syntax in an Invalid() constructor;
+                // try to parse it as valid syntax…
+                if let Ok((&[], id2 @ MessageID::ObsLeftRight { .. })) = msg_id(s.as_bytes()) {
+                    id1.fuzz_eq(&id2)
+                } else {
+                    Err(eyre!("MessageID constructor mismatch"))
+                }
+            }
+        }
+        .with_context(|| format!("MessageID; lhs: {self:?}, rhs: {other:?}"))
     }
 }
 
