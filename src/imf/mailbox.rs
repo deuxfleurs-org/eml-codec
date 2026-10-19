@@ -1,5 +1,3 @@
-#[cfg(feature = "arbitrary")]
-use arbitrary::Arbitrary;
 use bounded_static::ToStatic;
 use nom::{
     branch::alt,
@@ -12,6 +10,11 @@ use nom::{
 use std::borrow::Cow;
 #[cfg(feature = "tracing")]
 use tracing::warn;
+#[cfg(feature = "arbitrary")]
+use {
+    arbitrary::Arbitrary,
+    eyre::{eyre, Context},
+};
 
 use crate::i18n::ContainsUtf8;
 use crate::print::{print_seq, Formatter, Print, ToStringFromPrint};
@@ -300,8 +303,12 @@ impl<'a> Arbitrary<'a> for LocalPart<'a> {
 }
 #[cfg(feature = "arbitrary")]
 impl FuzzEq for LocalPart<'_> {
-    fn fuzz_eq(&self, other: &Self) -> bool {
-        self.chars().collect::<String>() == other.chars().collect::<String>()
+    fn fuzz_eq(&self, other: &Self) -> eyre::Result<()> {
+        if self.chars().collect::<String>() != other.chars().collect::<String>() {
+            Err(eyre!("LocalPart mismatch"))
+        } else {
+            Ok(())
+        }
     }
 }
 
@@ -510,8 +517,15 @@ impl<'a> Arbitrary<'a> for Dtext<'a> {
 }
 #[cfg(feature = "arbitrary")]
 impl FuzzEq for Dtext<'_> {
-    fn fuzz_eq(&self, other: &Self) -> bool {
-        self.to_strict_best_effort() == other.to_strict_best_effort()
+    fn fuzz_eq(&self, other: &Self) -> eyre::Result<()> {
+        let lhs = self.to_strict_best_effort();
+        let rhs = other.to_strict_best_effort();
+        if lhs != rhs {
+            Err(eyre!("Dtext mismatch"))
+        } else {
+            Ok(())
+        }
+        .with_context(|| format!("Dtext normalize lhs: {lhs:?}, rhs: {rhs:?}"))
     }
 }
 

@@ -1,5 +1,3 @@
-#[cfg(feature = "arbitrary")]
-use arbitrary::Arbitrary;
 use bounded_static::ToStatic;
 use nom::{
     branch::alt,
@@ -12,12 +10,14 @@ use nom::{
 use std::borrow::Cow;
 #[cfg(feature = "tracing")]
 use tracing::warn;
+#[cfg(feature = "arbitrary")]
+use {arbitrary::Arbitrary, eyre::Context as _};
 
 use crate::i18n::ContainsUtf8;
 use crate::print::{print_seq, Formatter, Print, ToStringFromPrint};
 use crate::text::{
     ascii,
-    encoding::{self, encoded_word, encoded_word_plain},
+    encoding::{self, encoded_word, encoded_word_plain, Context},
     quoted::{quoted_string, QuotedString, QuotedStringChars},
     utf8::take_utf8_while1,
     whitespace::{cfws, fws, is_obs_no_ws_ctl},
@@ -199,7 +199,7 @@ impl Print for PhraseToken<'_> {
     fn print(&self, fmt: &mut impl Formatter) {
         match self {
             PhraseToken::Word(w) => w.print(fmt),
-            PhraseToken::Encoded(e) => e.print(fmt),
+            PhraseToken::Encoded(e) => e.in_context(Context::Phrase).print(fmt),
         }
     }
 }
@@ -360,8 +360,12 @@ impl<'a> Arbitrary<'a> for Phrase<'a> {
 }
 #[cfg(feature = "arbitrary")]
 impl FuzzEq for Phrase<'_> {
-    fn fuzz_eq(&self, other: &Self) -> bool {
-        self.normalize().0.fuzz_eq(&other.normalize().0)
+    fn fuzz_eq(&self, other: &Self) -> eyre::Result<()> {
+        let lhs = self.normalize();
+        let rhs = other.normalize();
+        lhs.0
+            .fuzz_eq(&rhs.0)
+            .with_context(|| format!("Phrase normalize\nlhs: {lhs:?}\nrhs: {rhs:?}"))
     }
 }
 
@@ -460,7 +464,7 @@ impl ContainsUtf8 for UnstrToken<'_> {
 impl Print for UnstrToken<'_> {
     fn print(&self, fmt: &mut impl Formatter) {
         match self {
-            UnstrToken::Encoded(e) => e.print(fmt),
+            UnstrToken::Encoded(e) => e.in_context(Context::Unstructured).print(fmt),
             UnstrToken::Plain(txt, UnstrTxtKind::Txt) => fmt.write_bytes(txt.as_bytes()),
             UnstrToken::Plain(_, UnstrTxtKind::Obs) =>
                 // skip obsolete parts
@@ -577,10 +581,12 @@ impl ContainsUtf8 for Unstructured<'_> {
 
 #[cfg(feature = "arbitrary")]
 impl FuzzEq for Unstructured<'_> {
-    fn fuzz_eq(&self, other: &Self) -> bool {
-        self.fuzz_eq_normalize()
-            .0
-            .fuzz_eq(&other.fuzz_eq_normalize().0)
+    fn fuzz_eq(&self, other: &Self) -> eyre::Result<()> {
+        let lhs = self.fuzz_eq_normalize();
+        let rhs = other.fuzz_eq_normalize();
+        lhs.0
+            .fuzz_eq(&rhs.0)
+            .with_context(|| format!("Unstructured normalize\nlhs: {lhs:?}\nrhs: {rhs:?}"))
     }
 }
 
@@ -748,7 +754,7 @@ mod tests {
                 UnstrToken::Plain(" "[..].into(), UnstrTxtKind::Fws),
                 UnstrToken::Encoded(EncodedWord(vec![EncodedWordToken::Quoted(QuotedWord {
                     enc: EmailCharset::utf8(),
-                    chunks: vec![QuotedChunk::Safe(b"foo"[..].into())],
+                    chunks: vec![QuotedChunk::Safe(Context::Phrase, b"foo"[..].into())],
                 })]))
             ])
         );

@@ -233,7 +233,7 @@ mod tests {
         );
     }
 
-    use crate::text::encoding::{EncodedWord, EncodedWordToken, QuotedChunk, QuotedWord};
+    use crate::text::encoding::{Context, EncodedWord, EncodedWordToken, QuotedChunk, QuotedWord};
     use crate::text::quoted::QuotedString;
 
     #[test]
@@ -280,11 +280,11 @@ mod tests {
                                     QuotedWord {
                                         enc: EmailCharset::utf8(),
                                         chunks: vec![
-                                            QuotedChunk::Safe(b"John"[..].into()),
+                                            QuotedChunk::Safe(Context::Phrase, b"John"[..].into()),
                                             QuotedChunk::Space,
-                                            QuotedChunk::Safe(b"Sm"[..].into()),
+                                            QuotedChunk::Safe(Context::Phrase, b"Sm"[..].into()),
                                             QuotedChunk::Encoded(vec![0xc3, 0xae]),
-                                            QuotedChunk::Safe(b"th"[..].into()),
+                                            QuotedChunk::Safe(Context::Phrase, b"th"[..].into()),
                                         ]
                                     }
                                 )

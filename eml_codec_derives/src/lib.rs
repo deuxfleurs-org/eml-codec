@@ -9,17 +9,17 @@ use syn::{punctuated::Punctuated, token::Comma, Attribute, LitStr, Variant};
 pub fn derive_to_string_from_print(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     let name = input.ident;
-    let (impl_generics, ty_generics, where_clauses) = input.generics.split_for_impl();
+    let generics = add_bounds(input.generics, quote! { Print });
+
+    let (impl_generics, ty_generics, where_clauses) = generics.split_for_impl();
 
     let expanded = quote! {
         impl #impl_generics ToString for #name #ty_generics #where_clauses {
             fn to_string(&self) -> String {
-                String::from_utf8_lossy(
-                    &crate::print::print_to_vec(
-                        &crate::print::FMT_NOFOLD,
-                        self,
-                    )
-                ).to_string()
+                crate::print::print_to_string(
+                    &crate::print::FMT_NOFOLD,
+                    self
+                )
             }
         }
     };
@@ -48,10 +48,15 @@ pub fn derive_fuzz_eq(input: TokenStream) -> TokenStream {
         }
     };
 
+    let ctx = format!("type {}", name.to_string());
     let expanded = quote! {
         impl #impl_generics FuzzEq for #name #ty_generics #where_clauses {
-            fn fuzz_eq(&self, other: &Self) -> bool {
-                #body
+            fn fuzz_eq(&self, other: &Self) -> eyre::Result<()> {
+                use eyre::Context;
+                let body = || -> eyre::Result<()> {
+                    #body
+                };
+                body().context(#ctx)
             }
         }
     };
@@ -68,29 +73,51 @@ fn derive_fuzz_eq_struct(fields: &Fields) -> proc_macro2::TokenStream {
                 .filter(|f| !has_attr(&f.attrs, "fuzz_eq", "ignore"))
                 .map(|f| {
                     let name = &f.ident;
+                    let ctx = format!("field .{}", name.as_ref().unwrap().to_string());
                     if has_attr(&f.attrs, "fuzz_eq", "use_eq") {
-                        quote! { &self.#name == &other.#name }
+                        quote! {
+                            if &self.#name != &other.#name {
+                                Err(eyre::eyre!(#ctx))
+                            } else {
+                                Ok(())
+                            }
+                        }
                     } else {
-                        quote! { self.#name.fuzz_eq(&other.#name) }
+                        quote! {
+                            {
+                                use eyre::Context;
+                                self.#name.fuzz_eq(&other.#name)
+                                    .context(#ctx)
+                            }
+                        }
                     }
                 });
 
             quote! {
-                true #(&& #comparisons)*
+                #( #comparisons ?; )*
+                Ok(())
             }
         }
         Fields::Unnamed(fields) => {
             let indices = (0..fields.unnamed.len()).map(syn::Index::from);
 
             let comparisons = indices.map(|i| {
-                quote! { self.#i.fuzz_eq(&other.#i) }
+                let ctx = format!("field .{}", i.index);
+                quote! {
+                    {
+                        use eyre::Context;
+                        self.#i.fuzz_eq(&other.#i)
+                            .context(#ctx)
+                    }
+                }
             });
 
             quote! {
-                true #(&& #comparisons)*
+                #( #comparisons ?; )*
+                Ok(())
             }
         }
-        Fields::Unit => quote!(true),
+        Fields::Unit => quote!(Ok(())),
     }
 }
 
@@ -104,7 +131,7 @@ fn derive_fuzz_eq_enum(
         match &variant.fields {
             Fields::Unit => {
                 quote! {
-                    (#enum_name::#vname, #enum_name::#vname) => true
+                    (#enum_name::#vname, #enum_name::#vname) => Ok(())
                 }
             }
             Fields::Unnamed(fields) => {
@@ -115,11 +142,23 @@ fn derive_fuzz_eq_enum(
                     .map(|i| syn::Ident::new(&format!("b{i}"), vname.span()))
                     .collect();
 
-                let comparisons = lhs.iter().zip(rhs.iter()).map(|(a, b)| {
+                let comparisons = lhs.iter().zip(rhs.iter()).enumerate().map(|(i, (a, b))| {
+                    let ctx = format!("field .{i}");
                     if has_attr(&variant.attrs, "fuzz_eq", "use_eq") {
-                        quote! { #a == #b }
+                        quote! {
+                            if #a != #b {
+                                Err(eyre::eyre!(#ctx))
+                            } else {
+                                Ok(())
+                            }
+                        }
                     } else {
-                        quote! { #a.fuzz_eq(&#b) }
+                        quote! {
+                            {
+                                use eyre::Context;
+                                #a.fuzz_eq(&#b).context(#ctx)
+                            }
+                        }
                     }
                 });
 
@@ -128,7 +167,8 @@ fn derive_fuzz_eq_enum(
                         #enum_name::#vname( #(#lhs),* ),
                         #enum_name::#vname( #(#rhs),* )
                     ) => {
-                        true #(&& #comparisons)*
+                        #( #comparisons ?; )*
+                        Ok(())
                     }
                 }
             }
@@ -154,20 +194,37 @@ fn derive_fuzz_eq_enum(
                     .map(|f| f.ident.as_ref().unwrap())
                     .collect();
 
-                let comparisons = lhs.iter().zip(rhs.iter()).map(|(a, b)| {
-                    if has_attr(&variant.attrs, "fuzz_eq", "use_eq") {
-                        quote! { #a == #b }
-                    } else {
-                        quote! { #a.fuzz_eq(&#b) }
-                    }
-                });
+                let comparisons =
+                    names
+                        .iter()
+                        .zip(lhs.iter().zip(rhs.iter()))
+                        .map(|(n, (a, b))| {
+                            let ctx = format!("field {}", n.to_string());
+                            if has_attr(&variant.attrs, "fuzz_eq", "use_eq") {
+                                quote! {
+                                    if #a != #b {
+                                        Err(eyre::eyre!(#ctx))
+                                    } else {
+                                        Ok(())
+                                    }
+                                }
+                            } else {
+                                quote! {
+                                    {
+                                        use eyre::Context;
+                                        #a.fuzz_eq(&#b).context(#ctx)
+                                    }
+                                }
+                            }
+                        });
 
                 quote! {
                     (
                         #enum_name::#vname { #(#names: #lhs),* },
                         #enum_name::#vname { #(#names: #rhs),* }
                     ) => {
-                        true #(&& #comparisons)*
+                        #( #comparisons ?; )*
+                        Ok(())
                     }
                 }
             }
@@ -177,7 +234,7 @@ fn derive_fuzz_eq_enum(
     quote! {
         match (self, other) {
             #(#arms),*,
-            _ => false
+            _ => Err(eyre::eyre!("constructor mismatch: {:?} vs {:?}", self, other))
         }
     }
 }

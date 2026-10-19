@@ -1,5 +1,3 @@
-#[cfg(feature = "arbitrary")]
-use arbitrary::Arbitrary;
 use bounded_static::ToStatic;
 use nom::{
     bytes::complete::tag,
@@ -8,6 +6,8 @@ use nom::{
     sequence::tuple,
     IResult,
 };
+#[cfg(feature = "arbitrary")]
+use {arbitrary::Arbitrary, eyre::eyre};
 
 #[cfg(feature = "arbitrary")]
 use crate::fuzz_eq::FuzzEq;
@@ -31,8 +31,12 @@ impl Default for Version {
 }
 #[cfg(feature = "arbitrary")]
 impl FuzzEq for Version {
-    fn fuzz_eq(&self, other: &Self) -> bool {
-        self == other
+    fn fuzz_eq(&self, other: &Self) -> eyre::Result<()> {
+        if self != other {
+            Err(eyre!("mime::Version mismatch"))
+        } else {
+            Ok(())
+        }
     }
 }
 

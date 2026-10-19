@@ -1,5 +1,3 @@
-#[cfg(feature = "arbitrary")]
-use arbitrary::Arbitrary;
 use bounded_static::ToStatic;
 use nom::{
     branch::alt,
@@ -15,6 +13,8 @@ use std::fmt;
 use std::ops::ControlFlow;
 #[cfg(feature = "tracing")]
 use tracing::warn;
+#[cfg(feature = "arbitrary")]
+use {arbitrary::Arbitrary, eyre::eyre};
 
 use crate::i18n::ContainsUtf8;
 use crate::print::{Formatter, Print, ToStringFromPrint};
@@ -87,8 +87,12 @@ impl<'a> Arbitrary<'a> for QuotedString<'a> {
 
 #[cfg(feature = "arbitrary")]
 impl FuzzEq for QuotedString<'_> {
-    fn fuzz_eq(&self, other: &Self) -> bool {
-        self.chars().collect::<String>() == other.chars().collect::<String>()
+    fn fuzz_eq(&self, other: &Self) -> eyre::Result<()> {
+        if self.chars().collect::<String>() != other.chars().collect::<String>() {
+            Err(eyre!("QuotedString mismatch"))
+        } else {
+            Ok(())
+        }
     }
 }
 

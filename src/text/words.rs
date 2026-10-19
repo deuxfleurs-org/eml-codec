@@ -8,8 +8,6 @@ use crate::{
     arbitrary_utils::{arbitrary_string_nonempty_where, arbitrary_vec_nonempty_where},
     fuzz_eq::FuzzEq,
 };
-#[cfg(feature = "arbitrary")]
-use arbitrary::Arbitrary;
 use bounded_static::ToStatic;
 use eml_codec_derives::instrument_input;
 use nom::{
@@ -22,12 +20,19 @@ use nom::{
 };
 use std::borrow::Cow;
 use std::fmt;
+#[cfg(feature = "arbitrary")]
+use {arbitrary::Arbitrary, eyre::eyre};
 
 /// Printable characters
 ///
 /// following RFC6532, this includes non-ascii UTF8 text
 pub fn is_vchar(c: char) -> bool {
-    is_nonascii_or(|c| (ascii::EXCLAMATION..=ascii::TILDE).contains(&c))(c)
+    is_nonascii_or(is_vchar_ascii)(c)
+}
+
+/// Printable ASCII characters
+pub fn is_vchar_ascii(c: u8) -> bool {
+    (ascii::EXCLAMATION..=ascii::TILDE).contains(&c)
 }
 
 /// A MIME atom.
@@ -57,8 +62,12 @@ impl<'a> Arbitrary<'a> for MIMEAtom<'_> {
 }
 #[cfg(feature = "arbitrary")]
 impl FuzzEq for MIMEAtom<'_> {
-    fn fuzz_eq(&self, other: &Self) -> bool {
-        self == other
+    fn fuzz_eq(&self, other: &Self) -> eyre::Result<()> {
+        if self != other {
+            Err(eyre!("MIMEAtom mismatch"))
+        } else {
+            Ok(())
+        }
     }
 }
 impl<'a> MIMEAtom<'a> {
@@ -152,8 +161,12 @@ impl<'a> Arbitrary<'a> for Atom<'a> {
 }
 #[cfg(feature = "arbitrary")]
 impl FuzzEq for Atom<'_> {
-    fn fuzz_eq(&self, other: &Self) -> bool {
-        self == other
+    fn fuzz_eq(&self, other: &Self) -> eyre::Result<()> {
+        if self != other {
+            Err(eyre!("Atom mismatch"))
+        } else {
+            Ok(())
+        }
     }
 }
 
@@ -221,8 +234,12 @@ impl<'a> Arbitrary<'a> for DotAtom<'a> {
 }
 #[cfg(feature = "arbitrary")]
 impl FuzzEq for DotAtom<'_> {
-    fn fuzz_eq(&self, other: &Self) -> bool {
-        self == other
+    fn fuzz_eq(&self, other: &Self) -> eyre::Result<()> {
+        if self != other {
+            Err(eyre!("DotAtom mismatch"))
+        } else {
+            Ok(())
+        }
     }
 }
 

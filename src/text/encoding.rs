@@ -1,6 +1,9 @@
-#[cfg(feature = "arbitrary")]
-use arbitrary::Arbitrary;
 use bounded_static::ToStatic;
+#[cfg(feature = "arbitrary")]
+use {
+    arbitrary::Arbitrary,
+    eyre::{eyre, Context as _},
+};
 
 use base64::{engine::general_purpose, Engine as _};
 use nom::{
@@ -17,9 +20,9 @@ use std::borrow::Cow;
 use std::fmt;
 
 use crate::i18n::ContainsUtf8;
-use crate::print::{print_seq, Formatter, Print, ToStringFromPrint};
+use crate::print::{self, print_iter, Formatter, Print};
 use crate::text::ascii;
-use crate::text::charset::EmailCharset;
+use crate::text::charset::{charset, EmailCharset};
 use crate::text::utf8::take_utf8_while1;
 use crate::text::whitespace::{self, cfws, fws};
 use crate::text::words;
@@ -29,15 +32,33 @@ use crate::{
     fuzz_eq::FuzzEq,
 };
 
-// Context in which an encoded word is parsed.
-//
-// `Phrase` is more strict than `Comment`, which is more strict than `Unstructured`.
-// ("more strict" == "allows less inputs")
-#[derive(Clone, Copy)]
+/// Context in which an encoded word is parsed.
+///
+/// `Phrase` is more strict than `Comment`, which is more strict than `Unstructured`.
+/// ("more strict" == "allows less inputs").
+///
+/// `<` corresponds to the "strictness" relation, where c1 < c2 means that c1 is
+/// more strict (allows less inputs).
+///
+/// We have: `Phrase < Comment < Unstructured`
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, ToStatic)]
+#[cfg_attr(feature = "arbitrary", derive(Arbitrary))]
 pub enum Context {
     Phrase,
     Comment,
     Unstructured,
+}
+
+/// Wrapper type used for printing an `EncodedWord` depending on the given context.
+///
+/// Printing (like parsing) is context-dependent. This is handled by not
+/// implementing `Print` for `EncodedWord` itself, but `InContext<EncodedWord>`.
+/// You can use the `in_context` method on `EncodedWord` to obtain an
+/// `InContext` value that can be printed.
+#[derive(Clone, Copy, Debug)]
+pub struct InContext<T> {
+    pub ctx: Context,
+    pub v: T,
 }
 
 pub fn encoded_word(ctx: Context) -> impl FnMut(&[u8]) -> IResult<&[u8], EncodedWord<'_>> {
@@ -86,27 +107,24 @@ fn encoded_word_token_atom(ctx: Context) -> impl FnMut(&[u8]) -> IResult<&[u8], 
 }
 
 pub fn encoded_word_token_quoted(input: &[u8]) -> IResult<&[u8], EncodedWordToken<'_>> {
-    let (rest, (_, charset, _, _, _, txt, _)) = tuple((
+    let (rest, (_, enc, _, _, _, chunks, _)) = tuple((
         tag("=?"),
-        words::mime_atom_plain,
+        charset,
         tag("?"),
         one_of("Qq"),
         tag("?"),
-        ptext,
+        qtext,
         tag("?="),
     ))(input)?;
 
-    let parsed = EncodedWordToken::Quoted(QuotedWord {
-        enc: charset.0.into(),
-        chunks: txt,
-    });
+    let parsed = EncodedWordToken::Quoted(QuotedWord { enc, chunks });
     Ok((rest, parsed))
 }
 
 pub fn encoded_word_token_base64(input: &[u8]) -> IResult<&[u8], EncodedWordToken<'_>> {
-    let (rest, (_, charset, _, _, _, txt, _)) = tuple((
+    let (rest, (_, enc, _, _, _, txt, _)) = tuple((
         tag("=?"),
-        words::mime_atom_plain,
+        charset,
         tag("?"),
         one_of("Bb"),
         tag("?"),
@@ -115,14 +133,14 @@ pub fn encoded_word_token_base64(input: &[u8]) -> IResult<&[u8], EncodedWordToke
     ))(input)?;
 
     let parsed = EncodedWordToken::Base64(Base64Word {
-        enc: charset.0.into(),
+        enc,
         content: Cow::Borrowed(txt),
     });
     Ok((rest, parsed))
 }
 
 /// Represents an encoded word.
-#[derive(Clone, ContainsUtf8, Debug, PartialEq, ToStatic, ToStringFromPrint)]
+#[derive(Clone, ContainsUtf8, Debug, PartialEq, ToStatic)]
 #[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
 #[contains_utf8(false)]
 pub struct EncodedWord<'a>(pub Vec<EncodedWordToken<'a>>); // must be non-empty
@@ -165,12 +183,15 @@ impl EncodedWord<'_> {
                 cur_word_len = 0;
             }
 
-            if c.is_ascii() && is_qchar_safe_strict(c as u8) {
-                if let Some(QuotedChunk::Safe(s)) = cur_chunks.last_mut() {
+            // For simplicity, we only output unencoded "safe" tokens only for
+            // chars that are safe in all contexts (the `Phrase` context is the
+            // most restrictive).
+            if c.is_ascii() && is_safe_qchar_phrase(c as u8) {
+                if let Some(QuotedChunk::Safe(_, s)) = cur_chunks.last_mut() {
                     let s = s.to_mut();
                     s.push(c as u8);
                 } else {
-                    cur_chunks.push(QuotedChunk::Safe(vec![c as u8].into()));
+                    cur_chunks.push(QuotedChunk::Safe(Context::Phrase, vec![c as u8].into()));
                 }
                 cur_word_len += 1;
             } else if c == char::from(ascii::SP) {
@@ -197,10 +218,23 @@ impl EncodedWord<'_> {
 
         EncodedWord(tokens)
     }
+
+    pub fn in_context(&self, ctx: Context) -> InContext<&Self> {
+        InContext { ctx, v: self }
+    }
 }
-impl Print for EncodedWord<'_> {
+impl Print for InContext<&EncodedWord<'_>> {
     fn print(&self, fmt: &mut impl Formatter) {
-        print_seq(fmt, &self.0, Formatter::write_fws);
+        print_iter(
+            fmt,
+            self.v.0.iter().map(|tok| tok.in_context(self.ctx)),
+            Formatter::write_fws,
+        );
+    }
+}
+impl ToString for InContext<&EncodedWord<'_>> {
+    fn to_string(&self) -> String {
+        print::print_to_string(&print::FMT_NOFOLD, self)
     }
 }
 
@@ -224,11 +258,15 @@ impl EncodedWordToken<'_> {
             EncodedWordToken::Base64(v) => v.data(),
         }
     }
+
+    pub fn in_context(&self, ctx: Context) -> InContext<&Self> {
+        InContext { ctx, v: self }
+    }
 }
-impl Print for EncodedWordToken<'_> {
+impl Print for InContext<&EncodedWordToken<'_>> {
     fn print(&self, fmt: &mut impl Formatter) {
-        match self {
-            EncodedWordToken::Quoted(q) => q.print(fmt),
+        match &self.v {
+            EncodedWordToken::Quoted(q) => q.in_context(self.ctx).print(fmt),
             EncodedWordToken::Base64(b) => b.print(fmt),
         }
     }
@@ -292,52 +330,75 @@ pub struct QuotedWord<'a> {
 
 impl QuotedWord<'_> {
     pub fn data(&self) -> String {
-        self.chunks.iter().fold(String::new(), |mut acc, c| {
+        self.enc.decode(&self.unencoded_bytes()).to_string()
+    }
+
+    fn unencoded_bytes(&self) -> Vec<u8> {
+        self.chunks.iter().fold(vec![], |mut acc, c| {
             match c {
-                QuotedChunk::Safe(v) => {
-                    let (content, _) = encoding_rs::UTF_8.decode_without_bom_handling(v);
-                    acc.push_str(content.as_ref());
-                }
-                QuotedChunk::Space => acc.push(' '),
-                QuotedChunk::Encoded(v) => {
-                    let d = self.enc.decode(v.as_slice());
-                    acc.push_str(d.as_ref());
-                }
+                QuotedChunk::Safe(_, v) => acc.extend(v.as_ref()),
+                QuotedChunk::Space => acc.push(b' '),
+                QuotedChunk::Encoded(v) => acc.extend(v),
             }
             acc
         })
     }
+
+    pub fn in_context(&self, ctx: Context) -> InContext<&Self> {
+        InContext { ctx, v: self }
+    }
 }
 
-impl Print for QuotedWord<'_> {
+impl Print for InContext<&QuotedWord<'_>> {
     fn print(&self, fmt: &mut impl Formatter) {
         fmt.write_bytes(b"=?");
-        fmt.write_bytes(self.enc.as_bytes());
+        fmt.write_bytes(self.v.enc.as_bytes());
         fmt.write_bytes(b"?Q?");
-        print_seq(fmt, &self.chunks, |_| ());
+        print_iter(
+            fmt,
+            self.v.chunks.iter().map(|c| c.in_context(self.ctx)),
+            |_| (),
+        );
         fmt.write_bytes(b"?=");
     }
 }
 
 #[cfg(feature = "arbitrary")]
 impl FuzzEq for QuotedWord<'_> {
-    fn fuzz_eq(&self, other: &Self) -> bool {
-        self.enc.fuzz_eq(&other.enc)
-            && normalize_quoted_chunks(&self.chunks) == normalize_quoted_chunks(&other.chunks)
+    fn fuzz_eq(&self, other: &Self) -> eyre::Result<()> {
+        self.enc.fuzz_eq(&other.enc).context("QuotedWord.enc")?;
+        let bytes1 = self.unencoded_bytes();
+        let bytes2 = other.unencoded_bytes();
+        if bytes1 != bytes2 {
+            Err(eyre!(
+                "QuotedWord bytes mismatch: {:?} vs {:?}",
+                String::from_utf8_lossy(&bytes1),
+                String::from_utf8_lossy(&bytes2),
+            ))
+        } else {
+            Ok(())
+        }
     }
 }
 
 #[derive(PartialEq, Clone, ToStatic)]
 pub enum QuotedChunk<'a> {
-    Safe(Cow<'a, [u8]>), // must satisfy `is_safe_char2`
+    Safe(Context, Cow<'a, [u8]>),
     Encoded(Vec<u8>),
     Space,
 }
+impl QuotedChunk<'_> {
+    pub fn in_context(&self, ctx: Context) -> InContext<&Self> {
+        InContext { ctx, v: self }
+    }
+}
+
 impl fmt::Debug for QuotedChunk<'_> {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            QuotedChunk::Safe(b) => fmt
+            QuotedChunk::Safe(ctx, b) => fmt
                 .debug_tuple("QuotedChunk::Safe")
+                .field(ctx)
                 .field(&String::from_utf8_lossy(b))
                 .finish(),
             QuotedChunk::Encoded(e) => fmt.debug_tuple("QuotedChunk::Encoded").field(e).finish(),
@@ -346,10 +407,21 @@ impl fmt::Debug for QuotedChunk<'_> {
     }
 }
 
-impl Print for QuotedChunk<'_> {
+impl Print for InContext<&QuotedChunk<'_>> {
     fn print(&self, fmt: &mut impl Formatter) {
-        match self {
-            QuotedChunk::Safe(b) => fmt.write_bytes(b),
+        match self.v {
+            QuotedChunk::Safe(safe_ctx, b) => {
+                if safe_ctx <= &self.ctx {
+                    // if our enclosing context is less restrictive than the
+                    // context the chunk is safe for, then we can print directly
+                    fmt.write_bytes(b);
+                } else {
+                    // otherwise print as encoded bytes
+                    for c in b.as_ref() {
+                        fmt.write_bytes(format!("={c:02X}").as_bytes());
+                    }
+                }
+            }
             QuotedChunk::Encoded(e) => {
                 for c in e {
                     fmt.write_bytes(format!("={c:02X}").as_bytes());
@@ -365,8 +437,15 @@ impl<'a> Arbitrary<'a> for QuotedChunk<'a> {
     fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
         match u.int_in_range(0..=2)? {
             0 => {
-                let v = arbitrary_vec_where(u, |c| is_safe_char2(*c))?;
-                Ok(QuotedChunk::Safe(Cow::Owned(v)))
+                let ctx: Context = u.arbitrary()?;
+                let v = match ctx {
+                    Context::Phrase => arbitrary_vec_where(u, |c| is_safe_qchar_phrase(*c))?,
+                    Context::Comment => arbitrary_vec_where(u, |c| is_safe_qchar_comment(*c))?,
+                    Context::Unstructured => {
+                        arbitrary_vec_where(u, |c| is_safe_qchar_unstructured(*c))?
+                    }
+                };
+                Ok(QuotedChunk::Safe(ctx, Cow::Owned(v)))
             }
             1 => {
                 let v: Vec<u8> = u.arbitrary()?;
@@ -379,22 +458,68 @@ impl<'a> Arbitrary<'a> for QuotedChunk<'a> {
 }
 
 //quoted_printable
-pub fn ptext(input: &[u8]) -> IResult<&[u8], Vec<QuotedChunk<'_>>> {
-    many0(alt((safe_char2, encoded_space, many_hex_octet)))(input)
+pub fn qtext(input: &[u8]) -> IResult<&[u8], Vec<QuotedChunk<'_>>> {
+    many0(alt((
+        safe_qchars_phrase,
+        safe_qchars_comment,
+        safe_qchars_unstructured,
+        encoded_space,
+        many_hex_octet,
+    )))(input)
 }
 
-fn safe_char2(input: &[u8]) -> IResult<&[u8], QuotedChunk<'_>> {
-    map(take_while1(is_safe_char2), |b| {
-        QuotedChunk::Safe(Cow::Borrowed(b))
+fn safe_qchars_phrase(input: &[u8]) -> IResult<&[u8], QuotedChunk<'_>> {
+    map(take_while1(is_safe_qchar_phrase), |b| {
+        QuotedChunk::Safe(Context::Phrase, Cow::Borrowed(b))
     })(input)
 }
 
-/// RFC2047 section 4.2
-/// 8-bit values which correspond to printable ASCII characters other
-/// than "=", "?", and "_" (underscore), MAY be represented as those
-/// characters.
-fn is_safe_char2(c: u8) -> bool {
-    words::is_vchar(c.into()) && c != ascii::UNDERSCORE && c != ascii::QUESTION && c != ascii::EQ
+fn safe_qchars_comment(input: &[u8]) -> IResult<&[u8], QuotedChunk<'_>> {
+    map(take_while1(is_safe_qchar_comment), |b| {
+        QuotedChunk::Safe(Context::Comment, Cow::Borrowed(b))
+    })(input)
+}
+
+fn safe_qchars_unstructured(input: &[u8]) -> IResult<&[u8], QuotedChunk<'_>> {
+    map(take_while1(is_safe_qchar_unstructured), |b| {
+        QuotedChunk::Safe(Context::Unstructured, Cow::Borrowed(b))
+    })(input)
+}
+
+/// RFC2047:
+/// - section 4.2
+///   8-bit values which correspond to printable ASCII characters other
+///   than "=", "?", and "_" (underscore), MAY be represented as those
+///   characters.
+/// - section 5
+///   unstructured tokens can use encoded words without further restrictions
+fn is_safe_qchar_unstructured(c: u8) -> bool {
+    words::is_vchar_ascii(c) && c != ascii::UNDERSCORE && c != ascii::QUESTION && c != ascii::EQ
+}
+
+/// RFC2047:
+/// a "Q"-encoded 'encoded-word' which appears in a 'comment' MUST NOT contain
+/// the characters "(", ")" or "\".
+fn is_safe_qchar_comment(c: u8) -> bool {
+    c != ascii::LEFT_PAR
+        && c != ascii::RIGHT_PAR
+        && c != ascii::BACKSLASH
+        && is_safe_qchar_unstructured(c)
+}
+
+/// RFC2047:
+/// in a phrase, the set of characters is restricted to:
+/// <upper and lower case ASCII
+/// letters, decimal digits, "!", "*", "+", "-", "/", "=" (only if
+/// followed by two hexadecimal digits), and "_" (underscore, ASCII 95.)>.
+/// (note: the last two cases are handled separately by `encoded_space` and `hex_octet`)
+fn is_safe_qchar_phrase(c: u8) -> bool {
+    c.is_ascii_alphanumeric()
+        || c == ascii::EXCLAMATION
+        || c == ascii::ASTERISK
+        || c == ascii::PLUS
+        || c == ascii::MINUS
+        || c == ascii::SLASH
 }
 
 fn encoded_space(input: &[u8]) -> IResult<&[u8], QuotedChunk<'_>> {
@@ -426,38 +551,6 @@ fn is_bchar(c: u8) -> bool {
     is_alphanumeric(c) || c == ascii::PLUS || c == ascii::SLASH
 }
 
-// Returns whether ASCII char `b` is safe to display as-is in the
-// encoded-text of an encoded-word.
-// As per RFC2047, in general this depends on the context in which
-// this encoded-word occurs. Because this function is used for
-// printing, it returns the most conservative answer, i.e. it only
-// returns `true` if the character is safe to use in any context.
-fn is_qchar_safe_strict(b: u8) -> bool {
-    // General restrictions for the Q encoding (RFC2047, 4.2, (3)),
-    // + restrictions when inside a comment (RFC2047, 5, (2)),
-    // + restrictions when inside a phrase (RFC2047, 5, (3)).
-    is_alphanumeric(b)
-        || b == ascii::EXCLAMATION
-        || b == ascii::ASTERISK
-        || b == ascii::PLUS
-        || b == ascii::MINUS
-        || b == ascii::SLASH
-}
-
-#[cfg(feature = "arbitrary")]
-fn normalize_quoted_chunks(chunks: &Vec<QuotedChunk<'_>>) -> Vec<QuotedChunk<'static>> {
-    use bounded_static::ToBoundedStatic;
-    let mut new_chunks: Vec<QuotedChunk<'static>> = vec![];
-    for chunk in chunks {
-        match (new_chunks.last_mut(), chunk) {
-            (Some(QuotedChunk::Safe(b1)), QuotedChunk::Safe(b2)) => b1.to_mut().extend(&**b2),
-            (Some(QuotedChunk::Encoded(v1)), QuotedChunk::Encoded(v2)) => v1.extend(v2),
-            (_, _) => new_chunks.push(chunk.to_static()),
-        }
-    }
-    new_chunks
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -465,24 +558,24 @@ mod tests {
 
     // =?iso8859-1?Q?Accus=E9_de_r=E9ception_(affich=E9)?=
     #[test]
-    fn test_ptext() {
+    fn test_qtext() {
         assert_eq!(
-            ptext(b"Accus=E9_de_r=E9ception_(affich=E9)"),
+            qtext(b"Accus=E9_de_r=E9ception_(affich=E9)"),
             Ok((
                 &b""[..],
                 vec![
-                    QuotedChunk::Safe(b"Accus"[..].into()),
+                    QuotedChunk::Safe(Context::Phrase, b"Accus"[..].into()),
                     QuotedChunk::Encoded(vec![0xe9]),
                     QuotedChunk::Space,
-                    QuotedChunk::Safe(b"de"[..].into()),
+                    QuotedChunk::Safe(Context::Phrase, b"de"[..].into()),
                     QuotedChunk::Space,
-                    QuotedChunk::Safe(b"r"[..].into()),
+                    QuotedChunk::Safe(Context::Phrase, b"r"[..].into()),
                     QuotedChunk::Encoded(vec![0xe9]),
-                    QuotedChunk::Safe(b"ception"[..].into()),
+                    QuotedChunk::Safe(Context::Phrase, b"ception"[..].into()),
                     QuotedChunk::Space,
-                    QuotedChunk::Safe(b"(affich"[..].into()),
+                    QuotedChunk::Safe(Context::Unstructured, b"(affich"[..].into()),
                     QuotedChunk::Encoded(vec![0xe9]),
-                    QuotedChunk::Safe(b")"[..].into()),
+                    QuotedChunk::Safe(Context::Unstructured, b")"[..].into()),
                 ]
             ))
         );
@@ -531,7 +624,7 @@ mod tests {
                 .unwrap()
                 .1,
             EncodedWord(vec![EncodedWordToken::Base64(Base64Word {
-                enc: EmailCharset::from(b"iso-8859-1"),
+                enc: EmailCharset::try_from(&b"iso-8859-1"[..]).unwrap(),
                 content: b"SWYgeW91IGNhbiByZWFkIHRoaXMgeW8"[..].into(),
             })])
         );
@@ -583,7 +676,9 @@ mod tests {
     #[test]
     fn test_encode() {
         let out = print_to_vec_with(|f| {
-            EncodedWord::from_chars("Accusé de réception (affiché)".chars()).print(f);
+            EncodedWord::from_chars("Accusé de réception (affiché)".chars())
+                .in_context(Context::Unstructured)
+                .print(f);
         });
         assert_eq!(
             String::from_utf8_lossy(&out),
@@ -591,7 +686,9 @@ mod tests {
         );
 
         let out = print_to_vec_with(|f| {
-            EncodedWord::from_chars("John Smîth".chars()).print(f);
+            EncodedWord::from_chars("John Smîth".chars())
+                .in_context(Context::Unstructured)
+                .print(f);
         });
         assert_eq!(out, b"=?UTF-8?Q?John_Sm=C3=AEth?=");
     }
@@ -603,6 +700,7 @@ mod tests {
             EncodedWord::from_chars(
                 "Accusé de réception (affiché) Accusé de réception (affiché)".chars(),
             )
+            .in_context(Context::Unstructured)
             .print(f);
         });
         assert_eq!(
@@ -614,7 +712,9 @@ mod tests {
     #[test]
     fn test_encode_empty() {
         let out = print_to_vec_with(|f| {
-            EncodedWord::from_chars("".chars()).print(f);
+            EncodedWord::from_chars("".chars())
+                .in_context(Context::Phrase)
+                .print(f);
         });
         assert_eq!(out, b"=?UTF-8?Q??=");
     }

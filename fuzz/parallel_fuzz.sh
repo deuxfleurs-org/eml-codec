@@ -5,4 +5,4 @@ if [ "$#" -lt 2 ]; then
     exit 1
 fi
 
-nice cargo +nightly fuzz run "$1" --release -s none -- -timeout=1 -max_len=2000 -jobs="$2"
+nice cargo +nightly fuzz run "$1" --release -s none -- -timeout=1 -max_len=2000 -workers="$2" -jobs="$2"

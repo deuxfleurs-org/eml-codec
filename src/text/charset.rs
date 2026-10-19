@@ -1,11 +1,13 @@
 use crate::i18n::ContainsUtf8;
-use crate::text::words::is_vchar;
+use crate::text::ascii;
+use crate::text::words::{is_mime_atom_text, MIMEAtom};
 use bounded_static::{IntoBoundedStatic, ToBoundedStatic};
 use charset::Charset;
+use nom::{bytes::complete::take_while1, combinator::map_res, IResult};
 #[cfg(feature = "tracing-recover")]
 use tracing::warn;
 #[cfg(feature = "arbitrary")]
-use {crate::fuzz_eq::FuzzEq, arbitrary::Arbitrary};
+use {crate::fuzz_eq::FuzzEq, arbitrary::Arbitrary, eyre::eyre};
 
 /// Email charsets are defined by IANA
 /// <https://www.iana.org/assignments/character-sets/character-sets.xhtml>
@@ -19,29 +21,26 @@ pub enum EmailCharset {
     #[default]
     US_ASCII,
     Charset(Charset),
-    // Invariant: must contain ASCII characters satisfying is_vchar
+    // Must be non-empty and contain characters satisfying `is_charset_text`
     Unknown(String),
 }
 
-impl<T: AsRef<[u8]>> From<T> for EmailCharset {
-    fn from(bytes: T) -> Self {
-        match bytes.as_ref().to_ascii_lowercase().as_slice() {
-            b"us-ascii" | b"ascii" => Self::US_ASCII,
+impl TryFrom<&[u8]> for EmailCharset {
+    type Error = ();
+
+    fn try_from(bytes: &[u8]) -> Result<Self, Self::Error> {
+        match bytes.to_ascii_lowercase().as_slice() {
+            b"us-ascii" | b"ascii" => Ok(Self::US_ASCII),
             _ => {
-                // Filter out bytes that are not ASCII printable, in case there are some…
-                let sanitized: String = bytes
-                    .as_ref()
-                    .iter()
-                    .copied()
-                    .filter_map(|b| (b.is_ascii() && is_vchar(b as char)).then_some(b as char))
-                    .collect();
-                match Charset::for_label(sanitized.as_bytes()) {
-                    Some(c) => Self::Charset(c),
-                    None => {
-                        #[cfg(feature = "tracing-recover")]
-                        warn!(value = sanitized, "unknown charset");
-                        Self::Unknown(sanitized)
-                    }
+                if let Some(c) = Charset::for_label(bytes) {
+                    Ok(Self::Charset(c))
+                } else if !bytes.is_empty() && bytes.iter().all(|c| is_charset_text(*c)) {
+                    let c = String::from_utf8_lossy(bytes).to_string();
+                    #[cfg(feature = "tracing-recover")]
+                    warn!(value = c, "unknown charset");
+                    Ok(Self::Unknown(c))
+                } else {
+                    Err(())
                 }
             }
         }
@@ -69,6 +68,11 @@ impl EmailCharset {
             Self::Charset(c) => c.name(),
             Self::Unknown(s) => s.as_str(),
         }
+    }
+
+    /// A charset is also a valid `MIMEAtom`
+    pub fn to_mime_atom(&self) -> MIMEAtom<'static> {
+        MIMEAtom(self.as_bytes().to_vec().into())
     }
 
     pub fn utf8() -> Self {
@@ -107,13 +111,13 @@ impl<'a> Arbitrary<'a> for EmailCharset {
         match u.int_in_range(0..=6)? {
             0 => Ok(Self::US_ASCII),
             1 => Ok(Self::utf8()),
-            2 => Ok(Self::from(b"KOI-8R")),
-            3 => Ok(Self::from(b"iso-8859-1")),
-            4 => Ok(Self::from(b"iso-8859-15")),
-            5 => Ok(Self::from(b"GBK")),
+            2 => Ok(Self::try_from(&b"KOI-8R"[..]).unwrap()),
+            3 => Ok(Self::try_from(&b"iso-8859-1"[..]).unwrap()),
+            4 => Ok(Self::try_from(&b"iso-8859-15"[..]).unwrap()),
+            5 => Ok(Self::try_from(&b"GBK"[..]).unwrap()),
             6 => {
                 let label: &[u8] = u.arbitrary()?;
-                Ok(Self::from(label))
+                Self::try_from(label).map_err(|()| arbitrary::Error::IncorrectFormat)
             }
             _ => unreachable!(),
         }
@@ -121,9 +125,33 @@ impl<'a> Arbitrary<'a> for EmailCharset {
 }
 #[cfg(feature = "arbitrary")]
 impl FuzzEq for EmailCharset {
-    fn fuzz_eq(&self, other: &Self) -> bool {
-        self == other
+    fn fuzz_eq(&self, other: &Self) -> eyre::Result<()> {
+        if self != other {
+            Err(eyre!("EmailCharset mismatch"))
+        } else {
+            Ok(())
+        }
     }
+}
+
+pub fn charset(input: &[u8]) -> IResult<&[u8], EmailCharset> {
+    map_res(take_while1(is_charset_text), |word| {
+        EmailCharset::try_from(word).map_err(|()| {
+            nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::Verify))
+        })
+    })(input)
+}
+
+// RFC 2047
+//
+// charset = token
+// token = 1*<Any CHAR except SPACE, CTLs, and especials>
+// especials = "(" / ")" / "<" / ">" / "@" / "," / ";" / ":" / "\" /
+//             <"> / "/" / "[" / "]" / "?" / "." / "="
+//
+// NOTE: `token` is the same as our MIMEAtom but with "." additionally excluded!
+fn is_charset_text(c: u8) -> bool {
+    is_mime_atom_text(c) && c != ascii::PERIOD
 }
 
 #[cfg(test)]
@@ -131,22 +159,42 @@ mod tests {
     use super::*;
     #[test]
     fn test_charset() {
-        assert_eq!(EmailCharset::from(&b"Us-Ascii"[..]).as_bytes(), b"us-ascii",);
-
-        assert_eq!(EmailCharset::from(&b"Us-Ascii"[..]), EmailCharset::US_ASCII,);
+        assert_eq!(
+            EmailCharset::try_from(&b"Us-Ascii"[..]).unwrap().as_bytes(),
+            b"us-ascii",
+        );
 
         assert_eq!(
-            EmailCharset::from(&b"ISO-8859-1"[..]).as_bytes(),
+            EmailCharset::try_from(&b"Us-Ascii"[..]).unwrap(),
+            EmailCharset::US_ASCII,
+        );
+
+        assert_eq!(
+            EmailCharset::try_from(&b"ISO-8859-1"[..])
+                .unwrap()
+                .as_bytes(),
             b"windows-1252",
         );
 
-        assert_eq!(EmailCharset::from(&b"utf-8"[..]).as_bytes(), b"UTF-8",);
-
-        assert_eq!(EmailCharset::from(&b"utf8"[..]).as_bytes(), b"UTF-8",);
+        assert_eq!(
+            EmailCharset::try_from(&b"utf-8"[..]).unwrap().as_bytes(),
+            b"UTF-8",
+        );
 
         assert_eq!(
-            EmailCharset::from(&b"!*\x00\x01abc"[..]),
-            EmailCharset::Unknown("!*abc".to_string()),
+            EmailCharset::try_from(&b"utf8"[..]).unwrap().as_bytes(),
+            b"UTF-8",
         );
+
+        assert_eq!(
+            EmailCharset::try_from(&b"!*abc"[..]),
+            Ok(EmailCharset::Unknown("!*abc".to_string())),
+        );
+
+        assert_eq!(EmailCharset::try_from(&b""[..]), Err(()),);
+
+        assert_eq!(EmailCharset::try_from(&b"!*\x00\x01abc"[..]), Err(()),);
+
+        assert_eq!(EmailCharset::try_from(&b"a.b"[..]), Err(()),);
     }
 }

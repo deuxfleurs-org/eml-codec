@@ -70,8 +70,8 @@ impl FuzzEq for RawInput<'_> {
     /// `RawInput` data is always informational and never part of the proper
     /// "canonical" AST data. We thus ignore its content when comparing it with
     /// `fuzz_eq`.
-    fn fuzz_eq(&self, _other: &Self) -> bool {
-        true
+    fn fuzz_eq(&self, _other: &Self) -> eyre::Result<()> {
+        Ok(())
     }
 }
 

@@ -3,6 +3,7 @@
 fuzz/target
 fuzz/artifacts
 fuzz/corpus
+fuzz/*.log
 archive
 *.json
 *.json.gz

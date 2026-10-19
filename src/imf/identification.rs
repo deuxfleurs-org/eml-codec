@@ -1,5 +1,3 @@
-#[cfg(feature = "arbitrary")]
-use arbitrary::Arbitrary;
 use bounded_static::ToStatic;
 use nom::{
     branch::alt,
@@ -12,6 +10,11 @@ use nom::{
 use std::borrow::Cow;
 #[cfg(any(feature = "tracing-recover", feature = "tracing-unsupported"))]
 use tracing::warn;
+#[cfg(feature = "arbitrary")]
+use {
+    arbitrary::Arbitrary,
+    eyre::{eyre, Context as _},
+};
 
 use crate::i18n::ContainsUtf8;
 use crate::imf::mailbox::{domain, dtext, local_part, Domain, Dtext, LocalPart};
@@ -28,7 +31,6 @@ use eml_codec_derives::instrument_input;
 // NOTE: MessageID is not strictly RFC-compliant, printing it may use obsolete
 // or non-compliant syntax.
 #[derive(Clone, ContainsUtf8, Debug, PartialEq, ToStatic, ToStringFromPrint)]
-#[cfg_attr(feature = "arbitrary", derive(FuzzEq))]
 pub enum MessageID<'a> {
     // The compliant (but possibly obsolete) syntax
     ObsLeftRight {
@@ -36,7 +38,6 @@ pub enum MessageID<'a> {
         right: Domain<'a>,
     },
     // Non-compliant char sequence (must be non-empty and satisfy is_invalid_msgid_text)
-    #[cfg_attr(feature = "arbitrary", fuzz_eq(use_eq))]
     Invalid(Cow<'a, str>),
 }
 impl Print for MessageID<'_> {
@@ -69,6 +70,44 @@ impl<'a> Arbitrary<'a> for MessageID<'a> {
         }
     }
 }
+#[cfg(feature = "arbitrary")]
+impl FuzzEq for MessageID<'_> {
+    fn fuzz_eq(&self, other: &Self) -> eyre::Result<()> {
+        match (self, other) {
+            (
+                MessageID::ObsLeftRight {
+                    left: left1,
+                    right: right1,
+                },
+                MessageID::ObsLeftRight {
+                    left: left2,
+                    right: right2,
+                },
+            ) => {
+                left1.fuzz_eq(left2)?;
+                right1.fuzz_eq(right2)
+            }
+            (MessageID::Invalid(s1), MessageID::Invalid(s2)) => {
+                if s1 != s2 {
+                    Err(eyre!("MessageID::Invalid; lhs: {s1}, rhs: {s2}"))
+                } else {
+                    Ok(())
+                }
+            }
+            (id1 @ MessageID::ObsLeftRight { .. }, MessageID::Invalid(s))
+            | (MessageID::Invalid(s), id1 @ MessageID::ObsLeftRight { .. }) => {
+                // hack: we may have actually valid syntax in an Invalid() constructor;
+                // try to parse it as valid syntax…
+                if let Ok((&[], id2 @ MessageID::ObsLeftRight { .. })) = msg_id(s.as_bytes()) {
+                    id1.fuzz_eq(&id2)
+                } else {
+                    Err(eyre!("MessageID constructor mismatch"))
+                }
+            }
+        }
+        .with_context(|| format!("MessageID; lhs: {self:?}, rhs: {other:?}"))
+    }
+}
 
 // Must be non-empty
 pub type MessageIDList<'a> = Vec<MessageID<'a>>;
@@ -92,7 +131,7 @@ impl Print for MessageIDList<'_> {
 ///    our-msg-id-angle  = "<" our-msg-id-bare ">"
 ///    our-msg-id-bare   = id-left "@" id-right / 1*(not <>")
 /// ```
-/// The grammar above is ambiguous since "id-left @ id-right" and "1*(not <>")"
+/// The grammar above is ambiguous since "id-left @ id-right" and "1*(not <>"\(\))"
 /// intersect. To work around this problem, our parsers for our-msg-id and
 /// our-msg-id-bare assume that they consume all of their input. If this is not
 /// the case, our-msg-id-angle should be used instead (as it is properly
@@ -141,9 +180,20 @@ where
     }
 }
 
+// An ad-hoc list of message-id characters allowed in the best-effort "invalid"
+// syntax that we parse.
+//
 // This is VERY lenient
 fn is_invalid_msgid_text(c: char) -> bool {
-    is_nonascii_or(|c| c.is_ascii_graphic() && c != b'<' && c != b'>' && c != b'"')(c)
+    is_nonascii_or(|c| {
+        c.is_ascii_graphic()
+            // Exclude msg-id separators
+            && c != b'<' && c != b'>'
+            // Exclude quotes
+            && c != b'"'
+            // Exclude comments
+            && c != b'(' && c != b')'
+    })(c)
 }
 
 /// A *very* lenient parser for lists of `msg_id` as used by In-Reply-To and References

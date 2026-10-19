@@ -241,7 +241,7 @@ mod tests {
     use crate::print::tests::print_to_vec;
     use crate::text::charset::EmailCharset;
     use crate::text::encoding::{
-        Base64Word, EncodedWord, EncodedWordToken, QuotedChunk, QuotedWord,
+        Base64Word, Context, EncodedWord, EncodedWordToken, QuotedChunk, QuotedWord,
     };
     use crate::text::misc_token::*;
     use crate::text::words::Atom;
@@ -470,9 +470,9 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                             name: Some(Phrase(vec![
                                 PhraseToken::Encoded(EncodedWord(vec![
                                     EncodedWordToken::Quoted(QuotedWord {
-                                        enc: EmailCharset::from(b"iso-8859-1"),
+                                        enc: EmailCharset::try_from(&b"iso-8859-1"[..]).unwrap(),
                                         chunks: vec![
-                                            QuotedChunk::Safe(b"Andr"[..].into()),
+                                            QuotedChunk::Safe(Context::Phrase, b"Andr"[..].into()),
                                             QuotedChunk::Encoded(vec![0xE9]),
                                         ],
                                     })
@@ -496,11 +496,11 @@ OoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO<br />
                             UnstrToken::from_plain(" ", UnstrTxtKind::Fws),
                             UnstrToken::Encoded(EncodedWord(vec![
                                 EncodedWordToken::Base64(Base64Word{
-                                    enc: EmailCharset::from(b"iso-8859-1"),
+                                    enc: EmailCharset::try_from(&b"iso-8859-1"[..]).unwrap(),
                                     content: b"SWYgeW91IGNhbiByZWFkIHRoaXMgeW8"[..].into(),
                                 }),
                                 EncodedWordToken::Base64(Base64Word{
-                                    enc: EmailCharset::from(b"iso-8859-2"),
+                                    enc: EmailCharset::try_from(&b"iso-8859-2"[..]).unwrap(),
                                     content: b"dSB1bmRlcnN0YW5kIHRoZSBleGFtcGxlLg"[..].into(),
                                 })
                             ])),
