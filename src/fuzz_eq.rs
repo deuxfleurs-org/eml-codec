@@ -6,18 +6,6 @@ pub trait FuzzEq {
     fn fuzz_eq(&self, other: &Self) -> eyre::Result<()>;
 }
 
-// pub type EqCtx = Vec<CtxItem<'static>>;
-
-// #[derive(Clone, Copy)]
-// pub enum EqCtxItem<'a> {
-//     Ctor { typ: &'a str, name: &'a str },
-//     CtorField { typ: &'a str, name: &'a str, field: &'a str },
-//     Field { typ: &'a str, name: &'a str },
-//     VecItem { idx: usize },
-// }
-
-// pub type EqCtx = Vec<Box<dyn std::fmt::Debug>>;
-
 impl<T: FuzzEq> FuzzEq for Vec<T> {
     fn fuzz_eq(&self, other: &Self) -> eyre::Result<()> {
         if self.len() != other.len() {
